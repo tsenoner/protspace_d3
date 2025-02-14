@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ProtSpace Visualization with D3</title>
+    <!-- <script src="https://d3js.org/d3.v7.min.js"></script> -->
+    <style>
+      body {
+        font-family: sans-serif;
+      }
+      .dropdown {
+        margin: 10px;
+      }
+      svg {
+        border: 1px solid #ccc;
+      }
+      #error {
+        color: red;
+        margin: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Simple D3.js Bar Chart</h1>
+    <div>
+      <label for="projectionSelect">Projection: </label>
+      <select id="projectionSelect" class="dropdown"></select>
+      <label for="featureSelect">Feature: </label>
+      <select id="featureSelect" class="dropdown"></select>
+      <!-- <label for="shapeFeatureSelect">Shape Feature: </label>
+      <select id="shapeFeatureSelect" class="dropdown"></select> -->
+    </div>
+    <div id="error"></div>
+    <svg id="scatterplot" width="800" height="600"></svg>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

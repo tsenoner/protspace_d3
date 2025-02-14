@@ -1,0 +1,65 @@
+{
+  "feature_keys": ["category", "family"],
+  "feature_values": {
+    "category": ["toxin", "enzyme"],
+    "family": ["3FTx", "PLA2", "SVMP"]
+  },
+  "protein_data": {
+    "protein1": [0, 0],
+    "protein2": [1, 1],
+    "protein3": [0, 2],
+    "protein4": [1, 0],
+    "protein5": [1, 2]
+  },
+  "projections": [
+    {
+      "name": "UMAP_2D",
+      "dimensions": 2,
+      "protein_ids": [
+        "protein1",
+        "protein2",
+        "protein3",
+        "protein4",
+        "protein5"
+      ],
+      "coordinates": [
+        [1.234, -0.567],
+        [-0.707, 0.122],
+        [0.5, 0.75],
+        [1.0, -1.0],
+        [1.4, 0.0]
+      ]
+    },
+    {
+      "name": "PCA_2D",
+      "dimensions": 2,
+      "protein_ids": [
+        "protein1",
+        "protein2",
+        "protein3",
+        "protein4",
+        "protein5"
+      ],
+      "coordinates": [
+        [0.5, 1.0],
+        [-1.2, 0.8],
+        [0.0, -0.5],
+        [1.1, -1.0],
+        [0.3, 1.2]
+      ]
+    }
+  ],
+  "visualization_state": {
+    "styles": {
+      "category": {
+        "toxin": { "color": "rgba(255, 0, 0, 0.8)", "marker": "circle" },
+        "enzyme": { "color": "rgba(0, 0, 255, 0.8)", "marker": "square" }
+      },
+      "family": {
+        "3FTx": { "color": "rgba(0, 255, 0, 0.8)", "marker": "diamond" },
+        "PLA2": { "color": "rgba(255, 165, 0, 0.8)", "marker": "cross" },
+        "SVMP": { "color": "rgba(128, 0, 128, 0.8)", "marker": "square" }
+      }
+    }
+  }
+}
