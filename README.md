@@ -4,17 +4,17 @@ A web-based visualization tool for protein space data using D3.js and Vite.
 
 ## Features
 
-- Interactive scatter plot visualization of protein space
-- Dynamic feature selection and projection switching
-- Support for multiple shape and color mappings
-- JSON schema validation for data integrity
+-   Interactive scatter plot visualization of protein space
+-   Dynamic feature selection and projection switching
+-   Support for multiple shape and color mappings
+-   JSON schema validation for data integrity
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js (v14 or higher)
-- npm (comes with Node.js)
+-   Node.js (v14 or higher)
+-   npm (comes with Node.js)
 
 ### Installation
 
@@ -28,23 +28,21 @@ cd protspace-d3-visualization
 2. Install dependencies:
 
 ```bash
-npm install
+pnpm install
 ```
 
+3. Start the development server:
+
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 ### Building for Production
 
 To create a production build:
-```bash
-npm run build
-```
 
-To preview the production build:
 ```bash
-npm run preview
+pnpm run build
 ```
 
 ## Project Structure
@@ -57,20 +55,21 @@ protspace_d3/
 │   ├── schema.json
 │   └── example.json
 ├── index.html
-├── vite.config.js
+
 └── package.json
 ```
 
 ## Data Format
 
 The visualization expects two JSON files:
-- `schema.json`: Defines the structure of the data
-- `example.json`: Contains the actual protein space data and visualization settings
+
+-   `schema.json`: Defines the structure of the data
+-   `example.json`: Contains the actual protein space data and visualization settings
 
 ## License
 
-[Add your chosen license here]
+[Apache License 2.0](LICENSE)
 
 ## Contributing
 
-[Add contribution guidelines if desired]
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
