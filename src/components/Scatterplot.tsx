@@ -67,7 +67,35 @@ export default function Scatterplot() {
   const featureSelectRef = useRef<HTMLSelectElement>(null);
   const [visualizationData, setVisualizationData] = useState<VisualizationData | null>(null);
 
+  // Add state for selected values
+  const [selectedProjection, setSelectedProjection] = useState(0);
+  const [selectedFeature, setSelectedFeature] = useState('');
+
+  // Move these functions inside useEffect to avoid dependency issues
   useEffect(() => {
+    function validateData(schema: object, data: unknown): data is VisualizationData {
+      const ajv = new Ajv({ allErrors: true });
+      const validate = ajv.compile(schema);
+
+      const valid = validate(data);
+      if (!valid) {
+        const errorMessage = "Schema validation errors: " + ajv.errorsText(validate.errors);
+        displayError(errorMessage);
+        console.error("Validation errors:", validate.errors);
+        return false;
+      }
+
+      clearError();
+      return true;
+    }
+
+    function initializeVisualization(data: VisualizationData) {
+      initializeDropdowns(data);
+      // Set initial feature selection
+      setSelectedFeature(Object.keys(data.features)[0]);
+      setVisualizationData(data);
+    }
+
     // Load data when component mounts
     Promise.all([
       d3.json("/data/schema.json") as Promise<object>,
@@ -81,13 +109,7 @@ export default function Scatterplot() {
         displayError("Error loading JSON data: " + error);
         console.error("Error loading JSON:", error);
       });
-  }, []);
-
-  // Initialize visualization with data
-  function initializeVisualization(data: VisualizationData) {
-    initializeDropdowns(data);
-    setVisualizationData(data);
-  }
+  }, []); // Empty dependency array since all dependencies are now inside
 
   // Set up initial dropdown options
   function initializeDropdowns(data: VisualizationData) {
@@ -114,60 +136,6 @@ export default function Scatterplot() {
     });
   }
 
-  // Data validation
-  function validateData(schema: object, data: unknown): data is VisualizationData {
-    const ajv = new Ajv({ allErrors: true });
-    const validate = ajv.compile(schema);
-
-    const valid = validate(data);
-    if (!valid) {
-      const errorMessage = "Schema validation errors: " + ajv.errorsText(validate.errors);
-      displayError(errorMessage);
-      console.error("Validation errors:", validate.errors);
-      return false;
-    }
-
-    clearError();
-    return true;
-  }
-
-  // Get current dropdown selections
-  function getCurrentSelections() {
-    if (!visualizationData || !projectionSelectRef.current || !featureSelectRef.current) return null;
-
-    const projIndex = +projectionSelectRef.current.value;
-    return {
-      projection: visualizationData.projections[projIndex],
-      feature: featureSelectRef.current.value,
-    };
-  }
-
-  // Prepare data for plotting
-  function preparePlotData(projection: Projection): PlotDataPoint[] {
-    if (!visualizationData) return [];
-    return visualizationData.protein_ids.map((id, i) => ({
-      id,
-      x: projection.data[i][0],
-      y: projection.data[i][1],
-      features: mapFeatures(id, i)
-    }));
-  }
-
-  // Map features for each data point
-  function mapFeatures(proteinId: string, index: number): Record<string, string | null> {
-    if (!visualizationData) return {};
-    const features: Record<string, string | null> = {};
-
-    Object.keys(visualizationData.features).forEach(featureKey => {
-      const featureIndex = visualizationData.feature_data[featureKey][index];
-      features[featureKey] = featureIndex !== null && featureIndex !== undefined
-        ? visualizationData.features[featureKey].values[featureIndex]
-        : null;
-    });
-
-    return features;
-  }
-
   // Create scales for the plot
   function createScales(plotData: PlotDataPoint[]) {
     const xExtent = d3.extent(plotData, d => d.x);
@@ -183,29 +151,51 @@ export default function Scatterplot() {
     };
   }
 
-  // Get style for a feature value
-  function getStyleForFeature(feature: string, value: string | null): StyleForFeature | null {
-    if (!value || !visualizationData?.features[feature]) return null;
+  // Update plot when data or selections change
+  useEffect(() => {
+    if (!visualizationData || !svgRef.current) return;
 
-    const featureConfig = visualizationData.features[feature];
-    const valueIndex = featureConfig.values.indexOf(value);
+    // We can now assert that visualizationData is not null
+    const data = visualizationData; // Create a non-null reference
 
-    if (valueIndex === -1) return null;
+    // Helper functions moved inside to properly handle dependencies
+    function preparePlotData(projection: Projection): PlotDataPoint[] {
+      return data.protein_ids.map((id, i) => ({
+        id,
+        x: projection.data[i][0],
+        y: projection.data[i][1],
+        features: mapFeatures(id, i)
+      }));
+    }
 
-    return {
-      color: featureConfig.colors[valueIndex],
-      marker: featureConfig.shapes[valueIndex]
-    };
-  }
+    function mapFeatures(proteinId: string, index: number): Record<string, string | null> {
+      const features: Record<string, string | null> = {};
 
-  // Update the plot
-  function updatePlot() {
-    if (!svgRef.current || !visualizationData) return;
+      Object.keys(data.features).forEach(featureKey => {
+        const featureIndex = data.feature_data[featureKey][index];
+        features[featureKey] = featureIndex !== null && featureIndex !== undefined
+          ? data.features[featureKey].values[featureIndex]
+          : null;
+      });
 
-    const selections = getCurrentSelections();
-    if (!selections) return;
+      return features;
+    }
 
-    const plotData = preparePlotData(selections.projection);
+    function getStyleForFeature(feature: string, value: string | null): StyleForFeature | null {
+      if (!value || !data.features[feature]) return null;
+
+      const featureConfig = data.features[feature];
+      const valueIndex = featureConfig.values.indexOf(value);
+
+      if (valueIndex === -1) return null;
+
+      return {
+        color: featureConfig.colors[valueIndex],
+        marker: featureConfig.shapes[valueIndex]
+      };
+    }
+
+    const plotData = preparePlotData(data.projections[selectedProjection]);
     const scales = createScales(plotData);
 
     // Clear existing plot
@@ -218,19 +208,28 @@ export default function Scatterplot() {
       .enter()
       .append("path")
       .attr("d", d => {
-        const style = getStyleForFeature(selections.feature, d.features[selections.feature]);
+        const style = getStyleForFeature(selectedFeature, d.features[selectedFeature]);
         const shapeName = style?.marker || "circle";
         const symbolType = SHAPE_MAPPING[shapeName as keyof typeof SHAPE_MAPPING] || d3.symbolCircle;
         return d3.symbol().type(symbolType).size(200)();
       })
       .attr("transform", d => `translate(${scales.x(d.x)}, ${scales.y(d.y)})`)
       .attr("fill", d => {
-        const style = getStyleForFeature(selections.feature, d.features[selections.feature]);
+        const style = getStyleForFeature(selectedFeature, d.features[selectedFeature]);
         return style?.color || "#000";
       })
       .attr("stroke", "#333")
       .attr("stroke-width", 1);
-  }
+  }, [visualizationData, selectedProjection, selectedFeature]);
+
+  // Handle selection changes
+  const handleProjectionChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedProjection(Number(event.target.value));
+  };
+
+  const handleFeatureChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedFeature(event.target.value);
+  };
 
   // Error handling
   function displayError(message: string) {
@@ -245,34 +244,22 @@ export default function Scatterplot() {
     }
   }
 
-  // Effect to handle visualization data changes
-  useEffect(() => {
-    if (visualizationData) {
-      // Ensure the dropdowns have values selected
-      if (projectionSelectRef.current && !projectionSelectRef.current.value) {
-        projectionSelectRef.current.value = "0";
-      }
-      if (featureSelectRef.current && !featureSelectRef.current.value) {
-        featureSelectRef.current.value = Object.keys(visualizationData.features)[0];
-      }
-      updatePlot();
-    }
-  }, [visualizationData]);
-
   return (
     <div className={styles.container}>
       <div className={styles.controlsContainer}>
         <select
           ref={projectionSelectRef}
           className={styles.select}
-          onChange={updatePlot}
+          onChange={handleProjectionChange}
+          value={selectedProjection}
         >
           {/* Projection options will be populated programmatically */}
         </select>
         <select
           ref={featureSelectRef}
           className={styles.select}
-          onChange={updatePlot}
+          onChange={handleFeatureChange}
+          value={selectedFeature}
         >
           {/* Feature options will be populated programmatically */}
         </select>
