@@ -1,0 +1,31 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.controlsContainer {
+  display: flex;
+  gap: 1rem;
+}
+
+.errorMessage {
+  color: red;
+  min-height: 1.5em;
+}
+
+.select {
+  padding: 0.5rem;
+  border: 1px solid var(--foreground);
+  border-radius: 4px;
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+.scatterplot {
+  background-color: white;
+  border: 1px solid var(--foreground);
+  border-radius: 4px;
+  margin: 1rem;
+}
