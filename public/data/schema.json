@@ -1,0 +1,107 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ProtSpace Data Schema",
+  "type": "object",
+  "required": ["protein_ids", "features", "feature_data", "projections"],
+  "properties": {
+    "protein_ids": {
+      "type": "array",
+      "description": "Array of protein identifiers",
+      "items": {
+        "type": "string"
+      }
+    },
+    "features": {
+      "type": "object",
+      "description": "Feature definitions including possible values and their visual representations",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["values", "colors", "shapes"],
+        "properties": {
+          "values": {
+            "type": "array",
+            "description": "Possible values for this feature, including null",
+            "items": {
+              "type": ["string", "null"]
+            }
+          },
+          "colors": {
+            "type": "array",
+            "description": "RGBA color string for each possible value",
+            "items": {
+              "type": "string",
+              "pattern": "^rgba\\([0-9]{1,3},[0-9]{1,3},[0-9]{1,3},[0-9](?:\\.[0-9])?\\)$"
+            }
+          },
+          "shapes": {
+            "type": "array",
+            "description": "Shape identifier for each possible value",
+            "items": {
+              "type": "string",
+              "enum": [
+                "asterisk",
+                "circle",
+                "cross",
+                "diamond",
+                "diamond_stroke",
+                "plus",
+                "square",
+                "square_stroke",
+                "star",
+                "triangle",
+                "triangle_stroke",
+                "wye",
+                "times"
+              ]
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "feature_data": {
+      "type": "object",
+      "description": "Feature values for each protein. Each property key must match a key defined in the 'features' object. The value for each key is an array of indices with length equal to the number of protein_ids. Each index must be at least 0 and less than the length of the corresponding feature’s 'values' array. (Enforcing the dynamic upper bound requires custom validation.)",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "additionalProperties": false
+      }
+    },
+    "projections": {
+      "type": "array",
+      "description": "Dimensionality reduction projection information and coordinates",
+      "items": {
+        "type": "object",
+        "required": ["name", "data"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the projection method"
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Projection method parameters; structure may vary based on the method used.",
+            "additionalProperties": true
+          },
+          "data": {
+            "type": "array",
+            "description": "2D coordinates for each protein. The outer array's length must equal the number of protein_ids.",
+            "items": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      }
+    },
+    "additionalProperties": false
+  }
+}
