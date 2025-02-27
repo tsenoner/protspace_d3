@@ -1,4 +1,4 @@
-import Scatterplot from '@/components/Scatterplot';
+import Scatterplot from '@/components/Scatterplot/Scatterplot';
 
 export default function Home() {
   return (
