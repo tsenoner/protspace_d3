@@ -34,43 +34,13 @@ ProtSpace ingests protein data in a structured JSON format conforming to the fol
             "description": "Feature definitions including possible values and their visual representations",
             "additionalProperties": {
                 "type": "object",
-                "required": ["values", "colors", "shapes"],
+                "required": ["values"],
                 "properties": {
                     "values": {
                         "type": "array",
                         "description": "Possible values for this feature, including null",
                         "items": {
                             "type": ["string", "null"]
-                        }
-                    },
-                    "colors": {
-                        "type": "array",
-                        "description": "RGBA color string for each possible value",
-                        "items": {
-                            "type": "string",
-                            "pattern": "^rgba\\([0-9]{1,3},[0-9]{1,3},[0-9]{1,3},[0-9](?:\\.[0-9])?\\)$"
-                        }
-                    },
-                    "shapes": {
-                        "type": "array",
-                        "description": "Shape identifier for each possible value",
-                        "items": {
-                            "type": "string",
-                            "enum": [
-                                "asterisk",
-                                "circle",
-                                "cross",
-                                "diamond",
-                                "diamond_stroke",
-                                "plus",
-                                "square",
-                                "square_stroke",
-                                "star",
-                                "triangle",
-                                "triangle_stroke",
-                                "wye",
-                                "times"
-                            ]
                         }
                     }
                 },
@@ -122,6 +92,96 @@ ProtSpace ingests protein data in a structured JSON format conforming to the fol
         },
         "additionalProperties": false
     }
+}
+```
+
+Example:
+
+```json
+{
+    "protein_ids": [
+        "P12345",
+        "P23456",
+        "P34567",
+        "P45678",
+        "P56789",
+        "P67890",
+        "P78901",
+        "P89012",
+        "P90123",
+        "P01234"
+    ],
+    "features": {
+        "function": {
+            "values": [
+                "Enzyme",
+                "Transporter",
+                "Receptor",
+                "Structural",
+                "Signaling",
+                null
+            ]
+        },
+        "localization": {
+            "values": [
+                "Cytoplasm",
+                "Nucleus",
+                "Membrane",
+                "Mitochondria",
+                "ER",
+                null
+            ]
+        },
+        "organism": {
+            "values": ["Human", "Mouse", "Yeast", "E. coli", null]
+        }
+    },
+    "feature_data": {
+        "function": [0, 1, 2, 3, 4, 0, 1, 2, 3, 5],
+        "localization": [0, 1, 2, 3, 4, 0, 1, 2, 4, 5],
+        "organism": [0, 0, 1, 1, 2, 2, 3, 3, 0, 4]
+    },
+    "projections": [
+        {
+            "name": "UMAP",
+            "metadata": {
+                "n_neighbors": 15,
+                "min_dist": 0.1,
+                "metric": "euclidean"
+            },
+            "data": [
+                [2.1, 3.5],
+                [-1.2, 4.3],
+                [5.3, -2.1],
+                [0.5, 0.8],
+                [-3.2, -2.7],
+                [4.1, 1.5],
+                [-0.2, -3.3],
+                [2.3, 2.7],
+                [-2.2, 1.3],
+                [0.1, -0.9]
+            ]
+        },
+        {
+            "name": "t-SNE",
+            "metadata": {
+                "perplexity": 30,
+                "learning_rate": 200,
+                "n_iter": 1000
+            },
+            "data": [
+                [1.8, 2.9],
+                [-0.8, 3.7],
+                [4.7, -1.8],
+                [0.3, 0.5],
+                [-2.9, -2.2],
+                [3.8, 1.2],
+                [-0.1, -2.9],
+                [2.0, 2.3],
+                [-1.9, 1.0],
+                [0.2, -0.7]
+            ]
+        }
 }
 ```
 
