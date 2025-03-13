@@ -200,8 +200,9 @@ Example:
 
     - Application name/logo (left)
     - Search bar with protein ID auto-suggest (center)
-    - Session controls: Save/Load buttons, ID dropdown with highlighted proteins (right)
+    - Session controls: Save/Load/Share buttons, ID dropdown with highlighted proteins (right)
         - ID dropdown allows deselection of highlighted proteins
+        - Share button opens dialog for exporting session file
 
 2. **Control Bar (horizontal, below header)**
 
@@ -330,6 +331,39 @@ Example:
 -   Load previous sessions from JSON file
 -   JSON file format matches the input schema
 
+### Session Sharing
+
+-   Share complete visualization state including:
+    -   Current projection view
+    -   Selected and highlighted proteins
+    -   Legend status (visibility toggles, extractions from "Other" category)
+    -   Custom visual encodings (colors and shapes) for all features, not just the active one
+    -   Custom z-ordering of legend elements
+    -   Isolation mode status if active
+-   Primary sharing mechanism:
+    -   **Session files**: Export compact JSON files containing complete session state
+    -   Files include metadata, visualization state, and customizations
+    -   Standard file extension (.protspace) for easy identification
+    -   Session files maintain backward compatibility across versions
+-   File schema:
+    -   Base JSON schema (matching input schema) with additional state information
+    -   Additional state keys for legend customizations, selections, and view state
+    -   All customizations for all features stored, not just active feature
+    -   Default color schemes and shape information (filled circles) included as baseline
+-   Security and privacy:
+    -   No data leaves the user's browser except through explicit file export
+    -   Users control distribution of exported session files
+    -   No authentication required
+-   UI integration:
+    -   "Share" button in the session controls area of the header
+    -   Export dialog with session metadata options
+    -   Visual indicator when viewing a shared session file
+-   Future extension (not immediate priority):
+    -   Backend-based sharing with URLs and session codes
+    -   Server-side storage for shared sessions with unique identifiers
+    -   Optional expiration dates for shared sessions
+    -   Password protection for backend-shared sessions
+
 ## Error Handling & User Feedback
 
 ### Notification System
@@ -357,9 +391,18 @@ Example:
     - Network error handling with retry option
 
 3. **User Actions:**
+
     - Visual confirmation for selections
     - Count indicators for selected/visible proteins
     - Confirmation dialogs for potentially destructive operations
+
+4. **Session Sharing:**
+    - Progress indicator during session file generation
+    - Clear feedback when session file is successfully exported
+    - Warning when importing potentially incompatible or older version session files
+    - Error messages for failed import attempts (e.g., corrupted files, incompatible schema)
+    - Validation feedback for imported session files with recovery options
+    - Future backend sharing: notifications for expired sessions or password requirements
 
 ## Performance Considerations
 
