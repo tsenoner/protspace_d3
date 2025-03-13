@@ -639,8 +639,6 @@ export class ProtInteractiveLegend extends LitElement {
 -   **CSS Variables**: Set custom properties for fine-grained control
 -   **Style Configuration Objects**: Structured configuration for complex styling needs
 
-```
-
 ## Testing Requirements
 
 ### Testing Strategy
@@ -692,4 +690,3 @@ export class ProtInteractiveLegend extends LitElement {
 6. Export and session management
 7. UI refinement and responsive design
 8. Performance optimizations for large datasets (future)
-```
