@@ -183,6 +183,13 @@ ProtSpace ingests protein data in a structured JSON format conforming to the fol
 -   Support zoom and pan functionality
 -   Handle datasets from ~100 to potentially 1M+ proteins
 
+### Web Component Architecture
+
+-   Core visualization components (scatterplot and interactive legend) implemented as framework-agnostic web components using Lit
+-   Direct DOM manipulation for D3.js inside web components for optimal performance
+-   Light DOM approach (rather than Shadow DOM) to enable Tailwind CSS styling
+-   Rich, well-defined APIs for extensive customization from the parent React application
+
 ### Data Navigation
 
 -   Enable switching between different projections with instant view changes (no animations)
@@ -307,15 +314,36 @@ For future implementation (not immediate priority):
 -   Web Workers for heavy computations
 -   Efficient data structures (typed arrays)
 
+### Web Component Performance
+
+-   Direct DOM manipulation by D3.js within web components (bypassing React's virtual DOM)
+-   Use of requestAnimationFrame for smooth rendering
+-   Handling high-frequency operations (e.g., panning, zooming) directly in the component
+-   Efficient SVG rendering with element recycling for large datasets
+-   View-based filtering for very large datasets (render only what's visible)
+
 ## Technical Implementation
+
+### Architecture Approach
+
+-   **Hybrid Architecture**:
+    -   Core visualization components (scatterplot and legend) as web components using Lit
+    -   Application shell and UI controls using React/Next.js
+    -   This approach provides optimal performance for visualizations while maintaining React's ecosystem advantages
 
 ### Technology Stack
 
--   **Framework**: Next.js with React
+-   **Framework**:
+    -   Next.js with React for application shell
+    -   Lit for web components (visualization elements)
 -   **Language**: TypeScript
--   **Visualization**: D3.js
--   **Styling**: Tailwind CSS with Shadcn/UI components
+-   **Visualization**: D3.js (directly manipulating DOM within web components)
+-   **Styling**:
+    -   Tailwind CSS for both React components and web components
+    -   CSS custom properties for theme configuration
+    -   Light DOM approach for web components to enable Tailwind styling
 -   **Package Manager**: pnpm
+-   **Monorepo Management**: Turborepo
 -   **Code Quality**: ESLint
 -   **Validation**: Zod.dev for schema validation
 
@@ -325,28 +353,189 @@ For future implementation (not immediate priority):
 protspace/
 ├── .eslintrc.js
 ├── .gitignore
-├── next.config.js
 ├── package.json
-├── pnpm-lock.yaml
-├── tsconfig.json
-├── public/
-├── components/
-│   ├── ui/
-│   ├── layout/
-│   ├── visualization/
-│   ├── 3d-viewer/
-│   └── controls/
-├── lib/
-│   ├── types/
-│   ├── validators/
-│   ├── d3/
-│   └── api/
-├── hooks/
-├── pages/
-│   ├── index.tsx
-│   ├── _app.tsx
-│   └── api/
-└── styles/
+├── pnpm-workspace.yaml
+├── turbo.json
+├── tsconfig.base.json
+├── packages/
+│   ├── tailwind-config/           # Shared Tailwind configuration
+│   │   ├── package.json
+│   │   ├── tailwind.config.js     # Base configuration
+│   │   └── theme.js               # Shared theme tokens
+│   │
+│   ├── schema/                    # Shared schema definitions
+│   │   ├── package.json
+│   │   └── src/
+│   │       ├── index.ts
+│   │       └── validation.ts      # Zod schemas
+│   │
+│   ├── scatter-plot/              # Scatterplot web component
+│   │   ├── package.json
+│   │   ├── tailwind.config.js     # Extends shared config
+│   │   └── src/
+│   │       ├── index.ts
+│   │       ├── scatter-plot.ts    # Main component
+│   │       └── utilities/         # D3 helpers for scatterplot
+│   │
+│   ├── interactive-legend/        # Legend web component
+│   │   ├── package.json
+│   │   ├── tailwind.config.js     # Extends shared config
+│   │   └── src/
+│   │       ├── index.ts
+│   │       └── interactive-legend.ts  # Main component
+│   │
+│   └── web-app/                   # Next.js React application
+│       ├── next.config.js
+│       ├── package.json
+│       ├── tailwind.config.js     # Extends shared config
+│       ├── app/                   # Next.js app router
+│       ├── components/
+│       │   ├── ui/                # Shadcn UI components
+│       │   ├── layout/            # Application layout components
+│       │   ├── controls/          # Control bar, search, etc.
+│       │   └── 3d-viewer/         # Molstar integration
+│       ├── lib/
+│       │   ├── types/
+│       │   ├── api/
+│       │   └── state/             # Application state management
+│       └── styles/
+│
+├── docs/                          # Documentation site
+└── examples/                      # Example datasets and demos
+```
+
+### Component APIs
+
+#### Scatter Plot Web Component API
+
+Non-exhaustive example on how the APIs might look like.
+
+```typescript
+@customElement("prot-scatter-plot")
+export class ProtScatterPlot extends LitElement {
+    // Disable Shadow DOM to allow Tailwind styles to flow through
+    createRenderRoot() {
+        return this; // Use Light DOM instead of Shadow DOM
+    }
+
+    // Core Data Properties
+    @property({ type: Array }) data = [];
+    @property({ type: Array }) selectedProteinIds = [];
+    @property({ type: Array }) highlightedProteinIds = [];
+    @property({ type: String }) projectionName = "";
+
+    // Visual Customization Properties
+    @property({ type: Object }) dimensions = { width: 800, height: 600 };
+    @property({ type: Object }) margins = {
+        top: 10,
+        right: 10,
+        bottom: 10,
+        left: 10,
+    };
+    @property({ type: Object }) featureStyles = {}; // Mapping of feature values to visual properties
+    @property({ type: Number }) baseOpacity = 0.8;
+    @property({ type: Number }) selectedOpacity = 1.0;
+    @property({ type: Number }) fadedOpacity = 0.2;
+    @property({ type: Boolean }) isolationMode = false;
+
+    // Style Customization via Tailwind
+    @property({ type: String }) containerClass = ""; // Additional Tailwind classes for container
+    @property({ type: String }) pointClass = ""; // Tailwind classes for points
+    @property({ type: String }) selectedPointClass = ""; // Tailwind classes for selected points
+    @property({ type: String }) axisClass = ""; // Tailwind classes for axes
+
+    // Theme Support
+    @property({ type: String }) theme = "default"; // 'default', 'dark', 'light', 'custom'
+    @property({ type: Object }) themeVariables = {}; // Custom theme variables
+
+    // Methods for external control
+    public zoomToSelection() {
+        /* Implementation */
+    }
+    public resetView() {
+        /* Implementation */
+    }
+    public updateProjection(projectionName) {
+        /* Implementation */
+    }
+
+    // Events
+    // protein-click, protein-hover, selection-changed, etc.
+}
+```
+
+#### Interactive Legend Web Component API
+
+```typescript
+@customElement("prot-interactive-legend")
+export class ProtInteractiveLegend extends LitElement {
+    // Disable Shadow DOM to allow Tailwind styles to flow through
+    createRenderRoot() {
+        return this;
+    }
+
+    // Core Data Properties
+    @property({ type: Object }) features = {};
+    @property({ type: Object }) featureData = {};
+    @property({ type: String }) selectedFeature = "";
+    @property({ type: Array }) hiddenValues = [];
+
+    // Customization Properties
+    @property({ type: Number }) maxVisibleValues = 10;
+    @property({ type: Boolean }) showCounts = true;
+
+    // Style Customization via Tailwind
+    @property({ type: String }) containerClass = "";
+    @property({ type: String }) itemClass = "";
+    @property({ type: String }) activeItemClass = "";
+    @property({ type: String }) inactiveItemClass = "";
+    @property({ type: String }) labelClass = "";
+    @property({ type: String }) countClass = "";
+
+    // Theme Support
+    @property({ type: String }) theme = "default";
+    @property({ type: Object }) themeVariables = {};
+
+    // Methods
+    public toggleFeatureValue(value) {
+        /* Implementation */
+    }
+    public extractFromOther(value) {
+        /* Implementation */
+    }
+    public setZOrder(valueOrder) {
+        /* Implementation */
+    }
+
+    // Events
+    // value-toggled, z-order-changed, etc.
+}
+```
+
+### Styling Approach
+
+#### Web Component Styling Strategy
+
+-   **Light DOM Integration**: Web components use Light DOM to allow Tailwind styles to flow through
+-   **Tailwind Integration**: Custom elements designed to accept Tailwind utility classes directly
+-   **CSS Part Exposure**: Components expose named parts for targeted styling
+-   **Theme Variables**: CSS custom properties for color schemes, sizing, and other visual attributes
+-   **Minimal Base Styling**: Only essential styling is included by default, with most styling delegated to Tailwind
+
+#### Tailwind Configuration
+
+-   **Shared Configuration**: Core theme variables defined in a shared package
+-   **Component-Specific Extensions**: Each web component extends the shared configuration
+-   **Responsive Design**: Tailwind's responsive utilities available to all components
+-   **Dark Mode Support**: Built-in support for light/dark theming
+
+#### Style Customization Options
+
+-   **Direct Class Injection**: Pass Tailwind classes directly to components
+-   **Theme Properties**: Set `theme` property to predefined values ('default', 'dark', 'light')
+-   **CSS Variables**: Set custom properties for fine-grained control
+-   **Style Configuration Objects**: Structured configuration for complex styling needs
+
 ```
 
 ## Testing Requirements
@@ -392,7 +581,7 @@ protspace/
 
 ## Development Priorities
 
-1. Core visualization engine with D3.js
+1. Core visualization engine with D3.js and web components
 2. Data loading and validation
 3. Selection and filtering functionality
 4. Interactive legend implementation
@@ -400,3 +589,4 @@ protspace/
 6. Export and session management
 7. UI refinement and responsive design
 8. Performance optimizations for large datasets (future)
+```
