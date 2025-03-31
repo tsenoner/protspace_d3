@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import Image from "next/image";
+import Logo from "@/components/Logo/Logo";
 
 interface HeaderProps {
   onSearch: (query: string) => void;
@@ -110,17 +110,20 @@ export default function Header({
   }, []);
 
   return (
-    <header className="flex items-center justify-between px-4 py-2 bg-white border-b shadow-sm dark:bg-gray-900 dark:border-gray-800">
+    <header className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b shadow-sm dark:bg-gray-900 dark:border-gray-800">
       {/* Logo */}
       <div className="flex items-center">
-        <Image
-          src="/protspaceLogo.svg"
-          alt="ProtSpace Logo"
-          width={32}
-          height={32}
-          className="mr-2"
-        />
-        <span className="text-lg font-semibold">ProtSpace</span>
+        <div className="flex items-center space-x-3">
+          <Logo className="w-9 h-9 text-blue-500 dark:text-blue-400" />
+          <div className="flex flex-col">
+            <span className="text-xl font-bold bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-400 dark:to-blue-500 bg-clip-text text-transparent">
+              ProtSpace
+            </span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              Protein Space Visualization
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Search Bar with Auto-suggestion */}
@@ -260,7 +263,7 @@ export default function Header({
 
         <button
           onClick={onSaveSession}
-          className="p-1 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+          className="p-1 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer"
           title="Save Session"
         >
           <svg
@@ -281,7 +284,7 @@ export default function Header({
 
         <button
           onClick={onLoadSession}
-          className="p-1 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+          className="p-1 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer"
           title="Load Session"
         >
           <svg
@@ -295,14 +298,14 @@ export default function Header({
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth={2}
-              d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
+              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
             />
           </svg>
         </button>
 
         <button
           onClick={onShareSession}
-          className="p-1 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+          className="p-1 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer"
           title="Share Session"
         >
           <svg

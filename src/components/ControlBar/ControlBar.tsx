@@ -73,7 +73,7 @@ export default function ControlBar({
             id="feature-select"
             value={selectedFeature}
             onChange={(e) => onFeatureChange(e.target.value)}
-            className="py-1 px-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+            className="py-1.5 px-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 transition-all duration-200 hover:border-gray-400 dark:hover:border-gray-600"
           >
             {features.map((feature) => (
               <option key={feature} value={feature}>
