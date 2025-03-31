@@ -546,22 +546,31 @@ const InteractiveLegend: React.FC<InteractiveLegendProps> = ({
                   : item.value
               }
               className={`
-                flex items-center justify-between p-2 rounded cursor-pointer transition-all duration-150
+                flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-all duration-200
                 ${
                   item.isVisible
-                    ? "bg-gray-50 dark:bg-gray-700"
-                    : "bg-gray-100 dark:bg-gray-600 opacity-50"
+                    ? "bg-gray-50 dark:bg-gray-800"
+                    : "bg-gray-100 dark:bg-gray-700 opacity-50"
                 }
                 ${
                   draggedItem === item.value
-                    ? "bg-blue-100 dark:bg-blue-900"
+                    ? "bg-blue-50 dark:bg-blue-900/30"
                     : ""
                 }
                 
-                ${isItemSelected ? "ring-2 ring-blue-500" : ""}
-                ${item.extractedFromOther ? "border-l-4 border-green-500" : ""}
-                hover:bg-gray-100 dark:hover:bg-gray-600 
-                active:bg-blue-200 dark:active:bg-blue-800
+                ${
+                  isItemSelected
+                    ? "ring-2 ring-blue-500 dark:ring-blue-400"
+                    : ""
+                }
+                ${
+                  item.extractedFromOther
+                    ? "border-l-4 border-green-500 dark:border-green-400"
+                    : ""
+                }
+                hover:bg-gray-100 dark:hover:bg-gray-700
+                active:bg-blue-100 dark:active:bg-blue-900/50
+                shadow-sm hover:shadow-md
               `}
               onClick={() => handleItemClick(item.value)}
               onDoubleClick={() => handleItemDoubleClick(item.value)}

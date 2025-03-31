@@ -514,8 +514,6 @@ export default function ImprovedScatterplot({
 
         // View protein structure
         if (onViewStructure) {
-          console.log("Right-click to view structure for protein:", d.id);
-          console.log("Full protein data:", d);
           onViewStructure(d.id);
         }
       });
@@ -643,8 +641,14 @@ export default function ImprovedScatterplot({
           className="absolute z-10 p-2 bg-white rounded shadow-md border text-sm dark:bg-gray-800 dark:border-gray-700"
           style={{
             left: tooltipData.x + 10,
-            top: tooltipData.y - 10,
+            top:
+              tooltipData.y > height / 2
+                ? tooltipData.y - 120 // Position above when in bottom half
+                : tooltipData.y + 10, // Position below when in top half
             pointerEvents: "none",
+            transform: "translateY(-50%)", // Center vertically relative to the point
+            maxWidth: "200px", // Limit width to prevent overflow
+            wordWrap: "break-word", // Allow text to wrap
           }}
         >
           <div className="font-bold">{tooltipData.protein.id}</div>
@@ -653,6 +657,7 @@ export default function ImprovedScatterplot({
             {tooltipData.protein.featureValues[selectedFeature] || "N/A"}
           </div>
           <div className="text-xs mt-1 flex items-center text-gray-500">
+            Right-click to view 3D structure
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="h-4 w-4 mr-1"
@@ -673,7 +678,6 @@ export default function ImprovedScatterplot({
                 d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
               />
             </svg>
-            Right-click to view 3D structure
           </div>
         </div>
       )}
