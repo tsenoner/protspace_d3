@@ -15,7 +15,7 @@ interface ControlBarProps {
   onToggleSelectionMode: () => void;
   onToggleIsolationMode: () => void;
   onClearSelections: () => void;
-  onExport: (type: "json" | "ids" | "png" | "svg") => void;
+  onExport: (type: "json" | "ids" | "png" | "svg" | "pdf") => void;
 }
 
 export default function ControlBar({
@@ -253,6 +253,17 @@ export default function ControlBar({
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
                   >
                     Export SVG
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => {
+                      onExport("pdf");
+                      setShowExportMenu(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                  >
+                    Export PDF
                   </button>
                 </li>
               </ul>

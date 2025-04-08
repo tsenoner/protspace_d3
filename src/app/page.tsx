@@ -9,6 +9,7 @@ import StatusBar from "@/components/StatusBar/StatusBar";
 import { VisualizationData } from "@/components/Scatterplot/ImprovedScatterplot";
 import * as d3 from "d3";
 import dynamic from "next/dynamic";
+import { jsPDF } from "jspdf";
 
 // Use dynamic import for the structure viewer to avoid SSR issues
 const StructureViewer = dynamic(
@@ -38,7 +39,6 @@ export default function ProtSpaceApp() {
       return;
     }
 
-    console.log("Setting viewStructureId for AlphaFold:", id);
     // Check if it's likely a UniProt ID (typical format is alphanumeric, often starts with a letter followed by numbers)
     const uniprotPattern = /^[A-Z0-9]{6,10}$/i;
     if (!uniprotPattern.test(id)) {
@@ -138,9 +138,6 @@ export default function ProtSpaceApp() {
         });
       }
     } else {
-      // No matches found - provide visual feedback
-      console.log(`No proteins found matching "${query}"`);
-      // Could add a toast notification here
     }
   };
 
@@ -246,7 +243,7 @@ export default function ProtSpaceApp() {
   };
 
   // Handle export
-  const handleExport = (type: "json" | "ids" | "png" | "svg") => {
+  const handleExport = (type: "json" | "ids" | "png" | "svg" | "pdf") => {
     if (!visualizationData) return;
 
     switch (type) {
@@ -281,8 +278,131 @@ export default function ProtSpaceApp() {
 
       case "png":
       case "svg":
-        // These would require more complex implementation for export
-        alert(`${type.toUpperCase()} export is not yet implemented.`);
+      case "pdf":
+        // Get the SVG element from the scatterplot
+        const svgElement = document
+          .querySelector(".protein-point")
+          ?.closest("svg");
+        if (!svgElement) {
+          alert("Could not find visualization element to export.");
+          return;
+        }
+
+        // Create a clone of the SVG to modify for export
+        const svgClone = svgElement.cloneNode(true) as SVGElement;
+
+        // Remove any interactive elements or overlays that shouldn't be in the export
+        const overlays = svgClone.querySelectorAll(
+          ".absolute, .z-10, button, .reset-view-button"
+        );
+        overlays.forEach((overlay) => overlay.remove());
+
+        // Also remove any tooltip or control elements
+        const tooltips = svgClone.querySelectorAll(
+          '[class*="tooltip"], [class*="control"]'
+        );
+        tooltips.forEach((tooltip) => tooltip.remove());
+
+        // Remove any elements with pointer events
+        const interactiveElements = svgClone.querySelectorAll(
+          '[style*="cursor: pointer"]'
+        );
+        interactiveElements.forEach((el) => {
+          (el as SVGElement).style.cursor = "default";
+        });
+
+        // Convert SVG to data URL
+        const svgData = new XMLSerializer().serializeToString(svgClone);
+        const svgBlob = new Blob([svgData], {
+          type: "image/svg+xml;charset=utf-8",
+        });
+        const svgUrl = URL.createObjectURL(svgBlob);
+
+        if (type === "pdf") {
+          // Create PDF with proper dimensions
+          const pdf = new jsPDF({
+            orientation:
+              svgElement.clientWidth > svgElement.clientHeight
+                ? "landscape"
+                : "portrait",
+            unit: "px",
+            format: [svgElement.clientWidth, svgElement.clientHeight],
+          });
+
+          // First convert SVG to PNG using canvas
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          const img = new Image();
+
+          // Set canvas size to match SVG
+          canvas.width = svgElement.clientWidth;
+          canvas.height = svgElement.clientHeight;
+
+          img.onload = () => {
+            if (ctx) {
+              ctx.fillStyle = "#ffffff"; // White background
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              ctx.drawImage(img, 0, 0);
+
+              // Get PNG data URL
+              const pngDataUrl = canvas.toDataURL("image/png");
+
+              // Add PNG to PDF
+              pdf.addImage(
+                pngDataUrl,
+                "PNG",
+                0,
+                0,
+                svgElement.clientWidth,
+                svgElement.clientHeight
+              );
+              pdf.save("protspace_visualization.pdf");
+
+              // Cleanup
+              URL.revokeObjectURL(svgUrl);
+            }
+          };
+
+          img.src = svgUrl;
+        } else if (type === "png") {
+          // Convert SVG to PNG
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          const img = new Image();
+
+          // Set canvas size to match SVG
+          canvas.width = svgElement.clientWidth;
+          canvas.height = svgElement.clientHeight;
+
+          img.onload = () => {
+            if (ctx) {
+              ctx.fillStyle = "#ffffff"; // White background
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              ctx.drawImage(img, 0, 0);
+
+              // Convert to PNG and download
+              const pngUrl = canvas.toDataURL("image/png");
+              const link = document.createElement("a");
+              link.href = pngUrl;
+              link.download = "protspace_visualization.png";
+              link.click();
+
+              // Cleanup
+              URL.revokeObjectURL(svgUrl);
+            }
+          };
+
+          img.src = svgUrl;
+        } else {
+          // Export as SVG
+          const link = document.createElement("a");
+          link.href = svgUrl;
+          link.download = "protspace_visualization.svg";
+          link.click();
+
+          // Cleanup
+          setTimeout(() => URL.revokeObjectURL(svgUrl), 100);
+        }
         break;
     }
   };
@@ -451,12 +571,8 @@ export default function ProtSpaceApp() {
               featureData={{
                 name: selectedFeature,
                 values: visualizationData.features[selectedFeature].values,
-                colors: visualizationData.features[selectedFeature].values.map(
-                  (_, i) => d3.schemeCategory10[i % 10]
-                ),
-                shapes: visualizationData.features[selectedFeature].values.map(
-                  () => "circle"
-                ),
+                colors: visualizationData.features[selectedFeature].colors,
+                shapes: visualizationData.features[selectedFeature].shapes,
               }}
               featureValues={selectedFeatureValues}
               onToggleVisibility={handleToggleVisibility}
@@ -465,6 +581,7 @@ export default function ProtSpaceApp() {
               onOpenCustomization={handleOpenCustomization}
               selectedItems={Array.from(selectedFeatureItemsSet)}
               className="w-full lg:w-auto"
+              isolationMode={isolationMode}
             />
           )}
 
