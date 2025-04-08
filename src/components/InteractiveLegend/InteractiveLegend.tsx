@@ -20,6 +20,18 @@ const SHAPE_MAPPING = {
   times: d3.symbolTimes,
 } as const;
 
+// Add these constants at the top of the file after imports
+const DEFAULT_STYLES = {
+  other: {
+    color: "#888888",
+    shape: "circle",
+  },
+  null: {
+    color: "#888888",
+    shape: "circle",
+  },
+};
+
 export interface LegendItem {
   value: string | null;
   color: string;
@@ -47,6 +59,7 @@ export interface InteractiveLegendProps {
   onOpenCustomization?: () => void;
   selectedItems?: string[];
   className?: string;
+  isolationMode?: boolean;
 }
 
 interface OtherItemsDialogProps {
@@ -141,6 +154,7 @@ const InteractiveLegend: React.FC<InteractiveLegendProps> = ({
   onOpenCustomization,
   selectedItems = [],
   className = "",
+  isolationMode = false,
 }) => {
   const [legendItems, setLegendItems] = useState<LegendItem[]>([]);
   const [otherItems, setOtherItems] = useState<[string | null, number][]>([]);
@@ -168,14 +182,20 @@ const InteractiveLegend: React.FC<InteractiveLegendProps> = ({
       (a, b) => b[1] - a[1]
     ); // Sort by count, descending
 
+    // When in isolation mode, we only show the values that actually appear in the data
+    // This makes the legend more relevant to what's currently displayed
+    const filteredSortedItems = isolationMode
+      ? sortedItems.filter(([value]) => frequencyMap.has(value))
+      : sortedItems;
+
     // Take the top N items
-    const topItems = sortedItems.slice(0, maxVisibleValues);
+    const topItems = filteredSortedItems.slice(0, maxVisibleValues);
 
     // Find null entry
-    const nullEntry = sortedItems.find(([value]) => value === null);
+    const nullEntry = filteredSortedItems.find(([value]) => value === null);
 
     // Get items that will go into the "Other" category (excluding null)
-    const otherItemsArray = sortedItems
+    const otherItemsArray = filteredSortedItems
       .slice(maxVisibleValues)
       .filter(([value]) => value !== null);
 
@@ -197,20 +217,27 @@ const InteractiveLegend: React.FC<InteractiveLegendProps> = ({
 
       return {
         value,
-        color: valueIndex !== -1 ? featureData.colors[valueIndex] : "#888",
-        shape: valueIndex !== -1 ? featureData.shapes[valueIndex] : "circle",
+        color:
+          valueIndex !== -1
+            ? featureData.colors[valueIndex]
+            : DEFAULT_STYLES.null.color,
+        shape:
+          valueIndex !== -1
+            ? featureData.shapes[valueIndex]
+            : DEFAULT_STYLES.null.shape,
         count,
         isVisible: true,
         zOrder: index,
       };
     });
 
-    // Add "Other" if needed
-    if (otherCount > 0) {
+    // Add "Other" if needed and if we're not in isolation mode
+    // In isolation mode, we generally want to show all values explicitly
+    if (otherCount > 0 && !isolationMode) {
       items.push({
         value: "Other",
-        color: "#888",
-        shape: "circle",
+        color: DEFAULT_STYLES.other.color,
+        shape: DEFAULT_STYLES.other.shape,
         count: otherCount,
         isVisible: true,
         zOrder: items.length,
@@ -222,8 +249,14 @@ const InteractiveLegend: React.FC<InteractiveLegendProps> = ({
       const valueIndex = featureData.values.findIndex((v) => v === null);
       items.push({
         value: null,
-        color: valueIndex !== -1 ? featureData.colors[valueIndex] : "#ccc",
-        shape: valueIndex !== -1 ? featureData.shapes[valueIndex] : "circle",
+        color:
+          valueIndex !== -1
+            ? featureData.colors[valueIndex]
+            : DEFAULT_STYLES.null.color,
+        shape:
+          valueIndex !== -1
+            ? featureData.shapes[valueIndex]
+            : DEFAULT_STYLES.null.shape,
         count: nullEntry[1],
         isVisible: true,
         zOrder: items.length,
@@ -235,12 +268,15 @@ const InteractiveLegend: React.FC<InteractiveLegendProps> = ({
       (item) => item.extractedFromOther
     );
 
-    // Add extracted items
+    // Add extracted items, but only if they exist in the current data (important for isolation mode)
     extractedItems.forEach((extractedItem) => {
-      // Only add if not already in the list
-      if (!items.some((item) => item.value === extractedItem.value)) {
+      // Only add if not already in the list and if they exist in the current frequencies
+      if (
+        !items.some((item) => item.value === extractedItem.value) &&
+        frequencyMap.has(extractedItem.value)
+      ) {
         // Find the original frequency of this item
-        const itemFrequency = sortedItems.find(
+        const itemFrequency = filteredSortedItems.find(
           ([value]) => value === extractedItem.value
         );
 
@@ -256,8 +292,7 @@ const InteractiveLegend: React.FC<InteractiveLegendProps> = ({
 
     // Set items state
     setLegendItems(items);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [featureData, featureValues, maxVisibleValues]);
+  }, [featureData, featureValues, maxVisibleValues, isolationMode]);
 
   // Handle item click (toggle visibility)
   const handleItemClick = useCallback(
@@ -533,9 +568,6 @@ const InteractiveLegend: React.FC<InteractiveLegendProps> = ({
               item.value !== "Other" &&
               selectedItems.includes(item.value));
 
-          console.log("isItemSelected", isItemSelected);
-          console.log("item.value", item.value);
-          console.log("selectedItems", selectedItems);
           return (
             <li
               key={

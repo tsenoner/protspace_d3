@@ -54,7 +54,6 @@ export default function StructureViewer({
     if (!proteinId || !viewerRef.current) return;
 
     const formattedId = proteinId.split(".")[0]; // Remove version numbers if any
-    console.log("Loading structure for protein ID:", formattedId);
 
     // Load the Molstar viewer via CDN
     const loadScript = () => {
@@ -116,13 +115,8 @@ export default function StructureViewer({
         // Try loading from AlphaFold
         try {
           const alphafoldUrl = `https://alphafold.ebi.ac.uk/files/AF-${formattedId}-F1-model_v4.pdb`;
-          console.log(
-            "Attempting to load structure from AlphaFold:",
-            alphafoldUrl
-          );
 
           await viewer?.loadStructureFromUrl(alphafoldUrl, "pdb");
-          console.log("AlphaFold structure loaded successfully");
           setIsLoading(false);
         } catch (alphafoldError) {
           console.error("Error loading AlphaFold structure:", alphafoldError);

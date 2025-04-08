@@ -65,6 +65,17 @@ const DEFAULT_CONFIG = {
   zoomExtent: [0.1, 10] as [number, number],
 };
 
+const DEFAULT_STYLES = {
+  other: {
+    color: "#888888",
+    shape: d3.symbolCircle,
+  },
+  null: {
+    color: "#888888",
+    shape: d3.symbolCircle,
+  },
+};
+
 const SHAPE_MAPPING = {
   asterisk: d3.symbolAsterisk,
   circle: d3.symbolCircle,
@@ -188,15 +199,25 @@ export default function ImprovedScatterplot({
   // Callbacks remain mostly the same, but simplified
   const getColor = useCallback(
     (protein: PlotDataPoint) => {
-      if (!data || !data.features[selectedFeature]) return "#888";
+      if (!data || !data.features[selectedFeature])
+        return DEFAULT_STYLES.other.color;
 
       const featureValue = protein.featureValues[selectedFeature];
-      if (featureValue === null) return "#888";
+      if (featureValue === null) {
+        // Find the index of null in the feature values array
+        const nullIndex = data.features[selectedFeature].values.findIndex(
+          (v) => v === null
+        );
+        // Use the feature-defined color for null if available, otherwise use default
+        return nullIndex !== -1
+          ? data.features[selectedFeature].colors[nullIndex]
+          : DEFAULT_STYLES.null.color;
+      }
 
       const valueIndex =
         data.features[selectedFeature].values.indexOf(featureValue);
       return valueIndex === -1
-        ? "#888"
+        ? DEFAULT_STYLES.other.color
         : data.features[selectedFeature].colors[valueIndex];
     },
     [data, selectedFeature]
@@ -204,19 +225,33 @@ export default function ImprovedScatterplot({
 
   const getShape = useCallback(
     (protein: PlotDataPoint) => {
-      if (!data || !data.features[selectedFeature]) return d3.symbolCircle;
+      if (!data || !data.features[selectedFeature])
+        return DEFAULT_STYLES.other.shape;
 
       const featureValue = protein.featureValues[selectedFeature];
-      if (featureValue === null) return d3.symbolCircle;
+      if (featureValue === null) {
+        // Find the index of null in the feature values array
+        const nullIndex = data.features[selectedFeature].values.findIndex(
+          (v) => v === null
+        );
+        // Use the feature-defined shape for null if available, otherwise use default
+        if (nullIndex !== -1) {
+          const shapeName = data.features[selectedFeature].shapes[
+            nullIndex
+          ] as keyof typeof SHAPE_MAPPING;
+          return SHAPE_MAPPING[shapeName] || DEFAULT_STYLES.null.shape;
+        }
+        return DEFAULT_STYLES.null.shape;
+      }
 
       const valueIndex =
         data.features[selectedFeature].values.indexOf(featureValue);
-      if (valueIndex === -1) return d3.symbolCircle;
+      if (valueIndex === -1) return DEFAULT_STYLES.other.shape;
 
       const shapeName = data.features[selectedFeature].shapes[
         valueIndex
       ] as keyof typeof SHAPE_MAPPING;
-      return SHAPE_MAPPING[shapeName] || d3.symbolCircle;
+      return SHAPE_MAPPING[shapeName] || DEFAULT_STYLES.other.shape;
     },
     [data, selectedFeature]
   );
