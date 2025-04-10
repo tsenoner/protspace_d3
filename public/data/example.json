@@ -1,31 +1,64 @@
 {
   "protein_ids": [
     "Q5VSL9",
-    "protein2",
-    "protein3",
-    "protein4",
-    "protein5",
-    "protein6"
+    "I6R1R5",
+    "A0JP26",
+    "O14804",
+    "A1A6M1",
+    "P00358"
   ],
   "features": {
     "category": {
-      "values": ["toxin", "enzyme", null],
-      "colors": [
-        "rgba(255,0,0,0.8)",
-        "rgba(0,0,255,0.8)",
-        "rgba(128,128,128,0.8)"
-      ],
-      "shapes": ["circle", "square", "triangle"]
+      "other_visible": false,
+      "items": [
+        {
+          "label": "toxin",
+          "color": "rgba(255,0,0,0.8)",
+          "shape": "circle",
+          "visible": "true"
+        },
+        {
+          "label": "enzyme",
+          "color": "rgba(0,0,255,0.8)",
+          "shape": "square",
+          "visible": "false"
+        },
+        {
+          "label": null,
+          "color": "rgba(128,128,128,0.8)",
+          "shape": "triangle",
+          "visible": "other"
+        }
+      ]
     },
     "family": {
-      "values": ["3FTx", "PLA2", null, "SVMP"],
-      "colors": [
-        "rgba(0,255,0,0.8)",
-        "rgba(255,165,0,0.8)",
-        "rgba(128,0,128,0.8)",
-        "rgba(0,0,255,0.8)"
-      ],
-      "shapes": ["diamond", "cross", "square", "star"]
+      "other_visible": false,
+      "items": [
+        {
+          "label": "3FTx",
+          "color": "rgba(0,255,0,0.8)",
+          "shape": "diamond",
+          "visible": "true"
+        },
+        {
+          "label": "PLA2",
+          "color": "rgba(255,165,0,0.8)",
+          "shape": "cross",
+          "visible": "true"
+        },
+        {
+          "label": null,
+          "color": "rgba(128,0,128,0.8)",
+          "shape": "square",
+          "visible": "other"
+        },
+        {
+          "label": "SVMP",
+          "color": "rgba(0,0,255,0.8)",
+          "shape": "star",
+          "visible": "true"
+        }
+      ]
     }
   },
   "feature_data": {
