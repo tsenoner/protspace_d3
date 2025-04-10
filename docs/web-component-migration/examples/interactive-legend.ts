@@ -50,9 +50,6 @@ export class ProtInteractiveLegend extends LitElement {
       wye: "M0,-5 L1,-1 L5,0 L1,1 L0,5 L-1,1 L-5,0 L-1,-1 z",
       star: "M0,-5 L1.5,-1.5 L5,-1 L2.5,1.5 L3,5 L0,3 L-3,5 L-2.5,1.5 L-5,-1 L-1.5,-1.5 z",
       times: "M-3.5,-3.5 L3.5,3.5 M-3.5,3.5 L3.5,-3.5",
-      triangle_stroke: "M0,-5 L5,4 L-5,4 z",
-      square_stroke: "M-4,-4 h8 v8 h-8 z",
-      diamond_stroke: "M0,-5 L5,0 L0,5 L-5,0 z",
     };
 
     return shapeMap[shapeName] || shapeMap.circle;

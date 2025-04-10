@@ -49,13 +49,10 @@ const SHAPE_MAPPING: Record<string, d3.SymbolType> = {
   circle: d3.symbolCircle,
   cross: d3.symbolCross,
   diamond: d3.symbolDiamond,
-  diamond_stroke: d3.symbolDiamond2,
   plus: d3.symbolPlus,
   square: d3.symbolSquare,
-  square_stroke: d3.symbolSquare2,
   star: d3.symbolStar,
   triangle: d3.symbolTriangle,
-  triangle_stroke: d3.symbolTriangle2,
   wye: d3.symbolWye,
   times: d3.symbolTimes,
 };

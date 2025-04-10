@@ -10,11 +10,8 @@ The following shapes should be consistently used across all components:
 | ----------------- | -------------------- | ------------------------ |
 | `circle`          | `d3.symbolCircle`    | Basic circle             |
 | `square`          | `d3.symbolSquare`    | Filled square            |
-| `square_stroke`   | `d3.symbolSquare2`   | Stroked square outline   |
 | `triangle`        | `d3.symbolTriangle`  | Filled triangle          |
-| `triangle_stroke` | `d3.symbolTriangle2` | Stroked triangle outline |
 | `diamond`         | `d3.symbolDiamond`   | Filled diamond           |
-| `diamond_stroke`  | `d3.symbolDiamond2`  | Stroked diamond outline  |
 | `cross`           | `d3.symbolCross`     | Cross symbol             |
 | `plus`            | `d3.symbolPlus`      | Plus symbol              |
 | `star`            | `d3.symbolStar`      | Star symbol              |
@@ -34,13 +31,10 @@ const SHAPE_MAPPING = {
   circle: d3.symbolCircle,
   cross: d3.symbolCross,
   diamond: d3.symbolDiamond,
-  diamond_stroke: d3.symbolDiamond2,
   plus: d3.symbolPlus,
   square: d3.symbolSquare,
-  square_stroke: d3.symbolSquare2,
   star: d3.symbolStar,
   triangle: d3.symbolTriangle,
-  triangle_stroke: d3.symbolTriangle2,
   wye: d3.symbolWye,
   times: d3.symbolTimes,
 } as const;
