@@ -9,13 +9,10 @@ const SHAPE_MAPPING = {
   circle: d3.symbolCircle,
   cross: d3.symbolCross,
   diamond: d3.symbolDiamond,
-  diamond_stroke: d3.symbolDiamond2,
   plus: d3.symbolPlus,
   square: d3.symbolSquare,
-  square_stroke: d3.symbolSquare2,
   star: d3.symbolStar,
   triangle: d3.symbolTriangle,
-  triangle_stroke: d3.symbolTriangle2,
   wye: d3.symbolWye,
   times: d3.symbolTimes,
 } as const;
@@ -589,7 +586,7 @@ const InteractiveLegend: React.FC<InteractiveLegendProps> = ({
                     ? "bg-blue-50 dark:bg-blue-900/30"
                     : ""
                 }
-                
+
                 ${
                   isItemSelected
                     ? "ring-2 ring-blue-500 dark:ring-blue-400"
