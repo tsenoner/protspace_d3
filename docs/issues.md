@@ -11,7 +11,8 @@
   - [ ] Update legend to display actual count of proteins for each category instead of always "1"
 
 - [ ] **Selection Tool Functionality**
-  - [ ] Implement "Box Select" feature similar to protspace.rostlab.org when pressing "Select" button
+  - [ ] Implement "Box Select" feature similar to protspace.rostlab.org when pressing "Select" button (ref: https://observablehq.com/@d3/brushable-scatterplot)
+  - [ ] Fix dot border disappearing on deselect (should highlight on select, return to default on deselect)
 
 - [ ] **Image Export Quality**
   - [ ] Improve resolution of PNG and PDF exports
@@ -26,6 +27,7 @@
 
 - [ ] **Legend Display Issues**
   - [ ] Fix flickering when clicking triangle and blue square elements
+  - [ ] Fix z-order update in canvas when legend items are rearranged
 
 - [ ] **Firefox Hydration Error**
   - [ ] Investigate and fix React hydration error on Firefox: https://nextjs.org/docs/messages/react-hydration-error
@@ -65,3 +67,11 @@
 
 - [ ] **Selected UX improvement**
   - [ ] Disable the "selected" component when nothing is selected
+
+- [ ] **Scatterplot Interaction**
+  - [ ] Ensure consistent dot sizing during zoom (ref: https://observablehq.com/@d3/scatterplot-tour)
+
+- [ ] **Data Handling & Configuration**
+  - [ ] Store legend styling information (colors, shapes, visibility) in the input JSON file (schema updated)
+  - [ ] Add a button/mechanism to upload a ProtSpace JSON file
+  - [ ] Ensure only filled D3 shapes are used for rendering (stroke-only shapes removed from schema)
