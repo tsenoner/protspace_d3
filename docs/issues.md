@@ -2,34 +2,42 @@
 
 ## Bug Fixes
 
-- [ ] **AlphaFold2 Structure Display**
-  - [ ] Fix 3D protein structure to display inline below legend instead of modal dialog
-  - [ ] Implement automatic structure retrieval when protein is selected via search or selected
-  - [ ] Simplify Molstar interface by removing sidebars
+- [x] **AlphaFold2 Structure Display**
 
-- [ ] **Legend Count Inaccuracy**
-  - [ ] Update legend to display actual count of proteins for each category instead of always "1"
+  - [x] Fix 3D protein structure to display inline below legend instead of modal dialog
+  - [x] Implement automatic structure retrieval when protein is selected via search or selected
+  - [x] Simplify Molstar interface by removing sidebars
 
-- [ ] **Selection Tool Functionality**
-  - [ ] Implement "Box Select" feature similar to protspace.rostlab.org when pressing "Select" button (ref: https://observablehq.com/@d3/brushable-scatterplot)
-  - [ ] Fix dot border disappearing on deselect (should highlight on select, return to default on deselect)
+- [x] **Legend Count Inaccuracy**
+
+  - [x] Update legend to display actual count of proteins for each category instead of always "1"
+
+- [x] **Selection Tool Functionality**
+
+  - [x] Implement "Box Select" feature similar to protspace.rostlab.org when pressing "Select" button (ref: https://observablehq.com/@d3/brushable-scatterplot)
+  - [x] Fix dot border disappearing on deselect (should highlight on select, return to default on deselect)
 
 - [ ] **Image Export Quality**
+
   - [ ] Improve resolution of PNG and PDF exports
   - [ ] Include legend in exported images or as a separate image
 
 - [ ] **Share Button**
+
   - [ ] Review share button functionality (currently redundant with json download)
 
 - [ ] **Search Functionality**
+
   - [ ] Fix search to work when selection is active
   - [ ] Consider limiting search to currently isolated proteins
 
 - [ ] **Legend Display Issues**
+
   - [ ] Fix flickering when clicking triangle and blue square elements
   - [ ] Fix z-order update in canvas when legend items are rearranged
 
 - [ ] **Firefox Hydration Error**
+
   - [ ] Investigate and fix React hydration error on Firefox: https://nextjs.org/docs/messages/react-hydration-error
   - [ ] Review complete error stack:
     ```typescript
@@ -49,9 +57,11 @@
     ```
 
 - [ ] **Reset Button Behavior**
+
   - [ ] Fix reset button to work on first click after navigating outside displayed area
 
 - [ ] **Projection Change**
+
   - [ ] Implement "Reset View" when changing projection
 
 - [ ] **UniProt Integration**
@@ -61,14 +71,17 @@
 ## Enhancements
 
 - [ ] **Visualization Canvas Size**
+
   - [ ] Make canvas fill available screen space
   - [ ] Make D3 visualization canvas responsive
   - [ ] Implement sidebar legend for small screens to prevent cutoff
 
 - [ ] **Selected UX improvement**
+
   - [ ] Disable the "selected" component when nothing is selected
 
 - [ ] **Scatterplot Interaction**
+
   - [ ] Ensure consistent dot sizing during zoom (ref: https://observablehq.com/@d3/scatterplot-tour)
 
 - [ ] **Data Handling & Configuration**

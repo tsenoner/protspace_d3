@@ -103,12 +103,25 @@ export default function ControlBar({
             viewBox="0 0 24 24"
             stroke="currentColor"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+            {/* Outer rectangle (selection box) */}
+            <rect
+              x="3"
+              y="3"
+              width="18"
+              height="18"
+              rx="1"
+              strokeWidth="1.5"
+              stroke="currentColor"
+              strokeDasharray="2 1"
+              fill="none"
             />
+
+            {/* Dots representing data points */}
+            <circle cx="8" cy="8" r="1.5" fill="currentColor" />
+            <circle cx="12" cy="14" r="1.5" fill="currentColor" />
+            <circle cx="16" cy="10" r="1.5" fill="currentColor" />
+            <circle cx="7" cy="16" r="1.5" fill="currentColor" />
+            <circle cx="17" cy="17" r="1.5" fill="currentColor" />
           </svg>
           <span>Select</span>
         </button>

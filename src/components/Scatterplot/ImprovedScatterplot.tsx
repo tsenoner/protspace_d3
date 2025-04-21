@@ -5,7 +5,7 @@ import * as d3 from "d3";
 
 // Types
 export interface Feature {
-  values: string[];
+  values: (string | null)[];
   colors: string[];
   shapes: string[];
 }
@@ -46,14 +46,14 @@ export interface ScatterplotProps {
   selectedOpacity?: number;
   fadedOpacity?: number;
   className?: string;
-  onProteinClick?: (proteinId: string) => void;
+  onProteinClick?: (proteinId: string, event?: React.MouseEvent) => void;
   onProteinHover?: (proteinId: string | null) => void;
   onViewStructure?: (proteinId: string | null) => void;
 }
 
 // Constants
 const DEFAULT_CONFIG = {
-  width: 800,
+  width: 1100,
   height: 600,
   margin: { top: 40, right: 40, bottom: 40, left: 40 },
   baseOpacity: 0.8,
@@ -116,6 +116,13 @@ export default function ImprovedScatterplot({
     null,
     undefined
   > | null>(null);
+  const brushRef = useRef<d3.BrushBehavior<unknown> | null>(null);
+  const brushGroupRef = useRef<d3.Selection<
+    SVGGElement,
+    unknown,
+    null,
+    undefined
+  > | null>(null);
   const [tooltipData, setTooltipData] = useState<{
     x: number;
     y: number;
@@ -128,6 +135,31 @@ export default function ImprovedScatterplot({
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const prevProjectionIndex = useRef(selectedProjectionIndex);
   const prevHighlighted = useRef<string[]>([]);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = useState({ width, height });
+
+  // Add ResizeObserver to make the component responsive
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          setDimensions({
+            width: Math.max(width, 300), // Minimum width
+            height: Math.max(height, 200), // Minimum height
+          });
+        }
+      }
+    });
+
+    resizeObserver.observe(containerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
 
   // Process protein data when inputs change - memoize to prevent unnecessary recalculations
   const plotData = useMemo(() => {
@@ -144,7 +176,13 @@ export default function ImprovedScatterplot({
       Object.keys(data.features).forEach((featureKey) => {
         const featureIndex = data.feature_data[featureKey][index];
         featureValues[featureKey] =
-          data.features[featureKey].values[featureIndex] || null;
+          featureIndex !== undefined &&
+          featureIndex !== null &&
+          Array.isArray(data.features[featureKey].values) &&
+          featureIndex >= 0 &&
+          featureIndex < data.features[featureKey].values.length
+            ? data.features[featureKey].values[featureIndex] || null
+            : null;
       });
 
       return {
@@ -180,18 +218,18 @@ export default function ImprovedScatterplot({
         .domain([xExtent[0] - xPadding, xExtent[1] + xPadding])
         .range([
           DEFAULT_CONFIG.margin.left,
-          width - DEFAULT_CONFIG.margin.right,
+          dimensions.width - DEFAULT_CONFIG.margin.right,
         ]),
 
       y: d3
         .scaleLinear()
         .domain([yExtent[0] - yPadding, yExtent[1] + yPadding])
         .range([
-          height - DEFAULT_CONFIG.margin.bottom,
+          dimensions.height - DEFAULT_CONFIG.margin.bottom,
           DEFAULT_CONFIG.margin.top,
         ]),
     };
-  }, [plotData, width, height]);
+  }, [plotData, dimensions.width, dimensions.height]);
 
   // Callbacks remain mostly the same, but simplified
   const getColor = useCallback(
@@ -202,18 +240,27 @@ export default function ImprovedScatterplot({
       const featureValue = protein.featureValues[selectedFeature];
       if (featureValue === null) {
         // Find the index of null in the feature values array
-        const nullIndex = data.features[selectedFeature].values.findIndex(
-          (v) => v === null
-        );
+        const values = data.features[selectedFeature].values;
+        const nullIndex =
+          values && Array.isArray(values)
+            ? values.findIndex((v) => v === null)
+            : -1;
         // Use the feature-defined color for null if available, otherwise use default
-        return nullIndex !== -1
+        return nullIndex !== -1 &&
+          data.features[selectedFeature].colors &&
+          nullIndex in data.features[selectedFeature].colors
           ? data.features[selectedFeature].colors[nullIndex]
           : DEFAULT_STYLES.null.color;
       }
 
       const valueIndex =
-        data.features[selectedFeature].values.indexOf(featureValue);
-      return valueIndex === -1
+        data.features[selectedFeature].values &&
+        Array.isArray(data.features[selectedFeature].values)
+          ? data.features[selectedFeature].values.indexOf(featureValue)
+          : -1;
+      return valueIndex === -1 ||
+        !data.features[selectedFeature].colors ||
+        !(valueIndex in data.features[selectedFeature].colors)
         ? DEFAULT_STYLES.other.color
         : data.features[selectedFeature].colors[valueIndex];
     },
@@ -228,11 +275,17 @@ export default function ImprovedScatterplot({
       const featureValue = protein.featureValues[selectedFeature];
       if (featureValue === null) {
         // Find the index of null in the feature values array
-        const nullIndex = data.features[selectedFeature].values.findIndex(
-          (v) => v === null
-        );
+        const values = data.features[selectedFeature].values;
+        const nullIndex =
+          values && Array.isArray(values)
+            ? values.findIndex((v) => v === null)
+            : -1;
         // Use the feature-defined shape for null if available, otherwise use default
-        if (nullIndex !== -1) {
+        if (
+          nullIndex !== -1 &&
+          data.features[selectedFeature].shapes &&
+          nullIndex in data.features[selectedFeature].shapes
+        ) {
           const shapeName = data.features[selectedFeature].shapes[
             nullIndex
           ] as keyof typeof SHAPE_MAPPING;
@@ -242,8 +295,16 @@ export default function ImprovedScatterplot({
       }
 
       const valueIndex =
-        data.features[selectedFeature].values.indexOf(featureValue);
-      if (valueIndex === -1) return DEFAULT_STYLES.other.shape;
+        data.features[selectedFeature].values &&
+        Array.isArray(data.features[selectedFeature].values)
+          ? data.features[selectedFeature].values.indexOf(featureValue)
+          : -1;
+      if (
+        valueIndex === -1 ||
+        !data.features[selectedFeature].shapes ||
+        !(valueIndex in data.features[selectedFeature].shapes)
+      )
+        return DEFAULT_STYLES.other.shape;
 
       const shapeName = data.features[selectedFeature].shapes[
         valueIndex
@@ -303,7 +364,7 @@ export default function ImprovedScatterplot({
       if (highlightedProteinIds.includes(protein.id)) {
         return 2; // Medium border for highlighted proteins
       }
-      return 1; // Default border width
+      return 1; // Default border width - always ensure proteins have a border
     },
     [selectedProteinIds, highlightedProteinIds]
   );
@@ -317,7 +378,7 @@ export default function ImprovedScatterplot({
       if (highlightedProteinIds.includes(protein.id)) {
         return "#3B82F6"; // Blue border for highlighted proteins
       }
-      return "#333333"; // Default dark gray border
+      return "#333333"; // Default dark gray border - always maintain visibility
     },
     [selectedProteinIds, highlightedProteinIds]
   );
@@ -342,10 +403,16 @@ export default function ImprovedScatterplot({
 
     const svg = d3.select(svgRef.current);
 
+    // Clear any existing content
+    svg.selectAll("*").remove();
+
     // Create the main container group once
     mainGroupRef.current = svg
       .append("g")
       .attr("class", "scatter-plot-container");
+
+    // Create a separate group for the brush
+    brushGroupRef.current = svg.append("g").attr("class", "brush-container");
 
     // Create zoom behavior
     zoomRef.current = d3
@@ -354,6 +421,10 @@ export default function ImprovedScatterplot({
       .on("zoom", (event) => {
         if (mainGroupRef.current) {
           mainGroupRef.current.attr("transform", event.transform);
+          // Also transform the brush group
+          if (brushGroupRef.current) {
+            brushGroupRef.current.attr("transform", event.transform);
+          }
           setZoomTransform(event.transform);
         }
       });
@@ -366,7 +437,7 @@ export default function ImprovedScatterplot({
       .attr("class", "reset-view-button")
       .attr(
         "transform",
-        `translate(${width - DEFAULT_CONFIG.margin.right - 60}, ${
+        `translate(${dimensions.width - DEFAULT_CONFIG.margin.right - 60}, ${
           DEFAULT_CONFIG.margin.top + 10
         })`
       )
@@ -431,10 +502,161 @@ export default function ImprovedScatterplot({
         svg.on(".zoom", null); // Remove zoom behavior
         zoomRef.current = null;
       }
+      if (brushRef.current) {
+        svg.on(".brush", null); // Remove brush behavior
+        brushRef.current = null;
+      }
       mainGroupRef.current = null;
+      brushGroupRef.current = null;
       svg.selectAll("*").remove();
     };
-  }, [width, height]); // Only recreate when dimensions change
+  }, [dimensions.width, dimensions.height]); // Only recreate when dimensions change
+
+  // Setup or remove brush based on selection mode
+  useEffect(() => {
+    if (!svgRef.current || !brushGroupRef.current || !scales) return;
+
+    const svg = d3.select(svgRef.current);
+
+    // Clear any existing brush
+    brushGroupRef.current.selectAll("*").remove();
+
+    if (selectionMode) {
+      // Disable zoom behavior temporarily when in selection mode to prevent camera movement
+      if (zoomRef.current) {
+        svg.on(".zoom", null);
+      }
+
+      // Create brush behavior
+      brushRef.current = d3
+        .brush()
+        .extent([
+          [DEFAULT_CONFIG.margin.left, DEFAULT_CONFIG.margin.top],
+          [
+            dimensions.width - DEFAULT_CONFIG.margin.right,
+            dimensions.height - DEFAULT_CONFIG.margin.bottom,
+          ],
+        ])
+        .on("start", () => {
+          // Set a CSS class on the SVG to change the cursor style globally
+          svg.classed("brushing", true);
+        })
+        .on("end", (event) => {
+          // Remove the brushing class
+          svg.classed("brushing", false);
+
+          // Only handle selection if the brush area is not empty
+          if (!event.selection) {
+            // Re-enable zoom after brushing is complete
+            if (zoomRef.current) {
+              svg.call(zoomRef.current);
+            }
+            return;
+          }
+
+          // Get selection bounds
+          const [[x0, y0], [x1, y1]] = event.selection as [
+            [number, number],
+            [number, number]
+          ];
+
+          // Find proteins within the brushed area
+          if (plotData.length && scales) {
+            const selectedIds: string[] = [];
+
+            plotData.forEach((d) => {
+              const pointX = scales.x(d.x);
+              const pointY = scales.y(d.y);
+
+              if (
+                pointX >= x0 &&
+                pointX <= x1 &&
+                pointY >= y0 &&
+                pointY <= y1
+              ) {
+                selectedIds.push(d.id);
+              }
+            });
+
+            // Batch select proteins
+            if (selectedIds.length > 0 && onProteinClick) {
+              // Use Ctrl key modifier to add to existing selection
+              const isAdditive =
+                event.sourceEvent &&
+                (event.sourceEvent.ctrlKey || event.sourceEvent.metaKey);
+
+              // For each selected protein, trigger the selection handler
+              selectedIds.forEach((id) => {
+                // Create a synthetic event with the modifier key state
+                const syntheticEvent = {
+                  ctrlKey: isAdditive || selectedIds.length > 1, // Always multi-select when multiple proteins are selected
+                  metaKey: isAdditive || selectedIds.length > 1,
+                  shiftKey: isAdditive || selectedIds.length > 1,
+                } as React.MouseEvent;
+
+                onProteinClick(id, syntheticEvent);
+              });
+
+              // Don't trigger structure viewer in selection mode
+              // We're already in selection mode, so no need to check
+            }
+
+            // Reset brush after selection
+            if (brushRef.current && brushGroupRef.current) {
+              brushGroupRef.current.call(brushRef.current.move, null);
+            }
+          }
+
+          // Re-enable zoom after brushing is complete
+          if (zoomRef.current) {
+            svg.call(zoomRef.current);
+          }
+        });
+
+      // Apply brush to the brush group
+      brushGroupRef.current.call(brushRef.current);
+    } else {
+      // Re-enable zoom when not in selection mode
+      if (zoomRef.current) {
+        svg.call(zoomRef.current);
+      }
+
+      // Disable brush if not in selection mode
+      brushRef.current = null;
+    }
+
+    // Add CSS to handle cursor changes
+    const style = document.createElement("style");
+    style.innerHTML = `
+      .brushing .overlay {
+        cursor: crosshair !important;
+      }
+      
+      .brush .selection {
+        stroke: #3B82F6;
+        stroke-width: 2px;
+        fill: rgba(59, 130, 246, 0.15);
+        stroke-dasharray: none;
+      }
+      
+      .brush .handle {
+        display: none;
+      }
+    `;
+    document.head.appendChild(style);
+
+    // Clean up
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, [
+    selectionMode,
+    plotData,
+    scales,
+    dimensions.width,
+    dimensions.height,
+    onProteinClick,
+  ]);
 
   // Track projection changes
   useEffect(() => {
@@ -523,20 +745,43 @@ export default function ImprovedScatterplot({
           return;
         }
 
-        // If in selection mode, handle protein selection
-        if (selectionMode && onProteinClick) {
-          onProteinClick(d.id);
+        // Handle protein selection - whether in selection mode or not
+        if (onProteinClick) {
+          // Check if the protein is already selected
+          const isSelected = selectedProteinIds.includes(d.id);
+
+          // Pass the event to the handler
+          onProteinClick(d.id, event);
+
+          // Only show structure if not in selection mode
+          if (!selectionMode && onViewStructure) {
+            onViewStructure(d.id);
+          }
 
           // Animate the selection with a quick pulse effect
-          d3.select(event.currentTarget)
-            .transition()
-            .duration(150)
-            .attr("stroke-width", 5)
-            .attr("stroke-opacity", 1)
-            .transition()
-            .duration(150)
-            .attr("stroke-width", getStrokeWidth(d))
-            .attr("stroke-opacity", 0.8);
+          const element = d3.select(event.currentTarget);
+
+          if (isSelected) {
+            // Deselection animation - transition back to normal border
+            element
+              .transition()
+              .duration(150)
+              .attr("stroke-width", 1)
+              .attr("stroke", "#333333")
+              .attr("stroke-opacity", 1);
+          } else {
+            // Selection animation - pulse effect
+            element
+              .transition()
+              .duration(150)
+              .attr("stroke-width", 5)
+              .attr("stroke-opacity", 1)
+              .transition()
+              .duration(150)
+              .attr("stroke-width", getStrokeWidth(d))
+              .attr("stroke", getStrokeColor(d))
+              .attr("stroke-opacity", 1);
+          }
         }
       })
       // Add right-click handler to view structure
@@ -599,42 +844,23 @@ export default function ImprovedScatterplot({
   }, [highlightedProteinIds, selectedProteinIds]);
 
   return (
-    <div className={`relative ${className}`}>
+    <div
+      className={`relative ${className} h-full w-full overflow-hidden`}
+      ref={containerRef}
+    >
       <svg
         ref={svgRef}
-        width={width}
-        height={height}
-        className="bg-white border rounded-md shadow-sm dark:bg-gray-900 dark:border-gray-800"
+        width={dimensions.width}
+        height={dimensions.height}
+        className={`w-full h-full bg-white dark:bg-gray-900 ${
+          selectionMode ? "cursor-crosshair" : "cursor-grab"
+        }`}
+        style={{ display: "block", border: "none", margin: 0, padding: 0 }}
       />
-
-      {/* 3D Structure Hint */}
-      <div className="absolute bottom-2 right-2 z-10 px-2 py-1 bg-white bg-opacity-80 text-gray-700 text-xs rounded-md flex items-center shadow-sm dark:bg-gray-800 dark:bg-opacity-80 dark:text-gray-200">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-4 w-4 mr-1"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-          />
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-          />
-        </svg>
-        <span>Right-click protein to view 3D structure</span>
-      </div>
 
       {/* Loading overlay */}
       {(!isDataLoaded || isTransitioning) && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 dark:bg-gray-900 dark:bg-opacity-70 z-10 rounded-md">
+        <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 dark:bg-gray-900 dark:bg-opacity-70 z-10">
           <div className="flex flex-col items-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
             <p className="mt-2 text-gray-600 dark:text-gray-300">
@@ -667,6 +893,40 @@ export default function ImprovedScatterplot({
         </div>
       )}
 
+      {/* Selection Mode Indicator */}
+      {selectionMode && (
+        <div className="absolute top-2 right-2 z-10 px-2 py-1 bg-blue-500 text-white text-xs rounded-md flex items-center">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-4 w-4 mr-1"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            {/* Outer rectangle (selection box) */}
+            <rect
+              x="3"
+              y="3"
+              width="18"
+              height="18"
+              rx="1"
+              strokeWidth="1.5"
+              stroke="currentColor"
+              strokeDasharray="2 1"
+              fill="none"
+            />
+
+            {/* Dots representing data points */}
+            <circle cx="8" cy="8" r="1.5" fill="currentColor" />
+            <circle cx="12" cy="14" r="1.5" fill="currentColor" />
+            <circle cx="16" cy="10" r="1.5" fill="currentColor" />
+            <circle cx="7" cy="16" r="1.5" fill="currentColor" />
+            <circle cx="17" cy="17" r="1.5" fill="currentColor" />
+          </svg>
+          <span>Selection Mode: Drag to select proteins</span>
+        </div>
+      )}
+
       {/* Tooltip */}
       {tooltipData && (
         <div
@@ -674,7 +934,7 @@ export default function ImprovedScatterplot({
           style={{
             left: tooltipData.x + 10,
             top:
-              tooltipData.y > height / 2
+              tooltipData.y > dimensions.height / 2
                 ? tooltipData.y - 120 // Position above when in bottom half
                 : tooltipData.y + 10, // Position below when in top half
             pointerEvents: "none",
