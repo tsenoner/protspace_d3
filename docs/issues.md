@@ -17,14 +17,14 @@
   - [x] Implement "Box Select" feature similar to protspace.rostlab.org when pressing "Select" button (ref: https://observablehq.com/@d3/brushable-scatterplot)
   - [x] Fix dot border disappearing on deselect (should highlight on select, return to default on deselect)
 
-- [ ] **Image Export Quality**
+- [x] **Image Export Quality**
 
-  - [ ] Improve resolution of PNG and PDF exports
-  - [ ] Include legend in exported images or as a separate image
+  - [x] Improve resolution of PNG and PDF exports
+  - [x] Include legend in exported images or as a separate image
 
-- [ ] **Share Button**
+- [x] **Share Button**
 
-  - [ ] Review share button functionality (currently redundant with json download)
+  - [x] Review share button functionality (currently redundant with json download)
 
 - [ ] **Search Functionality**
 
@@ -76,9 +76,9 @@
   - [ ] Make D3 visualization canvas responsive
   - [ ] Implement sidebar legend for small screens to prevent cutoff
 
-- [ ] **Selected UX improvement**
+- [x] **Selected UX improvement**
 
-  - [ ] Disable the "selected" component when nothing is selected
+  - [x] Disable the "selected" component when nothing is selected
 
 - [ ] **Scatterplot Interaction**
 

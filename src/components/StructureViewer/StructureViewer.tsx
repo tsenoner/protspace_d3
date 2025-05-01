@@ -213,8 +213,8 @@ export default function StructureViewer({
       </div>
       <div className="p-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 rounded-b-md">
         <p>
-          <strong>Tip:</strong> Left-click and drag to rotate. Right-click and
-          drag to move. Scroll to zoom.
+          <strong>Tip:</strong> Left-click and drag to rotate. Click and drag to
+          move. Scroll to zoom.
         </p>
       </div>
     </div>

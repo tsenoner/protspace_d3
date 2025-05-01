@@ -1252,10 +1252,10 @@ export default function ProtSpaceApp() {
         onSearch={handleSearch}
         onSaveSession={handleSaveSession}
         onLoadSession={handleLoadSession}
-        onShareSession={handleShareSession}
         highlightedProteins={highlightedProteinIds}
         onRemoveHighlight={handleRemoveProtein}
         availableProteinIds={visualizationData?.protein_ids || []}
+        selectedProteins={selectedProteinIds}
       />
 
       {/* Control Bar */}

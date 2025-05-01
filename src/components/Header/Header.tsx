@@ -6,20 +6,20 @@ import Logo from "@/components/Logo/Logo";
 interface HeaderProps {
   onSearch: (query: string) => void;
   highlightedProteins: string[];
+  selectedProteins: string[];
   onRemoveHighlight: (proteinId: string) => void;
   onSaveSession: () => void;
   onLoadSession: () => void;
-  onShareSession: () => void;
-  availableProteinIds?: string[]; // For auto-suggestion
+  availableProteinIds?: string[];
 }
 
 export default function Header({
   onSearch,
   highlightedProteins,
+  selectedProteins = [],
   onRemoveHighlight,
   onSaveSession,
   onLoadSession,
-  onShareSession,
   availableProteinIds = [],
 }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -110,16 +110,14 @@ export default function Header({
   }, []);
 
   return (
-    <header className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b shadow-sm dark:bg-gray-900 dark:border-gray-800">
+    <header className="flex items-center justify-between px-4 py-2 bg-[#072140] border-b shadow-sm dark:bg-gray-900 dark:border-gray-800">
       {/* Logo */}
       <div className="flex items-center">
         <div className="flex items-center space-x-3">
-          <Logo className="w-9 h-9 text-blue-500 dark:text-blue-400" />
+          <Logo className="w-9 h-9 text-white" />
           <div className="flex flex-col">
-            <span className="text-xl font-bold bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-400 dark:to-blue-500 bg-clip-text text-transparent">
-              ProtSpace
-            </span>
-            <span className="text-xs text-gray-500 dark:text-gray-400">
+            <span className="text-xl font-bold text-white">ProtSpace</span>
+            <span className="text-xs text-gray-300">
               Protein Space Visualization
             </span>
           </div>
@@ -129,23 +127,10 @@ export default function Header({
       {/* Search Bar with Auto-suggestion */}
       <form onSubmit={handleSearch} className="w-1/3 relative">
         <div className="relative">
-          <input
-            ref={searchInputRef}
-            type="text"
-            placeholder="Search protein IDs..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onFocus={() => setShowSuggestions(true)}
-            onKeyDown={handleKeyDown}
-            className="w-full py-1 px-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
-          />
-          <button
-            type="submit"
-            className="absolute inset-y-0 right-0 px-3 flex items-center bg-blue-500 text-white rounded-r-md hover:bg-blue-600"
-          >
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <svg
+              className="h-4 w-4 text-gray-400"
               xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -157,29 +142,64 @@ export default function Header({
                 d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
               />
             </svg>
-          </button>
+          </div>
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search protein IDs..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onFocus={() => setShowSuggestions(true)}
+            onKeyDown={handleKeyDown}
+            className="w-full py-2 pl-10 pr-4 text-white bg-[#0a2a4d] border border-gray-700 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery("");
+                setShowSuggestions(false);
+              }}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white transition-colors duration-200"
+            >
+              <svg
+                className="h-4 w-4"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* Auto-suggestions dropdown */}
         {showSuggestions && suggestions.length > 0 && (
           <div
             ref={suggestionsRef}
-            className="absolute z-10 mt-1 w-full bg-white rounded-md shadow-lg border border-gray-200 dark:bg-gray-800 dark:border-gray-700"
+            className="absolute z-10 mt-2 w-full bg-[#0a2a4d] rounded-lg shadow-lg border border-gray-700"
           >
             <ul className="py-1 max-h-60 overflow-y-auto">
               {suggestions.map((suggestion, index) => (
                 <li
                   key={suggestion}
-                  className={`px-3 py-2 cursor-pointer flex items-center ${
+                  className={`px-4 py-2 cursor-pointer flex items-center ${
                     index === activeSuggestion
-                      ? "bg-blue-100 dark:bg-blue-900"
-                      : "hover:bg-gray-100 dark:hover:bg-gray-700"
+                      ? "bg-blue-600 text-white"
+                      : "text-gray-300 hover:bg-gray-700"
                   }`}
                   onClick={() => handleSelectSuggestion(suggestion)}
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    className="h-4 w-4 text-gray-500 mr-2"
+                    className="h-4 w-4 mr-2 text-gray-400"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -200,13 +220,23 @@ export default function Header({
       </form>
 
       {/* Session Controls */}
-      <div className="flex items-center space-x-2">
+      <div className="flex items-center space-x-3">
         <div className="relative">
           <button
             onClick={() => setShowHighlighted(!showHighlighted)}
-            className="px-3 py-1 border border-gray-300 rounded-md flex items-center space-x-1 dark:border-gray-700 dark:bg-gray-800"
+            disabled={
+              highlightedProteins.length === 0 && selectedProteins.length === 0
+            }
+            className={`px-3 py-1.5 border border-gray-700 rounded-lg flex items-center space-x-1 bg-[#0a2a4d] text-white ${
+              highlightedProteins.length === 0 && selectedProteins.length === 0
+                ? "opacity-50 cursor-not-allowed"
+                : "hover:bg-[#0d3159] transition-colors duration-200"
+            }`}
           >
-            <span>Selected ({new Set(highlightedProteins).size})</span>
+            <span>
+              Selected (
+              {new Set([...highlightedProteins, ...selectedProteins]).size})
+            </span>
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="h-4 w-4"
@@ -224,12 +254,12 @@ export default function Header({
           </button>
 
           {showHighlighted && highlightedProteins.length > 0 && (
-            <div className="absolute z-10 right-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 dark:bg-gray-800 dark:border-gray-700">
+            <div className="absolute z-10 right-0 mt-2 w-48 bg-[#0a2a4d] rounded-lg shadow-lg border border-gray-700">
               <ul className="py-1 max-h-48 overflow-y-auto">
                 {[...new Set(highlightedProteins)].map((protein) => (
                   <li
                     key={protein}
-                    className="px-3 py-1 cursor-pointer flex items-center justify-between"
+                    className="px-4 py-2 cursor-pointer flex items-center justify-between text-gray-300 hover:bg-gray-700"
                   >
                     <span className="truncate">{protein}</span>
                     <button
@@ -237,7 +267,7 @@ export default function Header({
                         e.stopPropagation();
                         onRemoveHighlight(protein);
                       }}
-                      className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                      className="text-gray-400 hover:text-white transition-colors duration-200"
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -263,7 +293,7 @@ export default function Header({
 
         <button
           onClick={onSaveSession}
-          className="p-1 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer"
+          className="p-2 text-white hover:bg-[#0d3159] rounded-lg cursor-pointer transition-colors duration-200"
           title="Save Session"
         >
           <svg
@@ -284,7 +314,7 @@ export default function Header({
 
         <button
           onClick={onLoadSession}
-          className="p-1 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer"
+          className="p-2 text-white hover:bg-[#0d3159] cursor-pointer rounded-lg transition-colors duration-200"
           title="Load Session"
         >
           <svg
@@ -299,27 +329,6 @@ export default function Header({
               strokeLinejoin="round"
               strokeWidth={2}
               d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-            />
-          </svg>
-        </button>
-
-        <button
-          onClick={onShareSession}
-          className="p-1 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer"
-          title="Share Session"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
             />
           </svg>
         </button>

@@ -784,7 +784,6 @@ export default function ImprovedScatterplot({
           }
         }
       })
-      // Add right-click handler to view structure
       .on("contextmenu", (event, d) => {
         // Prevent browser context menu from appearing
         event.preventDefault();
@@ -949,7 +948,7 @@ export default function ImprovedScatterplot({
             {tooltipData.protein.featureValues[selectedFeature] || "N/A"}
           </div>
           <div className="text-xs mt-1 flex items-center text-gray-500">
-            Right-click to view 3D structure
+            Click to view 3D structure
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="h-4 w-4 mr-1"
