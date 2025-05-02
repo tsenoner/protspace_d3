@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
-import * as d3 from 'd3';
-import Ajv from 'ajv';
-import styles from './Scatterplot.module.css';
+import { useEffect, useRef, useState } from "react";
+import * as d3 from "d3";
+import Ajv from "ajv";
+import styles from "./Scatterplot.module.css";
 
 // Types
 interface Feature {
@@ -13,7 +13,7 @@ interface Feature {
 }
 
 interface Projection {
-  data: [number, number][];  // Array of [x, y] coordinates
+  data: [number, number][]; // Array of [x, y] coordinates
   name: string;
 }
 
@@ -41,7 +41,7 @@ const PLOT_CONFIG = {
   width: 800,
   height: 600,
   margin: { top: 40, right: 40, bottom: 40, left: 40 },
-  viewBox: "0 0 800 600"
+  viewBox: "0 0 800 600",
 };
 
 const SHAPE_MAPPING = {
@@ -49,13 +49,10 @@ const SHAPE_MAPPING = {
   circle: d3.symbolCircle,
   cross: d3.symbolCross,
   diamond: d3.symbolDiamond,
-  diamond_stroke: d3.symbolDiamond2,
   plus: d3.symbolPlus,
   square: d3.symbolSquare,
-  square_stroke: d3.symbolSquare2,
   star: d3.symbolStar,
   triangle: d3.symbolTriangle,
-  triangle_stroke: d3.symbolTriangle2,
   wye: d3.symbolWye,
   times: d3.symbolTimes,
 } as const;
@@ -65,21 +62,26 @@ export default function Scatterplot() {
   const errorRef = useRef<HTMLDivElement>(null);
   const projectionSelectRef = useRef<HTMLSelectElement>(null);
   const featureSelectRef = useRef<HTMLSelectElement>(null);
-  const [visualizationData, setVisualizationData] = useState<VisualizationData | null>(null);
+  const [visualizationData, setVisualizationData] =
+    useState<VisualizationData | null>(null);
 
   // Add state for selected values
   const [selectedProjection, setSelectedProjection] = useState(0);
-  const [selectedFeature, setSelectedFeature] = useState('');
+  const [selectedFeature, setSelectedFeature] = useState("");
 
   // Move these functions inside useEffect to avoid dependency issues
   useEffect(() => {
-    function validateData(schema: object, data: unknown): data is VisualizationData {
+    function validateData(
+      schema: object,
+      data: unknown
+    ): data is VisualizationData {
       const ajv = new Ajv({ allErrors: true });
       const validate = ajv.compile(schema);
 
       const valid = validate(data);
       if (!valid) {
-        const errorMessage = "Schema validation errors: " + ajv.errorsText(validate.errors);
+        const errorMessage =
+          "Schema validation errors: " + ajv.errorsText(validate.errors);
         displayError(errorMessage);
         console.error("Validation errors:", validate.errors);
         return false;
@@ -99,7 +101,7 @@ export default function Scatterplot() {
     // Load data when component mounts
     Promise.all([
       d3.json("/data/schema.json") as Promise<object>,
-      d3.json("/data/example.json") as Promise<VisualizationData>
+      d3.json("/data/example.json") as Promise<VisualizationData>,
     ])
       .then(([schema, data]) => {
         if (!validateData(schema, data)) return;
@@ -116,12 +118,12 @@ export default function Scatterplot() {
     if (!projectionSelectRef.current || !featureSelectRef.current) return;
 
     // Clear existing options
-    projectionSelectRef.current.innerHTML = '';
-    featureSelectRef.current.innerHTML = '';
+    projectionSelectRef.current.innerHTML = "";
+    featureSelectRef.current.innerHTML = "";
 
     // Add feature options
     Object.keys(data.features).forEach((feature) => {
-      const option = document.createElement('option');
+      const option = document.createElement("option");
       option.value = feature;
       option.text = feature;
       featureSelectRef.current?.appendChild(option);
@@ -129,7 +131,7 @@ export default function Scatterplot() {
 
     // Add projection options
     data.projections.forEach((projection, index) => {
-      const option = document.createElement('option');
+      const option = document.createElement("option");
       option.value = index.toString();
       option.text = projection.name;
       projectionSelectRef.current?.appendChild(option);
@@ -138,16 +140,24 @@ export default function Scatterplot() {
 
   // Create scales for the plot
   function createScales(plotData: PlotDataPoint[]) {
-    const xExtent = d3.extent(plotData, d => d.x);
-    const yExtent = d3.extent(plotData, d => d.y);
+    const xExtent = d3.extent(plotData, (d) => d.x);
+    const yExtent = d3.extent(plotData, (d) => d.y);
 
     return {
-      x: d3.scaleLinear()
+      x: d3
+        .scaleLinear()
         .domain(xExtent as [number, number])
-        .range([PLOT_CONFIG.margin.left, PLOT_CONFIG.width - PLOT_CONFIG.margin.right]),
-      y: d3.scaleLinear()
+        .range([
+          PLOT_CONFIG.margin.left,
+          PLOT_CONFIG.width - PLOT_CONFIG.margin.right,
+        ]),
+      y: d3
+        .scaleLinear()
         .domain(yExtent as [number, number])
-        .range([PLOT_CONFIG.height - PLOT_CONFIG.margin.bottom, PLOT_CONFIG.margin.top])
+        .range([
+          PLOT_CONFIG.height - PLOT_CONFIG.margin.bottom,
+          PLOT_CONFIG.margin.top,
+        ]),
     };
   }
 
@@ -164,24 +174,31 @@ export default function Scatterplot() {
         id,
         x: projection.data[i][0],
         y: projection.data[i][1],
-        features: mapFeatures(id, i)
+        features: mapFeatures(id, i),
       }));
     }
 
-    function mapFeatures(proteinId: string, index: number): Record<string, string | null> {
+    function mapFeatures(
+      proteinId: string,
+      index: number
+    ): Record<string, string | null> {
       const features: Record<string, string | null> = {};
 
-      Object.keys(data.features).forEach(featureKey => {
+      Object.keys(data.features).forEach((featureKey) => {
         const featureIndex = data.feature_data[featureKey][index];
-        features[featureKey] = featureIndex !== null && featureIndex !== undefined
-          ? data.features[featureKey].values[featureIndex]
-          : null;
+        features[featureKey] =
+          featureIndex !== null && featureIndex !== undefined
+            ? data.features[featureKey].values[featureIndex]
+            : null;
       });
 
       return features;
     }
 
-    function getStyleForFeature(feature: string, value: string | null): StyleForFeature | null {
+    function getStyleForFeature(
+      feature: string,
+      value: string | null
+    ): StyleForFeature | null {
       if (!value || !data.features[feature]) return null;
 
       const featureConfig = data.features[feature];
@@ -191,7 +208,7 @@ export default function Scatterplot() {
 
       return {
         color: featureConfig.colors[valueIndex],
-        marker: featureConfig.shapes[valueIndex]
+        marker: featureConfig.shapes[valueIndex],
       };
     }
 
@@ -207,15 +224,23 @@ export default function Scatterplot() {
       .data(plotData)
       .enter()
       .append("path")
-      .attr("d", d => {
-        const style = getStyleForFeature(selectedFeature, d.features[selectedFeature]);
+      .attr("d", (d) => {
+        const style = getStyleForFeature(
+          selectedFeature,
+          d.features[selectedFeature]
+        );
         const shapeName = style?.marker || "circle";
-        const symbolType = SHAPE_MAPPING[shapeName as keyof typeof SHAPE_MAPPING] || d3.symbolCircle;
+        const symbolType =
+          SHAPE_MAPPING[shapeName as keyof typeof SHAPE_MAPPING] ||
+          d3.symbolCircle;
         return d3.symbol().type(symbolType).size(200)();
       })
-      .attr("transform", d => `translate(${scales.x(d.x)}, ${scales.y(d.y)})`)
-      .attr("fill", d => {
-        const style = getStyleForFeature(selectedFeature, d.features[selectedFeature]);
+      .attr("transform", (d) => `translate(${scales.x(d.x)}, ${scales.y(d.y)})`)
+      .attr("fill", (d) => {
+        const style = getStyleForFeature(
+          selectedFeature,
+          d.features[selectedFeature]
+        );
         return style?.color || "#000";
       })
       .attr("stroke", "#333")
@@ -223,7 +248,9 @@ export default function Scatterplot() {
   }, [visualizationData, selectedProjection, selectedFeature]);
 
   // Handle selection changes
-  const handleProjectionChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleProjectionChange = (
+    event: React.ChangeEvent<HTMLSelectElement>
+  ) => {
     setSelectedProjection(Number(event.target.value));
   };
 
