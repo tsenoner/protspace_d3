@@ -63,7 +63,7 @@ export default function ProtSpaceApp() {
           }[];
         }
 
-        const rawData = (await d3.json("/data/example.json")) as RawData;
+        const rawData = (await d3.json("/data/example/basic.json")) as RawData;
 
         // Transform the data to match the expected format
         const transformedData: VisualizationData = {

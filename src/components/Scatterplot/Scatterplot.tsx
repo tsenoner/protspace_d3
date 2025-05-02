@@ -101,7 +101,7 @@ export default function Scatterplot() {
     // Load data when component mounts
     Promise.all([
       d3.json("/data/schema.json") as Promise<object>,
-      d3.json("/data/example.json") as Promise<VisualizationData>,
+      d3.json("/data/example/basic.json") as Promise<VisualizationData>,
     ])
       .then(([schema, data]) => {
         if (!validateData(schema, data)) return;
