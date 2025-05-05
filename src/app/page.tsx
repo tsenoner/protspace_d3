@@ -36,69 +36,70 @@ export default function ProtSpaceApp() {
   const legendRef = useRef<{ downloadAsImage: () => Promise<void> }>(null);
 
   // Load data when component mounts
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        interface RawFeatureItem {
-          label: string | null;
-          color: string;
-          shape: string;
-          visible: string;
-        }
-
-        interface RawFeature {
-          other_visible: boolean;
-          items: RawFeatureItem[];
-        }
-
-        // Using the Projection from ImprovedScatterplot
-        interface RawData {
-          protein_ids: string[];
-          features: Record<string, RawFeature>;
-          feature_data: Record<string, number[]>;
-          projections: {
-            name: string;
-            metadata?: Record<string, unknown>;
-            data: [number, number][];
-          }[];
-        }
-
-        const rawData = (await d3.json("/data/example/basic.json")) as RawData;
-
-        // Transform the data to match the expected format
-        const transformedData: VisualizationData = {
-          protein_ids: rawData.protein_ids,
-          projections: rawData.projections,
-          feature_data: rawData.feature_data,
-          features: {},
-        };
-
-        // Process each feature to extract values, colors, and shapes from items
-        Object.keys(rawData.features).forEach((featureKey) => {
-          const featureItems = rawData.features[featureKey].items;
-          // Feature.values now supports string | null
-          const values = featureItems.map((item) => item.label);
-          const colors = featureItems.map((item) => item.color);
-          const shapes = featureItems.map((item) => item.shape);
-
-          transformedData.features[featureKey] = {
-            values,
-            colors,
-            shapes,
-          };
-        });
-
-        setVisualizationData(transformedData);
-
-        // Initialize with first feature
-        if (transformedData && transformedData.features) {
-          setSelectedFeature(Object.keys(transformedData.features)[0]);
-        }
-      } catch (error) {
-        console.error("Error loading data:", error);
+  const loadData = async (dataPath?: string) => {
+    try {
+      interface RawFeatureItem {
+        label: string | null;
+        color: string;
+        shape: string;
+        visible: string;
       }
-    };
 
+      interface RawFeature {
+        other_visible: boolean;
+        items: RawFeatureItem[];
+      }
+
+      interface RawData {
+        protein_ids: string[];
+        features: Record<string, RawFeature>;
+        feature_data: Record<string, number[]>;
+        projections: {
+          name: string;
+          metadata?: Record<string, unknown>;
+          data: [number, number][];
+        }[];
+      }
+
+      const rawData = (await d3.json(
+        dataPath || "/data/example/basic.json"
+      )) as RawData;
+
+      // Transform the data to match the expected format
+      const transformedData: VisualizationData = {
+        protein_ids: rawData.protein_ids,
+        projections: rawData.projections,
+        feature_data: rawData.feature_data,
+        features: {},
+      };
+
+      // Process each feature to extract values, colors, and shapes from items
+      Object.keys(rawData.features).forEach((featureKey) => {
+        const featureItems = rawData.features[featureKey].items;
+        // Feature.values now supports string | null
+        const values = featureItems.map((item) => item.label);
+        const colors = featureItems.map((item) => item.color);
+        const shapes = featureItems.map((item) => item.shape);
+
+        transformedData.features[featureKey] = {
+          values,
+          colors,
+          shapes,
+        };
+      });
+
+      setVisualizationData(transformedData);
+
+      // Initialize with first feature
+      if (transformedData && transformedData.features) {
+        setSelectedFeature(Object.keys(transformedData.features)[0]);
+      }
+    } catch (error) {
+      console.error("Error loading data:", error);
+    }
+  };
+
+  useEffect(() => {
     loadData();
   }, []);
 
@@ -210,13 +211,23 @@ export default function ProtSpaceApp() {
   const handleSaveSession = () => {
     if (!visualizationData) return;
 
+    // Create a complete session data object that includes both the visualization data and the current state
     const sessionData = {
+      // Visualization data (same structure as basic.json or Pla2g2.json)
+      protein_ids: visualizationData.protein_ids,
+      features: visualizationData.features,
+      feature_data: visualizationData.feature_data,
+      projections: visualizationData.projections,
+
+      // Current state
       projectIndex: selectedProjectionIndex,
       feature: selectedFeature,
       selected: selectedProteinIds,
       highlighted: highlightedProteinIds,
       isolation: isolationMode,
       hidden: hiddenFeatureValues,
+      selectionMode: selectionMode,
+      viewStructureId: viewStructureId,
     };
 
     const dataStr = JSON.stringify(sessionData);
@@ -235,56 +246,76 @@ export default function ProtSpaceApp() {
   const handleLoadSession = () => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = ".protspace,application/json";
+    input.accept = ".protspace,.json";
 
-    input.onchange = (e) => {
+    input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
 
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         try {
-          const sessionData = JSON.parse(event.target?.result as string);
+          const content = event.target?.result as string;
+          const sessionData = JSON.parse(content);
 
-          // Restore session state with deduplication
-          setSelectedProjectionIndex(sessionData.projectIndex || 0);
-          setSelectedFeature(sessionData.feature || "");
+          // Check if this is a session file or a data file
+          if (sessionData.protein_ids && sessionData.features) {
+            // This is a data file or a complete session file
+            if (sessionData.projectIndex !== undefined) {
+              // This is a complete session file, restore everything
+              setVisualizationData({
+                protein_ids: sessionData.protein_ids,
+                features: sessionData.features,
+                feature_data: sessionData.feature_data,
+                projections: sessionData.projections,
+              });
 
-          // Ensure unique arrays for proteins with proper type casting
-          const selected = Array.isArray(sessionData.selected)
-            ? ([
-                ...new Set(
-                  sessionData.selected.filter(
-                    (id: unknown) => typeof id === "string"
-                  )
-                ),
-              ] as string[])
-            : [];
+              // Restore all state
+              setSelectedProjectionIndex(sessionData.projectIndex || 0);
+              setSelectedFeature(sessionData.feature || "");
+              setSelectedProteinIds([
+                ...new Set((sessionData.selected || []) as string[]),
+              ]);
+              setHighlightedProteinIds([
+                ...new Set((sessionData.highlighted || []) as string[]),
+              ]);
+              setIsolationMode(sessionData.isolation || false);
+              setHiddenFeatureValues([
+                ...new Set((sessionData.hidden || []) as string[]),
+              ]);
+              setSelectionMode(sessionData.selectionMode || false);
+              setViewStructureId(sessionData.viewStructureId || null);
+            } else {
+              // This is just a data file, load it as new data
+              const dataUrl = URL.createObjectURL(file);
+              await loadData(dataUrl);
+              URL.revokeObjectURL(dataUrl);
+            }
+          } else {
+            // This is an old session file format, try to load the data first
+            const dataPath = sessionData.dataPath || "/data/example/basic.json";
+            await loadData(dataPath);
 
-          const highlighted = Array.isArray(sessionData.highlighted)
-            ? ([
-                ...new Set(
-                  sessionData.highlighted.filter(
-                    (id: unknown) => typeof id === "string"
-                  )
-                ),
-              ] as string[])
-            : [];
-
-          setSelectedProteinIds(selected);
-          setHighlightedProteinIds(highlighted);
-
-          setIsolationMode(sessionData.isolation || false);
-          setHiddenFeatureValues(sessionData.hidden || []);
+            // Restore session state with deduplication
+            setSelectedProjectionIndex(sessionData.projectIndex || 0);
+            setSelectedFeature(sessionData.feature || "");
+            setSelectedProteinIds([
+              ...new Set((sessionData.selected || []) as string[]),
+            ]);
+            setHighlightedProteinIds([
+              ...new Set((sessionData.highlighted || []) as string[]),
+            ]);
+            setIsolationMode(sessionData.isolation || false);
+            setHiddenFeatureValues([
+              ...new Set((sessionData.hidden || []) as string[]),
+            ]);
+          }
         } catch (error) {
-          console.error("Error parsing session file:", error);
-          alert("Failed to load session file. The file may be corrupted.");
+          console.error("Error loading session:", error);
         }
       };
-
       reader.readAsText(file);
     };
-
     input.click();
   };
 
