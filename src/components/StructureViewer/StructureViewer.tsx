@@ -54,6 +54,10 @@ export default function StructureViewer({
   useEffect(() => {
     if (!proteinId || !viewerRef.current) return;
 
+    // Reset error and loading state when protein ID changes
+    setError(null);
+    setIsLoading(true);
+
     const formattedId = proteinId.split(".")[0]; // Remove version numbers if any
 
     // Load the Molstar viewer via CDN
@@ -118,7 +122,18 @@ export default function StructureViewer({
         try {
           const alphafoldUrl = `https://alphafold.ebi.ac.uk/files/AF-${formattedId}-F1-model_v4.pdb`;
 
+          // Check if the AlphaFold URL exists before trying to load it
+          const response = await fetch(alphafoldUrl, { method: "HEAD" });
+          if (!response.ok) {
+            setError(
+              `AlphaFold structure is not available for ${formattedId}.`
+            );
+            setIsLoading(false);
+            return;
+          }
+
           await viewer?.loadStructureFromUrl(alphafoldUrl, "pdb");
+
           setIsLoading(false);
         } catch (alphafoldError) {
           console.error("Error loading AlphaFold structure:", alphafoldError);
@@ -143,6 +158,7 @@ export default function StructureViewer({
     initViewer();
 
     return () => {
+      setError(null);
       // Clean up viewer
       if (viewerRef.current) {
         viewerRef.current.innerHTML = "";
@@ -151,6 +167,32 @@ export default function StructureViewer({
   }, [proteinId]);
 
   if (!proteinId) return null;
+
+  if (error) {
+    return (
+      <div className="w-full bg-white dark:bg-gray-800 rounded-md shadow-sm mt-4">
+        <div className="flex justify-between items-center p-3 border-b dark:border-gray-700">
+          <h3 className="text-md font-medium text-gray-900 dark:text-gray-100">
+            {title}
+            <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
+              {proteinId}
+            </span>
+          </h3>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-gray-100"
+            >
+              X
+            </button>
+          )}
+        </div>
+        <div className="text-center text-red-500 p-4">
+          <p className="font-medium">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full bg-white dark:bg-gray-800 rounded-md shadow-sm mt-4">
