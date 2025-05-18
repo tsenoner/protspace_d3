@@ -89,12 +89,17 @@ export default function ControlBar({
         {/* Selection mode toggle */}
         <button
           onClick={onToggleSelectionMode}
+          disabled={false}
           className={`px-3 py-1 rounded-md flex items-center space-x-1 ${
             selectionMode
               ? "bg-blue-500 text-white hover:bg-blue-600"
               : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-700"
           }`}
-          title="Toggle Selection Mode"
+          title={
+            isolationMode
+              ? "Select proteins within the split view for further refinement"
+              : "Select proteins by clicking or dragging to enclose multiple points"
+          }
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -129,8 +134,11 @@ export default function ControlBar({
         {/* Clear selections button */}
         <button
           onClick={onClearSelections}
-          className="px-3 py-1 border border-gray-300 rounded-md flex items-center space-x-1 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700"
-          title="Clear Selections"
+          disabled={selectedProteinsCount === 0}
+          className={`px-3 py-1 border border-gray-300 rounded-md flex items-center space-x-1 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700 ${
+            selectedProteinsCount === 0 ? "opacity-50 cursor-not-allowed" : ""
+          }`}
+          title="Clear all selected proteins"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -149,21 +157,27 @@ export default function ControlBar({
           <span>Clear</span>
         </button>
 
-        {/* Isolation mode toggle */}
+        {/* Split mode toggle (formerly Isolation mode) */}
         <button
           onClick={onToggleIsolationMode}
-          disabled={selectedProteinsCount === 0}
+          disabled={!isolationMode && selectedProteinsCount === 0}
           className={`px-3 py-1 rounded-md flex items-center space-x-1 ${
             isolationMode
               ? "bg-blue-500 text-white hover:bg-blue-600"
               : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-700"
           } ${
-            selectedProteinsCount === 0 ? "opacity-50 cursor-not-allowed" : ""
+            !isolationMode && selectedProteinsCount === 0
+              ? "opacity-50 cursor-not-allowed"
+              : ""
           }`}
           title={
-            selectedProteinsCount === 0
-              ? "Select proteins first"
-              : "Toggle Isolation Mode"
+            isolationMode && selectedProteinsCount > 0
+              ? "Split again to further refine view"
+              : isolationMode && selectedProteinsCount === 0
+              ? "Exit split mode and view all proteins"
+              : selectedProteinsCount === 0
+              ? "Select proteins first to split data"
+              : "Split view to focus on selected proteins only"
           }
         >
           <svg
@@ -180,7 +194,13 @@ export default function ControlBar({
               d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
             />
           </svg>
-          <span>Isolate</span>
+          <span>
+            {isolationMode && selectedProteinsCount > 0
+              ? "Split Again"
+              : isolationMode && selectedProteinsCount === 0
+              ? "Show All Data"
+              : "Split Data"}
+          </span>
         </button>
 
         {/* Export dropdown */}

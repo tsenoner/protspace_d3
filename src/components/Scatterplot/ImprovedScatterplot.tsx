@@ -40,6 +40,7 @@ export interface ScatterplotProps {
   highlightedProteinIds: string[];
   selectedProteinIds: string[];
   isolationMode: boolean;
+  splitHistory?: string[][];
   selectionMode: boolean;
   hiddenFeatureValues?: string[];
   baseOpacity?: number;
@@ -98,6 +99,7 @@ export default function ImprovedScatterplot({
   highlightedProteinIds = [],
   selectedProteinIds = [],
   isolationMode = false,
+  splitHistory,
   selectionMode = false,
   hiddenFeatureValues = [],
   baseOpacity = DEFAULT_CONFIG.baseOpacity,
@@ -194,11 +196,29 @@ export default function ImprovedScatterplot({
       };
     });
 
-    // Filter data if in isolation mode
-    return isolationMode
-      ? processedData.filter((p) => selectedProteinIds.includes(p.id))
-      : processedData;
-  }, [data, selectedProjectionIndex, isolationMode, selectedProteinIds]);
+    // Filter data based on split history when in isolation mode
+    if (isolationMode && splitHistory && splitHistory.length > 0) {
+      // For the first split, get all the selected proteins
+      let filteredData = processedData.filter((p) =>
+        splitHistory[0].includes(p.id)
+      );
+
+      // For each subsequent split, further filter the remaining proteins
+      if (splitHistory.length > 1) {
+        // Apply each split operation in sequence (they work as progressive filters)
+        for (let i = 1; i < splitHistory.length; i++) {
+          // Get the IDs from the current split
+          const splitIds = splitHistory[i];
+          // Filter the data to only include proteins that match this split
+          filteredData = filteredData.filter((p) => splitIds.includes(p.id));
+        }
+      }
+
+      return filteredData;
+    }
+
+    return processedData;
+  }, [data, selectedProjectionIndex, isolationMode, splitHistory]);
 
   // Memoize scales to prevent recalculation when other props change
   const scales = useMemo(() => {
@@ -670,6 +690,8 @@ export default function ImprovedScatterplot({
 
   // Update points when data or visual properties change
   useEffect(() => {
+    // Don't skip rendering in isolation mode - that was causing the issue
+
     if (
       !svgRef.current ||
       !mainGroupRef.current ||
@@ -833,6 +855,8 @@ export default function ImprovedScatterplot({
     onViewStructure,
     hiddenFeatureValues,
     isTransitioning,
+    selectedProteinIds,
+    isolationMode,
   ]);
 
   // Effect to automatically zoom to highlighted/selected proteins when they change
@@ -870,7 +894,7 @@ export default function ImprovedScatterplot({
       )}
 
       {/* Isolation mode indicator */}
-      {isolationMode && selectedProteinIds.length > 0 && (
+      {isolationMode && splitHistory && (
         <div className="absolute top-2 left-2 z-10 px-2 py-1 bg-blue-500 text-white text-xs rounded-md flex items-center">
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -887,7 +911,8 @@ export default function ImprovedScatterplot({
             />
           </svg>
           <span>
-            Isolation Mode: Showing {selectedProteinIds.length} proteins
+            Split Mode: Showing {plotData.length} proteins (
+            {splitHistory.length} splits)
           </span>
         </div>
       )}

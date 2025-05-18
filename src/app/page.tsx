@@ -28,6 +28,7 @@ export default function ProtSpaceApp() {
     []
   );
   const [isolationMode, setIsolationMode] = useState(false);
+  const [splitHistory, setSplitHistory] = useState<string[][]>([]);
   const [selectionMode, setSelectionMode] = useState(false);
   const [viewStructureId, setViewStructureId] = useState<string | null>(null);
   const [hiddenFeatureValues, setHiddenFeatureValues] = useState<string[]>([]);
@@ -105,6 +106,7 @@ export default function ProtSpaceApp() {
 
   // Handle protein selection
   const handleProteinClick = (proteinId: string, event?: React.MouseEvent) => {
+    // Standard selection behavior regardless of split state
     setSelectedProteinIds((prevIds) => {
       // If the protein is already selected, deselect it
       if (prevIds.includes(proteinId)) {
@@ -205,6 +207,49 @@ export default function ProtSpaceApp() {
     setSelectedProteinIds((prev) => [
       ...new Set(prev.filter((id) => id !== proteinId)),
     ]);
+  };
+
+  // Handle showing all data, clearing isolation mode while preserving selections
+  const handleShowAllData = () => {
+    // Reset split state and go back to full dataset
+    if (isolationMode) {
+      setIsolationMode(false);
+      setSplitHistory([]);
+    }
+
+    // Reset any hidden feature values to show all data
+    setHiddenFeatureValues([]);
+  };
+
+  // Split the data to focus on selected proteins
+  const handleToggleIsolationMode = () => {
+    if (!isolationMode) {
+      // Ensure we have something selected first
+      if (selectedProteinIds.length === 0) {
+        return; // Don't do anything if nothing is selected
+      }
+
+      // Enter split mode and add current selection to history
+      setIsolationMode(true);
+      setSplitHistory((prev) => [...prev, [...selectedProteinIds]]);
+
+      // Clear selection after splitting to prepare for new selection
+      setSelectedProteinIds([]);
+    } else {
+      // If we have a selection in split mode, perform another split
+      if (selectedProteinIds.length > 0) {
+        // Add these selections to history
+        setSplitHistory((prev) => [...prev, [...selectedProteinIds]]);
+        // Clear selection after splitting
+        setSelectedProteinIds([]);
+      } else {
+        // If no selection, exit split mode entirely
+        setIsolationMode(false);
+        setSplitHistory([]);
+        // Also reset hidden feature values when exiting split mode
+        setHiddenFeatureValues([]);
+      }
+    }
   };
 
   // Handle session export/import
@@ -1241,9 +1286,36 @@ export default function ProtSpaceApp() {
 
   // Stats for status bar
   const totalProteins = visualizationData?.protein_ids.length || 0;
-  const displayedProteins = isolationMode
-    ? selectedProteinIds.length
-    : totalProteins;
+
+  // Calculate displayed proteins based on split history
+  const displayedProteins = useMemo(() => {
+    if (!isolationMode || !splitHistory || splitHistory.length === 0) {
+      return totalProteins;
+    }
+
+    // If in split mode, count how many proteins pass all split filters
+    if (!visualizationData) return 0;
+
+    const proteinIds = visualizationData.protein_ids;
+    // Start with all proteins from first split
+    const displayedIds = new Set(splitHistory[0]);
+
+    // For each subsequent split, filter to only include proteins that match all splits
+    if (splitHistory.length > 1) {
+      for (let i = 1; i < splitHistory.length; i++) {
+        const currentSplit = splitHistory[i];
+        // Keep only proteins that are in the current split AND were in previous splits
+        Array.from(displayedIds).forEach((id) => {
+          if (!currentSplit.includes(id)) {
+            displayedIds.delete(id);
+          }
+        });
+      }
+    }
+
+    return displayedIds.size;
+  }, [isolationMode, splitHistory, totalProteins, visualizationData]);
+
   const projectionName =
     visualizationData?.projections[selectedProjectionIndex]?.name || "";
 
@@ -1311,7 +1383,7 @@ export default function ProtSpaceApp() {
         selectionMode={selectionMode}
         onToggleSelectionMode={() => setSelectionMode(!selectionMode)}
         isolationMode={isolationMode}
-        onToggleIsolationMode={() => setIsolationMode(!isolationMode)}
+        onToggleIsolationMode={handleToggleIsolationMode}
         selectedProteinsCount={selectedProteinIds.length}
         onExport={handleExport}
         onClearSelections={() => {
@@ -1332,6 +1404,7 @@ export default function ProtSpaceApp() {
               selectedProteinIds={selectedProteinIds}
               highlightedProteinIds={highlightedProteinIds}
               isolationMode={isolationMode}
+              splitHistory={splitHistory}
               selectionMode={selectionMode}
               hiddenFeatureValues={hiddenFeatureValues}
               onProteinClick={handleProteinClick}
@@ -1357,7 +1430,7 @@ export default function ProtSpaceApp() {
                 colors: visualizationData.features[selectedFeature].colors,
                 shapes: visualizationData.features[selectedFeature].shapes,
               }}
-              featureValues={visualizationData.protein_ids.map((_, index) => {
+              featureValues={visualizationData.protein_ids.map((id, index) => {
                 // Get the feature index for this protein
                 const featureIndex =
                   visualizationData.feature_data[selectedFeature][index];
@@ -1366,6 +1439,7 @@ export default function ProtSpaceApp() {
                   featureIndex
                 ];
               })}
+              proteinIds={visualizationData.protein_ids}
               onToggleVisibility={handleToggleVisibility}
               onExtractFromOther={handleExtractFromOther}
               onSetZOrder={handleSetZOrder}
@@ -1373,6 +1447,7 @@ export default function ProtSpaceApp() {
               selectedItems={Array.from(selectedFeatureItemsSet)}
               className="w-full lg:w-auto"
               isolationMode={isolationMode}
+              splitHistory={splitHistory}
               ref={legendRef}
             />
           )}
