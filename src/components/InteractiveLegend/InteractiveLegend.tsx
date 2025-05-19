@@ -57,6 +57,7 @@ export interface InteractiveLegendProps {
     shapes: string[];
   };
   featureValues: (string | null)[];
+  proteinIds?: string[];
   maxVisibleValues?: number;
   onToggleVisibility?: (value: string | null) => void;
   onExtractFromOther?: (value: string) => void;
@@ -65,6 +66,7 @@ export interface InteractiveLegendProps {
   selectedItems?: string[];
   className?: string;
   isolationMode?: boolean;
+  splitHistory?: string[][];
 }
 
 interface OtherItemsDialogProps {
@@ -157,6 +159,7 @@ const InteractiveLegend = forwardRef<
     {
       featureData,
       featureValues,
+      proteinIds,
       maxVisibleValues = 10,
       onToggleVisibility,
       onExtractFromOther,
@@ -165,6 +168,7 @@ const InteractiveLegend = forwardRef<
       selectedItems = [],
       className = "",
       isolationMode = false,
+      splitHistory,
     },
     ref
   ) => {
@@ -185,9 +189,51 @@ const InteractiveLegend = forwardRef<
 
       // Create a map of value frequencies
       const frequencyMap = new Map<string | null, number>();
-      featureValues.forEach((value) => {
-        frequencyMap.set(value, (frequencyMap.get(value) || 0) + 1);
-      });
+
+      // Filter featureValues based on split history when in isolation mode
+      const filteredIndices = new Set<number>();
+
+      if (
+        isolationMode &&
+        splitHistory &&
+        splitHistory.length > 0 &&
+        proteinIds
+      ) {
+        // First, identify which indices to include based on the split history
+        proteinIds.forEach((id, index) => {
+          // For the first split, check if the protein is in the first selection
+          let isIncluded = splitHistory[0].includes(id);
+
+          // For each subsequent split, check if the protein is also in that selection
+          if (isIncluded && splitHistory.length > 1) {
+            for (let i = 1; i < splitHistory.length; i++) {
+              if (!splitHistory[i].includes(id)) {
+                isIncluded = false;
+                break;
+              }
+            }
+          }
+
+          if (isIncluded) {
+            filteredIndices.add(index);
+          }
+        });
+      }
+
+      // Count frequencies of the filtered values
+      if (isolationMode && splitHistory && splitHistory.length > 0) {
+        // Only count values from proteins that pass the split filter
+        featureValues.forEach((value, index) => {
+          if (filteredIndices.has(index)) {
+            frequencyMap.set(value, (frequencyMap.get(value) || 0) + 1);
+          }
+        });
+      } else {
+        // Count all values when not in isolation mode
+        featureValues.forEach((value) => {
+          frequencyMap.set(value, (frequencyMap.get(value) || 0) + 1);
+        });
+      }
 
       // Convert to array and sort by frequency (descending)
       const sortedItems = Array.from(frequencyMap.entries()).sort(
@@ -304,7 +350,14 @@ const InteractiveLegend = forwardRef<
 
       // Set items state
       setLegendItems(items);
-    }, [featureData, featureValues, maxVisibleValues, isolationMode]);
+    }, [
+      featureData,
+      featureValues,
+      maxVisibleValues,
+      isolationMode,
+      splitHistory,
+      proteinIds,
+    ]);
 
     // Handle item click (toggle visibility)
     const handleItemClick = useCallback(
