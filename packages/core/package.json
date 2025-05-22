@@ -1,0 +1,50 @@
+{
+    "name": "@protspace/core",
+    "version": "0.1.0",
+    "description": "Core ProtSpace web components",
+    "main": "dist/index.js",
+    "module": "dist/index.esm.js",
+    "types": "dist/index.d.ts",
+    "exports": {
+      ".": {
+        "import": "./dist/index.esm.js",
+        "require": "./dist/index.js",
+        "types": "./dist/index.d.ts"
+      }
+    },
+    "files": [
+      "dist",
+      "src"
+    ],
+    "scripts": {
+      "build": "vite build && tsc --emitDeclarationOnly",
+      "dev": "vite build --watch",
+      "test": "vitest",
+      "lint": "eslint src --ext .ts --fix",
+      "type-check": "tsc --noEmit",
+      "clean": "rm -rf dist"
+    },
+    "keywords": [
+      "protspace",
+      "web-components",
+      "visualization",
+      "protein",
+      "bioinformatics"
+    ],
+    "license": "MIT",
+    "dependencies": {
+      "d3": "^7.9.0",
+      "lit": "^3.3.0"
+    },
+    "devDependencies": {
+      "@types/d3": "^7.4.3",
+      "@typescript-eslint/eslint-plugin": "^7.7.0",
+      "@typescript-eslint/parser": "^7.7.0",
+      "@vitest/ui": "^1.5.0",
+      "eslint": "^8.57.0",
+      "typescript": "^5.8.3",
+      "vite": "^6.3.5",
+      "vite-plugin-dts": "^4.5.4",
+      "vitest": "^1.5.0"
+    }
+  }
