@@ -55,9 +55,11 @@ protspace/
 │       └── package.json
 │
 ├── examples/                    # Standalone examples
-│   └── vanilla-scatterplot-test/ # Basic HTML test for scatterplot
+│   └── scatterplot-vite/        # Scatterplot example using Vite
 │       ├── index.html
-│       └── package.json
+│       ├── src/main.ts
+│       ├── package.json
+│       └── vite.config.ts
 │
 ├── turbo.json                   # Turborepo configuration
 ├── package.json                 # Root package scripts
@@ -274,8 +276,8 @@ turbo test --filter=@protspace/core
 
 - **Components**: See `docs/components/` for detailed component APIs
 - **Examples**: 
-    - `examples/vanilla-scatterplot-test/`: A basic HTML page demonstrating direct usage of the `<protspace-scatterplot>` web component. Run with `pnpm serve:example:vanilla-scatterplot`.
-    - Check `examples/` for other usage examples in different frameworks (as they are added).
+    - `examples/scatterplot-vite/`: Scatterplot demo using Vite. Run with `pnpm dev:example:scatterplot-vite`.
+    - Check `examples/` for other usage examples (as they are added).
 - **Migration Guide**: `docs/migration-guide.md` for migrating from existing implementations
 
 ## 🚢 Publishing

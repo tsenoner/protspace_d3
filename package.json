@@ -6,7 +6,7 @@
   "scripts": {
     "build": "turbo build",
     "dev": "turbo dev",
-    "serve:example:vanilla-scatterplot": "pnpm --filter @protspace/example-scatterplot serve",
+    "dev:example:scatterplot-vite": "pnpm --filter @protspace/example-scatterplot dev",
     "test": "turbo test",
     "lint": "turbo lint",
     "type-check": "turbo type-check",
