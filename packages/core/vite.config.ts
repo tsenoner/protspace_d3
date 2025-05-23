@@ -5,9 +5,8 @@ import dts from 'vite-plugin-dts';
 export default defineConfig({
   plugins: [
     dts({
-      insertTypesEntry: true,
-      include: ['src/**/*'],
-      exclude: ['src/**/*.test.ts']
+      tsconfigPath: './tsconfig.json',
+      insertTypesEntry: true
     })
   ],
   build: {
@@ -16,7 +15,7 @@ export default defineConfig({
       formats: ['es', 'cjs']
     },
     rollupOptions: {
-      external: ['lit', 'd3'],
+      external: ['lit', 'd3', '@protspace/utils'],
       output: {
         globals: {
           lit: 'Lit',

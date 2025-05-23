@@ -1,3 +1,12 @@
+import {
+  schemeCategory10,
+  interpolateViridis,
+  interpolatePlasma,
+  interpolateTurbo,
+  interpolateRdYlBu,
+  interpolateSpectral
+} from 'd3-scale-chromatic';
+
 export const COLOR_SCHEMES = {
     // Scientific color schemes
     scientific: ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#e6f598', '#abdda4', '#66c2a5', '#3288bd'],
@@ -6,17 +15,17 @@ export const COLOR_SCHEMES = {
     colorblind: ['#e69f00', '#56b4e9', '#009e73', '#f0e442', '#0072b2', '#d55e00', '#cc79a7'],
     
     // Category schemes
-    category10: d3.schemeCategory10,
-    category20: d3.schemeCategory20,
+    category10: schemeCategory10,
+    category20: schemeCategory10,
     
     // Sequential schemes
-    viridis: (t: number) => d3.interpolateViridis(t),
-    plasma: (t: number) => d3.interpolatePlasma(t),
-    turbo: (t: number) => d3.interpolateTurbo(t),
+    viridis: (t: number) => interpolateViridis(t),
+    plasma: (t: number) => interpolatePlasma(t),
+    turbo: (t: number) => interpolateTurbo(t),
     
     // Diverging schemes
-    rdylbu: (t: number) => d3.interpolateRdYlBu(t),
-    spectral: (t: number) => d3.interpolateSpectral(t),
+    rdylbu: (t: number) => interpolateRdYlBu(t),
+    spectral: (t: number) => interpolateSpectral(t),
     
     // Protein-specific schemes
     proteinFamilies: [

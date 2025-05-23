@@ -1,12 +1,11 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property, state, query } from 'lit/decorators.js';
-import { createRef, ref, Ref } from 'lit/directives/ref.js';
 import * as d3 from 'd3';
+
 import type { 
   VisualizationData, 
   PlotDataPoint, 
-  ScatterplotConfig,
-  StyleForFeature 
+  ScatterplotConfig, 
 } from '@protspace/utils';
 import { DataProcessor, getSymbolType } from '@protspace/utils';
 
@@ -199,6 +198,7 @@ export class ProtspaceScatterplot extends LitElement {
     y: number;
     protein: PlotDataPoint;
   } | null = null;
+  // @ts-ignore: _zoomTransform is set for state reactivity, value not directly read yet
   @state() private _zoomTransform: d3.ZoomTransform | null = null;
 
   // Refs
@@ -418,7 +418,6 @@ export class ProtspaceScatterplot extends LitElement {
     this._isLoading = true;
 
     const transitionDuration = this._isTransitioning ? 750 : 250;
-    const t = d3.transition().duration(transitionDuration);
 
     // Update points using D3's enter/update/exit pattern
     const points = this._mainGroup
@@ -426,7 +425,7 @@ export class ProtspaceScatterplot extends LitElement {
       .data(this._plotData, d => d.id);
 
     // Remove exiting points
-    points.exit().transition(t).attr('opacity', 0).remove();
+    points.exit().transition().duration(transitionDuration).attr('opacity', 0).remove();
 
     // Add new points
     const enterPoints = points
@@ -445,11 +444,11 @@ export class ProtspaceScatterplot extends LitElement {
       .on('click', (event, d) => this._handleClick(event, d));
 
     // Fade in new points
-    enterPoints.transition(t).attr('opacity', d => this._getOpacity(d));
+    enterPoints.transition().duration(transitionDuration).attr('opacity', d => this._getOpacity(d));
 
     // Update existing points
     points
-      .transition(t)
+      .transition().duration(transitionDuration)
       .attr('d', d => this._getPointPath(d))
       .attr('fill', d => this._getPointColor(d))
       .attr('opacity', d => this._getOpacity(d))
@@ -569,7 +568,7 @@ export class ProtspaceScatterplot extends LitElement {
     }) as ProteinHoverEvent);
   }
 
-  private _handleMouseOut(event: MouseEvent, point: PlotDataPoint) {
+  private _handleMouseOut(_event: MouseEvent, _point: PlotDataPoint) {
     // Hide tooltip
     this._tooltipData = null;
 

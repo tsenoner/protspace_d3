@@ -1,6 +1,5 @@
 import * as d3 from 'd3';
-import type { PlotDataPoint, VisualizationData } from '@protspace/utils';
-import { getSymbolType } from '@protspace/utils';
+import type { PlotDataPoint } from '@protspace/utils';
 
 export interface RenderConfig {
   width: number;

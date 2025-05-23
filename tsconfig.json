@@ -30,10 +30,7 @@
         "path": "./packages/react-bridge"
       },
       {
-        "path": "./apps/nextjs-app"
+        "path": "./app"
       },
-      {
-        "path": "./apps/demo"
-      }
     ]
   }

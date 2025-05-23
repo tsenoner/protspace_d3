@@ -1,0 +1,31 @@
+{
+    "extends": "../../tsconfig.json",
+    "compilerOptions": {
+        "outDir": ".next/types",
+        "declaration": true,
+        "declarationMap": true,
+        "composite": true,
+        "esModuleInterop": true,
+        "moduleResolution": "bundler",
+        "resolveJsonModule": true,
+        "isolatedModules": true,
+        "jsx": "preserve",
+        "incremental": true,
+        "noEmit": true,
+        "lib": ["dom", "dom.iterable", "esnext"],
+        "allowJs": true,
+        "skipLibCheck": true,
+        "strict": false,
+        "forceConsistentCasingInFileNames": true,
+        "target": "es5",
+        "module": "esnext"
+    },
+    "include": [
+        "next-env.d.ts",
+        "**/*.ts",
+        "**/*.tsx",
+        // If you have custom server code outside src, add it here, e.g., "server/**/*.ts"
+        // ".next/types/**/*.ts" // This is usually for internal Next.js types, can be added if needed
+    ],
+    "exclude": ["node_modules"]
+  }

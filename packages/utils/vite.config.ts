@@ -13,7 +13,9 @@ export default defineConfig({
   build: {
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
-      formats: ['es', 'cjs']
+      name: 'ProtspaceUtils',
+      formats: ['es', 'cjs'],
+      fileName: (format) => `index.${format === 'es' ? 'esm.js' : 'js'}`
     },
     rollupOptions: {
       external: ['lit', 'd3'],
