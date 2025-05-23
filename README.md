@@ -18,7 +18,7 @@ ProtSpace provides interactive visualization of protein embeddings from protein 
 
 This monorepo uses [Turborepo](https://turbo.build/) for efficient build caching and parallel execution:
 
-```
+```txt
 protspace/
 ├── packages/
 │   ├── core/                    # @protspace/core - Web components
@@ -49,14 +49,14 @@ protspace/
 │       └── package.json
 │
 ├── apps/
-│   └── nextjs-app/              # Demo Next.js application
-│       ├── src/
-│       │   ├── app/                 # Next.js 14 app router
-│       │   ├── components/
-│       │   │   ├── legacy/          # Existing components (migration)
-│       │   │   ├── hybrid/          # New components using web components
-│       │   │   └── ui/              # UI components
-│       │   └── lib/                 # Utilities and sample data
+│   └── src/
+│       ├── app/                 # Next.js 14 app router
+│       ├── components/          # Existing components (migration) and app components
+│       └── package.json
+│
+├── examples/                    # Standalone examples
+│   └── vanilla-scatterplot-test/ # Basic HTML test for scatterplot
+│       ├── index.html
 │       └── package.json
 │
 ├── turbo.json                   # Turborepo configuration
@@ -96,6 +96,7 @@ The Next.js demo app will be available at `http://localhost:3000`.
 ### Core Packages
 
 #### `@protspace/core`
+
 The main web components package built with [Lit](https://lit.dev/):
 
 - **`<protspace-scatterplot>`** - Interactive scatter plot with D3.js canvas rendering
@@ -111,6 +112,7 @@ The main web components package built with [Lit](https://lit.dev/):
 ```
 
 #### `@protspace/utils`
+
 Shared utilities for data processing and visualization:
 
 - **Arrow parsing** - Efficient loading of protein data
@@ -118,6 +120,7 @@ Shared utilities for data processing and visualization:
 - **Visualization helpers** - Color schemes, scales, layouts
 
 #### `@protspace/react`
+
 React wrappers and hooks for seamless React integration:
 
 ```tsx
@@ -181,9 +184,11 @@ turbo dev --filter=!demo
 ### Development Workflow
 
 1. **Start development mode**:
+
    ```bash
    pnpm dev
    ```
+
    This starts all packages in watch mode with hot reloading.
 
 2. **Make changes** to components in `packages/core/src/components/`
@@ -191,11 +196,13 @@ turbo dev --filter=!demo
 3. **See changes reflected** immediately in the Next.js app at `localhost:3000`
 
 4. **Test your changes**:
+
    ```bash
    pnpm test
    ```
 
 5. **Build for production**:
+
    ```bash
    pnpm build
    ```
@@ -215,6 +222,7 @@ protspace-scatterplot {
 ```
 
 Built-in themes:
+
 - `light` - Clean light theme
 - `dark` - Dark mode optimized
 - `scientific` - Publication-ready styling
@@ -237,6 +245,7 @@ interface DataPoint {
 ```
 
 Example Arrow file structure:
+
 - `x`, `y` - Embedding coordinates (e.g., from UMAP/PCA)
 - `protein_id` - UniProt ID or identifier
 - `family` - Protein family classification
@@ -264,7 +273,9 @@ turbo test --filter=@protspace/core
 ## 📚 Documentation
 
 - **Components**: See `docs/components/` for detailed component APIs
-- **Examples**: Check `examples/` for usage examples in different frameworks
+- **Examples**: 
+    - `examples/vanilla-scatterplot-test/`: A basic HTML page demonstrating direct usage of the `<protspace-scatterplot>` web component. Run with `pnpm serve:example:vanilla-scatterplot`.
+    - Check `examples/` for other usage examples in different frameworks (as they are added).
 - **Migration Guide**: `docs/migration-guide.md` for migrating from existing implementations
 
 ## 🚢 Publishing
@@ -289,17 +300,17 @@ pnpm release
 3. Make your changes
 4. Add tests for new functionality
 5. Run tests: `pnpm test`
-6. Commit changes: `git commit -m 'Add amazing feature'`
-7. Push to branch: `git push origin feature/amazing-feature`
-8. Open a Pull Request
+6. Create a changeset `pnpm changeset`
+7. Commit changes: `git commit -m 'Add amazing feature'` ([Note on Commit Messages](https://gist.github.com/robertpainsi/b632364184e70900af4ab688decf6f53))
+8. Push to branch: `git push origin feature/amazing-feature`
+9. Open a Pull Request
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
-- Original ProtSpace paper and authors
 - [Lit](https://lit.dev/) for web components framework
 - [D3.js](https://d3js.org/) for visualization capabilities
 - [Apache Arrow](https://arrow.apache.org/) for efficient data handling
@@ -310,3 +321,89 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Issues**: [GitHub Issues](https://github.com/your-username/protspace/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/your-username/protspace/discussions)
 - **Documentation**: [GitHub Wiki](https://github.com/your-username/protspace/wiki)
+
+## 📖 Component Development with Storybook
+
+We use [Storybook](https://storybook.js.org/) for developing and showcasing UI components in isolation. This is particularly useful for the web components in the `@protspace/core` package.
+
+Storybook allows you to:
+
+- View components in different states and with various props.
+- Interact with components dynamically through controls.
+- Get an overview of the available components and their usage.
+
+### Running Storybook for `@protspace/core`
+
+To start Storybook for the `@protspace/core` components:
+
+```bash
+# Navigate to the core package if you aren't already there (optional)
+# cd packages/core
+
+# Run the storybook script from the root or within packages/core
+pnpm --filter @protspace/core storybook
+```
+
+This will typically open Storybook in your browser at `http://localhost:6006`.
+
+### Writing Stories
+
+Stories are defined in `*.stories.ts` files alongside the components (e.g., `packages/core/src/components/scatterplot/scatterplot.stories.ts`). Each story represents a specific state or use case of a component.
+
+## 🦋 Managing Releases with Changesets
+
+This project uses [Changesets](https://github.com/changesets/changesets) to manage versioning, changelogs, and publishing of packages. Changesets help ensure that all changes are properly documented and that package versions are incremented correctly based on the [semver](https://semver.org/) specification.
+
+### How it Works
+
+When you make a change to a package that you intend to be part of a release, you should add a "changeset" file. This file captures your intent:
+
+- Which packages are affected.
+- Whether the change is a `patch`, `minor`, or `major` update for each affected package.
+- A short description of the change, which will be used to compile the changelog.
+
+### Adding a Changeset
+
+1. After making your code changes, run the following command:
+
+    ```bash
+    pnpm changeset add
+    ```
+
+2. Changesets will then prompt you to:
+    - Select which packages have been changed (use spacebar to select, enter to confirm).
+    - Specify the semver bump type (patch, minor, major) for each selected package.
+    - Write a summary of the changes. This summary will be included in the changelogs.
+
+    This process will create a new markdown file in the `.changeset` directory at the root of the project.
+
+3. Commit this generated markdown file along with your code changes.
+
+### Releasing Packages
+
+When it's time to release:
+
+1. **Versioning**: The release process will consume all changeset files to determine the new versions for the packages.
+
+    ```bash
+    pnpm changeset version
+    # or npx changeset version
+    ```
+
+    This command updates the `package.json` versions of the changed packages and updates their changelog files (e.g., `CHANGELOG.md`).
+
+2. **Publishing**: After versions are bumped and changelogs are updated, you can publish the packages.
+
+    ```bash
+    pnpm changeset publish
+    # or npx changeset publish
+    ```
+
+    This will publish the packages that have been updated in the `version` step to the configured NPM registry.
+
+    (Typically, these `version` and `publish` steps are part of an automated CI/CD release pipeline after merging changes to a main branch.)
+
+### Important Notes
+
+- **Add changesets early and often**: It's best to add a changeset as part of the same commit where the actual code changes are made.
+- **Be descriptive**: Good changeset messages lead to good changelogs.

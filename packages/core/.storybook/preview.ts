@@ -1,6 +1,7 @@
-import type { Preview } from '@storybook/web-components';
+// packages/core/.storybook/preview.ts
 
-const preview: Preview = {
+// Default export for Storybook preview configuration
+export default {
   parameters: {
     controls: {
       matchers: {
@@ -11,4 +12,12 @@ const preview: Preview = {
   },
 };
 
-export default preview; 
+// If you need to export parameters separately for some reason (e.g. for type inference in stories)
+// export const parameters = {
+//   controls: {
+//     matchers: {
+//       color: /(background|color)$/i,
+//       date: /Date$/i,
+//     },
+//   },
+// }; 
