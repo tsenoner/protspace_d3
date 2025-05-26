@@ -1,15 +1,16 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import Header from "@/components/Header/Header";
 import ControlBar from "@/components/ControlBar/ControlBar";
-import ImprovedScatterplot from "@/components/Scatterplot/ImprovedScatterplot";
+import Header from "@/components/Header/Header";
 import InteractiveLegend from "@/components/InteractiveLegend/InteractiveLegend";
+import ImprovedScatterplot, {
+  VisualizationData,
+} from "@/components/Scatterplot/ImprovedScatterplot";
 import StatusBar from "@/components/StatusBar/StatusBar";
-import { VisualizationData } from "@/components/Scatterplot/ImprovedScatterplot";
 import * as d3 from "d3";
 import dynamic from "next/dynamic";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 // Use dynamic import for the structure viewer to avoid SSR issues
 const StructureViewer = dynamic(
@@ -189,7 +190,7 @@ export default function ProtSpaceApp() {
           });
 
           // Convert back to array
-          return [...uniqueHighlights];
+          return Array.from(uniqueHighlights);
         });
       }
     } else {
@@ -200,12 +201,12 @@ export default function ProtSpaceApp() {
   const handleRemoveProtein = (proteinId: string) => {
     // Remove from highlighted proteins (ensuring no duplicates remain)
     setHighlightedProteinIds((prev) => [
-      ...new Set(prev.filter((id) => id !== proteinId)),
+      ...Array.from(new Set(prev.filter((id) => id !== proteinId))),
     ]);
 
     // Also remove from selected proteins (ensuring no duplicates remain)
     setSelectedProteinIds((prev) => [
-      ...new Set(prev.filter((id) => id !== proteinId)),
+      ...Array.from(new Set(prev.filter((id) => id !== proteinId))),
     ]);
   };
 
@@ -319,14 +320,18 @@ export default function ProtSpaceApp() {
               setSelectedProjectionIndex(sessionData.projectIndex || 0);
               setSelectedFeature(sessionData.feature || "");
               setSelectedProteinIds([
-                ...new Set((sessionData.selected || []) as string[]),
+                ...Array.from(
+                  new Set((sessionData.selected || []) as string[])
+                ),
               ]);
               setHighlightedProteinIds([
-                ...new Set((sessionData.highlighted || []) as string[]),
+                ...Array.from(
+                  new Set((sessionData.highlighted || []) as string[])
+                ),
               ]);
               setIsolationMode(sessionData.isolation || false);
               setHiddenFeatureValues([
-                ...new Set((sessionData.hidden || []) as string[]),
+                ...Array.from(new Set((sessionData.hidden || []) as string[])),
               ]);
               setSelectionMode(sessionData.selectionMode || false);
               setViewStructureId(sessionData.viewStructureId || null);
@@ -345,14 +350,16 @@ export default function ProtSpaceApp() {
             setSelectedProjectionIndex(sessionData.projectIndex || 0);
             setSelectedFeature(sessionData.feature || "");
             setSelectedProteinIds([
-              ...new Set((sessionData.selected || []) as string[]),
+              ...Array.from(new Set((sessionData.selected || []) as string[])),
             ]);
             setHighlightedProteinIds([
-              ...new Set((sessionData.highlighted || []) as string[]),
+              ...Array.from(
+                new Set((sessionData.highlighted || []) as string[])
+              ),
             ]);
             setIsolationMode(sessionData.isolation || false);
             setHiddenFeatureValues([
-              ...new Set((sessionData.hidden || []) as string[]),
+              ...Array.from(new Set((sessionData.hidden || []) as string[])),
             ]);
           }
         } catch (error) {
@@ -371,7 +378,6 @@ export default function ProtSpaceApp() {
   };
 
   // Helper function to convert modern color formats to hex/rgb
-  // eslint-disable-next-line no-unused-vars
   const convertModernColors = (element: Element) => {
     // Create a deep clone of the element for manipulation
     const clone = element.cloneNode(true) as HTMLElement;
@@ -814,7 +820,8 @@ export default function ProtSpaceApp() {
 
                   // Create PDF with appropriate dimensions
                   const isLandscape = canvas.width > canvas.height;
-                  const pdf = new jsPDF({
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const pdf = new (jsPDF as any)({
                     orientation: isLandscape ? "landscape" : "portrait",
                     unit: "mm",
                   });
