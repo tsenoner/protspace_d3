@@ -1,31 +1,40 @@
 {
-    "extends": "../../tsconfig.json",
     "compilerOptions": {
-        "outDir": ".next/types",
-        "declaration": true,
-        "declarationMap": true,
-        "composite": true,
+        "target": "es5",
+        "lib": ["dom", "dom.iterable", "esnext"],
+        "allowJs": true,
+        "skipLibCheck": true,
+        "strict": false,
+        "noEmit": true,
         "esModuleInterop": true,
+        "module": "esnext",
         "moduleResolution": "bundler",
         "resolveJsonModule": true,
         "isolatedModules": true,
         "jsx": "preserve",
         "incremental": true,
-        "noEmit": true,
-        "lib": ["dom", "dom.iterable", "esnext"],
-        "allowJs": true,
-        "skipLibCheck": true,
-        "strict": false,
-        "forceConsistentCasingInFileNames": true,
-        "target": "es5",
-        "module": "esnext"
+        "experimentalDecorators": true,
+        "emitDecoratorMetadata": true,
+        "useDefineForClassFields": false,
+        "plugins": [
+            {
+                "name": "next"
+            }
+        ],
+        "baseUrl": ".",
+        "paths": {
+            "@/*": ["./src/*"],
+            "@protspace/core": ["../packages/core/src"],
+            "@protspace/react": ["../packages/react-bridge/src"],
+            "@protspace/utils": ["../packages/utils/src"]
+        },
+        "forceConsistentCasingInFileNames": true
     },
     "include": [
         "next-env.d.ts",
         "**/*.ts",
         "**/*.tsx",
-        // If you have custom server code outside src, add it here, e.g., "server/**/*.ts"
-        // ".next/types/**/*.ts" // This is usually for internal Next.js types, can be added if needed
+        ".next/types/**/*.ts"
     ],
     "exclude": ["node_modules"]
-  }
+}
