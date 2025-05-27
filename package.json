@@ -1,38 +1,25 @@
 {
-  "name": "protspace",
-  "version": "0.1.0",
+  "name": "protspace_d3",
   "private": true,
-  "engines": {
-    "node": ">=18.0.0"
-  },
+  "description": "ProtSpace interactive protein visualization components",
+  "packageManager": "pnpm@10.11.0",
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "dev:example:scatterplot-vite": "pnpm --filter @protspace/example-scatterplot dev",
+    "test": "turbo test",
+    "lint": "turbo lint",
+    "type-check": "turbo type-check",
+    "clean": "turbo clean",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "turbo build && changeset publish"
   },
-  "dependencies": {
-    "ajv": "^8.17.1",
-    "d3": "^7.9.0",
-    "html2canvas": "^1.4.1",
-    "jspdf": "^3.0.1",
-    "lit": "^3.2.1",
-    "molstar": "^4.12.1",
-    "next": "15.1.7",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
-  },
+  "keywords": [],
+  "author": "",
   "devDependencies": {
-    "@eslint/eslintrc": "^3.2.0",
-    "@tailwindcss/postcss": "^4.0.0",
-    "@types/d3": "^7.4.3",
-    "@types/node": "^20.17.19",
-    "@types/react": "^19.0.10",
-    "@types/react-dom": "^19.0.4",
-    "eslint": "^9.20.1",
-    "eslint-config-next": "^15.1.7",
-    "postcss": "^8.5.2",
-    "tailwindcss": "^4.0.0",
-    "typescript": "^5.7.3"
+    "@changesets/cli": "^2.29.4",
+    "turbo": "^2.5.3"
   }
 }
