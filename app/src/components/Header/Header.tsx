@@ -16,8 +16,6 @@ interface HeaderProps {
 
 export default function Header({
   onSearch,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  highlightedProteins,
   selectedProteins = [],
   onRemoveHighlight,
   onSaveSession,

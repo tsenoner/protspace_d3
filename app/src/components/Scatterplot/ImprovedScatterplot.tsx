@@ -66,13 +66,34 @@ const DEFAULT_CONFIG = {
   zoomExtent: [0.1, 10] as [number, number],
 };
 
+// Color constants
+const COLORS = {
+  // Selection and highlighting
+  SELECTION_RED: "#fa2c37",
+
+  // Default colors
+  DEFAULT_GRAY: "#888888",
+  STROKE_DARK_GRAY: "#333333",
+
+  // UI colors
+  BUTTON_BORDER: "#aaa",
+  BUTTON_TEXT: "#666",
+
+  // Brush colors
+  BRUSH_STROKE: "#fa2c37",
+  BRUSH_FILL: "rgba(59, 130, 246, 0.15)",
+
+  // Background colors
+  BUTTON_BG: "rgba(255,255,255,0.9)",
+} as const;
+
 const DEFAULT_STYLES = {
   other: {
-    color: "#888888",
+    color: COLORS.DEFAULT_GRAY,
     shape: d3.symbolCircle,
   },
   null: {
-    color: "#888888",
+    color: COLORS.DEFAULT_GRAY,
     shape: d3.symbolCircle,
   },
 };
@@ -403,12 +424,12 @@ export default function ImprovedScatterplot({
   const getStrokeColor = useCallback(
     (protein: PlotDataPoint) => {
       if (highlightedProteinIds.includes(protein.id)) {
-        return "#fa2c37"; // Red border for highlighted proteins
+        return COLORS.SELECTION_RED;
       }
       if (selectedProteinIds.includes(protein.id)) {
-        return "#fa2c37"; // Blue border for selected proteins
+        return COLORS.SELECTION_RED;
       }
-      return "#333333"; // Default dark gray border - always maintain visibility
+      return COLORS.STROKE_DARK_GRAY;
     },
     [selectedProteinIds, highlightedProteinIds]
   );
@@ -487,8 +508,8 @@ export default function ImprovedScatterplot({
       .attr("width", 40)
       .attr("height", 40)
       .attr("rx", 6)
-      .attr("fill", "rgba(255,255,255,0.9)")
-      .attr("stroke", "#aaa")
+      .attr("fill", COLORS.BUTTON_BG)
+      .attr("stroke", COLORS.BUTTON_BORDER)
       .attr("stroke-width", 1)
       .attr("class", "hover:fill-gray-100");
 
@@ -496,7 +517,7 @@ export default function ImprovedScatterplot({
     resetButtonGroup
       .append("g")
       .attr("fill", "none")
-      .attr("stroke", "#666")
+      .attr("stroke", COLORS.BUTTON_TEXT)
       .attr("stroke-linecap", "round")
       .attr("stroke-linejoin", "round")
       .attr("transform", "translate(12, 10) scale(1.2)")
@@ -523,7 +544,7 @@ export default function ImprovedScatterplot({
       .attr("y", 55)
       .attr("text-anchor", "middle")
       .attr("font-size", "10px")
-      .attr("fill", "#666")
+      .attr("fill", COLORS.BUTTON_TEXT)
       .text("Reset View");
 
     // Reset zoom on unmount
@@ -649,7 +670,7 @@ export default function ImprovedScatterplot({
       brushRef.current = null;
     }
 
-    // Add CSS to handle cursor changes
+    // Add CSS to handle cursor changes and highlighted styles
     const style = document.createElement("style");
     style.innerHTML = `
       .brushing .overlay {
@@ -657,14 +678,20 @@ export default function ImprovedScatterplot({
       }
       
       .brush .selection {
-        stroke: #fa2c37;
+        stroke: ${COLORS.BRUSH_STROKE};
         stroke-width: 2px;
-        fill: rgba(59, 130, 246, 0.15);
+        fill: ${COLORS.BRUSH_FILL};
         stroke-dasharray: none;
       }
       
       .brush .handle {
         display: none;
+      }
+      
+      .protein-point.highlighted {
+        stroke: ${COLORS.SELECTION_RED} !important;
+        stroke-width: 3 !important;
+        stroke-opacity: 1 !important;
       }
     `;
     document.head.appendChild(style);
@@ -737,7 +764,7 @@ export default function ImprovedScatterplot({
       .attr("stroke", (d) => {
         // Directly check if highlighted
         if (highlightedProteinIds.includes(d.id)) {
-          return "#fa2c37"; // Red for highlighted
+          return COLORS.SELECTION_RED; // Red for highlighted
         }
         return getStrokeColor(d);
       })
@@ -798,7 +825,7 @@ export default function ImprovedScatterplot({
         if (!selectionMode) {
           // Direct styling with no transition
           d3.select(clickedElement)
-            .attr("stroke", "#fa2c37")
+            .attr("stroke", COLORS.SELECTION_RED)
             .attr("stroke-width", 3)
             .attr("stroke-opacity", 1);
         }
@@ -833,12 +860,12 @@ export default function ImprovedScatterplot({
             // Deselection animation - transition back to normal border
             d3.select(clickedElement)
               .attr("stroke-width", 1)
-              .attr("stroke", "#333333")
+              .attr("stroke", COLORS.STROKE_DARK_GRAY)
               .attr("stroke-opacity", 1);
           } else if (!selectionMode) {
             // Force red border for non-selection mode
             d3.select(clickedElement)
-              .attr("stroke", "#fa2c37")
+              .attr("stroke", COLORS.SELECTION_RED)
               .attr("stroke-width", 3)
               .attr("stroke-opacity", 1);
           }
@@ -853,7 +880,7 @@ export default function ImprovedScatterplot({
               );
               if (!point.empty()) {
                 point
-                  .attr("stroke", "#fa2c37")
+                  .attr("stroke", COLORS.SELECTION_RED)
                   .attr("stroke-width", 3)
                   .attr("stroke-opacity", 1);
               }
@@ -874,16 +901,19 @@ export default function ImprovedScatterplot({
     // Fade in new points
     enterPoints.transition(t).attr("opacity", (d) => getOpacity(d));
 
-    // Direct selection to force update highlighted proteins immediately
-    highlightedProteinIds.forEach((id) => {
-      const highlightedPoint = pointsGroup.select(`[data-protein-id="${id}"]`);
-      if (!highlightedPoint.empty()) {
-        highlightedPoint
-          .attr("stroke", "#fa2c37")
-          .attr("stroke-width", 3)
-          .attr("stroke-opacity", 1);
-      }
-    });
+    // Batch update highlighted proteins using CSS classes
+    const allPoints = pointsGroup.selectAll("[data-protein-id]");
+
+    // Remove highlight class from all points first
+    allPoints.classed("highlighted", false);
+
+    // Add highlight class to highlighted proteins in a single operation
+    if (highlightedProteinIds.length > 0) {
+      const highlightedSelector = highlightedProteinIds
+        .map((id) => `[data-protein-id="${id}"]`)
+        .join(", ");
+      pointsGroup.selectAll(highlightedSelector).classed("highlighted", true);
+    }
 
     // Update existing points
     points
@@ -894,7 +924,7 @@ export default function ImprovedScatterplot({
       .attr("stroke", (d) => {
         // Override getStrokeColor for highlighted points
         if (highlightedProteinIds.includes(d.id)) {
-          return "#fa2c37"; // Red for highlighted
+          return COLORS.SELECTION_RED;
         }
         return getStrokeColor(d);
       })
@@ -910,19 +940,21 @@ export default function ImprovedScatterplot({
         (d) => `translate(${scales.x(d.x)}, ${scales.y(d.y)})`
       );
 
-    // Apply direct force update after transition
+    // Apply CSS class updates after transition completes
     setTimeout(() => {
-      highlightedProteinIds.forEach((id) => {
-        const highlightedPoint = pointsGroup.select(
-          `[data-protein-id="${id}"]`
-        );
-        if (!highlightedPoint.empty()) {
-          highlightedPoint
-            .attr("stroke", "#fa2c37")
-            .attr("stroke-width", 3)
-            .attr("stroke-opacity", 1);
-        }
-      });
+      const allPointsAfterTransition =
+        pointsGroup.selectAll("[data-protein-id]");
+
+      // Remove highlight class from all points
+      allPointsAfterTransition.classed("highlighted", false);
+
+      // Add highlight class to currently highlighted proteins
+      if (highlightedProteinIds.length > 0) {
+        const highlightedSelector = highlightedProteinIds
+          .map((id) => `[data-protein-id="${id}"]`)
+          .join(", ");
+        pointsGroup.selectAll(highlightedSelector).classed("highlighted", true);
+      }
     }, transitionDuration + 50);
 
     // Reset zoom if needed (but only if not already set)
