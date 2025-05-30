@@ -107,6 +107,11 @@ export default function ProtSpaceApp() {
 
   // Handle protein selection
   const handleProteinClick = (proteinId: string, event?: React.MouseEvent) => {
+    // When in non-selection mode, add the clicked protein to highlightedProteinIds immediately
+    if (!selectionMode) {
+      setHighlightedProteinIds([proteinId]);
+    }
+
     // Standard selection behavior regardless of split state
     setSelectedProteinIds((prevIds) => {
       // If the protein is already selected, deselect it
@@ -127,6 +132,8 @@ export default function ProtSpaceApp() {
         // Only show structure for the selected protein when not in selection mode
         if (!selectionMode) {
           setViewStructureId(proteinId);
+          // For single-click in non-selection mode, add to highlighted (red border)
+          setHighlightedProteinIds([proteinId]);
         }
         return [proteinId];
       }
@@ -135,6 +142,10 @@ export default function ProtSpaceApp() {
       // Only show structure for the newly clicked protein when not in selection mode
       if (!selectionMode) {
         setViewStructureId(proteinId);
+        // Add to highlighted list for the red border
+        setHighlightedProteinIds((prev) =>
+          prev.includes(proteinId) ? prev : [...prev, proteinId]
+        );
       }
       return [...prevIds, proteinId];
     });
