@@ -11,8 +11,8 @@ import { DataProcessor, getSymbolType } from "@protspace/utils";
 
 // Default configuration
 const DEFAULT_CONFIG: Required<ScatterplotConfig> = {
-  width: 1100,
-  height: 600,
+  width: 800,
+  height: 500,
   margin: { top: 40, right: 40, bottom: 40, left: 40 },
   pointSize: 80,
   highlightedPointSize: 120,
@@ -40,6 +40,22 @@ export interface ProteinHoverEvent extends CustomEvent {
   detail: {
     proteinId: string | null;
     point?: PlotDataPoint;
+  };
+}
+
+export interface SplitStateChangeEvent extends CustomEvent {
+  detail: {
+    isolationMode: boolean;
+    splitHistory: string[][];
+    currentDataSize: number;
+    selectedProteinsCount: number;
+  };
+}
+
+export interface DataChangeEvent extends CustomEvent {
+  detail: {
+    data: VisualizationData;
+    isFiltered: boolean;
   };
 }
 
@@ -91,18 +107,26 @@ export class ProtspaceScatterplot extends LitElement {
       border: 1px solid var(--protspace-border-color);
       border-radius: var(--protspace-border-radius);
       overflow: hidden;
+      margin: 0;
+      padding: 0;
     }
 
     .container {
       width: 100%;
       height: 100%;
       position: relative;
+      margin: 0;
+      padding: 0;
     }
 
     svg {
       width: 100%;
       height: 100%;
       display: block;
+      margin: 0;
+      padding: 0;
+      max-width: 100% !important;
+      max-height: 100% !important;
     }
 
     .loading-overlay {
@@ -202,8 +226,14 @@ export class ProtspaceScatterplot extends LitElement {
     y: number;
     protein: PlotDataPoint;
   } | null = null;
-  // @ts-expect-error: _zoomTransform is set for state reactivity, value not directly read yet
+
   @state() private _zoomTransform: d3.ZoomTransform | null = null;
+
+  // Internal split state
+  @state() private _originalData: VisualizationData | null = null;
+  @state() private _currentData: VisualizationData | null = null;
+  @state() private _internalSplitHistory: string[][] = [];
+  @state() private _internalIsolationMode = false;
 
   // Refs
   @query("svg") private _svg!: SVGSVGElement;
@@ -227,6 +257,7 @@ export class ProtspaceScatterplot extends LitElement {
   > | null = null;
   private _zoom: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null;
   private _brush: d3.BrushBehavior<unknown> | null = null;
+  private _lastBrushTime = 0; // To prevent rapid brush events
 
   // Computed properties
   private get _mergedConfig(): Required<ScatterplotConfig> {
@@ -234,13 +265,14 @@ export class ProtspaceScatterplot extends LitElement {
   }
 
   private get _plotData(): PlotDataPoint[] {
-    if (!this.data) return [];
+    const dataToUse = this._currentData || this.data;
+    if (!dataToUse) return [];
 
     return DataProcessor.processVisualizationData(
-      this.data,
+      dataToUse,
       this.selectedProjectionIndex,
-      this.isolationMode,
-      this.splitHistory
+      this._internalIsolationMode,
+      this._internalSplitHistory
     );
   }
 
@@ -254,13 +286,154 @@ export class ProtspaceScatterplot extends LitElement {
     );
   }
 
+  // Public methods for split operations
+  public enterSplitMode(selectedIds: string[]) {
+    if (!this.data || selectedIds.length === 0) return;
+
+    // Store original data if this is the first split
+    if (!this._originalData) {
+      this._originalData = this.data;
+    }
+
+    // Add to split history
+    this._internalSplitHistory = [
+      ...this._internalSplitHistory,
+      [...selectedIds],
+    ];
+
+    // Create filtered data
+    const selectedIndices = selectedIds
+      .map((id) => this.data!.protein_ids.indexOf(id))
+      .filter((idx) => idx !== -1);
+
+    if (selectedIndices.length > 0) {
+      this._currentData = {
+        projections: this.data.projections.map((projection) => ({
+          ...projection,
+          data: selectedIndices.map((idx) => projection.data[idx]),
+        })),
+        protein_ids: selectedIndices.map((idx) => this.data!.protein_ids[idx]),
+        features: this.data.features,
+        feature_data: Object.fromEntries(
+          Object.entries(this.data.feature_data).map(([key, values]) => [
+            key,
+            selectedIndices.map((idx) => values[idx]),
+          ])
+        ),
+      };
+
+      this._internalIsolationMode = true;
+
+      // Clear selections after split
+      this.selectedProteinIds = [];
+
+      this._dispatchSplitStateChange();
+      this._dispatchDataChange();
+    }
+  }
+
+  public createNestedSplit(selectedIds: string[]) {
+    if (!this._currentData || selectedIds.length === 0) return;
+
+    // Add to split history
+    this._internalSplitHistory = [
+      ...this._internalSplitHistory,
+      [...selectedIds],
+    ];
+
+    // Create further filtered data from current data
+    const selectedIndices = selectedIds
+      .map((id) => this._currentData!.protein_ids.indexOf(id))
+      .filter((idx) => idx !== -1);
+
+    if (selectedIndices.length > 0) {
+      this._currentData = {
+        projections: this._currentData.projections.map((projection) => ({
+          ...projection,
+          data: selectedIndices.map((idx) => projection.data[idx]),
+        })),
+        protein_ids: selectedIndices.map(
+          (idx) => this._currentData!.protein_ids[idx]
+        ),
+        features: this._currentData.features,
+        feature_data: Object.fromEntries(
+          Object.entries(this._currentData.feature_data).map(
+            ([key, values]) => [key, selectedIndices.map((idx) => values[idx])]
+          )
+        ),
+      };
+
+      // Clear selections after split
+      this.selectedProteinIds = [];
+
+      this._dispatchSplitStateChange();
+      this._dispatchDataChange();
+    }
+  }
+
+  public exitSplitMode() {
+    this._internalIsolationMode = false;
+    this._internalSplitHistory = [];
+    this._currentData = null;
+    this.selectedProteinIds = [];
+
+    this._dispatchSplitStateChange();
+    this._dispatchDataChange();
+  }
+
+  public getCurrentData(): VisualizationData | null {
+    return this._currentData || this.data;
+  }
+
+  public isInSplitMode(): boolean {
+    return this._internalIsolationMode;
+  }
+
+  public getZoomTransform(): d3.ZoomTransform | null {
+    return this._zoomTransform;
+  }
+
+  private _dispatchSplitStateChange() {
+    this.dispatchEvent(
+      new CustomEvent("split-state-change", {
+        detail: {
+          isolationMode: this._internalIsolationMode,
+          splitHistory: this._internalSplitHistory,
+          currentDataSize:
+            this._currentData?.protein_ids.length ||
+            this.data?.protein_ids.length ||
+            0,
+          selectedProteinsCount: this.selectedProteinIds.length,
+        },
+        bubbles: true,
+        composed: true,
+      }) as SplitStateChangeEvent
+    );
+  }
+
+  private _dispatchDataChange() {
+    const currentData = this._currentData || this.data;
+    if (currentData) {
+      this.dispatchEvent(
+        new CustomEvent("data-change", {
+          detail: {
+            data: currentData,
+            isFiltered: !!this._currentData,
+          },
+          bubbles: true,
+          composed: true,
+        }) as DataChangeEvent
+      );
+    }
+  }
+
   protected firstUpdated() {
     this._initializeSVG();
     this._initializeZoom();
     this._renderPlot();
   }
 
-  protected updated(changedProperties: Map<string, unknown>) {
+  protected updated(changedProperties: Map<string | number | symbol, unknown>) {
     if (changedProperties.has("selectedProjectionIndex")) {
       this._isTransitioning = true;
       setTimeout(() => {
@@ -272,6 +445,24 @@ export class ProtspaceScatterplot extends LitElement {
       this._updateSelectionMode();
     }
 
+    // Only re-initialize SVG if config changes significantly (like dimensions)
+    if (changedProperties.has("config")) {
+      const oldConfig = changedProperties.get(
+        "config"
+      ) as Partial<ScatterplotConfig>;
+      const newConfig = this.config;
+
+      // Check if dimensions changed
+      if (
+        oldConfig?.width !== newConfig?.width ||
+        oldConfig?.height !== newConfig?.height
+      ) {
+        this._initializeSVG();
+        this._initializeZoom();
+      }
+    }
+
+    // Re-render if properties changed
     if (
       changedProperties.has("data") ||
       changedProperties.has("selectedProjectionIndex") ||
@@ -285,9 +476,11 @@ export class ProtspaceScatterplot extends LitElement {
   }
 
   private _initializeSVG() {
+    if (!this._svg) return;
+
     this._svgSelection = d3.select(this._svg);
 
-    // Clear existing content
+    // Clear existing content completely - this fixes duplicate reset buttons
     this._svgSelection.selectAll("*").remove();
 
     // Create main container group
@@ -372,6 +565,13 @@ export class ProtspaceScatterplot extends LitElement {
   private _handleBrushEnd(event: d3.D3BrushEvent<unknown>) {
     if (!event.selection || !this._scales) return;
 
+    // Debounce rapid brush events to prevent double-click issues
+    const now = Date.now();
+    if (now - this._lastBrushTime < 300) {
+      return;
+    }
+    this._lastBrushTime = now;
+
     const [[x0, y0], [x1, y1]] = event.selection as [
       [number, number],
       [number, number]
@@ -388,18 +588,24 @@ export class ProtspaceScatterplot extends LitElement {
     });
 
     if (selectedIds.length > 0) {
+      // Update selected proteins immediately for visual feedback
+      this.selectedProteinIds = [...selectedIds];
+
+      // Dispatch selection event
       this._dispatchProteinSelection(selectedIds, true);
     }
 
-    // Clear brush selection
-    if (this._brush && this._brushGroup) {
-      this._brushGroup.call(this._brush.move, null);
-    }
+    // Clear brush selection with a small delay to prevent zoom conflicts
+    setTimeout(() => {
+      if (this._brush && this._brushGroup) {
+        this._brushGroup.call(this._brush.move, null);
+      }
 
-    // Re-enable zoom
-    if (this._zoom && this._svgSelection) {
-      this._svgSelection.call(this._zoom);
-    }
+      // Re-enable zoom after brush is cleared
+      if (this._zoom && this._svgSelection && !this.selectionMode) {
+        this._svgSelection.call(this._zoom);
+      }
+    }, 100);
   }
 
   private _renderPlot() {
@@ -636,9 +842,10 @@ export class ProtspaceScatterplot extends LitElement {
     return html`
       <div class="container">
         <svg
-          width="${config.width}"
-          height="${config.height}"
+          width="100%"
+          height="100%"
           viewBox="0 0 ${config.width} ${config.height}"
+          style="max-width: ${config.width}px; max-height: ${config.height}px;"
         ></svg>
 
         ${this._isLoading || this._isTransitioning
@@ -674,7 +881,7 @@ export class ProtspaceScatterplot extends LitElement {
               </div>
             `
           : ""}
-        ${this.isolationMode && this.splitHistory
+        ${this._internalIsolationMode && this._internalSplitHistory.length > 0
           ? html`
               <div class="mode-indicator" style="right: auto; left: 0.5rem;">
                 <svg
