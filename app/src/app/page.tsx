@@ -3,11 +3,11 @@
 
 import ControlBar from "@/components/ControlBar/ControlBar";
 import Header from "@/components/Header/Header";
-import InteractiveLegend from "@/components/InteractiveLegend/InteractiveLegend";
-import ImprovedScatterplot, {
-  VisualizationData,
-} from "@/components/Scatterplot/ImprovedScatterplot";
+// import InteractiveLegend from "@/components/InteractiveLegend/InteractiveLegend";
+import { VisualizationData } from "@/components/Scatterplot/ImprovedScatterplot";
 import StatusBar from "@/components/StatusBar/StatusBar";
+import ProtspaceWebComponent from "@/components/WebComponent/ProtspaceWebComponent";
+import ProtspaceLegendWebComponent from "@/components/WebComponent/ProtspaceLegendWebComponent";
 import * as d3 from "d3";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -35,7 +35,7 @@ export default function ProtSpaceApp() {
   const [hiddenFeatureValues, setHiddenFeatureValues] = useState<string[]>([]);
 
   // Ref for the legend component
-  const legendRef = useRef<{ downloadAsImage: () => Promise<void> }>(null);
+  // const legendRef = useRef<{ downloadAsImage: () => Promise<void> }>(null);
 
   // Load data when component mounts
   const loadData = async (dataPath?: string) => {
@@ -94,7 +94,8 @@ export default function ProtSpaceApp() {
 
       // Initialize with first feature
       if (transformedData && transformedData.features) {
-        setSelectedFeature(Object.keys(transformedData.features)[0]);
+        const firstFeature = Object.keys(transformedData.features)[0];
+        setSelectedFeature(firstFeature);
       }
     } catch (error) {
       console.error("Error loading data:", error);
@@ -123,7 +124,12 @@ export default function ProtSpaceApp() {
       }
 
       // In single selection mode, replace the selection
-      if (event && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+      if (
+        event &&
+        !event.detail?.modifierKeys?.ctrl &&
+        !event.detail?.modifierKeys?.meta &&
+        !event.detail?.modifierKeys?.shift
+      ) {
         // Only show structure for the selected protein when not in selection mode
         if (!selectionMode) {
           setViewStructureId(proteinId);
@@ -1404,19 +1410,18 @@ export default function ProtSpaceApp() {
         {/* Main Visualization Area */}
         <div className="flex-grow h-full overflow-hidden p-0">
           {visualizationData ? (
-            <ImprovedScatterplot
+            <ProtspaceWebComponent
               data={visualizationData}
               selectedProjectionIndex={selectedProjectionIndex}
               selectedFeature={selectedFeature}
-              selectedProteinIds={selectedProteinIds}
               highlightedProteinIds={highlightedProteinIds}
+              selectedProteinIds={selectedProteinIds}
               isolationMode={isolationMode}
               splitHistory={splitHistory}
               selectionMode={selectionMode}
               hiddenFeatureValues={hiddenFeatureValues}
               onProteinClick={handleProteinClick}
               onProteinHover={handleProteinHover}
-              onViewStructure={setViewStructureId}
               className="w-full h-full"
             />
           ) : (
@@ -1430,13 +1435,9 @@ export default function ProtSpaceApp() {
         <div className="w-96 bg-gray-50 dark:bg-gray-800 p-4 overflow-auto flex flex-col">
           {/* Legend */}
           {visualizationData && selectedFeature && (
-            <InteractiveLegend
-              featureData={{
-                name: selectedFeature,
-                values: visualizationData.features[selectedFeature].values,
-                colors: visualizationData.features[selectedFeature].colors,
-                shapes: visualizationData.features[selectedFeature].shapes,
-              }}
+            <ProtspaceLegendWebComponent
+              data={visualizationData}
+              selectedFeature={selectedFeature}
               featureValues={visualizationData.protein_ids.map((id, index) => {
                 // Get the feature index for this protein
                 const featureIndex =
@@ -1447,15 +1448,22 @@ export default function ProtSpaceApp() {
                 ];
               })}
               proteinIds={visualizationData.protein_ids}
-              onToggleVisibility={handleToggleVisibility}
-              onExtractFromOther={handleExtractFromOther}
-              onSetZOrder={handleSetZOrder}
-              onOpenCustomization={handleOpenCustomization}
+              onLegendItemClick={(value, action) => {
+                if (action === "toggle") {
+                  handleToggleVisibility(value);
+                } else if (action === "isolate") {
+                  // Handle isolation logic for double-click
+                  handleToggleVisibility(value);
+                } else if (action === "extract") {
+                  handleExtractFromOther(value as string);
+                }
+              }}
+              onLegendZOrderChange={handleSetZOrder}
+              onLegendCustomize={handleOpenCustomization}
               selectedItems={Array.from(selectedFeatureItemsSet)}
               className="w-full lg:w-auto"
               isolationMode={isolationMode}
               splitHistory={splitHistory}
-              ref={legendRef}
             />
           )}
 

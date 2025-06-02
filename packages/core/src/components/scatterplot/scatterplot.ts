@@ -11,8 +11,8 @@ import { DataProcessor, getSymbolType } from "@protspace/utils";
 
 // Default configuration
 const DEFAULT_CONFIG: Required<ScatterplotConfig> = {
-  width: 1100,
-  height: 600,
+  width: 800,
+  height: 500,
   margin: { top: 40, right: 40, bottom: 40, left: 40 },
   pointSize: 80,
   highlightedPointSize: 120,
@@ -91,18 +91,26 @@ export class ProtspaceScatterplot extends LitElement {
       border: 1px solid var(--protspace-border-color);
       border-radius: var(--protspace-border-radius);
       overflow: hidden;
+      margin: 0;
+      padding: 0;
     }
 
     .container {
       width: 100%;
       height: 100%;
       position: relative;
+      margin: 0;
+      padding: 0;
     }
 
     svg {
       width: 100%;
       height: 100%;
       display: block;
+      margin: 0;
+      padding: 0;
+      max-width: 100% !important;
+      max-height: 100% !important;
     }
 
     .loading-overlay {
@@ -260,7 +268,7 @@ export class ProtspaceScatterplot extends LitElement {
     this._renderPlot();
   }
 
-  protected updated(changedProperties: Map<string, unknown>) {
+  protected updated(changedProperties: Map<string | number | symbol, unknown>) {
     if (changedProperties.has("selectedProjectionIndex")) {
       this._isTransitioning = true;
       setTimeout(() => {
@@ -272,6 +280,24 @@ export class ProtspaceScatterplot extends LitElement {
       this._updateSelectionMode();
     }
 
+    // Only re-initialize SVG if config changes significantly (like dimensions)
+    if (changedProperties.has("config")) {
+      const oldConfig = changedProperties.get(
+        "config"
+      ) as Partial<ScatterplotConfig>;
+      const newConfig = this.config;
+
+      // Check if dimensions changed
+      if (
+        oldConfig?.width !== newConfig?.width ||
+        oldConfig?.height !== newConfig?.height
+      ) {
+        this._initializeSVG();
+        this._initializeZoom();
+      }
+    }
+
+    // Re-render if properties changed
     if (
       changedProperties.has("data") ||
       changedProperties.has("selectedProjectionIndex") ||
@@ -285,9 +311,11 @@ export class ProtspaceScatterplot extends LitElement {
   }
 
   private _initializeSVG() {
+    if (!this._svg) return;
+
     this._svgSelection = d3.select(this._svg);
 
-    // Clear existing content
+    // Clear existing content completely - this fixes duplicate reset buttons
     this._svgSelection.selectAll("*").remove();
 
     // Create main container group
@@ -300,7 +328,7 @@ export class ProtspaceScatterplot extends LitElement {
       .append("g")
       .attr("class", "brush-container");
 
-    // Add reset button
+    // Add reset button only once
     this._createResetButton();
   }
 
@@ -328,6 +356,9 @@ export class ProtspaceScatterplot extends LitElement {
   private _createResetButton() {
     if (!this._svgSelection) return;
 
+    // Check if reset button already exists and remove it
+    this._svgSelection.selectAll(".reset-view-button").remove();
+
     const config = this._mergedConfig;
 
     const resetButton = this._svgSelection
@@ -353,20 +384,27 @@ export class ProtspaceScatterplot extends LitElement {
       .attr("stroke-width", 1);
 
     // Reset icon
-    resetButton
+    const iconGroup = resetButton
       .append("g")
       .attr("fill", "none")
       .attr("stroke", "#666")
       .attr("stroke-linecap", "round")
       .attr("stroke-linejoin", "round")
-      .attr("transform", "translate(12, 10) scale(1.2)")
+      .attr("transform", "translate(20, 20)"); // Center it in the 40x40 button
+
+    // Circular refresh arrow
+    iconGroup
       .append("path")
-      .attr(
-        "d",
-        "m3.98652376 1.07807068c-2.38377179 1.38514556-3.98652376 3.96636605-3.98652376 6.92192932 0 4.418278 3.581722 8 8 8s8-3.581722 8-8-3.581722-8-8-8"
-      )
-      .attr("transform", "matrix(0 1 1 0 0 0)")
-      .attr("stroke-width", 1.2);
+      .attr("d", "M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8")
+      .attr("stroke-width", 1.5)
+      .attr("transform", "scale(0.85) translate(-12, -12)"); // Made bigger: 0.67 -> 0.85
+
+    // Arrow head pointing direction
+    iconGroup
+      .append("path")
+      .attr("d", "M21 3v5h-5")
+      .attr("stroke-width", 1.5)
+      .attr("transform", "scale(0.85) translate(-12, -12)"); // Made bigger: 0.67 -> 0.85
   }
 
   private _resetZoom() {
@@ -680,9 +718,10 @@ export class ProtspaceScatterplot extends LitElement {
     return html`
       <div class="container">
         <svg
-          width="${config.width}"
-          height="${config.height}"
+          width="100%"
+          height="100%"
           viewBox="0 0 ${config.width} ${config.height}"
+          style="max-width: ${config.width}px; max-height: ${config.height}px;"
         ></svg>
 
         ${this._isLoading || this._isTransitioning
