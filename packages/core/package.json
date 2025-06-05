@@ -34,18 +34,20 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "apache-arrow": "^20.0.0",
     "d3": "^7.9.0",
     "lit": "^3.3.0"
   },
   "devDependencies": {
     "@protspace/utils": "workspace:*",
-    "@storybook/addon-essentials": "^8.6.14",
-    "@storybook/web-components": "^8.6.14",
-    "@storybook/web-components-vite": "^8.6.14",
+    "@storybook/addon-docs": "^9.0.5",
+    "@storybook/web-components-vite": "^9.0.5",
     "@types/d3": "^7.4.3",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
-    "eslint": "^9.27.0",
+    "eslint": "^9.28.0",
+    "eslint-plugin-storybook": "9.0.5",
+    "storybook": "^9.0.5",
     "typescript": "^5.8.3",
     "vite": "^6.3.5",
     "vite-plugin-dts": "^4.5.4"

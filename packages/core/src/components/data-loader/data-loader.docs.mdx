@@ -1,0 +1,238 @@
+import { Meta, Canvas, Story, Source } from '@storybook/blocks';
+import * as DataLoaderStories from './data-loader.stories';
+
+<Meta of={DataLoaderStories} />
+
+# Apache Arrow Data Loader Web Component
+
+The `protspace-data-loader` web component enables loading protein data from Apache Arrow format files and automatically converts them to the ProtSpace visualization format.
+
+## Features
+
+- **Drag & Drop Support**: Simply drag and drop Arrow files
+- **File Upload**: Click to browse and select files  
+- **URL Loading**: Load Arrow files from remote URLs
+- **Automatic Mapping**: Intelligently maps columns to required data
+- **Category Extraction**: Converts Arrow columns to legend categories
+- **Progress Indication**: Shows loading progress with visual feedback
+- **Error Handling**: Provides clear error messages
+
+## Basic Usage
+
+<Canvas of={DataLoaderStories.Default} />
+
+### Web Component Usage
+
+```html
+<protspace-data-loader 
+  allow-drop="true"
+  auto-load="false">
+</protspace-data-loader>
+
+<script>
+  const loader = document.querySelector('protspace-data-loader');
+  
+  loader.addEventListener('data-loaded', (event) => {
+    const { data } = event.detail;
+    console.log('Loaded visualization data:', data);
+    // Use data with scatterplot and legend components
+  });
+  
+  loader.addEventListener('data-error', (event) => {
+    const { error } = event.detail;
+    console.error('Loading error:', error);
+  });
+</script>
+```
+
+### React Component Integration
+
+```tsx
+import React from 'react';
+import { DataLoader } from '@/components/DataLoader/DataLoader';
+
+function App() {
+  const handleDataLoaded = (data) => {
+    console.log('Loaded data:', data);
+    // Set visualization data state
+  };
+
+  const handleError = (error) => {
+    console.error('Error:', error);
+  };
+
+  return (
+    <DataLoader
+      allowDrop={true}
+      onDataLoaded={handleDataLoaded}
+      onError={handleError}
+      columnMappings={{
+        proteinId: 'uniprot_id',
+        projection_x: 'umap_1',
+        projection_y: 'umap_2',
+        projectionName: 'UMAP'
+      }}
+    />
+  );
+}
+```
+
+## Loading Sample Data
+
+<Canvas of={DataLoaderStories.WithSampleData} />
+
+This example demonstrates automatic loading of mock protein data with 6 proteins, UMAP projection coordinates, and 3 categorical features (function, organism, family).
+
+## Data Format Requirements
+
+### Input Arrow Format
+
+The Apache Arrow file should contain:
+
+1. **Protein ID Column**: Unique identifiers (e.g., 'protein_id', 'uniprot', 'id')
+2. **X Coordinate**: Projection x-coordinates (e.g., 'x', 'umap_1', 'pc1', 'tsne_1')  
+3. **Y Coordinate**: Projection y-coordinates (e.g., 'y', 'umap_2', 'pc2', 'tsne_2')
+4. **Categorical Columns**: Any additional columns for features/categories
+
+Example Arrow schema:
+```
+protein_id: string
+umap_1: float64
+umap_2: float64
+function: string
+organism: string
+localization: string
+family: string
+```
+
+### Output ProtSpace Format
+
+The component automatically converts to ProtSpace format:
+
+```json
+{
+  "protein_ids": ["P12345", "Q67890", ...],
+  "projections": [{
+    "name": "UMAP",
+    "data": [[1.23, -0.45], [0.67, 1.89], ...]
+  }],
+  "features": {
+    "function": {
+      "values": ["enzyme", "toxin", null],
+      "colors": ["hsl(0, 70%, 50%)", "hsl(120, 70%, 50%)", "hsl(240, 70%, 50%)"],
+      "shapes": ["circle", "square", "triangle"]
+    }
+  },
+  "feature_data": {
+    "function": [0, 1, 2, 0, 1, ...]
+  }
+}
+```
+
+## Column Mapping
+
+<Canvas of={DataLoaderStories.CustomColumnMapping} />
+
+The component intelligently maps columns using these fallbacks:
+
+- **Protein ID**: 'protein_id', 'id', 'protein', 'uniprot'
+- **X Coordinate**: 'x', 'umap_1', 'pc1', 'tsne_1'
+- **Y Coordinate**: 'y', 'umap_2', 'pc2', 'tsne_2'
+
+Custom mappings can be provided via the `column-mappings` attribute:
+
+```html
+<protspace-data-loader column-mappings='{
+  "proteinId": "uniprot_accession",
+  "projection_x": "embedding_x", 
+  "projection_y": "embedding_y",
+  "projectionName": "t-SNE"
+}'>
+</protspace-data-loader>
+```
+
+## Legend Categories
+
+Each categorical column in the Arrow file becomes a feature in the legend:
+
+1. **Unique Values**: Automatically extracted from each column
+2. **Color Assignment**: Generated using HSL color space for distinctiveness
+3. **Shape Assignment**: Cycled through available shape options
+4. **Count Information**: Number of proteins for each category value
+
+## Loading States
+
+<Canvas of={DataLoaderStories.LoadingStates} />
+
+The component provides visual feedback during different states:
+- **Normal**: Ready for file input
+- **Loading**: Progress indication during file processing
+- **Error**: Clear error messages with retry options
+
+## Drag & Drop Interface
+
+<Canvas of={DataLoaderStories.DropZoneOnly} />
+
+Optimized for drag and drop workflow with visual feedback and file type validation.
+
+## Events
+
+### data-loaded
+Fired when data is successfully loaded and converted.
+
+```javascript
+event.detail = {
+  data: VisualizationData // Complete ProtSpace format
+}
+```
+
+### data-error
+Fired when an error occurs during loading or conversion.
+
+```javascript
+event.detail = {
+  error: string // Human-readable error message
+}
+```
+
+## Attributes
+
+- `src`: URL to load Arrow file from
+- `auto-load`: Automatically load when src is provided
+- `allow-drop`: Enable drag and drop functionality  
+- `column-mappings`: JSON object mapping column names
+
+## Styling
+
+The component can be styled using CSS custom properties:
+
+```css
+protspace-data-loader {
+  --drop-zone-border: #ccc;
+  --drop-zone-bg: #fafafa;
+  --accent-color: #007acc;
+  --error-color: #d32f2f;
+}
+```
+
+## Integration with Other Components
+
+The data loader integrates seamlessly with other ProtSpace components:
+
+```typescript
+// Listen for data loading
+dataLoader.addEventListener('data-loaded', (event) => {
+  const { data } = event.detail;
+  
+  // Update scatterplot
+  scatterplot.data = data;
+  scatterplot.selectedProjectionIndex = 0;
+  scatterplot.selectedFeature = Object.keys(data.features)[0];
+  
+  // Update legend
+  legend.featureData = {
+    name: Object.keys(data.features)[0],
+    ...data.features[Object.keys(data.features)[0]]
+  };
+});
+```
