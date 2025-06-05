@@ -66,13 +66,34 @@ const DEFAULT_CONFIG = {
   zoomExtent: [0.1, 10] as [number, number],
 };
 
+// Color constants
+const COLORS = {
+  // Selection and highlighting
+  SELECTION_RED: "#fa2c37",
+
+  // Default colors
+  DEFAULT_GRAY: "#888888",
+  STROKE_DARK_GRAY: "#333333",
+
+  // UI colors
+  BUTTON_BORDER: "#aaa",
+  BUTTON_TEXT: "#666",
+
+  // Brush colors
+  BRUSH_STROKE: "#fa2c37",
+  BRUSH_FILL: "rgba(59, 130, 246, 0.15)",
+
+  // Background colors
+  BUTTON_BG: "rgba(255,255,255,0.9)",
+} as const;
+
 const DEFAULT_STYLES = {
   other: {
-    color: "#888888",
+    color: COLORS.DEFAULT_GRAY,
     shape: d3.symbolCircle,
   },
   null: {
-    color: "#888888",
+    color: COLORS.DEFAULT_GRAY,
     shape: d3.symbolCircle,
   },
 };
@@ -348,20 +369,29 @@ export default function ImprovedScatterplot({
         return 0;
       }
 
+      // Highlighted items should have full opacity
+      if (highlightedProteinIds.includes(protein.id)) {
+        return selectedOpacity;
+      }
+
+      // If we have selected items and this item is among them, show with full opacity
       if (
-        highlightedProteinIds.includes(protein.id) ||
+        selectedProteinIds.length > 0 &&
         selectedProteinIds.includes(protein.id)
       ) {
         return selectedOpacity;
       }
 
+      // Only apply reduced opacity for unselected items when in selection mode
       if (
+        selectionMode &&
         selectedProteinIds.length > 0 &&
         !selectedProteinIds.includes(protein.id)
       ) {
         return fadedOpacity;
       }
 
+      // Default opacity for normal state
       return baseOpacity;
     },
     [
@@ -372,17 +402,18 @@ export default function ImprovedScatterplot({
       fadedOpacity,
       selectedFeature,
       hiddenFeatureValues,
+      selectionMode,
     ]
   );
 
   // Get stroke width based on selection state
   const getStrokeWidth = useCallback(
     (protein: PlotDataPoint) => {
-      if (selectedProteinIds.includes(protein.id)) {
-        return 3; // Thicker border for selected proteins
-      }
       if (highlightedProteinIds.includes(protein.id)) {
-        return 2; // Medium border for highlighted proteins
+        return 3; // Thicker border for highlighted proteins
+      }
+      if (selectedProteinIds.includes(protein.id)) {
+        return 2; // Medium border for selected proteins
       }
       return 1; // Default border width - always ensure proteins have a border
     },
@@ -392,13 +423,13 @@ export default function ImprovedScatterplot({
   // Get stroke color based on selection state
   const getStrokeColor = useCallback(
     (protein: PlotDataPoint) => {
-      if (selectedProteinIds.includes(protein.id)) {
-        return "#FF5500"; // Orange-red border for selected proteins
-      }
       if (highlightedProteinIds.includes(protein.id)) {
-        return "#3B82F6"; // Blue border for highlighted proteins
+        return COLORS.SELECTION_RED;
       }
-      return "#333333"; // Default dark gray border - always maintain visibility
+      if (selectedProteinIds.includes(protein.id)) {
+        return COLORS.SELECTION_RED;
+      }
+      return COLORS.STROKE_DARK_GRAY;
     },
     [selectedProteinIds, highlightedProteinIds]
   );
@@ -406,11 +437,11 @@ export default function ImprovedScatterplot({
   // Get size based on selection/highlight state
   const getSize = useCallback(
     (protein: PlotDataPoint) => {
-      if (selectedProteinIds.includes(protein.id)) {
-        return DEFAULT_CONFIG.selectedPointSize; // Largest for selected
-      }
       if (highlightedProteinIds.includes(protein.id)) {
         return DEFAULT_CONFIG.highlightedPointSize; // Medium for highlighted
+      }
+      if (selectedProteinIds.includes(protein.id)) {
+        return DEFAULT_CONFIG.selectedPointSize; // Largest for selected
       }
       return DEFAULT_CONFIG.pointSize; // Default size
     },
@@ -477,8 +508,8 @@ export default function ImprovedScatterplot({
       .attr("width", 40)
       .attr("height", 40)
       .attr("rx", 6)
-      .attr("fill", "rgba(255,255,255,0.9)")
-      .attr("stroke", "#aaa")
+      .attr("fill", COLORS.BUTTON_BG)
+      .attr("stroke", COLORS.BUTTON_BORDER)
       .attr("stroke-width", 1)
       .attr("class", "hover:fill-gray-100");
 
@@ -486,7 +517,7 @@ export default function ImprovedScatterplot({
     resetButtonGroup
       .append("g")
       .attr("fill", "none")
-      .attr("stroke", "#666")
+      .attr("stroke", COLORS.BUTTON_TEXT)
       .attr("stroke-linecap", "round")
       .attr("stroke-linejoin", "round")
       .attr("transform", "translate(12, 10) scale(1.2)")
@@ -513,7 +544,7 @@ export default function ImprovedScatterplot({
       .attr("y", 55)
       .attr("text-anchor", "middle")
       .attr("font-size", "10px")
-      .attr("fill", "#666")
+      .attr("fill", COLORS.BUTTON_TEXT)
       .text("Reset View");
 
     // Reset zoom on unmount
@@ -567,10 +598,7 @@ export default function ImprovedScatterplot({
 
           // Only handle selection if the brush area is not empty
           if (!event.selection) {
-            // Re-enable zoom after brushing is complete
-            if (zoomRef.current) {
-              svg.call(zoomRef.current);
-            }
+            // Don't re-enable zoom here - only re-enable when exiting selection mode
             return;
           }
 
@@ -627,10 +655,7 @@ export default function ImprovedScatterplot({
             }
           }
 
-          // Re-enable zoom after brushing is complete
-          if (zoomRef.current) {
-            svg.call(zoomRef.current);
-          }
+          // Don't re-enable zoom here - only re-enable when exiting selection mode
         });
 
       // Apply brush to the brush group
@@ -645,7 +670,7 @@ export default function ImprovedScatterplot({
       brushRef.current = null;
     }
 
-    // Add CSS to handle cursor changes
+    // Add CSS to handle cursor changes and highlighted styles
     const style = document.createElement("style");
     style.innerHTML = `
       .brushing .overlay {
@@ -653,14 +678,20 @@ export default function ImprovedScatterplot({
       }
       
       .brush .selection {
-        stroke: #3B82F6;
+        stroke: ${COLORS.BRUSH_STROKE};
         stroke-width: 2px;
-        fill: rgba(59, 130, 246, 0.15);
+        fill: ${COLORS.BRUSH_FILL};
         stroke-dasharray: none;
       }
       
       .brush .handle {
         display: none;
+      }
+      
+      .protein-point.highlighted {
+        stroke: ${COLORS.SELECTION_RED} !important;
+        stroke-width: 3 !important;
+        stroke-opacity: 1 !important;
       }
     `;
     document.head.appendChild(style);
@@ -730,8 +761,20 @@ export default function ImprovedScatterplot({
       .attr("class", "protein-point")
       .attr("d", (d) => d3.symbol().type(getShape(d)).size(getSize(d))())
       .attr("fill", (d) => getColor(d))
-      .attr("stroke", (d) => getStrokeColor(d))
-      .attr("stroke-width", (d) => getStrokeWidth(d))
+      .attr("stroke", (d) => {
+        // Directly check if highlighted
+        if (highlightedProteinIds.includes(d.id)) {
+          return COLORS.SELECTION_RED; // Red for highlighted
+        }
+        return getStrokeColor(d);
+      })
+      .attr("stroke-width", (d) => {
+        // Directly check if highlighted
+        if (highlightedProteinIds.includes(d.id)) {
+          return 3; // Thicker for highlighted
+        }
+        return getStrokeWidth(d);
+      })
       .attr("opacity", 0) // Start invisible for transition
       .attr("transform", (d) => `translate(${scales.x(d.x)}, ${scales.y(d.y)})`)
       .attr("cursor", "pointer")
@@ -752,10 +795,18 @@ export default function ImprovedScatterplot({
         if (onProteinHover) onProteinHover(d.id);
       })
       .on("mouseout", (event, d) => {
-        d3.select(event.currentTarget)
-          .transition()
-          .duration(100)
-          .attr("stroke-width", getStrokeWidth(d));
+        // On mouseout, reset to appropriate stroke width but keep the red color for highlighted items
+        if (highlightedProteinIds.includes(d.id)) {
+          d3.select(event.currentTarget)
+            .transition()
+            .duration(100)
+            .attr("stroke-width", 3);
+        } else {
+          d3.select(event.currentTarget)
+            .transition()
+            .duration(100)
+            .attr("stroke-width", getStrokeWidth(d));
+        }
 
         setTooltipData(null);
         if (onProteinHover) onProteinHover(null);
@@ -767,43 +818,74 @@ export default function ImprovedScatterplot({
           return;
         }
 
+        // Get the clicked element
+        const clickedElement = event.currentTarget;
+
+        // FORCEFULLY apply red border with no transition when not in selection mode
+        if (!selectionMode) {
+          // Direct styling with no transition
+          d3.select(clickedElement)
+            .attr("stroke", COLORS.SELECTION_RED)
+            .attr("stroke-width", 3)
+            .attr("stroke-opacity", 1);
+        }
+
         // Handle protein selection - whether in selection mode or not
         if (onProteinClick) {
-          // Check if the protein is already selected
+          // Always use additive selection by default (like search/highlighting behavior)
+          // Only deselect if using modifier key to toggle selection
           const isSelected = selectedProteinIds.includes(d.id);
+          const shouldToggle = event.ctrlKey || event.metaKey || event.shiftKey;
 
-          // Pass the event to the handler
-          onProteinClick(d.id, event);
+          // Create a modified event that forces additive selection behavior by default
+          const modifiedEvent = {
+            ...event,
+            // If already selected AND modifier key pressed, allow deselection
+            // Otherwise always force additive (true)
+            ctrlKey: shouldToggle ? isSelected : true,
+            metaKey: shouldToggle ? isSelected : true,
+            shiftKey: shouldToggle ? isSelected : true,
+          } as React.MouseEvent;
+
+          // Pass the modified event to the handler
+          onProteinClick(d.id, modifiedEvent);
 
           // Only show structure if not in selection mode
           if (!selectionMode && onViewStructure) {
             onViewStructure(d.id);
           }
 
-          // Animate the selection with a quick pulse effect
-          const element = d3.select(event.currentTarget);
-
-          if (isSelected) {
+          // Handle styling based on selection state
+          if (shouldToggle && isSelected) {
             // Deselection animation - transition back to normal border
-            element
-              .transition()
-              .duration(150)
+            d3.select(clickedElement)
               .attr("stroke-width", 1)
-              .attr("stroke", "#333333")
+              .attr("stroke", COLORS.STROKE_DARK_GRAY)
               .attr("stroke-opacity", 1);
-          } else {
-            // Selection animation - pulse effect
-            element
-              .transition()
-              .duration(150)
-              .attr("stroke-width", 5)
-              .attr("stroke-opacity", 1)
-              .transition()
-              .duration(150)
-              .attr("stroke-width", getStrokeWidth(d))
-              .attr("stroke", getStrokeColor(d))
+          } else if (!selectionMode) {
+            // Force red border for non-selection mode
+            d3.select(clickedElement)
+              .attr("stroke", COLORS.SELECTION_RED)
+              .attr("stroke-width", 3)
               .attr("stroke-opacity", 1);
           }
+        }
+
+        // Add a safety timeout to reapply the red border
+        if (!selectionMode) {
+          setTimeout(() => {
+            if (mainGroupRef.current) {
+              const point = mainGroupRef.current.select(
+                `[data-protein-id="${d.id}"]`
+              );
+              if (!point.empty()) {
+                point
+                  .attr("stroke", COLORS.SELECTION_RED)
+                  .attr("stroke-width", 3)
+                  .attr("stroke-opacity", 1);
+              }
+            }
+          }, 100);
         }
       })
       .on("contextmenu", (event, d) => {
@@ -819,18 +901,61 @@ export default function ImprovedScatterplot({
     // Fade in new points
     enterPoints.transition(t).attr("opacity", (d) => getOpacity(d));
 
+    // Batch update highlighted proteins using CSS classes
+    const allPoints = pointsGroup.selectAll("[data-protein-id]");
+
+    // Remove highlight class from all points first
+    allPoints.classed("highlighted", false);
+
+    // Add highlight class to highlighted proteins in a single operation
+    if (highlightedProteinIds.length > 0) {
+      const highlightedSelector = highlightedProteinIds
+        .map((id) => `[data-protein-id="${id}"]`)
+        .join(", ");
+      pointsGroup.selectAll(highlightedSelector).classed("highlighted", true);
+    }
+
     // Update existing points
     points
       .transition(t)
       .attr("d", (d) => d3.symbol().type(getShape(d)).size(getSize(d))())
       .attr("fill", (d) => getColor(d))
       .attr("opacity", (d) => getOpacity(d))
-      .attr("stroke", (d) => getStrokeColor(d))
-      .attr("stroke-width", (d) => getStrokeWidth(d))
+      .attr("stroke", (d) => {
+        // Override getStrokeColor for highlighted points
+        if (highlightedProteinIds.includes(d.id)) {
+          return COLORS.SELECTION_RED;
+        }
+        return getStrokeColor(d);
+      })
+      .attr("stroke-width", (d) => {
+        // Override getStrokeWidth for highlighted points
+        if (highlightedProteinIds.includes(d.id)) {
+          return 3; // Thicker for highlighted
+        }
+        return getStrokeWidth(d);
+      })
       .attr(
         "transform",
         (d) => `translate(${scales.x(d.x)}, ${scales.y(d.y)})`
       );
+
+    // Apply CSS class updates after transition completes
+    setTimeout(() => {
+      const allPointsAfterTransition =
+        pointsGroup.selectAll("[data-protein-id]");
+
+      // Remove highlight class from all points
+      allPointsAfterTransition.classed("highlighted", false);
+
+      // Add highlight class to currently highlighted proteins
+      if (highlightedProteinIds.length > 0) {
+        const highlightedSelector = highlightedProteinIds
+          .map((id) => `[data-protein-id="${id}"]`)
+          .join(", ");
+        pointsGroup.selectAll(highlightedSelector).classed("highlighted", true);
+      }
+    }, transitionDuration + 50);
 
     // Reset zoom if needed (but only if not already set)
     if (!zoomTransform && zoomRef.current) {
@@ -856,6 +981,7 @@ export default function ImprovedScatterplot({
     hiddenFeatureValues,
     isTransitioning,
     selectedProteinIds,
+    highlightedProteinIds,
     isolationMode,
   ]);
 
@@ -972,28 +1098,36 @@ export default function ImprovedScatterplot({
             {selectedFeature}:{" "}
             {tooltipData.protein.featureValues[selectedFeature] || "N/A"}
           </div>
-          <div className="text-xs mt-1 flex items-center text-gray-500">
-            Click to view 3D structure
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 mr-1"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-              />
-            </svg>
+          <div className="text-xs mt-1 text-gray-500">
+            <div className="flex items-center mb-1">
+              Click to add to selection
+            </div>
+            <div className="flex items-center mb-1">
+              Ctrl+Click to toggle selection
+            </div>
+            <div className="flex items-center">
+              Alt+Click to view 3D structure
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-4 w-4 ml-1"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                />
+              </svg>
+            </div>
           </div>
         </div>
       )}

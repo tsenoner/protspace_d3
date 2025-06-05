@@ -801,7 +801,7 @@ const InteractiveLegend = forwardRef<
               draggedItem === item.value ? "bg-blue-50 dark:bg-blue-900/30" : ""
             }
 
-            ${isItemSelected ? "ring-2 ring-blue-500 dark:ring-blue-400" : ""}
+            ${isItemSelected ? "ring-2 ring-red-500 dark:ring-red-400" : ""}
             ${
               item.extractedFromOther
                 ? "border-l-4 border-green-500 dark:border-green-400"

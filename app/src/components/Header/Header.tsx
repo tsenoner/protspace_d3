@@ -5,6 +5,7 @@ import Logo from "@/components/Logo/Logo";
 
 interface HeaderProps {
   onSearch: (query: string) => void;
+  // highlightedProteins is kept for backwards compatibility
   highlightedProteins: string[];
   selectedProteins: string[];
   onRemoveHighlight: (proteinId: string) => void;
@@ -15,7 +16,6 @@ interface HeaderProps {
 
 export default function Header({
   onSearch,
-  highlightedProteins,
   selectedProteins = [],
   onRemoveHighlight,
   onSaveSession,
@@ -224,19 +224,14 @@ export default function Header({
         <div className="relative">
           <button
             onClick={() => setShowHighlighted(!showHighlighted)}
-            disabled={
-              highlightedProteins.length === 0 && selectedProteins.length === 0
-            }
+            disabled={selectedProteins.length === 0}
             className={`px-3 py-1.5 border border-gray-700 rounded-lg flex items-center space-x-1 bg-[#0a2a4d] text-white ${
-              highlightedProteins.length === 0 && selectedProteins.length === 0
+              selectedProteins.length === 0
                 ? "opacity-50 cursor-not-allowed"
                 : "hover:bg-[#0d3159] transition-colors duration-200"
             }`}
           >
-            <span>
-              Selected (
-              {new Set([...highlightedProteins, ...selectedProteins]).size})
-            </span>
+            <span>Selected ({selectedProteins.length})</span>
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="h-4 w-4"
@@ -253,10 +248,10 @@ export default function Header({
             </svg>
           </button>
 
-          {showHighlighted && highlightedProteins.length > 0 && (
+          {showHighlighted && selectedProteins.length > 0 && (
             <div className="absolute z-10 right-0 mt-2 w-48 bg-[#0a2a4d] rounded-lg shadow-lg border border-gray-700">
               <ul className="py-1 max-h-48 overflow-y-auto">
-                {Array.from(new Set(highlightedProteins)).map((protein) => (
+                {Array.from(new Set(selectedProteins)).map((protein) => (
                   <li
                     key={protein}
                     className="px-4 py-2 cursor-pointer flex items-center justify-between text-gray-300 hover:bg-gray-700"
