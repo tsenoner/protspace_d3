@@ -300,8 +300,7 @@ export class ProtspaceScatterplot extends LitElement {
       .append("g")
       .attr("class", "brush-container");
 
-    // Add reset button
-    this._createResetButton();
+    // Note: Reset button functionality should be provided by the parent application
   }
 
   private _initializeZoom() {
@@ -325,51 +324,8 @@ export class ProtspaceScatterplot extends LitElement {
     this._svgSelection.call(this._zoom);
   }
 
-  private _createResetButton() {
-    if (!this._svgSelection) return;
-
-    const config = this._mergedConfig;
-
-    const resetButton = this._svgSelection
-      .append("g")
-      .attr("class", "reset-view-button")
-      .attr(
-        "transform",
-        `translate(${config.width - config.margin.right - 60}, ${
-          config.margin.top + 10
-        })`
-      )
-      .attr("cursor", "pointer")
-      .on("click", () => this._resetZoom());
-
-    // Button background
-    resetButton
-      .append("rect")
-      .attr("width", 40)
-      .attr("height", 40)
-      .attr("rx", 6)
-      .attr("fill", "rgba(255,255,255,0.9)")
-      .attr("stroke", "#aaa")
-      .attr("stroke-width", 1);
-
-    // Reset icon
-    resetButton
-      .append("g")
-      .attr("fill", "none")
-      .attr("stroke", "#666")
-      .attr("stroke-linecap", "round")
-      .attr("stroke-linejoin", "round")
-      .attr("transform", "translate(12, 10) scale(1.2)")
-      .append("path")
-      .attr(
-        "d",
-        "m3.98652376 1.07807068c-2.38377179 1.38514556-3.98652376 3.96636605-3.98652376 6.92192932 0 4.418278 3.581722 8 8 8s8-3.581722 8-8-3.581722-8-8-8"
-      )
-      .attr("transform", "matrix(0 1 1 0 0 0)")
-      .attr("stroke-width", 1.2);
-  }
-
-  private _resetZoom() {
+  // Public method for external reset functionality
+  public resetZoom() {
     if (this._zoom && this._svgSelection) {
       this._svgSelection
         .transition()

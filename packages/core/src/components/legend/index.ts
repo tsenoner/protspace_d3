@@ -1,0 +1,1 @@
+export { ProtspaceLegend } from './legend.js';
