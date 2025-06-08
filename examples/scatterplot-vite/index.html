@@ -21,8 +21,30 @@
     </style>
 </head>
 <body>
-    <h1>ProtSpace Scatterplot Example (Vite)</h1>
-    <protspace-scatterplot id="myPlot"></protspace-scatterplot>
+    <h1>ProtSpace Scatterplot with Legend Example</h1>
+    <p>This example demonstrates the interaction between the <code>protspace-scatterplot</code> and <code>protspace-legend</code> web components.</p>
+    
+    <div style="margin: 20px auto; max-width: 1400px;">
+      <!-- Controls -->
+      <div style="margin-bottom: 1rem; display: flex; gap: 1rem; align-items: center;">
+        <label>
+          Feature:
+          <select id="featureSelect" style="margin-left: 0.5rem; padding: 0.25rem;">
+            <option value="family">Family</option>
+            <option value="size_category">Size Category</option>
+          </select>
+        </label>
+        <button id="resetButton" style="padding: 0.25rem 0.75rem; background: #3b82f6; color: white; border: none; border-radius: 0.25rem; cursor: pointer;">
+          Reset View
+        </button>
+      </div>
+      
+      <!-- Visualization -->
+      <div style="display: flex; gap: 1rem; align-items: flex-start;">
+        <protspace-scatterplot id="myPlot" style="flex: 1; min-width: 0;"></protspace-scatterplot>
+        <protspace-legend id="myLegend" style="flex: 0 0 300px;"></protspace-legend>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
 </body>
 </html> 
