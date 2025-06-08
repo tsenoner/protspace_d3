@@ -1,13 +1,14 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
-import ControlBar from "@/components/ControlBar/ControlBar";
+import ProtspaceControlBarWebComponent from "@/components/WebComponent/ProtspaceControlBarWebComponent";
 import Header from "@/components/Header/Header";
-import InteractiveLegend from "@/components/InteractiveLegend/InteractiveLegend";
-import ImprovedScatterplot, {
-  VisualizationData,
-} from "@/components/Scatterplot/ImprovedScatterplot";
+// import InteractiveLegend from "@/components/InteractiveLegend/InteractiveLegend";
+import { VisualizationData } from "@/components/Scatterplot/ImprovedScatterplot";
 import StatusBar from "@/components/StatusBar/StatusBar";
+import ProtspaceWebComponent from "@/components/WebComponent/ProtspaceWebComponent";
+import ProtspaceLegendWebComponent from "@/components/WebComponent/ProtspaceLegendWebComponent";
+import ProtspaceStructureViewerWebComponent from "@/components/WebComponent/ProtspaceStructureViewerWebComponent";
 import * as d3 from "d3";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -35,7 +36,7 @@ export default function ProtSpaceApp() {
   const [hiddenFeatureValues, setHiddenFeatureValues] = useState<string[]>([]);
 
   // Ref for the legend component
-  const legendRef = useRef<{ downloadAsImage: () => Promise<void> }>(null);
+  // const legendRef = useRef<{ downloadAsImage: () => Promise<void> }>(null);
 
   // Load data when component mounts
   const loadData = async (dataPath?: string) => {
@@ -94,7 +95,8 @@ export default function ProtSpaceApp() {
 
       // Initialize with first feature
       if (transformedData && transformedData.features) {
-        setSelectedFeature(Object.keys(transformedData.features)[0]);
+        const firstFeature = Object.keys(transformedData.features)[0];
+        setSelectedFeature(firstFeature);
       }
     } catch (error) {
       console.error("Error loading data:", error);
@@ -106,7 +108,7 @@ export default function ProtSpaceApp() {
   }, []);
 
   // Handle protein selection
-  const handleProteinClick = (proteinId: string, event?: React.MouseEvent) => {
+  const handleProteinClick = (proteinId: string, event?: CustomEvent) => {
     // When in non-selection mode, add the clicked protein to highlightedProteinIds immediately
     if (!selectionMode) {
       setHighlightedProteinIds([proteinId]);
@@ -128,7 +130,12 @@ export default function ProtSpaceApp() {
       }
 
       // In single selection mode, replace the selection
-      if (event && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+      if (
+        event &&
+        !event.detail?.modifierKeys?.ctrl &&
+        !event.detail?.modifierKeys?.meta &&
+        !event.detail?.modifierKeys?.shift
+      ) {
         // Only show structure for the selected protein when not in selection mode
         if (!selectionMode) {
           setViewStructureId(proteinId);
@@ -488,13 +495,35 @@ export default function ProtSpaceApp() {
 
       case "png":
       case "pdf":
-        // Get elements to export
-        const svgElementForExport = document
-          .querySelector(".scatter-plot-container")
-          ?.closest("svg") as SVGElement | null;
+        // Get elements to export - updated to work with web components
+        let svgElementForExport: SVGElement | null = null;
+
+        // Try to find SVG element inside the web component
+        const webComponentElement = document.querySelector(
+          "protspace-scatterplot"
+        );
+        if (webComponentElement) {
+          // First try to find in shadow DOM
+          if (webComponentElement.shadowRoot) {
+            svgElementForExport =
+              webComponentElement.shadowRoot.querySelector("svg");
+          }
+          // If not found in shadow DOM, try regular DOM
+          if (!svgElementForExport) {
+            svgElementForExport = webComponentElement.querySelector("svg");
+          }
+        }
+
+        // Fallback: try to find any SVG in the document
+        if (!svgElementForExport) {
+          svgElementForExport = document.querySelector("svg");
+        }
 
         if (!svgElementForExport) {
-          alert("Could not find visualization element to export.");
+          alert(
+            "Could not find visualization element to export. Please ensure the visualization is loaded."
+          );
+          console.error("Export failed: No SVG element found");
           return;
         }
 
@@ -502,8 +531,8 @@ export default function ProtSpaceApp() {
         const svgCloneForExport = svgElementForExport.cloneNode(
           true
         ) as SVGElement;
-        const originalWidthForExport = svgElementForExport.clientWidth;
-        const originalHeightForExport = svgElementForExport.clientHeight;
+        const originalWidthForExport = svgElementForExport.clientWidth || 800;
+        const originalHeightForExport = svgElementForExport.clientHeight || 600;
 
         // For higher quality: Set higher resolution for the export
         const scaleForExport = 2; // Double the resolution
@@ -516,21 +545,34 @@ export default function ProtSpaceApp() {
           (originalHeightForExport * scaleForExport).toString()
         );
 
-        const mainGroupForExport = svgCloneForExport.querySelector(
-          ".scatter-plot-container"
-        );
+        // Look for the main visualization group with multiple possible selectors
+        const possibleSelectors = [
+          ".scatter-plot-container",
+          ".visualization-container",
+          ".scatterplot-main",
+          "g[class*='scatter']",
+          "g[class*='plot']",
+          "g[transform]",
+        ];
+
+        let mainGroupForExport: Element | null = null;
+        for (const selector of possibleSelectors) {
+          mainGroupForExport = svgCloneForExport.querySelector(selector);
+          if (mainGroupForExport) break;
+        }
+
         if (mainGroupForExport) {
+          const currentTransform =
+            mainGroupForExport.getAttribute("transform") || "";
           mainGroupForExport.setAttribute(
             "transform",
-            `scale(${scaleForExport}) ${
-              mainGroupForExport.getAttribute("transform") || ""
-            }`
+            `scale(${scaleForExport}) ${currentTransform}`
           );
         }
 
         // Remove any interactive elements or overlays
         const elementsToRemove = svgCloneForExport.querySelectorAll(
-          ".absolute, .z-10, button, .reset-view-button, [class*='tooltip'], [class*='control']"
+          ".absolute, .z-10, button, .reset-view-button, [class*='tooltip'], [class*='control'], [style*='cursor: pointer']"
         );
         elementsToRemove.forEach((el) => el.remove());
 
@@ -886,13 +928,36 @@ export default function ProtSpaceApp() {
         break;
 
       case "svg":
-        // For SVG, export the full visualization with legend
-        const svgElementForSvgExport = document
-          .querySelector(".scatter-plot-container")
-          ?.closest("svg");
+        // For SVG, export the full visualization with legend - updated for web components
+        let svgElementForSvgExport: SVGElement | null = null;
+
+        // Try to find SVG element inside the web component
+        const webComponentElementForSvg = document.querySelector(
+          "protspace-scatterplot"
+        );
+        if (webComponentElementForSvg) {
+          // First try to find in shadow DOM
+          if (webComponentElementForSvg.shadowRoot) {
+            svgElementForSvgExport =
+              webComponentElementForSvg.shadowRoot.querySelector("svg");
+          }
+          // If not found in shadow DOM, try regular DOM
+          if (!svgElementForSvgExport) {
+            svgElementForSvgExport =
+              webComponentElementForSvg.querySelector("svg");
+          }
+        }
+
+        // Fallback: try to find any SVG in the document
+        if (!svgElementForSvgExport) {
+          svgElementForSvgExport = document.querySelector("svg");
+        }
 
         if (!svgElementForSvgExport) {
-          alert("Could not find visualization element to export.");
+          alert(
+            "Could not find visualization element to export. Please ensure the visualization is loaded."
+          );
+          console.error("SVG Export failed: No SVG element found");
           return;
         }
 
@@ -900,8 +965,10 @@ export default function ProtSpaceApp() {
         const svgCloneForSvgExport = svgElementForSvgExport.cloneNode(
           true
         ) as SVGElement;
-        const originalWidthForSvgExport = svgElementForSvgExport.clientWidth;
-        const originalHeightForSvgExport = svgElementForSvgExport.clientHeight;
+        const originalWidthForSvgExport =
+          svgElementForSvgExport.clientWidth || 800;
+        const originalHeightForSvgExport =
+          svgElementForSvgExport.clientHeight || 600;
 
         // Set dimensions for the export SVG
         svgCloneForSvgExport.setAttribute(
@@ -919,10 +986,21 @@ export default function ProtSpaceApp() {
           `0 0 ${originalWidthForSvgExport} ${originalHeightForSvgExport}`
         );
 
-        // Get the main group that contains the visualization
-        const mainGroupForSvgExport = svgCloneForSvgExport.querySelector(
-          ".scatter-plot-container"
-        );
+        // Look for the main visualization group with multiple possible selectors
+        const possibleSelectorsForSvg = [
+          ".scatter-plot-container",
+          ".visualization-container",
+          ".scatterplot-main",
+          "g[class*='scatter']",
+          "g[class*='plot']",
+          "g[transform]",
+        ];
+
+        let mainGroupForSvgExport: Element | null = null;
+        for (const selector of possibleSelectorsForSvg) {
+          mainGroupForSvgExport = svgCloneForSvgExport.querySelector(selector);
+          if (mainGroupForSvgExport) break;
+        }
 
         if (mainGroupForSvgExport) {
           // For SVG export, reset any transformations to show the original view
@@ -1380,54 +1458,75 @@ export default function ProtSpaceApp() {
       />
 
       {/* Control Bar */}
-      <ControlBar
-        projections={
-          visualizationData
-            ? visualizationData.projections.map((p) => p.name)
-            : []
-        }
-        selectedProjection={projectionName}
-        onProjectionChange={(name) => {
-          const index =
-            visualizationData?.projections.findIndex((p) => p.name === name) ||
-            0;
-          setSelectedProjectionIndex(index);
-        }}
-        features={
-          visualizationData ? Object.keys(visualizationData.features) : []
-        }
-        selectedFeature={selectedFeature}
-        onFeatureChange={setSelectedFeature}
-        selectionMode={selectionMode}
-        onToggleSelectionMode={() => setSelectionMode(!selectionMode)}
-        isolationMode={isolationMode}
-        onToggleIsolationMode={handleToggleIsolationMode}
-        selectedProteinsCount={selectedProteinIds.length}
-        onExport={handleExport}
-        onClearSelections={() => {
-          setSelectedProteinIds([]);
-          setHighlightedProteinIds([]);
-        }}
-      />
+      {visualizationData ? (
+        <ProtspaceControlBarWebComponent
+          projections={
+            visualizationData
+              ? visualizationData.projections.map((p) => p.name)
+              : []
+          }
+          selectedProjection={projectionName}
+          onProjectionChange={(name) => {
+            const index =
+              visualizationData?.projections.findIndex(
+                (p) => p.name === name
+              ) || 0;
+            setSelectedProjectionIndex(index);
+          }}
+          features={
+            visualizationData ? Object.keys(visualizationData.features) : []
+          }
+          selectedFeature={selectedFeature}
+          onFeatureChange={setSelectedFeature}
+          selectionMode={selectionMode}
+          onToggleSelectionMode={() => setSelectionMode(!selectionMode)}
+          isolationMode={isolationMode}
+          onToggleIsolationMode={handleToggleIsolationMode}
+          selectedProteinsCount={selectedProteinIds.length}
+          onExport={handleExport}
+          onClearSelections={() => {
+            setSelectedProteinIds([]);
+            setHighlightedProteinIds([]);
+          }}
+        />
+      ) : (
+        <div className="flex items-center justify-between px-4 py-2 bg-white border-b shadow-sm dark:bg-gray-900 dark:border-gray-800 min-h-[3rem]">
+          <div className="flex items-center space-x-4">
+            <div className="animate-pulse">
+              <div className="h-4 bg-gray-200 rounded w-24 mb-1"></div>
+              <div className="h-8 bg-gray-200 rounded w-32"></div>
+            </div>
+            <div className="animate-pulse">
+              <div className="h-4 bg-gray-200 rounded w-20 mb-1"></div>
+              <div className="h-8 bg-gray-200 rounded w-28"></div>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className="animate-pulse bg-gray-200 h-8 w-16 rounded"></div>
+            <div className="animate-pulse bg-gray-200 h-8 w-16 rounded"></div>
+            <div className="animate-pulse bg-gray-200 h-8 w-24 rounded"></div>
+            <div className="animate-pulse bg-gray-200 h-8 w-20 rounded"></div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden">
         {/* Main Visualization Area */}
         <div className="flex-grow h-full overflow-hidden p-0">
           {visualizationData ? (
-            <ImprovedScatterplot
+            <ProtspaceWebComponent
               data={visualizationData}
               selectedProjectionIndex={selectedProjectionIndex}
               selectedFeature={selectedFeature}
-              selectedProteinIds={selectedProteinIds}
               highlightedProteinIds={highlightedProteinIds}
+              selectedProteinIds={selectedProteinIds}
               isolationMode={isolationMode}
               splitHistory={splitHistory}
               selectionMode={selectionMode}
               hiddenFeatureValues={hiddenFeatureValues}
               onProteinClick={handleProteinClick}
               onProteinHover={handleProteinHover}
-              onViewStructure={setViewStructureId}
               className="w-full h-full"
             />
           ) : (
@@ -1441,13 +1540,9 @@ export default function ProtSpaceApp() {
         <div className="w-96 bg-gray-50 dark:bg-gray-800 p-4 overflow-auto flex flex-col">
           {/* Legend */}
           {visualizationData && selectedFeature && (
-            <InteractiveLegend
-              featureData={{
-                name: selectedFeature,
-                values: visualizationData.features[selectedFeature].values,
-                colors: visualizationData.features[selectedFeature].colors,
-                shapes: visualizationData.features[selectedFeature].shapes,
-              }}
+            <ProtspaceLegendWebComponent
+              data={visualizationData}
+              selectedFeature={selectedFeature}
               featureValues={visualizationData.protein_ids.map((id, index) => {
                 // Get the feature index for this protein
                 const featureIndex =
@@ -1458,24 +1553,37 @@ export default function ProtSpaceApp() {
                 ];
               })}
               proteinIds={visualizationData.protein_ids}
-              onToggleVisibility={handleToggleVisibility}
-              onExtractFromOther={handleExtractFromOther}
-              onSetZOrder={handleSetZOrder}
-              onOpenCustomization={handleOpenCustomization}
+              onLegendItemClick={(value, action) => {
+                if (action === "toggle") {
+                  handleToggleVisibility(value);
+                } else if (action === "isolate") {
+                  // Handle isolation logic for double-click
+                  handleToggleVisibility(value);
+                } else if (action === "extract") {
+                  handleExtractFromOther(value as string);
+                }
+              }}
+              onLegendZOrderChange={handleSetZOrder}
+              onLegendCustomize={handleOpenCustomization}
               selectedItems={Array.from(selectedFeatureItemsSet)}
               className="w-full lg:w-auto"
               isolationMode={isolationMode}
               splitHistory={splitHistory}
-              ref={legendRef}
             />
           )}
 
           {/* 3D Structure Viewer - Always render container but conditionally show content */}
           {selectedProteinIds.length > 0 && (
-            <StructureViewer
+            <ProtspaceStructureViewerWebComponent
               proteinId={viewStructureId}
               title="AlphaFold2 Structure"
+              showCloseButton={true}
+              height="320px"
+              onStructureLoad={(proteinId, status, error) => {
+                console.log(`Structure ${proteinId}: ${status}`, error);
+              }}
               onClose={() => setViewStructureId(null)}
+              className="mt-4"
             />
           )}
         </div>
