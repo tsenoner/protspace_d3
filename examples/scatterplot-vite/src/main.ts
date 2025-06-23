@@ -5,6 +5,7 @@ import type {
   ProtspaceLegend,
   ProtspaceStructureViewer,
   ProtspaceControlBar,
+  DataLoader,
 } from "@protspace/core";
 
 const sampleData: VisualizationData = {
@@ -55,13 +56,127 @@ const sampleData: VisualizationData = {
   },
 };
 
-// Wait for all components to be defined
+// Set up data loader event listeners immediately
+const dataLoader = document.getElementById("myDataLoader") as DataLoader | null;
+
+if (dataLoader) {
+  console.log("🎧 Setting up data-loaded event listener on:", dataLoader);
+
+  // Handle successful data loading
+  dataLoader.addEventListener("data-loaded", (event: Event) => {
+    console.log("🔥 DATA-LOADED EVENT FIRED!", event);
+    const customEvent = event as CustomEvent;
+    const { data } = customEvent.detail;
+    console.log("📁 Data loaded from Arrow file:", data);
+
+    // Wait for other components to be ready before loading data
+    Promise.all([
+      customElements.whenDefined("protspace-scatterplot"),
+      customElements.whenDefined("protspace-legend"),
+      customElements.whenDefined("protspace-structure-viewer"),
+      customElements.whenDefined("protspace-control-bar"),
+    ]).then(() => {
+      const plotElement = document.getElementById(
+        "myPlot"
+      ) as ProtspaceScatterplot | null;
+      const legendElement = document.getElementById(
+        "myLegend"
+      ) as ProtspaceLegend | null;
+      const structureViewer = document.getElementById(
+        "myStructureViewer"
+      ) as ProtspaceStructureViewer | null;
+      const controlBar = document.getElementById(
+        "myControlBar"
+      ) as ProtspaceControlBar | null;
+
+      if (plotElement && legendElement && structureViewer && controlBar) {
+        // Create a loadNewData function in this scope
+        const loadNewDataFromEvent = (newData: VisualizationData) => {
+          console.log("🔄 Loading new data from event:", newData);
+
+          // Update scatterplot with new data
+          console.log("📊 Updating scatterplot with new data...");
+          const oldData = plotElement.data;
+          plotElement.data = newData;
+          plotElement.requestUpdate("data", oldData);
+
+          plotElement.selectedProjectionIndex = 0;
+          plotElement.selectedFeature = Object.keys(newData.features)[0] || "";
+          plotElement.selectedProteinIds = [];
+          plotElement.selectionMode = false;
+          plotElement.hiddenFeatureValues = [];
+          plotElement.requestUpdate();
+
+          console.log("📊 Scatterplot updated with:", {
+            projections: newData.projections.map((p) => p.name),
+            features: Object.keys(newData.features),
+            proteinCount: newData.protein_ids.length,
+            selectedFeature: plotElement.selectedFeature,
+          });
+
+          // Control bar will auto-sync with new data
+          // Local state will be reset when variables are initialized below
+
+          // Update legend
+          setTimeout(() => {
+            console.log("🏷️ Updating legend with new data...");
+            legendElement.autoSync = true;
+            legendElement.autoHide = true;
+            legendElement.data = { features: newData.features };
+            legendElement.selectedFeature =
+              Object.keys(newData.features)[0] || "";
+
+            const firstFeature = Object.keys(newData.features)[0];
+            if (firstFeature) {
+              const featureValues = newData.protein_ids.map((_, index) => {
+                const featureIdx = newData.feature_data[firstFeature][index];
+                return newData.features[firstFeature].values[featureIdx];
+              });
+              legendElement.featureValues = featureValues;
+              legendElement.proteinIds = newData.protein_ids;
+            }
+            legendElement.requestUpdate();
+
+            console.log("🏷️ Legend updated with:", {
+              feature: legendElement.selectedFeature,
+              dataKeys: Object.keys(newData.features),
+              proteinCount: newData.protein_ids.length,
+            });
+          }, 200);
+
+          console.log(
+            "✅ Data loaded successfully from event with",
+            newData.protein_ids.length,
+            "proteins"
+          );
+        };
+
+        // Load the new data
+        loadNewDataFromEvent(data);
+      }
+    });
+  });
+
+  // Handle data loading errors
+  dataLoader.addEventListener("data-load-error", (event: Event) => {
+    const customEvent = event as CustomEvent;
+    const { error } = customEvent.detail;
+    console.error("❌ Data loading failed:", error);
+    alert(`Failed to load data: ${error}`);
+  });
+
+  console.log("🎧 Event listeners attached successfully");
+}
+
+// Wait for all components to be defined for initial setup
 Promise.all([
   customElements.whenDefined("protspace-scatterplot"),
   customElements.whenDefined("protspace-legend"),
   customElements.whenDefined("protspace-structure-viewer"),
   customElements.whenDefined("protspace-control-bar"),
+  customElements.whenDefined("protspace-data-loader"),
 ]).then(() => {
+  console.log("🚀 All web components defined and ready!");
   const plotElement = document.getElementById(
     "myPlot"
   ) as ProtspaceScatterplot | null;
@@ -80,30 +195,121 @@ Promise.all([
     "selectedProtein"
   ) as HTMLElement;
 
-  if (plotElement && legendElement && structureViewer && controlBar) {
+  if (
+    plotElement &&
+    legendElement &&
+    structureViewer &&
+    controlBar &&
+    dataLoader
+  ) {
     // Track state
     let hiddenValues: string[] = [];
     let selectedProteins: string[] = [];
     let selectionMode = false;
     let isolationMode = false;
+    let currentData: VisualizationData = sampleData;
 
-    // Initialize components
-    plotElement.data = sampleData;
-    plotElement.selectedProjectionIndex = 0;
-    plotElement.selectedFeature = "family";
-    plotElement.selectedProteinIds = []; // Initialize with empty selection
-    plotElement.selectionMode = selectionMode; // Initialize selection mode
+    // Function to load new data and reset all state
+    const loadNewData = (newData: VisualizationData) => {
+      console.log("🔄 Loading new data:", newData);
 
-    // Initialize control bar - now with auto-sync enabled
-    setTimeout(() => {
-      // Enable auto-sync so control bar automatically gets projections/features from scatterplot
-      controlBar.autoSync = true;
-      controlBar.selectedProjection = "UMAP";
-      controlBar.selectedFeature = "family";
-      controlBar.selectionMode = selectionMode;
-      controlBar.isolationMode = isolationMode;
-      controlBar.selectedProteinsCount = selectedProteins.length;
-    }, 100);
+      // Reset all state
+      hiddenValues = [];
+      selectedProteins = [];
+      selectionMode = false;
+      isolationMode = false;
+      currentData = newData;
+
+      // Update scatterplot with new data
+      console.log("📊 Updating scatterplot with new data...");
+      const oldData = plotElement.data;
+      plotElement.data = newData;
+      // Explicitly request update for data property since LitElement might not detect object changes
+      plotElement.requestUpdate("data", oldData);
+
+      plotElement.selectedProjectionIndex = 0; // Reset to first projection
+      plotElement.selectedFeature = Object.keys(newData.features)[0] || ""; // Reset to first feature
+      plotElement.selectedProteinIds = [];
+      plotElement.selectionMode = false;
+      plotElement.hiddenFeatureValues = [];
+
+      // Force additional update
+      plotElement.requestUpdate();
+
+      console.log("📊 Scatterplot updated with:", {
+        projections: newData.projections.map((p) => p.name),
+        features: Object.keys(newData.features),
+        proteinCount: newData.protein_ids.length,
+        selectedFeature: plotElement.selectedFeature,
+      });
+
+      // Exit split mode if active
+      if (plotElement.isInSplitMode()) {
+        plotElement.exitSplitMode();
+      }
+
+      // Update control bar
+      setTimeout(() => {
+        controlBar.autoSync = true;
+        controlBar.selectedProjection = newData.projections[0]?.name || "";
+        controlBar.selectedFeature = Object.keys(newData.features)[0] || "";
+        controlBar.selectionMode = false;
+        controlBar.isolationMode = false;
+        controlBar.selectedProteinsCount = 0;
+        controlBar.requestUpdate();
+      }, 100);
+
+      // Update legend with new data - using the fix we applied to the core
+      setTimeout(() => {
+        console.log("🏷️ Updating legend with new data...");
+        legendElement.autoSync = true;
+        legendElement.autoHide = true;
+
+        // Set the data and selectedFeature directly on the legend
+        // This will trigger the _updateFeatureDataFromData method we added
+        legendElement.data = { features: newData.features };
+        legendElement.selectedFeature = Object.keys(newData.features)[0] || "";
+
+        // Extract feature values for the new data
+        const firstFeature = Object.keys(newData.features)[0];
+        if (firstFeature) {
+          const featureValues = newData.protein_ids.map((_, index) => {
+            const featureIdx = newData.feature_data[firstFeature][index];
+            return newData.features[firstFeature].values[featureIdx];
+          });
+
+          legendElement.featureValues = featureValues;
+          legendElement.proteinIds = newData.protein_ids;
+        }
+
+        // Force update the legend
+        legendElement.requestUpdate();
+
+        console.log("🏷️ Legend updated with:", {
+          feature: legendElement.selectedFeature,
+          dataKeys: Object.keys(newData.features),
+          proteinCount: newData.protein_ids.length,
+        });
+      }, 200);
+
+      // Hide structure viewer
+      if (structureViewer.style.display !== "none") {
+        structureViewer.style.display = "none";
+      }
+
+      updateSelectedProteinDisplay(null);
+      console.log(
+        "✅ Data loaded successfully with",
+        newData.protein_ids.length,
+        "proteins"
+      );
+    };
+
+    // Initialize components with sample data
+    loadNewData(sampleData);
+
+    // Initialize control bar - auto-sync handles most initialization
+    // The control bar will automatically sync with the scatterplot
 
     // Initialize legend - now with auto-sync enabled
     setTimeout(() => {
@@ -148,14 +354,10 @@ Promise.all([
       }
     };
 
-    // Update control bar state
+    // Update control bar state - simplified since auto-sync handles most updates
     const updateControlBarState = () => {
+      // Control bar now auto-syncs with scatterplot, so we only need to update local state
       controlBar.selectedProteinsCount = selectedProteins.length;
-      controlBar.selectionMode = selectionMode;
-      controlBar.isolationMode = isolationMode;
-
-      // Force update the control bar properties to ensure they're applied
-      controlBar.requestUpdate();
     };
 
     // Initialize legend
@@ -334,69 +536,65 @@ Promise.all([
     });
 
     // Control Bar Event Handlers
+    // Note: With auto-sync enabled, the control bar now directly manages the scatterplot
+    // We keep some event listeners for additional logic that auto-sync doesn't handle
 
-    // Handle projection change
-    controlBar.addEventListener("projection-change", (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const projectionName = customEvent.detail.projection;
-      const projectionIndex = sampleData.projections.findIndex(
-        (p) => p.name === projectionName
-      );
-      if (projectionIndex !== -1) {
-        plotElement.selectedProjectionIndex = projectionIndex;
-        console.log(`Switched to projection: ${projectionName}`);
-      }
-    });
-
-    // Handle feature change
+    // Handle feature change for resetting hidden values
     controlBar.addEventListener("feature-change", (event: Event) => {
       const customEvent = event as CustomEvent;
       const feature = customEvent.detail.feature;
-      plotElement.selectedFeature = feature;
       hiddenValues = []; // Reset hidden values when switching features
       plotElement.hiddenFeatureValues = hiddenValues;
       updateLegend();
       console.log(`Switched to feature: ${feature}`);
     });
 
-    // Handle selection mode toggle
+    // Handle selection mode toggle for local state
     controlBar.addEventListener("toggle-selection-mode", () => {
-      selectionMode = !selectionMode;
-      plotElement.selectionMode = selectionMode;
-      updateControlBarState();
+      selectionMode = plotElement.selectionMode; // Sync with scatterplot state
       console.log(`Selection mode: ${selectionMode ? "ON" : "OFF"}`);
     });
 
-    // Handle isolation mode toggle
+    // Handle isolation mode toggle for local state tracking
     controlBar.addEventListener("toggle-isolation-mode", () => {
-      if (!plotElement.isInSplitMode() && selectedProteins.length > 0) {
-        // Enter split mode with selected proteins
-        plotElement.enterSplitMode(selectedProteins);
-        isolationMode = true;
-        selectedProteins = [];
-      } else if (plotElement.isInSplitMode() && selectedProteins.length > 0) {
-        // Create nested split
-        plotElement.createNestedSplit(selectedProteins);
-        selectedProteins = [];
-      } else {
-        // Exit split mode
-        plotElement.exitSplitMode();
-        isolationMode = false;
-        selectedProteins = [];
-      }
-
-      updateControlBarState();
+      // Update local isolation mode state
+      isolationMode = plotElement.isInSplitMode();
+      selectedProteins = []; // Reset local selected proteins after split operations
       updateLegend();
       updateSelectedProteinDisplay(null);
+      console.log(`Isolation mode: ${isolationMode ? "ON" : "OFF"}`);
     });
 
-    // Handle clear selections
+    // Handle clear selections for local state
     controlBar.addEventListener("clear-selections", () => {
       selectedProteins = [];
-      plotElement.selectedProteinIds = []; // Clear visual selection on scatterplot
-      updateControlBarState();
       updateSelectedProteinDisplay(null);
       console.log("Cleared all selections");
+    });
+
+    // Data Loader Event Handlers
+
+    // Handle successful data loading
+    console.log("🎧 Setting up data-loaded event listener on:", dataLoader);
+    dataLoader.addEventListener("data-loaded", (event: Event) => {
+      console.log("🔥 DATA-LOADED EVENT FIRED!", event);
+      const customEvent = event as CustomEvent;
+      const { data } = customEvent.detail;
+      console.log("📁 Data loaded from Arrow file:", data);
+
+      // Load the new data into all components
+      loadNewData(data);
+    });
+    console.log("🎧 Event listener attached successfully");
+
+    // Handle data loading errors
+    dataLoader.addEventListener("data-error", (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { error } = customEvent.detail;
+      console.error("❌ Data loading error:", error);
+
+      // You could show a toast notification or error message here
+      alert(`Failed to load data: ${error}`);
     });
 
     // Handle export

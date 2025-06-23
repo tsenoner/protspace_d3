@@ -94,6 +94,10 @@ function ProtspaceControlBarWebComponentClient({
           selectedProteinsCount?: number;
         };
 
+        // Enable auto-sync with scatterplot
+        element.setAttribute("auto-sync", "true");
+        element.setAttribute("scatterplot-selector", "protspace-scatterplot");
+
         // Double check container is empty before adding
         if (containerRef.current.children.length > 0) {
           containerRef.current.innerHTML = "";
@@ -118,18 +122,24 @@ function ProtspaceControlBarWebComponentClient({
         };
 
         const handleToggleSelectionMode = () => {
+          // Note: With auto-sync enabled, the web component handles this directly
+          // We only need to call the callback for React state updates
           if (onToggleSelectionModeRef.current) {
             onToggleSelectionModeRef.current();
           }
         };
 
         const handleToggleIsolationMode = () => {
+          // Note: With auto-sync enabled, the web component handles this directly
+          // We only need to call the callback for React state updates
           if (onToggleIsolationModeRef.current) {
             onToggleIsolationModeRef.current();
           }
         };
 
         const handleClearSelections = () => {
+          // Note: With auto-sync enabled, the web component handles this directly
+          // We only need to call the callback for React state updates
           if (onClearSelectionsRef.current) {
             onClearSelectionsRef.current();
           }

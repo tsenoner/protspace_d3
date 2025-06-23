@@ -68,6 +68,19 @@
         border-radius: 0.5rem;
       }
 
+      protspace-data-loader {
+        display: block;
+        width: 100%;
+        margin-bottom: 1rem;
+        border-radius: 0.5rem;
+        transition: all 0.3s ease;
+      }
+
+      protspace-data-loader:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      }
+
       .container {
         margin: 20px auto;
         max-width: 1400px;
@@ -84,15 +97,6 @@
         display: flex;
         flex-direction: column;
         gap: 1rem;
-      }
-
-      .info-box {
-        padding: 1rem;
-        background: #fff;
-        border: 1px solid #ccc;
-        border-radius: 0.5rem;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        margin-bottom: 1rem;
       }
 
       .selected-protein {
@@ -114,13 +118,36 @@
   </head>
   <body>
     <h1>ProtSpace Complete Web Components Example</h1>
-    <p>
-      This example demonstrates the integration of
-      <code>protspace-scatterplot</code>, <code>protspace-legend</code>, and
-      <code>protspace-structure-viewer</code> web components.
+    <p style="text-align: center">
+      This example demonstrates the integration of all ProtSpace web
+      components:<br />
+      <code>protspace-data-loader</code>, <code>protspace-scatterplot</code>,
+      <code>protspace-legend</code>, <code>protspace-control-bar</code>, and
+      <code>protspace-structure-viewer</code>.
+    </p>
+    <p
+      style="
+        text-align: center;
+        color: #666;
+        font-size: 0.9rem;
+        margin-bottom: 2rem;
+      "
+    >
+      <strong>Try it:</strong> Drag & drop an Apache Arrow file (.arrow,
+      .parquet, .feather) or use the sample data below. The visualization will
+      automatically update with your data!<br />
+      <em>Test files available:</em> <code>basic.arrow</code> (6 proteins) and
+      <code>Pla2g2.arrow</code> (448 proteins) in this directory.
     </p>
 
     <div class="container">
+      <!-- Data Loader -->
+      <protspace-data-loader
+        id="myDataLoader"
+        allow-drop="true"
+        style="margin-bottom: 1rem"
+      ></protspace-data-loader>
+
       <!-- Control Bar -->
       <protspace-control-bar
         id="myControlBar"
@@ -132,20 +159,6 @@
         auto-sync="true"
         scatterplot-selector="#myPlot"
       ></protspace-control-bar>
-
-      <!-- Info box -->
-      <div class="info-box">
-        <div id="selectedProtein" class="selected-protein">
-          No protein selected
-        </div>
-        <div id="instructions">
-          <strong>Instructions:</strong><br />
-          • Use the control bar above to change projection and color features<br />
-          • Click a protein in the scatterplot to view its 3D structure<br />
-          • Toggle feature values in the legend to hide/show points<br />
-          • Use selection mode for multi-protein selection and data splitting
-        </div>
-      </div>
 
       <!-- Visualization -->
       <div class="visualization-container">
