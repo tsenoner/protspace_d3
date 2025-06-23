@@ -1,6 +1,5 @@
-import { LitElement, html, css } from "lit";
+import { LitElement, css, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import type { VisualizationData } from "@protspace/utils";
 
 export interface ControlBarState {
   projections: string[];
@@ -222,6 +221,21 @@ export class ProtspaceControlBar extends LitElement {
       composed: true,
     });
     this.dispatchEvent(customEvent);
+
+    // If auto-sync is enabled, directly update the scatterplot
+    if (this.autoSync && this._scatterplotElement) {
+      const projectionIndex = this.projections.findIndex(
+        (p) => p === target.value
+      );
+      if (
+        projectionIndex !== -1 &&
+        "selectedProjectionIndex" in this._scatterplotElement
+      ) {
+        (this._scatterplotElement as any).selectedProjectionIndex =
+          projectionIndex;
+        this.selectedProjection = target.value;
+      }
+    }
   }
 
   private handleFeatureChange(event: Event) {
@@ -232,6 +246,14 @@ export class ProtspaceControlBar extends LitElement {
       composed: true,
     });
     this.dispatchEvent(customEvent);
+
+    // If auto-sync is enabled, directly update the scatterplot
+    if (this.autoSync && this._scatterplotElement) {
+      if ("selectedFeature" in this._scatterplotElement) {
+        (this._scatterplotElement as any).selectedFeature = target.value;
+        this.selectedFeature = target.value;
+      }
+    }
   }
 
   private handleToggleSelectionMode() {
@@ -241,6 +263,14 @@ export class ProtspaceControlBar extends LitElement {
       composed: true,
     });
     this.dispatchEvent(customEvent);
+
+    // If auto-sync is enabled, directly update the scatterplot
+    if (this.autoSync && this._scatterplotElement) {
+      this.selectionMode = !this.selectionMode;
+      if ("selectionMode" in this._scatterplotElement) {
+        (this._scatterplotElement as any).selectionMode = this.selectionMode;
+      }
+    }
   }
 
   private handleToggleIsolationMode() {
@@ -250,6 +280,31 @@ export class ProtspaceControlBar extends LitElement {
       composed: true,
     });
     this.dispatchEvent(customEvent);
+
+    // If auto-sync is enabled, handle isolation mode directly
+    if (this.autoSync && this._scatterplotElement) {
+      const scatterplot = this._scatterplotElement as any;
+
+      if (!scatterplot.isInSplitMode?.() && this.selectedProteinsCount > 0) {
+        // Enter split mode with selected proteins
+        if (scatterplot.enterSplitMode && scatterplot.selectedProteinIds) {
+          scatterplot.enterSplitMode(scatterplot.selectedProteinIds);
+        }
+      } else if (
+        scatterplot.isInSplitMode?.() &&
+        this.selectedProteinsCount > 0
+      ) {
+        // Create nested split
+        if (scatterplot.createNestedSplit && scatterplot.selectedProteinIds) {
+          scatterplot.createNestedSplit(scatterplot.selectedProteinIds);
+        }
+      } else {
+        // Exit split mode
+        if (scatterplot.exitSplitMode) {
+          scatterplot.exitSplitMode();
+        }
+      }
+    }
   }
 
   private handleClearSelections() {
@@ -259,6 +314,14 @@ export class ProtspaceControlBar extends LitElement {
       composed: true,
     });
     this.dispatchEvent(customEvent);
+
+    // If auto-sync is enabled, directly clear selections in scatterplot
+    if (this.autoSync && this._scatterplotElement) {
+      if ("selectedProteinIds" in this._scatterplotElement) {
+        (this._scatterplotElement as any).selectedProteinIds = [];
+        this.selectedProteinsCount = 0;
+      }
+    }
   }
 
   private handleExport(type: "json" | "ids" | "png" | "svg" | "pdf") {
@@ -477,6 +540,10 @@ export class ProtspaceControlBar extends LitElement {
         "split-state-change",
         this._handleSplitStateChange.bind(this)
       );
+      this._scatterplotElement.removeEventListener(
+        "protein-click",
+        this._handleProteinSelection.bind(this)
+      );
     }
   }
 
@@ -487,12 +554,18 @@ export class ProtspaceControlBar extends LitElement {
   }
 
   private _setupAutoSync() {
-    // Find scatterplot element
-    setTimeout(() => {
+    // Find scatterplot element with retries
+    const trySetup = (attempts: number = 0) => {
       this._scatterplotElement = document.querySelector(
         this.scatterplotSelector
       );
+
       if (this._scatterplotElement) {
+        console.log(
+          "🔗 Control bar connected to scatterplot:",
+          this.scatterplotSelector
+        );
+
         // Listen for data changes
         this._scatterplotElement.addEventListener(
           "data-change",
@@ -503,10 +576,28 @@ export class ProtspaceControlBar extends LitElement {
           this._handleSplitStateChange.bind(this)
         );
 
-        // Initial sync
-        this._syncWithScatterplot();
+        // Listen for protein selection changes
+        this._scatterplotElement.addEventListener(
+          "protein-click",
+          this._handleProteinSelection.bind(this)
+        );
+
+        // Initial sync after a short delay to ensure scatterplot is ready
+        setTimeout(() => {
+          this._syncWithScatterplot();
+        }, 50);
+      } else if (attempts < 10) {
+        // Retry up to 10 times with increasing delay
+        setTimeout(() => trySetup(attempts + 1), 100 + attempts * 50);
+      } else {
+        console.warn(
+          "❌ Control bar could not find scatterplot element:",
+          this.scatterplotSelector
+        );
       }
-    }, 100);
+    };
+
+    trySetup();
   }
 
   private _handleDataChange(event: Event) {
@@ -540,20 +631,54 @@ export class ProtspaceControlBar extends LitElement {
     this.requestUpdate();
   }
 
+  private _handleProteinSelection(event: Event) {
+    // Update selected proteins count when proteins are selected/deselected
+    if (
+      this._scatterplotElement &&
+      "selectedProteinIds" in this._scatterplotElement
+    ) {
+      const selectedIds =
+        (this._scatterplotElement as any).selectedProteinIds || [];
+      this.selectedProteinsCount = selectedIds.length;
+      this.requestUpdate();
+    }
+  }
+
   private _syncWithScatterplot() {
     if (
       this._scatterplotElement &&
       "getCurrentData" in this._scatterplotElement
     ) {
-      const data = (
-        this._scatterplotElement as Element & {
-          getCurrentData(): VisualizationData | null;
-        }
-      ).getCurrentData();
+      const scatterplot = this._scatterplotElement as any;
+      const data = scatterplot.getCurrentData();
+
       if (data) {
         this.projections =
           data.projections?.map((p: { name: string }) => p.name) || [];
         this.features = Object.keys(data.features || {});
+
+        // Sync current values from scatterplot
+        if ("selectedFeature" in scatterplot) {
+          this.selectedFeature =
+            scatterplot.selectedFeature || this.features[0] || "";
+        }
+        if (
+          "selectedProjectionIndex" in scatterplot &&
+          "selectedProjectionIndex" in scatterplot
+        ) {
+          const projIndex = scatterplot.selectedProjectionIndex;
+          if (projIndex >= 0 && projIndex < this.projections.length) {
+            this.selectedProjection = this.projections[projIndex];
+          }
+        }
+        if ("selectionMode" in scatterplot) {
+          this.selectionMode = scatterplot.selectionMode || false;
+        }
+        if ("selectedProteinIds" in scatterplot) {
+          this.selectedProteinsCount = (
+            scatterplot.selectedProteinIds || []
+          ).length;
+        }
 
         // Set defaults if not already set
         if (!this.selectedProjection && this.projections.length > 0) {

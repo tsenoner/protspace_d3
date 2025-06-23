@@ -6,9 +6,12 @@ import Header from "@/components/Header/Header";
 // import InteractiveLegend from "@/components/InteractiveLegend/InteractiveLegend";
 import { VisualizationData } from "@/components/Scatterplot/ImprovedScatterplot";
 import StatusBar from "@/components/StatusBar/StatusBar";
-import ProtspaceWebComponent from "@/components/WebComponent/ProtspaceWebComponent";
+import ProtspaceWebComponent, {
+  type ProtspaceWebComponentRef,
+} from "@/components/WebComponent/ProtspaceWebComponent";
 import ProtspaceLegendWebComponent from "@/components/WebComponent/ProtspaceLegendWebComponent";
 import ProtspaceStructureViewerWebComponent from "@/components/WebComponent/ProtspaceStructureViewerWebComponent";
+import DataLoaderModal from "@/components/DataLoaderModal/DataLoaderModal";
 import * as d3 from "d3";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -34,9 +37,10 @@ export default function ProtSpaceApp() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [viewStructureId, setViewStructureId] = useState<string | null>(null);
   const [hiddenFeatureValues, setHiddenFeatureValues] = useState<string[]>([]);
+  const [isDataLoaderOpen, setIsDataLoaderOpen] = useState(false);
 
-  // Ref for the legend component
-  // const legendRef = useRef<{ downloadAsImage: () => Promise<void> }>(null);
+  // Ref for the web component
+  const webComponentRef = useRef<ProtspaceWebComponentRef>(null);
 
   // Load data when component mounts
   const loadData = async (dataPath?: string) => {
@@ -109,6 +113,11 @@ export default function ProtSpaceApp() {
 
   // Handle protein selection
   const handleProteinClick = (proteinId: string, event?: CustomEvent) => {
+    console.log(
+      `🖱️ Protein clicked: ${proteinId}`,
+      event?.detail?.modifierKeys
+    );
+
     // When in non-selection mode, add the clicked protein to highlightedProteinIds immediately
     if (!selectionMode) {
       setHighlightedProteinIds([proteinId]);
@@ -116,8 +125,11 @@ export default function ProtSpaceApp() {
 
     // Standard selection behavior regardless of split state
     setSelectedProteinIds((prevIds) => {
+      console.log(`📊 Current selectedProteinIds before:`, prevIds);
+
       // If the protein is already selected, deselect it
       if (prevIds.includes(proteinId)) {
+        console.log(`❌ Deselecting protein: ${proteinId}`);
         // Also remove from highlighted if it's highlighted
         setHighlightedProteinIds((prev) =>
           prev.filter((id) => id !== proteinId)
@@ -126,35 +138,39 @@ export default function ProtSpaceApp() {
         if (viewStructureId === proteinId) {
           setViewStructureId(null);
         }
-        return prevIds.filter((id) => id !== proteinId);
+        const newSelection = prevIds.filter((id) => id !== proteinId);
+        console.log(`🔄 New selection after deselect:`, newSelection);
+        return newSelection;
       }
 
-      // In single selection mode, replace the selection
-      if (
-        event &&
-        !event.detail?.modifierKeys?.ctrl &&
-        !event.detail?.modifierKeys?.meta &&
-        !event.detail?.modifierKeys?.shift
-      ) {
+      // Check if we're in multi-selection mode
+      const isMultiSelect =
+        selectionMode ||
+        event?.detail?.modifierKeys?.ctrl ||
+        event?.detail?.modifierKeys?.meta ||
+        event?.detail?.modifierKeys?.shift;
+
+      let newSelection: string[];
+
+      if (isMultiSelect) {
+        // Multi-selection mode: add to existing selection
+        newSelection = [...prevIds, proteinId];
+        console.log(`✅ Added protein to selection (multi-mode): ${proteinId}`);
+      } else {
+        // Single selection mode: replace the selection
+        newSelection = [proteinId];
+        console.log(`✅ Selected protein (single mode): ${proteinId}`);
+
         // Only show structure for the selected protein when not in selection mode
         if (!selectionMode) {
           setViewStructureId(proteinId);
           // For single-click in non-selection mode, add to highlighted (red border)
           setHighlightedProteinIds([proteinId]);
         }
-        return [proteinId];
       }
 
-      // In multi-selection mode (with Ctrl/Cmd/Shift), add to selection
-      // Only show structure for the newly clicked protein when not in selection mode
-      if (!selectionMode) {
-        setViewStructureId(proteinId);
-        // Add to highlighted list for the red border
-        setHighlightedProteinIds((prev) =>
-          prev.includes(proteinId) ? prev : [...prev, proteinId]
-        );
-      }
-      return [...prevIds, proteinId];
+      console.log(`🔄 New selection after click:`, newSelection);
+      return newSelection;
     });
   };
 
@@ -242,32 +258,64 @@ export default function ProtSpaceApp() {
 
   // Split the data to focus on selected proteins
   const handleToggleIsolationMode = () => {
-    if (!isolationMode) {
-      // Ensure we have something selected first
-      if (selectedProteinIds.length === 0) {
-        return; // Don't do anything if nothing is selected
-      }
+    // Note: With auto-sync enabled, the control bar web component now handles
+    // the split functionality directly. This function is mainly for React state updates
+    // and any additional logic that auto-sync doesn't handle.
 
-      // Enter split mode and add current selection to history
-      setIsolationMode(true);
-      setSplitHistory((prev) => [...prev, [...selectedProteinIds]]);
-
-      // Clear selection after splitting to prepare for new selection
+    // Clear selection after any split operation for clean state
+    if (selectedProteinIds.length > 0) {
       setSelectedProteinIds([]);
+    }
+
+    // Reset hidden feature values when exiting split mode
+    if (isolationMode && selectedProteinIds.length === 0) {
+      setHiddenFeatureValues([]);
+    }
+  };
+
+  // Handle split state changes from web component
+  const handleSplitStateChange = (
+    isolationMode: boolean,
+    splitHistory: string[][],
+    currentDataSize: number,
+    selectedProteinsCount: number
+  ) => {
+    setIsolationMode(isolationMode);
+    setSplitHistory(splitHistory);
+    console.log(
+      `Split state changed: ${isolationMode ? "ON" : "OFF"}, splits: ${
+        splitHistory.length
+      }, data size: ${currentDataSize}`
+    );
+  };
+
+  // Handle data changes from web component
+  const handleDataChange = (data: VisualizationData, isFiltered: boolean) => {
+    console.log(
+      `Data changed: ${isFiltered ? "Filtered" : "Full"} data, proteins: ${
+        data.protein_ids.length
+      }`
+    );
+  };
+
+  // Handle protein selection from web component (brush selection)
+  const handleProteinSelection = (
+    proteinIds: string[],
+    isMultiple: boolean
+  ) => {
+    console.log(
+      `Protein selection from brush: ${proteinIds.length} proteins, multiple: ${isMultiple}`
+    );
+    if (isMultiple) {
+      // For brush selection, add to existing selection
+      setSelectedProteinIds((prev) => {
+        const combinedIds = [...prev, ...proteinIds];
+        const uniqueIds = Array.from(new Set(combinedIds));
+        return uniqueIds;
+      });
     } else {
-      // If we have a selection in split mode, perform another split
-      if (selectedProteinIds.length > 0) {
-        // Add these selections to history
-        setSplitHistory((prev) => [...prev, [...selectedProteinIds]]);
-        // Clear selection after splitting
-        setSelectedProteinIds([]);
-      } else {
-        // If no selection, exit split mode entirely
-        setIsolationMode(false);
-        setSplitHistory([]);
-        // Also reset hidden feature values when exiting split mode
-        setHiddenFeatureValues([]);
-      }
+      // For single selection, replace
+      setSelectedProteinIds(proteinIds);
     }
   };
 
@@ -393,6 +441,35 @@ export default function ProtSpaceApp() {
   const handleShareSession = () => {
     // Currently just an alias for save
     handleSaveSession();
+  };
+
+  // Handle opening data loader modal
+  const handleOpenDataLoader = () => {
+    setIsDataLoaderOpen(true);
+  };
+
+  // Handle Arrow data loading from the data loader component
+  const handleArrowDataLoaded = (data: VisualizationData) => {
+    console.log("Arrow data loaded:", data);
+
+    // Set the new visualization data
+    setVisualizationData(data);
+
+    // Reset application state for new data
+    setSelectedProjectionIndex(0);
+    setSelectedProteinIds([]);
+    setHighlightedProteinIds([]);
+    setIsolationMode(false);
+    setSplitHistory([]);
+    setSelectionMode(false);
+    setViewStructureId(null);
+    setHiddenFeatureValues([]);
+
+    // Initialize with first feature if available
+    if (data && data.features) {
+      const firstFeature = Object.keys(data.features)[0];
+      setSelectedFeature(firstFeature);
+    }
   };
 
   // Helper function to convert modern color formats to hex/rgb
@@ -1451,6 +1528,7 @@ export default function ProtSpaceApp() {
         onSearch={handleSearch}
         onSaveSession={handleSaveSession}
         onLoadSession={handleLoadSession}
+        onLoadData={handleOpenDataLoader}
         highlightedProteins={highlightedProteinIds}
         onRemoveHighlight={handleRemoveProtein}
         availableProteinIds={visualizationData?.protein_ids || []}
@@ -1485,6 +1563,8 @@ export default function ProtSpaceApp() {
           selectedProteinsCount={selectedProteinIds.length}
           onExport={handleExport}
           onClearSelections={() => {
+            // Note: With auto-sync enabled, the control bar web component clears
+            // selections directly. We just update React state here.
             setSelectedProteinIds([]);
             setHighlightedProteinIds([]);
           }}
@@ -1516,6 +1596,7 @@ export default function ProtSpaceApp() {
         <div className="flex-grow h-full overflow-hidden p-0">
           {visualizationData ? (
             <ProtspaceWebComponent
+              ref={webComponentRef}
               data={visualizationData}
               selectedProjectionIndex={selectedProjectionIndex}
               selectedFeature={selectedFeature}
@@ -1527,6 +1608,9 @@ export default function ProtSpaceApp() {
               hiddenFeatureValues={hiddenFeatureValues}
               onProteinClick={handleProteinClick}
               onProteinHover={handleProteinHover}
+              onSplitStateChange={handleSplitStateChange}
+              onDataChange={handleDataChange}
+              onProteinSelection={handleProteinSelection}
               className="w-full h-full"
             />
           ) : (
@@ -1595,6 +1679,13 @@ export default function ProtSpaceApp() {
         displayedProteins={displayedProteins}
         selectedProteins={selectedProteinIds.length}
         projectionName={projectionName}
+      />
+
+      {/* Data Loader Modal */}
+      <DataLoaderModal
+        isOpen={isDataLoaderOpen}
+        onClose={() => setIsDataLoaderOpen(false)}
+        onDataLoaded={handleArrowDataLoaded}
       />
     </main>
   );

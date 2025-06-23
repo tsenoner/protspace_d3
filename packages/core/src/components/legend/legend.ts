@@ -545,6 +545,14 @@ export class ProtspaceLegend extends LitElement {
   @state() private _scatterplotElement: Element | null = null;
 
   updated(changedProperties: Map<string, unknown>) {
+    // If data or selectedFeature changed, update featureData
+    if (
+      changedProperties.has("data") ||
+      changedProperties.has("selectedFeature")
+    ) {
+      this._updateFeatureDataFromData();
+    }
+
     if (
       changedProperties.has("data") ||
       changedProperties.has("selectedFeature") ||
@@ -670,6 +678,21 @@ export class ProtspaceLegend extends LitElement {
 
     // Update feature values for new feature
     this._syncWithScatterplot();
+  }
+
+  private _updateFeatureDataFromData() {
+    // Update featureData from data property when available
+    if (this.data && this.data.features && this.selectedFeature) {
+      const featureInfo = this.data.features[this.selectedFeature];
+      if (featureInfo) {
+        this.featureData = {
+          name: this.selectedFeature,
+          values: featureInfo.values,
+          colors: featureInfo.colors,
+          shapes: featureInfo.shapes,
+        };
+      }
+    }
   }
 
   private _syncWithScatterplot() {
