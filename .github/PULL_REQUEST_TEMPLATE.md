@@ -30,5 +30,6 @@ Please describe the tests that you ran to verify your changes.
 - [ ] I have made corresponding changes to the documentation
 - [ ] I created a/multiple changeset(s) describing my changes succinctly
 - [ ] My changes generate no new warnings
-- [ ] I have added tests that prove my fix is effective or that my feature works
-- [ ] New and existing unit tests pass locally with my changes
+- [ ] I updated core, so I added/extended a basic example
+- [ ] I updated core, so I added/extended a story showcasing my changes
+- [ ] I updated core and ensured the next.js page works on Safari and Chrome
