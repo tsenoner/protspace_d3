@@ -1,1 +1,2 @@
-export { ProtspaceLegend } from './legend.js';
+export { ProtspaceLegend } from "./legend.ts";
+export * from "./legend.ts";
