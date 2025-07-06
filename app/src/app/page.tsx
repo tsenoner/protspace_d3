@@ -537,9 +537,12 @@ export default function ProtSpaceApp() {
   };
 
   // Handle export
-  const handleExport = (type: "json" | "ids" | "png" | "svg" | "pdf") => {
+  const handleExport = (
+    event: CustomEvent<{ type: "json" | "ids" | "png" | "svg" | "pdf" }>
+  ) => {
     if (!visualizationData) return;
 
+    const type = event.detail.type;
     switch (type) {
       case "json":
         // Export full data
@@ -1544,7 +1547,8 @@ export default function ProtSpaceApp() {
               : []
           }
           selectedProjection={projectionName}
-          onProjectionChange={(name) => {
+          onProjectionChange={(event: CustomEvent<{ projection: string }>) => {
+            const name = event.detail.projection;
             const index =
               visualizationData?.projections.findIndex(
                 (p) => p.name === name
@@ -1555,7 +1559,9 @@ export default function ProtSpaceApp() {
             visualizationData ? Object.keys(visualizationData.features) : []
           }
           selectedFeature={selectedFeature}
-          onFeatureChange={setSelectedFeature}
+          onFeatureChange={(event: CustomEvent<{ feature: string }>) => {
+            setSelectedFeature(event.detail.feature);
+          }}
           selectionMode={selectionMode}
           onToggleSelectionMode={() => setSelectionMode(!selectionMode)}
           isolationMode={isolationMode}

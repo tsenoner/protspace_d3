@@ -474,7 +474,7 @@ export class DataLoader extends LitElement {
       }
 
       // Find unique values and create mappings
-      const uniqueValues = [...new Set(rawValues)];
+      const uniqueValues = Array.from(new Set(rawValues));
       const valueToIndex = new Map<string | null, number>();
 
       uniqueValues.forEach((value, index) => {
@@ -618,7 +618,7 @@ export class DataLoader extends LitElement {
     );
 
     // Create pairs from complete groups
-    for (const [projectionName, group] of projectionGroups) {
+    for (const [projectionName, group] of Array.from(projectionGroups)) {
       console.log(`Checking group ${projectionName}:`, group);
       if (group.x && group.y) {
         const pair = {

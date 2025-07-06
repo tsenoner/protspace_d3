@@ -7,6 +7,7 @@ import type {
   ProtspaceControlBar,
   DataLoader,
 } from "@protspace/core";
+import { createExporter } from "@protspace/utils";
 
 const sampleData: VisualizationData = {
   projections: [
@@ -597,500 +598,57 @@ Promise.all([
       alert(`Failed to load data: ${error}`);
     });
 
-    // Handle export
-    controlBar.addEventListener("export", (event: Event) => {
+    // Handle export using the new export utilities
+    controlBar.addEventListener("export", async (event: Event) => {
       const customEvent = event as CustomEvent;
       const exportType = customEvent.detail.type;
       console.log(`Export requested: ${exportType}`);
 
-      // Full export implementation
-      switch (exportType) {
-        case "json":
-          // Export current data (filtered if in split mode)
-          const dataStr = JSON.stringify(plotElement.getCurrentData());
-          const dataUri = `data:application/json;charset=utf-8,${encodeURIComponent(
-            dataStr
-          )}`;
-          const exportName = isolationMode
-            ? "protspace_data_split"
-            : "protspace_data";
-          const linkElement = document.createElement("a");
-          linkElement.setAttribute("href", dataUri);
-          linkElement.setAttribute("download", `${exportName}.json`);
-          linkElement.click();
-          break;
+      try {
+        // Create exporter instance with current state
+        const exporter = createExporter(
+          plotElement,
+          selectedProteins,
+          hiddenValues,
+          isolationMode
+        );
 
-        case "ids":
-          // Export selected protein IDs or all currently visible proteins if none selected
-          const ids =
-            selectedProteins.length > 0
-              ? selectedProteins
-              : plotElement.getCurrentData()?.protein_ids || [];
-          const idsStr = ids.join("\n");
-          const idsUri = `data:text/plain;charset=utf-8,${encodeURIComponent(
-            idsStr
-          )}`;
-          const linkElement2 = document.createElement("a");
-          linkElement2.setAttribute("href", idsUri);
-          linkElement2.setAttribute("download", "protein_ids.txt");
-          linkElement2.click();
-          break;
+        // Export options
+        const exportOptions = {
+          exportName: isolationMode ? "protspace_data_split" : "protspace_data",
+          includeSelection: selectedProteins.length > 0,
+          scaleForExport: 2,
+          maxLegendItems: 10,
+          backgroundColor: "white",
+        };
 
-        case "png":
-        case "pdf":
-          // Get elements to export - updated to work with web components
-          let svgElementForExport: SVGElement | null = null;
-
-          // Try to find SVG element inside the web component
-          const webComponentElement = document.querySelector(
-            "protspace-scatterplot"
-          );
-          if (webComponentElement) {
-            // First try to find in shadow DOM
-            if (webComponentElement.shadowRoot) {
-              svgElementForExport =
-                webComponentElement.shadowRoot.querySelector("svg");
-            }
-            // If not found in shadow DOM, try regular DOM
-            if (!svgElementForExport) {
-              svgElementForExport = webComponentElement.querySelector("svg");
-            }
-          }
-
-          // Fallback: try to find any SVG in the document
-          if (!svgElementForExport) {
-            svgElementForExport = document.querySelector("svg");
-          }
-
-          if (!svgElementForExport) {
-            alert(
-              "Could not find visualization element to export. Please ensure the visualization is loaded."
-            );
-            console.error("Export failed: No SVG element found");
-            return;
-          }
-
-          // Create a clone of the SVG to modify for export
-          const svgCloneForExport = svgElementForExport.cloneNode(
-            true
-          ) as SVGElement;
-          const originalWidthForExport = svgElementForExport.clientWidth || 800;
-          const originalHeightForExport =
-            svgElementForExport.clientHeight || 600;
-
-          // For higher quality: Set higher resolution for the export
-          const scaleForExport = 2; // Double the resolution
-          svgCloneForExport.setAttribute(
-            "width",
-            (originalWidthForExport * scaleForExport).toString()
-          );
-          svgCloneForExport.setAttribute(
-            "height",
-            (originalHeightForExport * scaleForExport).toString()
-          );
-
-          // Look for the main visualization group with multiple possible selectors
-          const possibleSelectors = [
-            ".scatter-plot-container",
-            ".visualization-container",
-            ".scatterplot-main",
-            "g[class*='scatter']",
-            "g[class*='plot']",
-            "g[transform]",
-          ];
-
-          let mainGroupForExport: Element | null = null;
-          for (const selector of possibleSelectors) {
-            mainGroupForExport = svgCloneForExport.querySelector(selector);
-            if (mainGroupForExport) break;
-          }
-
-          if (mainGroupForExport) {
-            const currentTransform =
-              mainGroupForExport.getAttribute("transform") || "";
-            mainGroupForExport.setAttribute(
-              "transform",
-              `scale(${scaleForExport}) ${currentTransform}`
-            );
-          }
-
-          // Remove any interactive elements or overlays
-          const elementsToRemove = svgCloneForExport.querySelectorAll(
-            ".absolute, .z-10, button, .reset-view-button, [class*='tooltip'], [class*='control'], [style*='cursor: pointer']"
-          );
-          elementsToRemove.forEach((el) => el.remove());
-
-          // Convert SVG to string
-          const svgStringData = new XMLSerializer().serializeToString(
-            svgCloneForExport
-          );
-
-          // Create a canvas element
-          const canvas = document.createElement("canvas");
-          canvas.width = originalWidthForExport * scaleForExport;
-          canvas.height = originalHeightForExport * scaleForExport;
-          const ctx = canvas.getContext("2d");
-
-          if (!ctx) {
-            alert("Could not create canvas context for export.");
-            return;
-          }
-
-          // Fill with white background
-          ctx.fillStyle = "white";
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-          // Create an image from the SVG
-          const img = new Image();
-
-          // Create a Blob from the SVG string
-          const svgBlob = new Blob([svgStringData], {
-            type: "image/svg+xml;charset=utf-8",
-          });
-          const url = URL.createObjectURL(svgBlob);
-
-          img.onload = async () => {
-            // Draw the image on the canvas
-            ctx.drawImage(img, 0, 0);
-
-            // Function to draw the legend directly on the canvas
-            const drawLegend = () => {
-              const currentFeature = plotElement.selectedFeature;
-              const currentExportData = plotElement.getCurrentData();
-              if (
-                !currentFeature ||
-                !currentExportData?.features[currentFeature]
-              ) {
-                return;
-              }
-
-              const featureData = currentExportData.features[currentFeature];
-
-              // Calculate legend area dimensions
-              const legendPadding = 20;
-              const legendItemHeight = 30;
-              const legendWidth = 200;
-
-              // Extract unique feature values with their colors and shapes
-              const featureValueMap = new Map();
-
-              // Map each protein to its feature value, counting occurrences
-              currentExportData.protein_ids.forEach((_, idx) => {
-                const featureIdx =
-                  currentExportData.feature_data[currentFeature][idx];
-                const value = featureData.values[featureIdx];
-                const color = featureData.colors[featureIdx];
-                const shape = featureData.shapes[featureIdx];
-
-                const valueKey = value === null ? "null" : value;
-
-                if (!featureValueMap.has(valueKey)) {
-                  featureValueMap.set(valueKey, {
-                    value,
-                    color,
-                    shape,
-                    count: 1,
-                  });
-                } else {
-                  featureValueMap.get(valueKey).count += 1;
-                }
-              });
-
-              // Convert map to array and sort by count (descending)
-              const featureItems = Array.from(featureValueMap.values()).sort(
-                (a, b) => b.count - a.count
-              );
-
-              // Filter out hidden values and limit to 10 items
-              const visibleFeatureItems = featureItems
-                .filter((item) => {
-                  const valueStr = item.value === null ? "null" : item.value;
-                  return !hiddenValues.includes(valueStr);
-                })
-                .slice(0, 10);
-
-              const legendHeight = Math.min(
-                canvas.height,
-                legendPadding * 2 +
-                  visibleFeatureItems.length * legendItemHeight +
-                  40
-              );
-
-              // Draw legend background
-              ctx.fillStyle = "#f9f9f9";
-              ctx.fillRect(
-                canvas.width - legendWidth,
-                0,
-                legendWidth,
-                legendHeight
-              );
-
-              // Draw border
-              ctx.strokeStyle = "#ddd";
-              ctx.lineWidth = 1;
-              ctx.strokeRect(
-                canvas.width - legendWidth,
-                0,
-                legendWidth,
-                legendHeight
-              );
-
-              // Draw title
-              ctx.font = "bold 16px Arial";
-              ctx.fillStyle = "#333";
-              ctx.textAlign = "center";
-              ctx.fillText(
-                currentFeature,
-                canvas.width - legendWidth / 2,
-                legendPadding + 10
-              );
-
-              // Draw legend items
-              ctx.font = "14px Arial";
-              ctx.textAlign = "left";
-
-              let y = legendPadding + 40;
-
-              visibleFeatureItems.forEach((item) => {
-                const { value, color, shape } = item;
-
-                // Draw shape and color
-                const symbolSize = 20;
-                const symbolX =
-                  canvas.width - legendWidth + legendPadding + symbolSize;
-                const symbolY = y;
-
-                ctx.fillStyle = color;
-
-                // Draw different shapes based on the shape property
-                switch (shape) {
-                  case "circle":
-                    ctx.beginPath();
-                    ctx.arc(symbolX, symbolY, symbolSize / 2, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.strokeStyle = "#333";
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
-                    break;
-                  case "square":
-                    ctx.fillRect(
-                      symbolX - symbolSize / 2,
-                      symbolY - symbolSize / 2,
-                      symbolSize,
-                      symbolSize
-                    );
-                    ctx.strokeStyle = "#333";
-                    ctx.lineWidth = 1;
-                    ctx.strokeRect(
-                      symbolX - symbolSize / 2,
-                      symbolY - symbolSize / 2,
-                      symbolSize,
-                      symbolSize
-                    );
-                    break;
-                  case "triangle":
-                    ctx.beginPath();
-                    ctx.moveTo(symbolX, symbolY - symbolSize / 2);
-                    ctx.lineTo(
-                      symbolX - symbolSize / 2,
-                      symbolY + symbolSize / 2
-                    );
-                    ctx.lineTo(
-                      symbolX + symbolSize / 2,
-                      symbolY + symbolSize / 2
-                    );
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.strokeStyle = "#333";
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
-                    break;
-                  case "diamond":
-                    ctx.beginPath();
-                    ctx.moveTo(symbolX, symbolY - symbolSize / 2);
-                    ctx.lineTo(symbolX + symbolSize / 2, symbolY);
-                    ctx.lineTo(symbolX, symbolY + symbolSize / 2);
-                    ctx.lineTo(symbolX - symbolSize / 2, symbolY);
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.strokeStyle = "#333";
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
-                    break;
-                  default:
-                    // Default to circle if shape not recognized
-                    ctx.beginPath();
-                    ctx.arc(symbolX, symbolY, symbolSize / 2, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-
-                // Add a count indicator
-                ctx.fillStyle = "#666";
-                ctx.textAlign = "right";
-                ctx.fillText(
-                  item.count.toString(),
-                  canvas.width - legendPadding,
-                  symbolY + 5
-                );
-
-                // Draw text label
-                ctx.fillStyle = "#333";
-                ctx.textAlign = "left";
-                ctx.fillText(
-                  value === null ? "N/A" : value.toString(),
-                  symbolX + symbolSize,
-                  symbolY + 5
-                );
-
-                // Move to next item
-                y += legendItemHeight;
-              });
-
-              return legendHeight;
-            };
-
-            try {
-              // Draw the legend on the canvas
-              drawLegend();
-
-              if (exportType === "png") {
-                // Export as PNG
-                const dataUrl = canvas.toDataURL("image/png");
-                const link = document.createElement("a");
-                link.href = dataUrl;
-                link.download = "protspace_visualization.png";
-                link.click();
-              } else {
-                // Export as PDF - need to dynamically import jspdf
-                // For Vite, we'll use a simplified approach
-                const dataUrl = canvas.toDataURL("image/png");
-
-                // Create a simple PDF by creating a new window with the image
-                const newWindow = window.open();
-                if (newWindow) {
-                  newWindow.document.write(`
-                    <html>
-                      <head><title>ProtSpace Visualization</title></head>
-                      <body style="margin:0;padding:20px;text-align:center;">
-                        <h2>ProtSpace Visualization</h2>
-                        <img src="${dataUrl}" style="max-width:100%;height:auto;" />
-                        <p><a href="${dataUrl}" download="protspace_visualization.png">Download PNG</a></p>
-                      </body>
-                    </html>
-                  `);
-                  newWindow.document.close();
-                } else {
-                  // Fallback to PNG download
-                  const link = document.createElement("a");
-                  link.href = dataUrl;
-                  link.download = "protspace_visualization.png";
-                  link.click();
-                  alert(
-                    "PDF export opened in new window. If blocked, PNG download was triggered instead."
-                  );
-                }
-              }
-            } catch (error) {
-              console.error("Error in export:", error);
-              alert("Export failed: " + (error as Error).message);
-            } finally {
-              // Clean up
-              URL.revokeObjectURL(url);
-            }
-          };
-
-          img.onerror = () => {
-            console.error("Failed to load SVG as image");
-            URL.revokeObjectURL(url);
-            alert("Failed to process the visualization for export.");
-          };
-
-          // Set the source to the Blob URL
-          img.src = url;
-          break;
-
-        case "svg":
-          // For SVG, export the visualization
-          let svgElementForSvgExport: SVGElement | null = null;
-
-          // Try to find SVG element inside the web component
-          const webComponentElementForSvg = document.querySelector(
-            "protspace-scatterplot"
-          );
-          if (webComponentElementForSvg) {
-            // First try to find in shadow DOM
-            if (webComponentElementForSvg.shadowRoot) {
-              svgElementForSvgExport =
-                webComponentElementForSvg.shadowRoot.querySelector("svg");
-            }
-            // If not found in shadow DOM, try regular DOM
-            if (!svgElementForSvgExport) {
-              svgElementForSvgExport =
-                webComponentElementForSvg.querySelector("svg");
-            }
-          }
-
-          // Fallback: try to find any SVG in the document
-          if (!svgElementForSvgExport) {
-            svgElementForSvgExport = document.querySelector("svg");
-          }
-
-          if (!svgElementForSvgExport) {
-            alert(
-              "Could not find visualization element to export. Please ensure the visualization is loaded."
-            );
-            console.error("SVG Export failed: No SVG element found");
-            return;
-          }
-
-          // Create a clone of the SVG to modify for export
-          const svgCloneForSvgExport = svgElementForSvgExport.cloneNode(
-            true
-          ) as SVGElement;
-          const originalWidthForSvgExport =
-            svgElementForSvgExport.clientWidth || 800;
-          const originalHeightForSvgExport =
-            svgElementForSvgExport.clientHeight || 600;
-
-          // Set dimensions for the export SVG
-          svgCloneForSvgExport.setAttribute(
-            "width",
-            originalWidthForSvgExport.toString()
-          );
-          svgCloneForSvgExport.setAttribute(
-            "height",
-            originalHeightForSvgExport.toString()
-          );
-          svgCloneForSvgExport.setAttribute(
-            "viewBox",
-            `0 0 ${originalWidthForSvgExport} ${originalHeightForSvgExport}`
-          );
-
-          // Remove any interactive elements
-          const overlaysForSvgExport = svgCloneForSvgExport.querySelectorAll(
-            ".absolute, .z-10, button, .reset-view-button, [class*='tooltip'], [class*='control'], [style*='cursor: pointer']"
-          );
-          overlaysForSvgExport.forEach((overlay) => overlay.remove());
-
-          // Export the SVG
-          const svgDataForSvgExport = new XMLSerializer().serializeToString(
-            svgCloneForSvgExport
-          );
-          const svgBlobForSvgExport = new Blob([svgDataForSvgExport], {
-            type: "image/svg+xml;charset=utf-8",
-          });
-          const svgUrlForSvgExport = URL.createObjectURL(svgBlobForSvgExport);
-
-          const linkForSvgExport = document.createElement("a");
-          linkForSvgExport.href = svgUrlForSvgExport;
-          linkForSvgExport.download = "protspace_visualization.svg";
-          linkForSvgExport.click();
-
-          // Cleanup
-          setTimeout(() => {
-            URL.revokeObjectURL(svgUrlForSvgExport);
-          }, 100);
-          break;
+        // Handle different export types
+        switch (exportType) {
+          case "json":
+            exporter.exportJSON(exportOptions);
+            break;
+          case "ids":
+            exporter.exportProteinIds(exportOptions);
+            break;
+          case "png":
+            await exporter.exportPNG(exportOptions);
+            break;
+          case "pdf":
+            await exporter.exportPDF(exportOptions);
+            break;
+          case "svg":
+            exporter.exportSVG(exportOptions);
+            break;
+          default:
+            console.warn(`Unknown export type: ${exportType}`);
+        }
+      } catch (error) {
+        console.error("Export failed:", error);
+        alert(
+          `Export failed: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`
+        );
       }
     });
 

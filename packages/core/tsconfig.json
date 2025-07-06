@@ -4,7 +4,9 @@
       "outDir": "./dist",
       "declaration": true,
       "declarationMap": true,
-      "composite": true
+      "composite": true,
+      "target": "ES2020",
+      "downlevelIteration": true
     },
     "include": ["src/**/*"],
     "exclude": ["dist", "node_modules", "**/*.test.ts"]

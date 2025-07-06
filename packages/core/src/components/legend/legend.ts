@@ -1,70 +1,17 @@
-import { LitElement, html, css } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
 import * as d3 from "d3";
+import { LitElement, css, html } from "lit";
+import { customElement, property, state } from "lit/decorators.js";
 
-// Define the same SHAPE_MAPPING as in ImprovedScatterplot.tsx for consistency
-const SHAPE_MAPPING = {
-  asterisk: d3.symbolAsterisk,
-  circle: d3.symbolCircle,
-  cross: d3.symbolCross,
-  diamond: d3.symbolDiamond,
-  plus: d3.symbolPlus,
-  square: d3.symbolSquare,
-  star: d3.symbolStar,
-  triangle: d3.symbolTriangle,
-  wye: d3.symbolWye,
-  times: d3.symbolTimes,
-} as const;
-
-// Add these constants at the top of the file after imports
-const DEFAULT_STYLES = {
-  other: {
-    color: "#888888",
-    shape: "circle",
-  },
-  null: {
-    color: "#888888",
-    shape: "circle",
-  },
-};
-
-interface LegendItem {
-  value: string | null;
-  color: string;
-  shape: string;
-  count: number;
-  isVisible: boolean;
-  // Add z-order for controlling the layering of items
-  zOrder: number;
-  // Flag for items that were extracted from "Other"
-  extractedFromOther?: boolean;
-}
-
-interface OtherItem {
-  value: string | null;
-  count: number;
-}
-
-// Define proper interfaces for scatterplot data
-interface ScatterplotData {
-  protein_ids: string[];
-  features: Record<
-    string,
-    {
-      values: (string | null)[];
-      colors: string[];
-      shapes: string[];
-    }
-  >;
-  feature_data: Record<string, number[]>;
-  projections?: Array<{ name: string }>;
-}
-
-interface ScatterplotElement extends Element {
-  getCurrentData(): ScatterplotData | null;
-  selectedFeature: string;
-  hiddenFeatureValues: string[];
-}
+// Import types and configuration
+import { LEGEND_DEFAULTS, LEGEND_STYLES, SHAPE_MAPPING } from "./config";
+import { LegendDataProcessor } from "./legend-data-processor";
+import type {
+  LegendDataInput,
+  LegendFeatureData,
+  LegendItem,
+  OtherItem,
+  ScatterplotElement,
+} from "./types";
 
 @customElement("protspace-legend")
 export class ProtspaceLegend extends LitElement {
@@ -501,7 +448,7 @@ export class ProtspaceLegend extends LitElement {
   `;
 
   @property({ type: String }) featureName = "";
-  @property({ type: Object }) featureData = {
+  @property({ type: Object }) featureData: LegendFeatureData = {
     name: "",
     values: [] as (string | null)[],
     colors: [] as string[],
@@ -509,22 +456,14 @@ export class ProtspaceLegend extends LitElement {
   };
   @property({ type: Array }) featureValues: (string | null)[] = [];
   @property({ type: Array }) proteinIds: string[] = [];
-  @property({ type: Number }) maxVisibleValues = 10;
+  @property({ type: Number }) maxVisibleValues =
+    LEGEND_DEFAULTS.maxVisibleValues;
   @property({ type: Array }) selectedItems: string[] = [];
   @property({ type: Boolean }) isolationMode = false;
   @property({ type: Array }) splitHistory: string[][] = [];
 
   // Additional properties for wrapper compatibility
-  @property({ type: Object }) data: {
-    features?: Record<
-      string,
-      {
-        values: (string | null)[];
-        colors: string[];
-        shapes: string[];
-      }
-    >;
-  } | null = null;
+  @property({ type: Object }) data: LegendDataInput | null = null;
   @property({ type: String }) selectedFeature = "";
 
   @state() private legendItems: LegendItem[] = [];
@@ -535,7 +474,7 @@ export class ProtspaceLegend extends LitElement {
 
   // Auto-sync properties
   @property({ type: String, attribute: "scatterplot-selector" })
-  scatterplotSelector: string = "protspace-scatterplot";
+  scatterplotSelector: string = LEGEND_DEFAULTS.scatterplotSelector;
   @property({ type: Boolean, attribute: "auto-sync" })
   autoSync: boolean = true;
   @property({ type: Boolean, attribute: "auto-hide" })
@@ -612,7 +551,7 @@ export class ProtspaceLegend extends LitElement {
         // Initial sync
         this._syncWithScatterplot();
       }
-    }, 100);
+    }, LEGEND_DEFAULTS.autoSyncDelay);
   }
 
   private _handleDataChange(event: Event) {
@@ -621,43 +560,56 @@ export class ProtspaceLegend extends LitElement {
 
     if (data) {
       this.data = { features: data.features };
-
-      // Update feature values and protein IDs from current scatterplot data
-      if (
-        this._scatterplotElement &&
-        "getCurrentData" in this._scatterplotElement
-      ) {
-        const currentData = (
-          this._scatterplotElement as ScatterplotElement
-        ).getCurrentData();
-        const selectedFeature = (this._scatterplotElement as ScatterplotElement)
-          .selectedFeature;
-
-        if (currentData && selectedFeature) {
-          this.selectedFeature = selectedFeature;
-
-          // Set featureData for colors and shapes
-          this.featureData = {
-            name: selectedFeature,
-            values: currentData.features[selectedFeature].values,
-            colors: currentData.features[selectedFeature].colors,
-            shapes: currentData.features[selectedFeature].shapes,
-          };
-
-          // Extract feature values for current data
-          const featureValues = currentData.protein_ids.map(
-            (_: string, index: number) => {
-              const featureIdx =
-                currentData.feature_data[selectedFeature][index];
-              return currentData.features[selectedFeature].values[featureIdx];
-            }
-          );
-
-          this.featureValues = featureValues;
-          this.proteinIds = currentData.protein_ids;
-        }
-      }
+      this._updateFromScatterplotData();
     }
+  }
+
+  private _updateFromScatterplotData(): void {
+    if (
+      !this._scatterplotElement ||
+      !("getCurrentData" in this._scatterplotElement)
+    ) {
+      return;
+    }
+
+    const currentData = (
+      this._scatterplotElement as ScatterplotElement
+    ).getCurrentData();
+    const selectedFeature = (this._scatterplotElement as ScatterplotElement)
+      .selectedFeature;
+
+    if (!currentData || !selectedFeature) {
+      return;
+    }
+
+    this.selectedFeature = selectedFeature;
+    this._updateFeatureData(currentData, selectedFeature);
+    this._updateFeatureValues(currentData, selectedFeature);
+    this.proteinIds = currentData.protein_ids;
+  }
+
+  private _updateFeatureData(currentData: any, selectedFeature: string): void {
+    this.featureData = {
+      name: selectedFeature,
+      values: currentData.features[selectedFeature].values,
+      colors: currentData.features[selectedFeature].colors,
+      shapes: currentData.features[selectedFeature].shapes,
+    };
+  }
+
+  private _updateFeatureValues(
+    currentData: any,
+    selectedFeature: string
+  ): void {
+    // Extract feature values for current data
+    const featureValues = currentData.protein_ids.map(
+      (_: string, index: number) => {
+        const featureIdx = currentData.feature_data[selectedFeature][index];
+        return currentData.features[selectedFeature].values[featureIdx];
+      }
+    );
+
+    this.featureValues = featureValues;
   }
 
   private _handleFeatureChange(event: Event) {
@@ -697,39 +649,27 @@ export class ProtspaceLegend extends LitElement {
 
   private _syncWithScatterplot() {
     if (
-      this._scatterplotElement &&
-      "getCurrentData" in this._scatterplotElement
+      !this._scatterplotElement ||
+      !("getCurrentData" in this._scatterplotElement)
     ) {
-      const currentData = (
-        this._scatterplotElement as ScatterplotElement
-      ).getCurrentData();
-      const selectedFeature = (this._scatterplotElement as ScatterplotElement)
-        .selectedFeature;
-
-      if (currentData && selectedFeature) {
-        this.data = { features: currentData.features };
-        this.selectedFeature = selectedFeature;
-
-        // Set featureData for colors and shapes
-        this.featureData = {
-          name: selectedFeature,
-          values: currentData.features[selectedFeature].values,
-          colors: currentData.features[selectedFeature].colors,
-          shapes: currentData.features[selectedFeature].shapes,
-        };
-
-        // Extract feature values for current data
-        const featureValues = currentData.protein_ids.map(
-          (_: string, index: number) => {
-            const featureIdx = currentData.feature_data[selectedFeature][index];
-            return currentData.features[selectedFeature].values[featureIdx];
-          }
-        );
-
-        this.featureValues = featureValues;
-        this.proteinIds = currentData.protein_ids;
-      }
+      return;
     }
+
+    const currentData = (
+      this._scatterplotElement as ScatterplotElement
+    ).getCurrentData();
+    const selectedFeature = (this._scatterplotElement as ScatterplotElement)
+      .selectedFeature;
+
+    if (!currentData || !selectedFeature) {
+      return;
+    }
+
+    this.data = { features: currentData.features };
+    this.selectedFeature = selectedFeature;
+    this._updateFeatureData(currentData, selectedFeature);
+    this._updateFeatureValues(currentData, selectedFeature);
+    this.proteinIds = currentData.protein_ids;
   }
 
   private updateLegendItems() {
@@ -742,188 +682,27 @@ export class ProtspaceLegend extends LitElement {
       return;
     }
 
-    // Create a map of value frequencies
-    const frequencyMap = new Map<string | null, number>();
-
-    // Filter featureValues based on split history when in isolation mode
-    const filteredIndices = new Set<number>();
-
-    if (
-      this.isolationMode &&
-      this.splitHistory &&
-      this.splitHistory.length > 0 &&
-      this.proteinIds
-    ) {
-      // First, identify which indices to include based on the split history
-      this.proteinIds.forEach((id, index) => {
-        // For the first split, check if the protein is in the first selection
-        let isIncluded = this.splitHistory[0].includes(id);
-
-        // For each subsequent split, check if the protein is also in that selection
-        if (isIncluded && this.splitHistory.length > 1) {
-          for (let i = 1; i < this.splitHistory.length; i++) {
-            if (!this.splitHistory[i].includes(id)) {
-              isIncluded = false;
-              break;
-            }
-          }
-        }
-
-        if (isIncluded) {
-          filteredIndices.add(index);
-        }
-      });
-    }
-
-    // Count frequencies of the filtered values
-    if (
-      this.isolationMode &&
-      this.splitHistory &&
-      this.splitHistory.length > 0
-    ) {
-      // Only count values from proteins that pass the split filter
-      this.featureValues.forEach((value, index) => {
-        if (filteredIndices.has(index)) {
-          frequencyMap.set(value, (frequencyMap.get(value) || 0) + 1);
-        }
-      });
-    } else {
-      // Count all values when not in isolation mode
-      this.featureValues.forEach((value) => {
-        frequencyMap.set(value, (frequencyMap.get(value) || 0) + 1);
-      });
-    }
-
-    // Convert to array and sort by frequency (descending)
-    const sortedItems = Array.from(frequencyMap.entries()).sort(
-      (a, b) => b[1] - a[1]
-    ); // Sort by count, descending
-
-    // When in isolation mode, we only show the values that actually appear in the data
-    // This makes the legend more relevant to what's currently displayed
-    const filteredSortedItems = this.isolationMode
-      ? sortedItems.filter(([value]) => frequencyMap.has(value))
-      : sortedItems;
-
-    // Take the top N items
-    const topItems = filteredSortedItems.slice(0, this.maxVisibleValues);
-
-    // Find null entry
-    const nullEntry = filteredSortedItems.find(([value]) => value === null);
-
-    // Get items that will go into the "Other" category (excluding null)
-    const otherItemsArray = filteredSortedItems
-      .slice(this.maxVisibleValues)
-      .filter(([value]) => value !== null);
-
-    // Store "Other" items for the dialog
-    this.otherItems = otherItemsArray.map(([value, count]) => ({
-      value,
-      count,
-    }));
-
-    // Calculate count for "Other" category
-    const otherCount = otherItemsArray.reduce(
-      (sum, [, count]) => sum + count,
-      0
+    // Use the data processor to handle all legend item processing
+    const { legendItems, otherItems } = LegendDataProcessor.processLegendItems(
+      this.featureData,
+      this.featureValues,
+      this.proteinIds,
+      this.maxVisibleValues,
+      this.isolationMode,
+      this.splitHistory,
+      this.legendItems
     );
-
-    // Create legend items with z-order
-    const items: LegendItem[] = topItems.map(([value, count], index) => {
-      const valueIndex =
-        value !== null
-          ? this.featureData.values.indexOf(value)
-          : this.featureData.values.findIndex((v) => v === null);
-
-      return {
-        value,
-        color:
-          valueIndex !== -1
-            ? this.featureData.colors[valueIndex]
-            : DEFAULT_STYLES.null.color,
-        shape:
-          valueIndex !== -1
-            ? this.featureData.shapes[valueIndex]
-            : DEFAULT_STYLES.null.shape,
-        count,
-        isVisible: true,
-        zOrder: index,
-      };
-    });
-
-    // Add "Other" if needed and if we're not in isolation mode
-    // In isolation mode, we generally want to show all values explicitly
-    if (otherCount > 0 && !this.isolationMode) {
-      items.push({
-        value: "Other",
-        color: DEFAULT_STYLES.other.color,
-        shape: DEFAULT_STYLES.other.shape,
-        count: otherCount,
-        isVisible: true,
-        zOrder: items.length,
-      });
-    }
-
-    // Add null if not already included in top items
-    if (nullEntry && !topItems.some(([value]) => value === null)) {
-      const valueIndex = this.featureData.values.findIndex((v) => v === null);
-      items.push({
-        value: null,
-        color:
-          valueIndex !== -1
-            ? this.featureData.colors[valueIndex]
-            : DEFAULT_STYLES.null.color,
-        shape:
-          valueIndex !== -1
-            ? this.featureData.shapes[valueIndex]
-            : DEFAULT_STYLES.null.shape,
-        count: nullEntry[1],
-        isVisible: true,
-        zOrder: items.length,
-      });
-    }
-
-    // Get previously extracted items
-    const extractedItems = this.legendItems.filter(
-      (item) => item.extractedFromOther
-    );
-
-    // Add extracted items, but only if they exist in the current data (important for isolation mode)
-    const itemsToAdd: LegendItem[] = [];
-    extractedItems.forEach((extractedItem) => {
-      // Only add if not already in the list and if they exist in the current frequencies
-      if (
-        extractedItem.value !== null &&
-        !items.some((item) => item.value === extractedItem.value) &&
-        frequencyMap.has(extractedItem.value)
-      ) {
-        // Find the original frequency of this item
-        const itemFrequency = filteredSortedItems.find(
-          ([value]) => value === extractedItem.value
-        );
-
-        if (itemFrequency) {
-          itemsToAdd.push({
-            ...extractedItem,
-            count: itemFrequency[1],
-            zOrder: items.length + itemsToAdd.length,
-          });
-        }
-      }
-    });
-
-    // Add the extracted items
-    items.push(...itemsToAdd);
 
     // Set items state
-    this.legendItems = items;
+    this.legendItems = legendItems;
+    this.otherItems = otherItems;
   }
 
   // Symbol rendering function using D3 symbols for consistency with scatterplot
   private renderSymbol(
     shape: string | null,
     color: string,
-    size = 16,
+    size = LEGEND_DEFAULTS.symbolSize,
     isSelected = false
   ) {
     const halfSize = size / 2;
@@ -940,22 +719,23 @@ export class ProtspaceLegend extends LitElement {
     const path = d3
       .symbol()
       .type(symbolType)
-      .size(size * 8)(); // Size multiplier to make it fit well in the legend
+      .size(size * LEGEND_DEFAULTS.symbolSizeMultiplier)(); // Size multiplier to make it fit well in the legend
 
     // Some symbol types should be rendered as outlines only
-    const isOutlineOnly =
-      shapeKey === "plus" ||
-      shapeKey === "asterisk" ||
-      String(shapeKey).includes("_stroke");
+    const isOutlineOnly = LEGEND_STYLES.outlineShapes.has(shapeKey);
 
     // Determine stroke width based on selection state
-    const strokeWidth = isSelected ? 2 : 1;
+    const strokeWidth = isSelected
+      ? LEGEND_STYLES.strokeWidth.selected
+      : LEGEND_STYLES.strokeWidth.default;
 
     // Determine stroke color based on selection state
-    const strokeColor = isSelected ? "#3B82F6" : "#333";
+    const strokeColor = isSelected
+      ? LEGEND_STYLES.colors.selectedStroke
+      : LEGEND_STYLES.colors.defaultStroke;
 
     // Ensure we have a valid color
-    const validColor = color || "#888888";
+    const validColor = color || LEGEND_STYLES.colors.fallback;
 
     return html`
       <svg width="${size}" height="${size}" class="legend-symbol">
@@ -964,7 +744,9 @@ export class ProtspaceLegend extends LitElement {
             d="${path}"
             fill="${isOutlineOnly ? "none" : validColor}"
             stroke="${isOutlineOnly ? validColor : strokeColor}"
-            stroke-width="${isOutlineOnly ? 2 : strokeWidth}"
+            stroke-width="${isOutlineOnly
+              ? LEGEND_STYLES.strokeWidth.outline
+              : strokeWidth}"
           />
         </g>
       </svg>
@@ -1069,43 +851,51 @@ export class ProtspaceLegend extends LitElement {
     }
 
     this.dragTimeout = window.setTimeout(() => {
-      // Find the indices
-      const draggedIdx = this.legendItems.findIndex(
-        (i) => i.value === this.draggedItem
-      );
-      const targetIdx = this.legendItems.findIndex(
-        (i) => i.value === item.value
-      );
-      if (draggedIdx === -1 || targetIdx === -1) return;
+      this._performDragReorder(item);
+    }, LEGEND_DEFAULTS.dragTimeout);
+  }
 
-      // Create a new array with the item moved
-      const newItems = [...this.legendItems];
-      const [movedItem] = newItems.splice(draggedIdx, 1);
-      newItems.splice(targetIdx, 0, movedItem);
+  private _performDragReorder(targetItem: LegendItem): void {
+    // Find the indices
+    const draggedIdx = this.legendItems.findIndex(
+      (i) => i.value === this.draggedItem
+    );
+    const targetIdx = this.legendItems.findIndex(
+      (i) => i.value === targetItem.value
+    );
 
-      // Update z-order
-      this.legendItems = newItems.map((item, idx) => ({
-        ...item,
-        zOrder: idx,
-      }));
+    if (draggedIdx === -1 || targetIdx === -1) return;
 
-      // Notify parent of z-order change
-      const zOrderMap: Record<string, number> = {};
-      this.legendItems.forEach((legendItem) => {
-        if (legendItem.value !== null && legendItem.value !== "Other") {
-          zOrderMap[legendItem.value] = legendItem.zOrder;
-        }
-      });
+    // Create a new array with the item moved
+    const newItems = [...this.legendItems];
+    const [movedItem] = newItems.splice(draggedIdx, 1);
+    newItems.splice(targetIdx, 0, movedItem);
 
-      this.dispatchEvent(
-        new CustomEvent("legend-zorder-change", {
-          detail: { zOrderMapping: zOrderMap },
-          bubbles: true,
-        })
-      );
+    // Update z-order
+    this.legendItems = newItems.map((item, idx) => ({
+      ...item,
+      zOrder: idx,
+    }));
 
-      this.requestUpdate();
-    }, 100);
+    // Notify parent of z-order change
+    this._dispatchZOrderChange();
+    this.requestUpdate();
+  }
+
+  private _dispatchZOrderChange(): void {
+    const zOrderMap: Record<string, number> = {};
+    this.legendItems.forEach((legendItem) => {
+      if (legendItem.value !== null && legendItem.value !== "Other") {
+        zOrderMap[legendItem.value] = legendItem.zOrder;
+      }
+    });
+
+    this.dispatchEvent(
+      new CustomEvent("legend-zorder-change", {
+        detail: { zOrderMapping: zOrderMap },
+        bubbles: true,
+      })
+    );
   }
 
   private handleDragEnd() {
@@ -1246,132 +1036,168 @@ export class ProtspaceLegend extends LitElement {
   }
 
   render() {
-    // Sort items by z-order
     const sortedLegendItems = [...this.legendItems].sort(
       (a, b) => a.zOrder - b.zOrder
     );
 
     return html`
       <div class="legend-container">
-        <div class="legend-header">
-          <h3 class="legend-title">
-            ${this.featureData.name || this.featureName || "Legend"}
-          </h3>
-          <button class="customize-button" @click=${this.handleCustomize}>
-            <svg
-              width="20"
-              height="20"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-              />
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-            </svg>
-          </button>
-        </div>
-
-        ${sortedLegendItems.length > 0
-          ? html`
-              <div class="legend-items">
-                ${sortedLegendItems.map((item) => {
-                  // Handle both null and string values correctly
-                  const isItemSelected =
-                    (item.value === null &&
-                      this.selectedItems.includes("null") &&
-                      this.selectedItems.length > 0) ||
-                    // For regular values, standard check excluding "Other"
-                    (item.value !== null &&
-                      item.value !== "Other" &&
-                      this.selectedItems.includes(item.value));
-
-                  return html`
-                    <div
-                      class="legend-item ${item.isVisible
-                        ? ""
-                        : "hidden"} ${this.draggedItem === item.value &&
-                      item.value !== null
-                        ? "dragging"
-                        : ""} ${isItemSelected
-                        ? "selected"
-                        : ""} ${item.extractedFromOther ? "extracted" : ""}"
-                      @click=${() => this.handleItemClick(item.value)}
-                      @dblclick=${() => this.handleItemDoubleClick(item.value)}
-                      draggable="true"
-                      @dragstart=${() => this.handleDragStart(item)}
-                      @dragover=${() => this.handleDragOver(item)}
-                      @dragend=${() => this.handleDragEnd()}
-                    >
-                      <div class="legend-item-content">
-                        <div class="drag-handle">
-                          <svg
-                            width="16"
-                            height="16"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            @mousedown=${(e: Event) => e.stopPropagation()}
-                          >
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="2"
-                              d="M4 8h16M4 16h16"
-                            />
-                          </svg>
-                        </div>
-                        <div class="mr-2">
-                          ${item.value === "Other"
-                            ? this.renderSymbol("circle", "#888")
-                            : this.renderSymbol(
-                                item.shape,
-                                item.color,
-                                16,
-                                isItemSelected
-                              )}
-                        </div>
-                        <span class="legend-text">
-                          ${item.value === null
-                            ? "N/A"
-                            : item.value === "Other"
-                            ? item.value
-                            : item.value}
-                        </span>
-                        ${item.value === "Other"
-                          ? html`
-                              <button
-                                class="view-button"
-                                @click=${(e: Event) => {
-                                  e.stopPropagation();
-                                  this.showOtherDialog = true;
-                                }}
-                                title="Extract items from Other"
-                              >
-                                (view)
-                              </button>
-                            `
-                          : ""}
-                      </div>
-                      <span class="legend-count">${item.count}</span>
-                    </div>
-                  `;
-                })}
-              </div>
-            `
-          : html` <div class="legend-empty">No data available</div> `}
+        ${this._renderHeader()} ${this._renderLegendContent(sortedLegendItems)}
       </div>
-
       ${this.renderOtherDialog()}
+    `;
+  }
+
+  private _renderHeader() {
+    return html`
+      <div class="legend-header">
+        <h3 class="legend-title">
+          ${this.featureData.name || this.featureName || "Legend"}
+        </h3>
+        <button class="customize-button" @click=${this.handleCustomize}>
+          <svg
+            width="20"
+            height="20"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+            />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+            />
+          </svg>
+        </button>
+      </div>
+    `;
+  }
+
+  private _renderLegendContent(sortedLegendItems: LegendItem[]) {
+    if (sortedLegendItems.length === 0) {
+      return html`<div class="legend-empty">No data available</div>`;
+    }
+
+    return html`
+      <div class="legend-items">
+        ${sortedLegendItems.map((item) => this._renderLegendItem(item))}
+      </div>
+    `;
+  }
+
+  private _renderLegendItem(item: LegendItem) {
+    const isItemSelected = this._isItemSelected(item);
+    const itemClasses = this._getItemClasses(item, isItemSelected);
+
+    return html`
+      <div
+        class="${itemClasses}"
+        @click=${() => this.handleItemClick(item.value)}
+        @dblclick=${() => this.handleItemDoubleClick(item.value)}
+        draggable="true"
+        @dragstart=${() => this.handleDragStart(item)}
+        @dragover=${() => this.handleDragOver(item)}
+        @dragend=${() => this.handleDragEnd()}
+      >
+        <div class="legend-item-content">
+          ${this._renderDragHandle()}
+          ${this._renderItemSymbol(item, isItemSelected)}
+          ${this._renderItemText(item)} ${this._renderItemActions(item)}
+        </div>
+        <span class="legend-count">${item.count}</span>
+      </div>
+    `;
+  }
+
+  private _isItemSelected(item: LegendItem): boolean {
+    return (
+      (item.value === null &&
+        this.selectedItems.includes("null") &&
+        this.selectedItems.length > 0) ||
+      (item.value !== null &&
+        item.value !== "Other" &&
+        this.selectedItems.includes(item.value))
+    );
+  }
+
+  private _getItemClasses(item: LegendItem, isItemSelected: boolean): string {
+    const classes = ["legend-item"];
+
+    if (!item.isVisible) classes.push("hidden");
+    if (this.draggedItem === item.value && item.value !== null)
+      classes.push("dragging");
+    if (isItemSelected) classes.push("selected");
+    if (item.extractedFromOther) classes.push("extracted");
+
+    return classes.join(" ");
+  }
+
+  private _renderDragHandle() {
+    return html`
+      <div class="drag-handle">
+        <svg
+          width="16"
+          height="16"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          @mousedown=${(e: Event) => e.stopPropagation()}
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M4 8h16M4 16h16"
+          />
+        </svg>
+      </div>
+    `;
+  }
+
+  private _renderItemSymbol(item: LegendItem, isItemSelected: boolean) {
+    return html`
+      <div class="mr-2">
+        ${item.value === "Other"
+          ? this.renderSymbol("circle", "#888")
+          : this.renderSymbol(
+              item.shape,
+              item.color,
+              LEGEND_DEFAULTS.symbolSize,
+              isItemSelected
+            )}
+      </div>
+    `;
+  }
+
+  private _renderItemText(item: LegendItem) {
+    const displayText = item.value === null ? "N/A" : item.value;
+
+    return html` <span class="legend-text">${displayText}</span> `;
+  }
+
+  private _renderItemActions(item: LegendItem) {
+    if (item.value !== "Other") {
+      return html``;
+    }
+
+    return html`
+      <button
+        class="view-button"
+        @click=${(e: Event) => {
+          e.stopPropagation();
+          this.showOtherDialog = true;
+        }}
+        title="Extract items from Other"
+      >
+        (view)
+      </button>
     `;
   }
 }

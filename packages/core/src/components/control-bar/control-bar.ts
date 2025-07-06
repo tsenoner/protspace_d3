@@ -1,16 +1,6 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
-export interface ControlBarState {
-  projections: string[];
-  features: string[];
-  selectedProjection: string;
-  selectedFeature: string;
-  selectionMode: boolean;
-  isolationMode: boolean;
-  selectedProteinsCount: number;
-}
-
 @customElement("protspace-control-bar")
 export class ProtspaceControlBar extends LitElement {
   @property({ type: Array }) projections: string[] = [];
@@ -631,7 +621,7 @@ export class ProtspaceControlBar extends LitElement {
     this.requestUpdate();
   }
 
-  private _handleProteinSelection(event: Event) {
+  private _handleProteinSelection(_event: Event) {
     // Update selected proteins count when proteins are selected/deselected
     if (
       this._scatterplotElement &&
