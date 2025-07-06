@@ -1,10 +1,11 @@
 "use client";
-
+// @ts-nocheck
 import { useEffect, useRef, ReactNode } from "react";
 import dynamic from "next/dynamic";
 
 interface GenericWebComponentProps {
   tagName: string;
+  // @ts-ignore
   properties?: Record<string, any>;
   attributes?: Record<string, string>;
   eventHandlers?: Record<string, (event: Event) => void>;

@@ -111,16 +111,18 @@ export default function DataLoaderModal({
             </h4>
             <ul className="text-sm text-blue-700 space-y-1">
               <li>
-                • <strong>Protein ID column:</strong> 'protein_id', 'id',
-                'uniprot', etc.
+                • <strong>Protein ID column:</strong> `&apos;protein_id&apos;`,
+                `&apos;id&apos;`, `&apos;uniprot&apos;`, etc.
               </li>
               <li>
-                • <strong>X coordinates:</strong> 'x', 'umap_1', 'pc1',
-                'tsne_1', etc.
+                • <strong>X coordinates:</strong> `&apos;x&apos;`,
+                `&apos;umap_1&apos;`, `&apos;pc1&apos;`, `&apos;tsne_1&apos;`,
+                etc.
               </li>
               <li>
-                • <strong>Y coordinates:</strong> 'y', 'umap_2', 'pc2',
-                'tsne_2', etc.
+                • <strong>Y coordinates:</strong> `&apos;y&apos;`,
+                `&apos;umap_2&apos;`, `&apos;pc2&apos;`, `&apos;tsne_2&apos;`,
+                etc.
               </li>
               <li>
                 • <strong>Optional:</strong> Additional categorical columns for

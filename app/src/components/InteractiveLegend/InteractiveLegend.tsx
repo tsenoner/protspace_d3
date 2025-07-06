@@ -9,7 +9,7 @@ import React, {
   useImperativeHandle,
 } from "react";
 import * as d3 from "d3";
-import html2canvas from "html2canvas";
+import html2canvas from "html2canvas-pro";
 
 // Define the same SHAPE_MAPPING as in ImprovedScatterplot.tsx for consistency
 const SHAPE_MAPPING = {
@@ -592,120 +592,13 @@ const InteractiveLegend = forwardRef<
 
         try {
           // Clone the component for processing
-          const clone = componentRef.current.cloneNode(true) as HTMLElement;
-
-          // Process all elements to handle modern color formats
-          const processColors = (element: HTMLElement) => {
-            // Apply computed styles to all children recursively
-            Array.from(element.querySelectorAll("*")).forEach((el) => {
-              if (!(el instanceof HTMLElement)) return;
-
-              try {
-                // Get computed colors
-                const computedStyle = window.getComputedStyle(el);
-
-                // Apply computed colors directly to override any modern formats
-                const colorProps = [
-                  "color",
-                  "background-color",
-                  "border-color",
-                  "fill",
-                  "stroke",
-                ];
-                colorProps.forEach((prop) => {
-                  const value = computedStyle.getPropertyValue(prop);
-                  if (value && value !== "none" && value !== "transparent") {
-                    el.style.setProperty(prop, value, "important");
-                  }
-                });
-
-                // Remove any oklch from inline styles
-                const style = el.getAttribute("style");
-                if (
-                  style &&
-                  (style.includes("oklch") ||
-                    style.includes("lab(") ||
-                    style.includes("lch(") ||
-                    style.includes("color("))
-                ) {
-                  let newStyle = style;
-                  [
-                    /oklch\([^)]+\)/g,
-                    /lab\([^)]+\)/g,
-                    /lch\([^)]+\)/g,
-                    /color\([^)]+\)/g,
-                  ].forEach((regex) => {
-                    newStyle = newStyle.replace(regex, "rgb(0,0,0)");
-                  });
-
-                  if (newStyle !== style) {
-                    el.setAttribute("style", newStyle);
-                  }
-                }
-              } catch {
-                // Silent error - continue processing
-              }
-            });
-
-            return element;
-          };
-
-          // Process the clone
-          const processedElement = processColors(clone);
-
-          // Create a container for the processed element
-          const container = document.createElement("div");
-          container.style.position = "absolute";
-          container.style.left = "-9999px";
-          container.style.top = "-9999px";
-          container.style.width = `${componentRef.current.clientWidth}px`;
-          container.style.height = `${componentRef.current.clientHeight}px`;
-          container.appendChild(processedElement);
-          document.body.appendChild(container);
-
-          // Use html2canvas to render to PNG
-          const canvas = await html2canvas(processedElement, {
+          // Use html2canvas-pro to render to PNG (no preprocessing needed)
+          const canvas = await html2canvas(componentRef.current, {
             backgroundColor: "#ffffff",
             scale: 2, // Higher resolution
             logging: false,
             useCORS: true,
             allowTaint: true,
-            onclone: (_, element) => {
-              // Final processing in cloned document
-              const elements = element.querySelectorAll("*");
-              elements.forEach((el) => {
-                if (!(el instanceof HTMLElement)) return;
-
-                try {
-                  // Handle any remaining modern color formats
-                  const style = el.getAttribute("style");
-                  if (
-                    style &&
-                    (style.includes("oklch") ||
-                      style.includes("lab(") ||
-                      style.includes("lch(") ||
-                      style.includes("color("))
-                  ) {
-                    let newStyle = style;
-                    [
-                      /oklch\([^)]+\)/g,
-                      /lab\([^)]+\)/g,
-                      /lch\([^)]+\)/g,
-                      /color\([^)]+\)/g,
-                    ].forEach((regex) => {
-                      newStyle = newStyle.replace(regex, "rgb(0,0,0)");
-                    });
-
-                    if (newStyle !== style) {
-                      el.setAttribute("style", newStyle);
-                    }
-                  }
-                } catch {
-                  // Silent error - continue processing
-                }
-              });
-              return element;
-            },
           });
 
           // Convert to PNG and download
@@ -714,9 +607,6 @@ const InteractiveLegend = forwardRef<
           link.href = dataUrl;
           link.download = "legend.png";
           link.click();
-
-          // Clean up
-          document.body.removeChild(container);
         } catch (error) {
           console.error("Error exporting legend:", error);
         }

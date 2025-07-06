@@ -321,6 +321,46 @@ export class ProtspaceControlBar extends LitElement {
       composed: true,
     });
     this.dispatchEvent(customEvent);
+
+    // If auto-sync is enabled, directly call export methods on scatterplot
+    if (this.autoSync && this._scatterplotElement) {
+      const scatterplot = this._scatterplotElement as any;
+
+      try {
+        // Import export utils dynamically
+        import("@protspace/utils")
+          .then(({ exportUtils }) => {
+            switch (type) {
+              case "json":
+                exportUtils.exportJSON(scatterplot);
+                break;
+              case "ids":
+                exportUtils.exportProteinIds(
+                  scatterplot,
+                  scatterplot.selectedProteinIds
+                );
+                break;
+              case "png":
+                exportUtils.exportPNG(scatterplot);
+                break;
+              case "svg":
+                exportUtils.exportSVG(scatterplot);
+                break;
+              case "pdf":
+                exportUtils.exportPDF(scatterplot);
+                break;
+              default:
+                console.error(`Unknown export type: ${type}`);
+            }
+          })
+          .catch((error) => {
+            console.error("Failed to load export utils:", error);
+          });
+      } catch (error) {
+        console.error(`Export failed for type ${type}:`, error);
+      }
+    }
+
     this.showExportMenu = false;
   }
 

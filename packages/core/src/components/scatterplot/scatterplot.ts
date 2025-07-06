@@ -7,7 +7,7 @@ import type {
   PlotDataPoint,
   ScatterplotConfig,
 } from "@protspace/utils";
-import { DataProcessor, getSymbolType } from "@protspace/utils";
+import { DataProcessor, getSymbolType, exportUtils } from "@protspace/utils";
 
 // Default configuration
 const DEFAULT_CONFIG: Required<ScatterplotConfig> = {
@@ -387,6 +387,65 @@ export class ProtspaceScatterplot extends LitElement {
 
   public isInSplitMode(): boolean {
     return this._internalIsolationMode;
+  }
+
+  // Component lifecycle methods
+  connectedCallback() {
+    super.connectedCallback();
+
+    // Listen for export events from control bar
+    this.addEventListener(
+      "export",
+      this._handleExportEvent.bind(this) as EventListener
+    );
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+
+    // Remove export event listener
+    this.removeEventListener(
+      "export",
+      this._handleExportEvent.bind(this) as EventListener
+    );
+  }
+
+  // Export event handler
+  private _handleExportEvent(event: Event) {
+    const customEvent = event as CustomEvent;
+    const { type } = customEvent.detail;
+
+    if (!type) {
+      console.error("Export event missing type");
+      return;
+    }
+
+    // Stop event propagation to prevent multiple handlers
+    event.stopPropagation();
+
+    try {
+      switch (type) {
+        case "json":
+          exportUtils.exportJSON(this);
+          break;
+        case "ids":
+          exportUtils.exportProteinIds(this, this.selectedProteinIds);
+          break;
+        case "png":
+          exportUtils.exportPNG(this);
+          break;
+        case "svg":
+          exportUtils.exportSVG(this);
+          break;
+        case "pdf":
+          exportUtils.exportPDF(this);
+          break;
+        default:
+          console.error(`Unknown export type: ${type}`);
+      }
+    } catch (error) {
+      console.error(`Export failed for type ${type}:`, error);
+    }
   }
 
   public getZoomTransform(): d3.ZoomTransform | null {

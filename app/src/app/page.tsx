@@ -1,5 +1,4 @@
 "use client";
-/* eslint-disable @typescript-eslint/no-unused-vars */
 
 import ProtspaceControlBarWebComponent from "@/components/WebComponent/ProtspaceControlBarWebComponent";
 import Header from "@/components/Header/Header";
@@ -13,14 +12,7 @@ import ProtspaceLegendWebComponent from "@/components/WebComponent/ProtspaceLege
 import ProtspaceStructureViewerWebComponent from "@/components/WebComponent/ProtspaceStructureViewerWebComponent";
 import DataLoaderModal from "@/components/DataLoaderModal/DataLoaderModal";
 import * as d3 from "d3";
-import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-
-// Use dynamic import for the structure viewer to avoid SSR issues
-const StructureViewer = dynamic(
-  () => import("@/components/StructureViewer/StructureViewer"),
-  { ssr: false }
-);
 
 export default function ProtSpaceApp() {
   // Application state
@@ -244,18 +236,6 @@ export default function ProtSpaceApp() {
     ]);
   };
 
-  // Handle showing all data, clearing isolation mode while preserving selections
-  const handleShowAllData = () => {
-    // Reset split state and go back to full dataset
-    if (isolationMode) {
-      setIsolationMode(false);
-      setSplitHistory([]);
-    }
-
-    // Reset any hidden feature values to show all data
-    setHiddenFeatureValues([]);
-  };
-
   // Split the data to focus on selected proteins
   const handleToggleIsolationMode = () => {
     // Note: With auto-sync enabled, the control bar web component now handles
@@ -285,7 +265,7 @@ export default function ProtSpaceApp() {
     console.log(
       `Split state changed: ${isolationMode ? "ON" : "OFF"}, splits: ${
         splitHistory.length
-      }, data size: ${currentDataSize}`
+      }, data size: ${currentDataSize}, selected proteins: ${selectedProteinsCount}`
     );
   };
 
@@ -437,12 +417,6 @@ export default function ProtSpaceApp() {
     input.click();
   };
 
-  // Handle sharing session
-  const handleShareSession = () => {
-    // Currently just an alias for save
-    handleSaveSession();
-  };
-
   // Handle opening data loader modal
   const handleOpenDataLoader = () => {
     setIsDataLoaderOpen(true);
@@ -470,70 +444,6 @@ export default function ProtSpaceApp() {
       const firstFeature = Object.keys(data.features)[0];
       setSelectedFeature(firstFeature);
     }
-  };
-
-  // Helper function to convert modern color formats to hex/rgb
-  const convertModernColors = (element: Element) => {
-    // Create a deep clone of the element for manipulation
-    const clone = element.cloneNode(true) as HTMLElement;
-
-    // Find all elements with styles
-    const allElements = clone.querySelectorAll("*");
-
-    // Process elements with potential color properties
-    allElements.forEach((el) => {
-      try {
-        const computedStyles = window.getComputedStyle(el as HTMLElement);
-
-        // Apply the computed RGB values directly to the element
-        // We first check if the property exists to avoid errors
-        const properties = [
-          { name: "backgroundColor", style: "background-color" },
-          { name: "color", style: "color" },
-          { name: "borderColor", style: "border-color" },
-          { name: "fill", style: "fill" },
-          { name: "stroke", style: "stroke" },
-        ];
-
-        properties.forEach(({ name, style }) => {
-          try {
-            const value = computedStyles[
-              name as keyof CSSStyleDeclaration
-            ] as string;
-            if (value && value !== "none" && value !== "transparent") {
-              // Force RGB format by using a fallback if needed
-              (el as HTMLElement).style.setProperty(style, value, "important");
-            }
-          } catch {
-            // Skip if property cannot be applied
-          }
-        });
-
-        // Remove any oklch or other modern color format values from inline styles
-        const style = (el as HTMLElement).getAttribute("style");
-        if (style) {
-          const modernFormats = [
-            /oklch\([^)]+\)/g,
-            /lab\([^)]+\)/g,
-            /lch\([^)]+\)/g,
-            /color\([^)]+\)/g,
-          ];
-
-          let newStyle = style;
-          modernFormats.forEach((format) => {
-            newStyle = newStyle.replace(format, "");
-          });
-
-          if (newStyle !== style) {
-            (el as HTMLElement).setAttribute("style", newStyle);
-          }
-        }
-      } catch {
-        // Silent error - continue with next element
-      }
-    });
-
-    return clone;
   };
 
   // Handle export
@@ -946,46 +856,58 @@ export default function ProtSpaceApp() {
               link.download = "protspace_visualization.png";
               link.click();
             } else {
-              // Export as PDF
-              import("jspdf")
-                .then((jsPdfModule) => {
-                  const jsPDF = jsPdfModule.default || jsPdfModule;
+              // Export as PDF using the working utils package
+              URL.revokeObjectURL(url);
 
-                  // Create PDF with appropriate dimensions
-                  const isLandscape = canvas.width > canvas.height;
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const pdf = new (jsPDF as any)({
-                    orientation: isLandscape ? "landscape" : "portrait",
-                    unit: "mm",
-                  });
+              // Use the working PDF export from utils package
+              import("@protspace/utils")
+                .then(async ({ createExporter }) => {
+                  try {
+                    // Find the scatterplot element
+                    const scatterplotElement = document.querySelector(
+                      "protspace-scatterplot"
+                    );
 
-                  // Calculate the PDF page size (A4)
-                  const pdfWidth = pdf.internal.pageSize.getWidth();
-                  const pdfHeight = pdf.internal.pageSize.getHeight();
+                    if (!scatterplotElement) {
+                      throw new Error(
+                        "Could not find scatterplot element for export"
+                      );
+                    }
 
-                  // Calculate the scaling ratio
-                  const ratio = Math.min(
-                    pdfWidth / canvas.width,
-                    pdfHeight / canvas.height
-                  );
+                    // Create exporter instance with current state
+                    const exporter = createExporter(
+                      scatterplotElement,
+                      selectedProteinIds,
+                      hiddenFeatureValues,
+                      // @ts-ignore
+                      isolationMode
+                    );
 
-                  // Add the image to the PDF
-                  const imgData = canvas.toDataURL("image/png");
-                  pdf.addImage(
-                    imgData,
-                    "PNG",
-                    0,
-                    0,
-                    canvas.width * ratio,
-                    canvas.height * ratio
-                  );
+                    // Export options
+                    const exportOptions = {
+                      exportName: isolationMode
+                        ? "protspace_data_split"
+                        : "protspace_data",
+                      includeSelection: selectedProteinIds.length > 0,
+                      scaleForExport: 2,
+                      maxLegendItems: 10,
+                      backgroundColor: "white",
+                    };
 
-                  // Save the PDF
-                  pdf.save("protspace_visualization.pdf");
+                    // Use the working PDF export
+                    await exporter.exportPDF(exportOptions);
+                  } catch (error) {
+                    console.error("PDF export failed:", error);
+                    const errorMessage =
+                      error instanceof Error ? error.message : "Unknown error";
+                    alert(`PDF export failed: ${errorMessage}`);
+                  }
                 })
                 .catch((error) => {
-                  console.error("Error generating PDF:", error);
-                  alert("Could not generate PDF: " + error.message);
+                  console.error("Failed to load export utils:", error);
+                  alert(
+                    "Could not load PDF export functionality: " + error.message
+                  );
                 });
             }
           } catch (error) {
@@ -1472,7 +1394,6 @@ export default function ProtSpaceApp() {
     // If in split mode, count how many proteins pass all split filters
     if (!visualizationData) return 0;
 
-    const proteinIds = visualizationData.protein_ids;
     // Start with all proteins from first split
     const displayedIds = new Set(splitHistory[0]);
 
