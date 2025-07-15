@@ -1,5 +1,12 @@
 import { LitElement, html, css } from "lit";
 import { customElement, property, state, query } from "lit/decorators.js";
+import { StructureService } from "@protspace/utils";
+import type { StructureData } from "@protspace/utils";
+
+// Molstar dependencies - Update these URLs when upgrading Molstar version
+const MOLSTAR_VERSION = "3.44.0";
+const MOLSTAR_SCRIPT_URL = `https://cdn.jsdelivr.net/npm/molstar@${MOLSTAR_VERSION}/build/viewer/molstar.js`;
+const MOLSTAR_CSS_URL = `https://cdn.jsdelivr.net/npm/molstar@${MOLSTAR_VERSION}/build/viewer/molstar.css`;
 
 // Define the Molstar types
 interface MolstarViewer {
@@ -43,6 +50,7 @@ export interface StructureLoadEvent extends CustomEvent {
     proteinId: string;
     status: "loading" | "loaded" | "error";
     error?: string;
+    data?: StructureData | null;
   };
 }
 
@@ -225,6 +233,7 @@ export class ProtspaceStructureViewer extends LitElement {
   @state() private _isLoading = false;
   @state() private _error: string | null = null;
   @state() private _viewer: MolstarViewer | null = null;
+  @state() private _structureData: StructureData | null = null;
   private _scatterplotElement: Element | null = null;
 
   // Refs
@@ -342,6 +351,7 @@ export class ProtspaceStructureViewer extends LitElement {
 
     this._isLoading = true;
     this._error = null;
+    this._structureData = null;
 
     // Dispatch loading event
     this._dispatchStructureEvent("loading");
@@ -350,63 +360,20 @@ export class ProtspaceStructureViewer extends LitElement {
       // Clean up any existing viewer
       this._cleanup();
 
-      // Format protein ID (remove version numbers if any)
-      const formattedId = this.proteinId.split(".")[0];
-
-      // Load Molstar resources
-      await this._loadMolstarResources();
-
-      // Wait for the container to be available
-      await this.updateComplete;
-      if (!this._viewerContainer) {
-        throw new Error("Viewer container not available");
-      }
-
-      // Create viewer
-      this._viewer = await window.molstar?.Viewer.create(
-        this._viewerContainer,
-        {
-          layoutIsExpanded: false,
-          layoutShowControls: false,
-          layoutShowRemoteState: false,
-          layoutShowSequence: false,
-          layoutShowLog: false,
-          layoutShowLeftPanel: false,
-          viewportShowExpand: false,
-          viewportShowSelectionMode: false,
-          viewportShowAnimation: false,
-        }
+      // Use service to load structure data
+      this._structureData = await StructureService.loadStructure(
+        this.proteinId
       );
 
-      // Try AlphaFold first
-      try {
-        const alphafoldUrl = `https://alphafold.ebi.ac.uk/files/AF-${formattedId}-F1-model_v4.pdb`;
+      // Load Molstar resources and create viewer
+      await this._loadMolstarResources();
+      await this._createViewer();
 
-        // Check if AlphaFold structure exists
-        const response = await fetch(alphafoldUrl, { method: "HEAD" });
-        if (!response.ok) {
-          throw new Error(
-            `AlphaFold structure not available for ${formattedId}`
-          );
-        }
+      // Load structure into viewer based on source
+      await this._displayStructure(this._structureData);
 
-        await this._viewer.loadStructureFromUrl(alphafoldUrl, "pdb");
-        this._isLoading = false;
-        this._dispatchStructureEvent("loaded");
-      } catch (alphafoldError) {
-        console.warn("AlphaFold loading failed:", alphafoldError);
-
-        // Fallback to PDB
-        try {
-          await this._viewer.loadPdb(formattedId);
-          this._isLoading = false;
-          this._dispatchStructureEvent("loaded");
-        } catch (pdbError) {
-          throw new Error(
-            `Failed to load structure from both AlphaFold and PDB: ${pdbError}`
-          );
-        }
-      }
+      this._isLoading = false;
+      this._dispatchStructureEvent("loaded");
     } catch (error) {
       console.error("Structure loading error:", error);
       this._error =
@@ -422,8 +389,7 @@ export class ProtspaceStructureViewer extends LitElement {
       await new Promise<void>((resolve, reject) => {
         const script = document.createElement("script");
         script.id = "molstar-script";
-        script.src =
-          "https://cdn.jsdelivr.net/npm/molstar@3.44.0/build/viewer/molstar.js";
+        script.src = MOLSTAR_SCRIPT_URL;
         script.async = true;
         script.onload = () => resolve();
         script.onerror = reject;
@@ -437,12 +403,59 @@ export class ProtspaceStructureViewer extends LitElement {
         const link = document.createElement("link");
         link.id = "molstar-style";
         link.rel = "stylesheet";
-        link.href =
-          "https://cdn.jsdelivr.net/npm/molstar@3.44.0/build/viewer/molstar.css";
+        link.href = MOLSTAR_CSS_URL;
         link.onload = () => resolve();
         link.onerror = reject;
         document.head.appendChild(link);
       });
+    }
+  }
+
+  private async _createViewer(): Promise<void> {
+    // Wait for the container to be available
+    await this.updateComplete;
+    if (!this._viewerContainer) {
+      throw new Error("Viewer container not available");
+    }
+
+    // Create viewer
+    this._viewer = await window.molstar?.Viewer.create(this._viewerContainer, {
+      layoutIsExpanded: false,
+      layoutShowControls: false,
+      layoutShowRemoteState: false,
+      layoutShowSequence: false,
+      layoutShowLog: false,
+      layoutShowLeftPanel: false,
+      viewportShowExpand: false,
+      viewportShowSelectionMode: false,
+      viewportShowAnimation: false,
+    });
+  }
+
+  private async _displayStructure(structureData: StructureData): Promise<void> {
+    if (!this._viewer) {
+      throw new Error("Viewer not initialized");
+    }
+
+    // Load structure based on source
+    switch (structureData.source) {
+      case "alphafold":
+        if (structureData.url) {
+          await this._viewer.loadStructureFromUrl(
+            structureData.url,
+            structureData.format
+          );
+        } else {
+          throw new Error("AlphaFold structure URL not available");
+        }
+        break;
+      case "pdb":
+        await this._viewer.loadPdb(structureData.proteinId);
+        break;
+      default:
+        throw new Error(
+          `Unsupported structure source: ${structureData.source}`
+        );
     }
   }
 
@@ -459,6 +472,8 @@ export class ProtspaceStructureViewer extends LitElement {
     if (this._viewerContainer) {
       this._viewerContainer.innerHTML = "";
     }
+
+    this._structureData = null;
   }
 
   private _dispatchStructureEvent(
@@ -471,6 +486,7 @@ export class ProtspaceStructureViewer extends LitElement {
           proteinId: this.proteinId!,
           status,
           error,
+          data: this._structureData,
         },
         bubbles: true,
       }) as StructureLoadEvent
