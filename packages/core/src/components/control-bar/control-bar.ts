@@ -635,18 +635,44 @@ export class ProtspaceControlBar extends LitElement {
     const { data } = customEvent.detail;
 
     if (data) {
-      // Auto-update projections and features
+      console.log("🔄 Control bar handling data change:", data);
+
+      // Auto-update projections from the data
       this.projections =
         data.projections?.map((p: { name: string }) => p.name) || [];
-      this.features = Object.keys(data.features || {});
 
-      // Set defaults if not already set
-      if (!this.selectedProjection && this.projections.length > 0) {
-        this.selectedProjection = this.projections[0];
+      // Extract available features from the data
+      // The features object contains all available columns for coloring
+      const availableFeatures = Object.keys(data.features || {});
+      console.log("📋 Available features found:", availableFeatures);
+
+      // Update the features array with available column names
+      this.features = availableFeatures;
+
+      // Set defaults if not already set or if current selection is not available
+      if (
+        !this.selectedProjection ||
+        !this.projections.includes(this.selectedProjection)
+      ) {
+        this.selectedProjection =
+          this.projections.length > 0 ? this.projections[0] : "";
+        console.log("🎯 Set default projection:", this.selectedProjection);
       }
-      if (!this.selectedFeature && this.features.length > 0) {
-        this.selectedFeature = this.features[0];
+
+      if (
+        !this.selectedFeature ||
+        !this.features.includes(this.selectedFeature)
+      ) {
+        this.selectedFeature = this.features.length > 0 ? this.features[0] : "";
+        console.log("🎨 Set default feature:", this.selectedFeature);
       }
+
+      console.log("✅ Control bar updated with:", {
+        projections: this.projections,
+        features: this.features,
+        selectedProjection: this.selectedProjection,
+        selectedFeature: this.selectedFeature,
+      });
 
       this.requestUpdate();
     }
@@ -661,6 +687,7 @@ export class ProtspaceControlBar extends LitElement {
     this.requestUpdate();
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private _handleProteinSelection(_event: Event) {
     // Update selected proteins count when proteins are selected/deselected
     if (
@@ -683,15 +710,32 @@ export class ProtspaceControlBar extends LitElement {
       const data = scatterplot.getCurrentData();
 
       if (data) {
+        console.log("🔗 Syncing control bar with scatterplot data:", data);
+
+        // Extract projections and features from the scatterplot data
         this.projections =
           data.projections?.map((p: { name: string }) => p.name) || [];
-        this.features = Object.keys(data.features || {});
+
+        // Extract available features from the data structure
+        const availableFeatures = Object.keys(data.features || {});
+        this.features = availableFeatures;
+
+        console.log("📊 Synced features:", this.features);
 
         // Sync current values from scatterplot
         if ("selectedFeature" in scatterplot) {
-          this.selectedFeature =
-            scatterplot.selectedFeature || this.features[0] || "";
+          // Only use the scatterplot's selected feature if it's still available
+          const scatterplotFeature = scatterplot.selectedFeature;
+          if (
+            scatterplotFeature &&
+            this.features.includes(scatterplotFeature)
+          ) {
+            this.selectedFeature = scatterplotFeature;
+          } else {
+            this.selectedFeature = this.features[0] || "";
+          }
         }
+
         if (
           "selectedProjectionIndex" in scatterplot &&
           "selectedProjectionIndex" in scatterplot
@@ -701,9 +745,11 @@ export class ProtspaceControlBar extends LitElement {
             this.selectedProjection = this.projections[projIndex];
           }
         }
+
         if ("selectionMode" in scatterplot) {
           this.selectionMode = scatterplot.selectionMode || false;
         }
+
         if ("selectedProteinIds" in scatterplot) {
           this.selectedProteinsCount = (
             scatterplot.selectedProteinIds || []
@@ -717,6 +763,13 @@ export class ProtspaceControlBar extends LitElement {
         if (!this.selectedFeature && this.features.length > 0) {
           this.selectedFeature = this.features[0];
         }
+
+        console.log("✅ Sync completed with:", {
+          projections: this.projections,
+          features: this.features,
+          selectedProjection: this.selectedProjection,
+          selectedFeature: this.selectedFeature,
+        });
 
         this.requestUpdate();
       }

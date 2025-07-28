@@ -1,5 +1,6 @@
-import { defineConfig } from 'vite';
-import path from 'path'; // Import path module
+import { defineConfig } from "vite";
+import path from "path"; // Import path module
+import { resolve } from "path";
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -8,12 +9,26 @@ export default defineConfig({
   // It will resolve workspace dependencies like @protspace/core and @protspace/utils.
   resolve: {
     alias: {
-      '@protspace/core': path.resolve(__dirname, '../../packages/core/src/index.ts'),
-      '@protspace/utils': path.resolve(__dirname, '../../packages/utils/src/index.ts'),
+      "@protspace/core": path.resolve(
+        __dirname,
+        "../../packages/core/src/index.ts"
+      ),
+      "@protspace/utils": path.resolve(
+        __dirname,
+        "../../packages/utils/src/index.ts"
+      ),
+    },
+  },
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, "index.html"),
+        debugViz: resolve(__dirname, "debug-visualization.html"),
+      },
     },
   },
   server: {
     port: 8081, // So it doesn't clash with other examples or the main app
     open: true, // Automatically open in browser
-  }
-}); 
+  },
+});

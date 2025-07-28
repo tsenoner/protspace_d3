@@ -208,102 +208,443 @@ Promise.all([
     let selectedProteins: string[] = [];
     let selectionMode = false;
     let isolationMode = false;
-    let currentData: VisualizationData = sampleData;
 
-    // Function to load new data and reset all state
-    const loadNewData = (newData: VisualizationData) => {
+    // Performance monitoring
+    const performanceMetrics = {
+      lastDataSize: 0,
+      loadingTime: 0,
+      renderingMode: "unknown" as string,
+    };
+
+    // Function to load new data and reset all state with progressive loading and performance optimization
+    const loadNewData = async (newData: VisualizationData) => {
       console.log("🔄 Loading new data:", newData);
+      const startTime = performance.now();
+      const dataSize = newData.protein_ids.length;
 
-      // Reset all state
-      hiddenValues = [];
-      selectedProteins = [];
-      selectionMode = false;
-      isolationMode = false;
-      currentData = newData;
+      // Store performance metrics
+      performanceMetrics.lastDataSize = dataSize;
 
-      // Update scatterplot with new data
-      console.log("📊 Updating scatterplot with new data...");
-      const oldData = plotElement.data;
-      plotElement.data = newData;
-      // Explicitly request update for data property since LitElement might not detect object changes
-      plotElement.requestUpdate("data", oldData);
+      // Determine performance characteristics
+      const isLargeDataset = dataSize > 1000;
+      const isMassiveDataset = dataSize > 10000;
+      const isMegaDataset = dataSize > 50000;
 
-      plotElement.selectedProjectionIndex = 0; // Reset to first projection
-      plotElement.selectedFeature = Object.keys(newData.features)[0] || ""; // Reset to first feature
-      plotElement.selectedProteinIds = [];
-      plotElement.selectionMode = false;
-      plotElement.hiddenFeatureValues = [];
-
-      // Force additional update
-      plotElement.requestUpdate();
-
-      console.log("📊 Scatterplot updated with:", {
-        projections: newData.projections.map((p) => p.name),
-        features: Object.keys(newData.features),
-        proteinCount: newData.protein_ids.length,
-        selectedFeature: plotElement.selectedFeature,
+      console.log(`📊 Dataset analysis:`, {
+        size: dataSize.toLocaleString(),
+        category: isMegaDataset
+          ? "MEGA"
+          : isMassiveDataset
+          ? "MASSIVE"
+          : isLargeDataset
+          ? "LARGE"
+          : "NORMAL",
+        willUseProgressiveLoading: isLargeDataset,
+        expectedPerformanceMode: isMegaDataset
+          ? "canvas"
+          : isMassiveDataset
+          ? "hybrid"
+          : "svg",
       });
 
-      // Exit split mode if active
-      if (plotElement.isInSplitMode()) {
-        plotElement.exitSplitMode();
+      // Show enhanced loading indicator for large datasets
+      if (isLargeDataset) {
+        console.log(
+          `⚡ Large dataset detected (${dataSize.toLocaleString()} proteins) - using optimized loading pipeline`
+        );
+
+        // Show enhanced loading overlay with performance info
+        const loadingOverlay = document.createElement("div");
+        loadingOverlay.id = "progressive-loading";
+        loadingOverlay.style.cssText = `
+          position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+          background: linear-gradient(135deg, rgba(0,0,0,0.9), rgba(20,20,40,0.9)); 
+          color: white; z-index: 9999;
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        `;
+
+        const performanceMode = isMegaDataset
+          ? "Canvas (Maximum Performance)"
+          : isMassiveDataset
+          ? "Hybrid (Balanced)"
+          : "SVG (High Quality)";
+
+        loadingOverlay.innerHTML = `
+          <div style="text-align: center; max-width: 500px;">
+            <div style="font-size: 24px; margin-bottom: 10px;">🚀 ProtSpace Performance Mode</div>
+            <div style="font-size: 18px; margin-bottom: 20px;">
+              Processing ${dataSize.toLocaleString()} proteins
+            </div>
+            <div style="font-size: 14px; opacity: 0.8; margin-bottom: 20px;">
+              Rendering Mode: <strong>${performanceMode}</strong>
+            </div>
+            <div style="width: 300px; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; margin: 20px auto;">
+              <div id="progress-bar" style="height: 100%; background: linear-gradient(90deg, #3b82f6, #06b6d4); border-radius: 2px; width: 0%; transition: width 0.3s ease;"></div>
+            </div>
+            <div id="progress-text" style="font-size: 14px; opacity: 0.8; margin-top: 10px;">
+              Initializing performance optimizations...
+            </div>
+            <div style="font-size: 12px; opacity: 0.6; margin-top: 15px;">
+              Large datasets use automatic performance optimization
+            </div>
+          </div>
+        `;
+        document.body.appendChild(loadingOverlay);
       }
 
-      // Update control bar
-      setTimeout(() => {
-        controlBar.autoSync = true;
-        controlBar.selectedProjection = newData.projections[0]?.name || "";
-        controlBar.selectedFeature = Object.keys(newData.features)[0] || "";
-        controlBar.selectionMode = false;
-        controlBar.isolationMode = false;
-        controlBar.selectedProteinsCount = 0;
-        controlBar.requestUpdate();
-      }, 100);
+      try {
+        // Reset all state
+        hiddenValues = [];
+        selectedProteins = [];
+        selectionMode = false;
+        isolationMode = false;
 
-      // Update legend with new data - using the fix we applied to the core
-      setTimeout(() => {
-        console.log("🏷️ Updating legend with new data...");
-        legendElement.autoSync = true;
-        legendElement.autoHide = true;
-
-        // Set the data and selectedFeature directly on the legend
-        // This will trigger the _updateFeatureDataFromData method we added
-        legendElement.data = { features: newData.features };
-        legendElement.selectedFeature = Object.keys(newData.features)[0] || "";
-
-        // Extract feature values for the new data
-        const firstFeature = Object.keys(newData.features)[0];
-        if (firstFeature) {
-          const featureValues = newData.protein_ids.map((_, index) => {
-            const featureIdx = newData.feature_data[firstFeature][index];
-            return newData.features[firstFeature].values[featureIdx];
-          });
-
-          legendElement.featureValues = featureValues;
-          legendElement.proteinIds = newData.protein_ids;
+        // Update progress
+        if (isLargeDataset) {
+          const progressBar = document.getElementById("progress-bar");
+          const progressText = document.getElementById("progress-text");
+          if (progressBar) progressBar.style.width = "10%";
+          if (progressText)
+            progressText.textContent =
+              "Step 1/5: Configuring performance settings...";
         }
 
-        // Force update the legend
-        legendElement.requestUpdate();
+        // ✨ NEW: Configure performance settings based on data size
+        console.log("⚡ Configuring performance settings...");
+        if (isMegaDataset) {
+          // Maximum performance for mega datasets
+          plotElement.configurePerformance(dataSize, "fast");
+          plotElement.useCanvas = true;
+          plotElement.enableVirtualization = true;
+          performanceMetrics.renderingMode = "canvas-extreme";
+          console.log(
+            `🎨 Configured for EXTREME performance mode (canvas + virtualization)`
+          );
+        } else if (isMassiveDataset) {
+          // Balanced performance for massive datasets
+          plotElement.configurePerformance(dataSize, "auto");
+          performanceMetrics.renderingMode = "auto-optimized";
+          console.log(`⚖️ Configured for AUTO performance mode (balanced)`);
+        } else if (isLargeDataset) {
+          // Quality-focused but still optimized
+          plotElement.configurePerformance(dataSize, "auto");
+          performanceMetrics.renderingMode = "svg-optimized";
+          console.log(
+            `✨ Configured for OPTIMIZED performance mode (quality + speed)`
+          );
+        } else {
+          // Maximum quality for small datasets
+          plotElement.configurePerformance(dataSize, "quality");
+          performanceMetrics.renderingMode = "svg-quality";
+          console.log(
+            `🌟 Configured for QUALITY performance mode (full features)`
+          );
+        }
 
-        console.log("🏷️ Legend updated with:", {
-          feature: legendElement.selectedFeature,
-          dataKeys: Object.keys(newData.features),
+        // Yield to browser before heavy processing
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+
+        // Update progress
+        if (isLargeDataset) {
+          const progressBar = document.getElementById("progress-bar");
+          const progressText = document.getElementById("progress-text");
+          if (progressBar) progressBar.style.width = "25%";
+          if (progressText)
+            progressText.textContent =
+              "Step 2/5: Loading data into scatterplot...";
+        }
+
+        // Update scatterplot with new data (non-blocking)
+        console.log("📊 Updating scatterplot with new data...");
+        const oldData = plotElement.data;
+
+        // ✨ NEW: Set data with performance-aware batching
+        if (isMegaDataset) {
+          // For mega datasets, use requestIdleCallback if available
+          if ("requestIdleCallback" in window) {
+            await new Promise<void>((resolve) => {
+              (window as any).requestIdleCallback(
+                () => {
+                  plotElement.data = newData;
+                  plotElement.requestUpdate("data", oldData);
+                  resolve();
+                },
+                { timeout: 1000 }
+              );
+            });
+          } else {
+            // Fallback for browsers without requestIdleCallback
+            await new Promise((resolve) => setTimeout(resolve, 10));
+            plotElement.data = newData;
+            plotElement.requestUpdate("data", oldData);
+          }
+        } else {
+          plotElement.data = newData;
+          plotElement.requestUpdate("data", oldData);
+        }
+
+        plotElement.selectedProjectionIndex = 0;
+        const firstFeatureKey = Object.keys(newData.features)[0] || "";
+        plotElement.selectedFeature = firstFeatureKey;
+        plotElement.selectedProteinIds = [];
+        plotElement.selectionMode = false;
+        plotElement.hiddenFeatureValues = [];
+
+        // Exit split mode if active
+        if (plotElement.isInSplitMode()) {
+          plotElement.exitSplitMode();
+        }
+
+        console.log("📊 Scatterplot updated with:", {
+          projections: newData.projections.map((p) => p.name),
+          features: Object.keys(newData.features),
           proteinCount: newData.protein_ids.length,
+          selectedFeature: plotElement.selectedFeature,
+          renderingMode: performanceMetrics.renderingMode,
         });
-      }, 200);
 
-      // Hide structure viewer
-      if (structureViewer.style.display !== "none") {
-        structureViewer.style.display = "none";
+        // Update progress
+        if (isLargeDataset) {
+          const progressBar = document.getElementById("progress-bar");
+          const progressText = document.getElementById("progress-text");
+          if (progressBar) progressBar.style.width = "50%";
+          if (progressText)
+            progressText.textContent =
+              "Step 3/5: Updating control interface...";
+        }
+
+        // Yield to browser
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+
+        // Update control bar with performance awareness
+        await new Promise((resolve) => {
+          setTimeout(
+            () => {
+              controlBar.autoSync = true;
+              controlBar.selectedProjection =
+                newData.projections[0]?.name || "";
+              controlBar.selectedFeature =
+                Object.keys(newData.features)[0] || "";
+              controlBar.selectionMode = false;
+              controlBar.isolationMode = false;
+              controlBar.selectedProteinsCount = 0;
+              controlBar.requestUpdate();
+              resolve(undefined);
+            },
+            isLargeDataset ? 50 : 10
+          ); // Longer delay for large datasets
+        });
+
+        // Update progress
+        if (isLargeDataset) {
+          const progressBar = document.getElementById("progress-bar");
+          const progressText = document.getElementById("progress-text");
+          if (progressBar) progressBar.style.width = "75%";
+          if (progressText)
+            progressText.textContent = "Step 4/5: Processing legend data...";
+        }
+
+        // Yield to browser
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+
+        // Update legend with enhanced progressive feature processing
+        await new Promise((resolve) => {
+          setTimeout(
+            async () => {
+              console.log(
+                "🏷️ Updating legend with performance optimization..."
+              );
+              legendElement.autoSync = true;
+              legendElement.autoHide = true;
+
+              legendElement.data = { features: newData.features };
+              legendElement.selectedFeature =
+                Object.keys(newData.features)[0] || "";
+
+              // ✨ NEW: Enhanced progressive processing with memory management
+              const firstFeature = Object.keys(newData.features)[0];
+              if (firstFeature) {
+                if (isMegaDataset) {
+                  // Mega datasets: Use web workers if available, otherwise chunk processing
+                  console.log(
+                    "🔧 Using advanced chunked processing for mega dataset..."
+                  );
+                  const chunkSize = 2000; // Larger chunks for better performance
+                  const featureValues: string[] = [];
+
+                  // Pre-allocate array for better memory performance
+                  featureValues.length = newData.protein_ids.length;
+
+                  for (
+                    let i = 0;
+                    i < newData.protein_ids.length;
+                    i += chunkSize
+                  ) {
+                    const endIndex = Math.min(
+                      i + chunkSize,
+                      newData.protein_ids.length
+                    );
+
+                    // Process chunk with optimized loop
+                    const featureDataArray = newData.feature_data[firstFeature];
+                    const featureValuesArray =
+                      newData.features[firstFeature].values;
+
+                    for (let j = i; j < endIndex; j++) {
+                      featureValues[j] =
+                        featureValuesArray[featureDataArray[j]];
+                    }
+
+                    // Yield to browser every few chunks and update progress
+                    if (i % (chunkSize * 3) === 0) {
+                      const progress =
+                        75 + (i / newData.protein_ids.length) * 20;
+                      const progressBar =
+                        document.getElementById("progress-bar");
+                      if (progressBar) progressBar.style.width = `${progress}%`;
+
+                      await new Promise((resolve) =>
+                        requestAnimationFrame(resolve)
+                      );
+                    }
+                  }
+
+                  legendElement.featureValues = featureValues;
+                } else if (isLargeDataset) {
+                  // Large datasets: Standard chunked processing
+                  const chunkSize = 1000;
+                  const featureValues: string[] = [];
+
+                  for (
+                    let i = 0;
+                    i < newData.protein_ids.length;
+                    i += chunkSize
+                  ) {
+                    const endIndex = Math.min(
+                      i + chunkSize,
+                      newData.protein_ids.length
+                    );
+
+                    for (let j = i; j < endIndex; j++) {
+                      const featureIdx = newData.feature_data[firstFeature][j];
+                      featureValues.push(
+                        newData.features[firstFeature].values[featureIdx]
+                      );
+                    }
+
+                    if (i + chunkSize < newData.protein_ids.length) {
+                      await new Promise((resolve) =>
+                        requestAnimationFrame(resolve)
+                      );
+                    }
+                  }
+
+                  legendElement.featureValues = featureValues;
+                } else {
+                  // Small datasets: Process normally with high quality
+                  const featureValues = newData.protein_ids.map((_, index) => {
+                    const featureIdx =
+                      newData.feature_data[firstFeature][index];
+                    return newData.features[firstFeature].values[featureIdx];
+                  });
+                  legendElement.featureValues = featureValues;
+                }
+
+                legendElement.proteinIds = newData.protein_ids;
+              }
+
+              legendElement.requestUpdate();
+
+              console.log("🏷️ Legend updated with:", {
+                feature: legendElement.selectedFeature,
+                dataKeys: Object.keys(newData.features),
+                proteinCount: newData.protein_ids.length,
+                processingMode: isMegaDataset
+                  ? "chunked-optimized"
+                  : isLargeDataset
+                  ? "chunked"
+                  : "standard",
+              });
+
+              resolve(undefined);
+            },
+            isLargeDataset ? 30 : 20
+          );
+        });
+
+        // Update progress
+        if (isLargeDataset) {
+          const progressBar = document.getElementById("progress-bar");
+          const progressText = document.getElementById("progress-text");
+          if (progressBar) progressBar.style.width = "95%";
+          if (progressText)
+            progressText.textContent = "Step 5/5: Finalizing interface...";
+        }
+
+        // Yield to browser
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+
+        // Hide structure viewer and finalize
+        if (structureViewer.style.display !== "none") {
+          structureViewer.style.display = "none";
+        }
+
+        updateSelectedProteinDisplay(null);
+
+        // Update progress to 100%
+        if (isLargeDataset) {
+          const progressBar = document.getElementById("progress-bar");
+          const progressText = document.getElementById("progress-text");
+          if (progressBar) progressBar.style.width = "100%";
+          if (progressText)
+            progressText.textContent =
+              "✅ Loading complete! Optimized for performance.";
+
+          // Keep the success message visible briefly
+          await new Promise((resolve) => setTimeout(resolve, 800));
+        }
+
+        const endTime = performance.now();
+        performanceMetrics.loadingTime = endTime - startTime;
+
+        console.log(`✅ Performance-optimized data loading completed:`, {
+          proteins: newData.protein_ids.length.toLocaleString(),
+          loadingTime: `${Math.round(performanceMetrics.loadingTime)}ms`,
+          renderingMode: performanceMetrics.renderingMode,
+          averageTimePerProtein: `${(
+            performanceMetrics.loadingTime / newData.protein_ids.length
+          ).toFixed(3)}ms`,
+          memoryEstimate: `~${Math.round(
+            (newData.protein_ids.length * 0.1) / 1024
+          )}MB`,
+        });
+
+        // ✨ NEW: Performance monitoring and optimization feedback
+        if (performanceMetrics.loadingTime > 5000) {
+          console.warn(
+            `⚠️ Loading took ${Math.round(
+              performanceMetrics.loadingTime / 1000
+            )}s. Consider using canvas mode for better performance.`
+          );
+        } else if (performanceMetrics.loadingTime < 1000) {
+          console.log(
+            `🚀 Excellent performance! Loaded in ${Math.round(
+              performanceMetrics.loadingTime
+            )}ms`
+          );
+        }
+      } finally {
+        // Remove loading overlay with fade effect
+        if (isLargeDataset) {
+          const overlay = document.getElementById("progressive-loading");
+          if (overlay) {
+            overlay.style.transition = "opacity 0.5s ease";
+            overlay.style.opacity = "0";
+            setTimeout(() => overlay.remove(), 500);
+          }
+        }
       }
-
-      updateSelectedProteinDisplay(null);
-      console.log(
-        "✅ Data loaded successfully with",
-        newData.protein_ids.length,
-        "proteins"
-      );
     };
 
     // Initialize components with sample data
@@ -606,12 +947,7 @@ Promise.all([
 
       try {
         // Create exporter instance with current state
-        const exporter = createExporter(
-          plotElement,
-          selectedProteins,
-          hiddenValues,
-          isolationMode
-        );
+        const exporter = createExporter(plotElement);
 
         // Export options
         const exportOptions = {

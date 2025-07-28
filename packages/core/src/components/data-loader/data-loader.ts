@@ -1,12 +1,12 @@
 import { LitElement, html, css, PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { tableFromIPC } from "apache-arrow";
+import { parquetReadObjects } from "hyparquet";
 import type { VisualizationData, Feature } from "@protspace/utils";
 
 /**
- * Apache Arrow Data Loader Web Component
+ * Parquet Data Loader Web Component
  *
- * Loads protein data from Apache Arrow format files and converts them
+ * Loads protein data from Parquet (.parquet) format files and converts them
  * to the ProtSpace visualization data format. Categories from columns
  * become legend items with unique values as elements.
  */
@@ -165,12 +165,12 @@ export class DataLoader extends LitElement {
 
         <div class="message">
           ${this.loading
-            ? "Loading Arrow data..."
+            ? "Loading Parquet data..."
             : this.error
             ? "Error loading data"
             : this.allowDrop
-            ? "Drop an Arrow file here or click to browse"
-            : "Click to load Arrow file"}
+            ? "Drop a Parquet or ParquetBundle file here or click to browse"
+            : "Click to load Parquet or ParquetBundle file"}
         </div>
 
         ${this.fileInfo
@@ -199,7 +199,7 @@ export class DataLoader extends LitElement {
       <input
         type="file"
         class="hidden-input"
-        accept=".arrow,.parquet,.feather"
+        accept=".parquet,.parquetbundle"
         @change=${this.handleFileSelect}
       />
     `;
@@ -281,7 +281,7 @@ export class DataLoader extends LitElement {
   }
 
   /**
-   * Load Arrow data from a URL
+   * Load Parquet data from a URL
    */
   async loadFromUrl(url: string) {
     this.setLoading(true);
@@ -301,10 +301,11 @@ export class DataLoader extends LitElement {
       const arrayBuffer = await response.arrayBuffer();
 
       this.progress = 60;
-      const table = tableFromIPC([arrayBuffer]);
+      const table = await parquetReadObjects({ file: arrayBuffer });
 
       this.progress = 80;
-      const visualizationData = this.convertArrowToVisualizationData(table);
+      const visualizationData =
+        await this.convertParquetToVisualizationDataOptimized(table);
 
       this.progress = 100;
       this.dispatchDataLoaded(visualizationData);
@@ -318,27 +319,52 @@ export class DataLoader extends LitElement {
   }
 
   /**
-   * Load Arrow data from a File object
+   * Load Parquet data from a File object with performance optimizations
    */
   async loadFromFile(file: File) {
     this.setLoading(true);
     this.error = null;
     this.fileInfo = { name: file.name, size: file.size };
 
+    // Performance optimization: disable inspection files for large files
+    const disableInspection = file.size > 50 * 1024 * 1024; // 50MB threshold
+
     try {
       this.progress = 10;
-      const arrayBuffer = await file.arrayBuffer();
 
-      this.progress = 40;
-      const table = tableFromIPC([arrayBuffer]);
+      // Optimize ArrayBuffer reading for large files
+      const arrayBuffer = await this.readFileOptimized(file);
 
-      this.progress = 70;
-      const visualizationData = this.convertArrowToVisualizationData(table);
+      this.progress = 30;
+
+      // Check if this is a parquetbundle file
+      if (
+        file.name.endsWith(".parquetbundle") ||
+        this.isParquetBundle(arrayBuffer)
+      ) {
+        console.log("🔍 Detected parquetbundle format, extracting...");
+        const extractedData = await this.extractFromParquetBundle(
+          arrayBuffer,
+          disableInspection
+        );
+        this.progress = 70;
+        const visualizationData =
+          await this.convertParquetToVisualizationDataOptimized(extractedData);
+        this.progress = 100;
+        this.dispatchDataLoaded(visualizationData);
+      } else {
+        // Regular parquet file
+        this.progress = 40;
+        const table = await parquetReadObjects({ file: arrayBuffer });
+        this.progress = 70;
+        const visualizationData =
+          await this.convertParquetToVisualizationDataOptimized(table);
+        this.progress = 100;
+        this.dispatchDataLoaded(visualizationData);
+      }
 
       console.log("✅ Data conversion completed successfully");
       console.log("📊 About to dispatch data-loaded event...");
-      this.progress = 100;
-      this.dispatchDataLoaded(visualizationData);
       console.log("✅ dispatchDataLoaded called successfully");
     } catch (error) {
       this.error =
@@ -350,45 +376,944 @@ export class DataLoader extends LitElement {
   }
 
   /**
-   * Convert Apache Arrow table to ProtSpace VisualizationData format
+   * Optimized file reading with chunking for large files
    */
-  private convertArrowToVisualizationData(table: any): VisualizationData {
-    const schema = table.schema;
-    const numRows = table.numRows;
+  private async readFileOptimized(file: File): Promise<ArrayBuffer> {
+    // For small files, use the normal approach
+    if (file.size < 10 * 1024 * 1024) {
+      // 10MB
+      return file.arrayBuffer();
+    }
 
-    // Extract column names
-    const columnNames = schema.fields.map((field: any) => field.name);
-    console.log("Arrow columns found:", columnNames);
+    // For large files, read in chunks to avoid blocking
+    const chunkSize = 8 * 1024 * 1024; // 8MB chunks
+    const chunks: Uint8Array[] = [];
+    let offset = 0;
 
-    // Find protein ID column
-    const proteinIdCol =
-      this.columnMappings.proteinId ||
-      this.findColumn(columnNames, ["protein_id", "id", "protein", "uniprot"]);
+    while (offset < file.size) {
+      const chunk = file.slice(offset, Math.min(offset + chunkSize, file.size));
+      const chunkBuffer = await chunk.arrayBuffer();
+      chunks.push(new Uint8Array(chunkBuffer));
+      offset += chunkSize;
 
-    if (!proteinIdCol) {
+      // Yield control to prevent UI blocking
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    // Combine chunks efficiently
+    const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const result = new Uint8Array(totalLength);
+    let position = 0;
+
+    for (const chunk of chunks) {
+      result.set(chunk, position);
+      position += chunk.length;
+    }
+
+    return result.buffer;
+  }
+
+  /**
+   * Check if the file is a parquetbundle format
+   */
+  private isParquetBundle(arrayBuffer: ArrayBuffer): boolean {
+    const uint8Array = new Uint8Array(arrayBuffer);
+    const delimiter = new TextEncoder().encode("---PARQUET_DELIMITER---");
+
+    // Look for the delimiter in the first part of the file
+    for (let i = 0; i <= uint8Array.length - delimiter.length; i++) {
+      let match = true;
+      for (let j = 0; j < delimiter.length; j++) {
+        if (uint8Array[i + j] !== delimiter[j]) {
+          match = false;
+          break;
+        }
+      }
+      if (match) {
+        console.log("🎯 Found parquet bundle delimiter at position:", i);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Extract data from parquetbundle format
+   */
+  private async extractFromParquetBundle(
+    arrayBuffer: ArrayBuffer,
+    disableInspection: boolean
+  ): Promise<Record<string, any>[]> {
+    console.log("🔧 Extracting from parquetbundle format...");
+
+    const uint8Array = new Uint8Array(arrayBuffer);
+    const delimiter = new TextEncoder().encode("---PARQUET_DELIMITER---");
+
+    // Find all delimiter positions
+    const delimiterPositions: number[] = [];
+    for (let i = 0; i <= uint8Array.length - delimiter.length; i++) {
+      let match = true;
+      for (let j = 0; j < delimiter.length; j++) {
+        if (uint8Array[i + j] !== delimiter[j]) {
+          match = false;
+          break;
+        }
+      }
+      if (match) {
+        delimiterPositions.push(i);
+      }
+    }
+
+    if (delimiterPositions.length !== 2) {
       throw new Error(
-        `Protein ID column not found. Found columns: ${columnNames.join(", ")}`
+        `Expected 2 delimiters in parquetbundle, found ${delimiterPositions.length}`
       );
     }
 
-    // Find all projection coordinate pairs
-    const projectionPairs = this.findProjectionPairs(columnNames);
-    console.log("Found projection pairs:", projectionPairs);
+    console.log("📍 Found delimiters at positions:", delimiterPositions);
 
-    if (projectionPairs.length === 0) {
+    // Split into 3 parts according to ProtSpace format
+    const selectedFeaturesBuffer = uint8Array.slice(
+      0,
+      delimiterPositions[0]
+    ).buffer;
+    const projectionsMetadataBuffer = uint8Array.slice(
+      delimiterPositions[0] + delimiter.length,
+      delimiterPositions[1]
+    ).buffer;
+    const projectionsDataBuffer = uint8Array.slice(
+      delimiterPositions[1] + delimiter.length
+    ).buffer;
+
+    console.log("📦 Split bundle into 3 parts:", {
+      selectedFeatures: selectedFeaturesBuffer.byteLength + " bytes",
+      projectionsMetadata: projectionsMetadataBuffer.byteLength + " bytes",
+      projectionsData: projectionsDataBuffer.byteLength + " bytes",
+    });
+
+    try {
+      // Read all three parts
+      const selectedFeaturesData = await parquetReadObjects({
+        file: selectedFeaturesBuffer,
+      });
+      console.log("📋 Selected Features:", {
+        rows: selectedFeaturesData.length,
+        columns:
+          selectedFeaturesData.length > 0
+            ? Object.keys(selectedFeaturesData[0])
+            : [],
+        sample: selectedFeaturesData.slice(0, 2),
+      });
+
+      const projectionsMetadataData = await parquetReadObjects({
+        file: projectionsMetadataBuffer,
+      });
+      console.log("📊 Projections Metadata:", {
+        rows: projectionsMetadataData.length,
+        columns:
+          projectionsMetadataData.length > 0
+            ? Object.keys(projectionsMetadataData[0])
+            : [],
+        sample: projectionsMetadataData.slice(0, 2),
+      });
+
+      const projectionsData = await parquetReadObjects({
+        file: projectionsDataBuffer,
+      });
+      console.log("📈 Projections Data:", {
+        rows: projectionsData.length,
+        columns:
+          projectionsData.length > 0 ? Object.keys(projectionsData[0]) : [],
+        sample: projectionsData.slice(0, 3),
+      });
+
+      // Create downloadable files for inspection
+      if (!disableInspection) {
+        this.createInspectionFiles(
+          selectedFeaturesBuffer,
+          projectionsMetadataBuffer,
+          projectionsDataBuffer,
+          selectedFeaturesData,
+          projectionsMetadataData,
+          projectionsData
+        );
+      }
+
+      // Merge projections data with features data for visualization
+      console.log("🔗 Merging projection coordinates with feature data...");
+      const mergedData = this.mergeProjectionsWithFeatures(
+        projectionsData,
+        selectedFeaturesData
+      );
+
+      console.log("✅ Final merged data:", {
+        rows: mergedData.length,
+        columns: mergedData.length > 0 ? Object.keys(mergedData[0]) : [],
+        sample: mergedData.slice(0, 2),
+      });
+
+      return mergedData;
+    } catch (error) {
+      console.error("❌ Failed to process parquet bundle parts:", error);
+      throw new Error(`Failed to process parquet bundle: ${error}`);
+    }
+  }
+
+  /**
+   * Merge projections data with features data based on protein identifiers
+   */
+  private mergeProjectionsWithFeatures(
+    projectionsData: Record<string, any>[],
+    featuresData: Record<string, any>[]
+  ): Record<string, any>[] {
+    console.log("🔗 Merging projections with features...");
+
+    // Create a map of features by protein ID for fast lookup
+    const featuresMap = new Map<string, Record<string, any>>();
+
+    // Try different possible ID column names in features
+    const featureIdColumn = this.findColumn(
+      featuresData.length > 0 ? Object.keys(featuresData[0]) : [],
+      ["protein_id", "identifier", "id", "uniprot", "entry"]
+    );
+
+    if (!featureIdColumn && featuresData.length > 0) {
+      console.warn(
+        "⚠️ No ID column found in features data, using first column"
+      );
+    }
+
+    const finalFeatureIdColumn =
+      featureIdColumn ||
+      (featuresData.length > 0 ? Object.keys(featuresData[0])[0] : null);
+
+    if (finalFeatureIdColumn) {
+      for (const feature of featuresData) {
+        const proteinId = feature[finalFeatureIdColumn];
+        if (proteinId) {
+          featuresMap.set(proteinId.toString(), feature);
+        }
+      }
+      console.log(
+        `📋 Created features map with ${featuresMap.size} entries using column '${finalFeatureIdColumn}'`
+      );
+    }
+
+    // Find projection ID column
+    const projectionIdColumn = this.findColumn(
+      projectionsData.length > 0 ? Object.keys(projectionsData[0]) : [],
+      ["identifier", "protein_id", "id", "uniprot", "entry"]
+    );
+
+    if (!projectionIdColumn) {
+      console.warn("⚠️ No ID column found in projections data");
+      return projectionsData; // Return as-is if no merge possible
+    }
+
+    console.log(
+      `🎯 Using '${projectionIdColumn}' from projections and '${finalFeatureIdColumn}' from features for merging`
+    );
+
+    // Merge the data
+    const mergedData: Record<string, any>[] = [];
+
+    for (const projection of projectionsData) {
+      const proteinId = projection[projectionIdColumn];
+      const features = proteinId ? featuresMap.get(proteinId.toString()) : null;
+
+      // Create merged row
+      const mergedRow = {
+        ...projection, // Keep all projection data (identifier, projection_name, x, y, z)
+        ...(features || {}), // Add features if found
+      };
+
+      mergedData.push(mergedRow);
+    }
+
+    console.log(
+      `✅ Merged ${mergedData.length} rows with projection coordinates and features`
+    );
+    return mergedData;
+  }
+
+  /**
+   * Analyze column types in the data
+   */
+  private analyzeColumnTypes(row: Record<string, any>): Record<string, string> {
+    const types: Record<string, string> = {};
+    for (const [key, value] of Object.entries(row)) {
+      if (value === null || value === undefined) {
+        types[key] = "null";
+      } else if (typeof value === "number") {
+        types[key] = "number";
+      } else if (typeof value === "string") {
+        types[key] = "string";
+      } else if (typeof value === "boolean") {
+        types[key] = "boolean";
+      } else {
+        types[key] = typeof value;
+      }
+    }
+    return types;
+  }
+
+  /**
+   * Create downloadable files for inspection in VS Code/Cursor
+   */
+  private createInspectionFiles(
+    part1Buffer: ArrayBuffer,
+    part2Buffer: ArrayBuffer,
+    part3Buffer: ArrayBuffer,
+    part1Data: Record<string, any>[],
+    part2Data: Record<string, any>[],
+    part3Data: Record<string, any>[]
+  ) {
+    console.log("💾 Creating inspection files for download...");
+
+    try {
+      // Create blob URLs for downloading the individual parquet files
+      const part1Blob = new Blob([part1Buffer], {
+        type: "application/octet-stream",
+      });
+      const part2Blob = new Blob([part2Buffer], {
+        type: "application/octet-stream",
+      });
+      const part3Blob = new Blob([part3Buffer], {
+        type: "application/octet-stream",
+      });
+
+      const part1Url = URL.createObjectURL(part1Blob);
+      const part2Url = URL.createObjectURL(part2Blob);
+      const part3Url = URL.createObjectURL(part3Blob);
+
+      // Create download links
+      const downloadContainer = document.createElement("div");
+      downloadContainer.style.cssText = `
+        position: fixed; top: 20px; right: 20px; z-index: 10000;
+        background: white; border: 2px solid #333; border-radius: 8px;
+        padding: 15px; font-family: Arial, sans-serif; font-size: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3); max-width: 300px;
+      `;
+
+      downloadContainer.innerHTML = `
+        <div style="font-weight: bold; margin-bottom: 10px;">📥 Bundle Parts for Inspection</div>
+        <div style="margin-bottom: 5px;">
+          <a href="${part1Url}" download="selected_features.parquet" style="color: #0066cc;">
+            📄 Part 1: selected_features.parquet (${part1Data.length} rows)
+          </a>
+        </div>
+        <div style="margin-bottom: 5px;">
+          <a href="${part2Url}" download="projections_metadata.parquet" style="color: #0066cc;">
+            📊 Part 2: projections_metadata.parquet (${part2Data.length} rows)
+          </a>
+        </div>
+        <div style="margin-bottom: 10px;">
+          <a href="${part3Url}" download="projections_data.parquet" style="color: #0066cc;">
+            📈 Part 3: projections_data.parquet (${part3Data.length} rows)
+          </a>
+        </div>
+        <button onclick="this.parentElement.remove()" style="
+          background: #ff4444; color: white; border: none; 
+          padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 11px;
+        ">Close</button>
+      `;
+
+      document.body.appendChild(downloadContainer);
+
+      // Auto-remove after 30 seconds
+      setTimeout(() => {
+        if (downloadContainer.parentElement) {
+          downloadContainer.remove();
+        }
+        URL.revokeObjectURL(part1Url);
+        URL.revokeObjectURL(part2Url);
+        URL.revokeObjectURL(part3Url);
+      }, 30000);
+
+      console.log("✅ Inspection files ready for download");
+    } catch (error) {
+      console.error("❌ Failed to create inspection files:", error);
+    }
+  }
+
+  /**
+   * Convert Parquet data to ProtSpace VisualizationData format with performance optimizations
+   */
+  private async convertParquetToVisualizationDataOptimized(
+    rows: Record<string, any>[]
+  ): Promise<VisualizationData> {
+    console.log(
+      "🔄 Converting parquet data to visualization format (optimized)..."
+    );
+
+    if (!rows || rows.length === 0) {
+      throw new Error("No data rows found in parquet file");
+    }
+
+    const dataSize = rows.length;
+    console.log(`📊 Processing ${dataSize} rows with optimization...`);
+
+    // For small datasets, use the regular method
+    if (dataSize < 10000) {
+      return this.convertParquetToVisualizationData(rows);
+    }
+
+    // For large datasets, use chunked processing
+    return this.convertLargeDatasetOptimized(rows);
+  }
+
+  /**
+   * Optimized conversion for large datasets using chunking
+   */
+  private async convertLargeDatasetOptimized(
+    rows: Record<string, any>[]
+  ): Promise<VisualizationData> {
+    console.log("⚡ Using large dataset optimization...");
+
+    // Extract column names from first row
+    const columnNames = Object.keys(rows[0]);
+    console.log("📊 Parquet columns found:", columnNames.length, "columns");
+
+    // Check if this is the new ProtSpace bundle format
+    const hasProjectionName = columnNames.includes("projection_name");
+    const hasXYCoordinates =
+      columnNames.includes("x") && columnNames.includes("y");
+
+    if (hasProjectionName && hasXYCoordinates) {
+      console.log("✅ Using optimized bundle format processing");
+      return this.convertBundleFormatDataOptimized(rows, columnNames);
+    } else {
+      console.log("📊 Using optimized legacy format processing");
+      return this.convertLegacyFormatDataOptimized(rows, columnNames);
+    }
+  }
+
+  /**
+   * Optimized bundle format conversion with chunking
+   */
+  private async convertBundleFormatDataOptimized(
+    rows: Record<string, any>[],
+    columnNames: string[]
+  ): Promise<VisualizationData> {
+    const chunkSize = 5000; // Process 5000 rows at a time
+    const totalRows = rows.length;
+
+    console.log(
+      `🎯 Converting bundle format data in chunks (${chunkSize} rows per chunk)...`
+    );
+
+    // Find protein ID column
+    const proteinIdCol =
+      this.findColumn(columnNames, [
+        "identifier",
+        "protein_id",
+        "id",
+        "protein",
+        "uniprot",
+      ]) || columnNames[0];
+
+    // Use Map for better performance with large datasets
+    const projectionGroups = new Map<string, Record<string, any>[]>();
+    const uniqueProteinIdsSet = new Set<string>();
+
+    // Process data in chunks to avoid blocking the UI
+    for (let i = 0; i < totalRows; i += chunkSize) {
+      const chunk = rows.slice(i, Math.min(i + chunkSize, totalRows));
+
+      // Process chunk
+      for (const row of chunk) {
+        const projectionName = row.projection_name || "Unknown";
+        if (!projectionGroups.has(projectionName)) {
+          projectionGroups.set(projectionName, []);
+        }
+        projectionGroups.get(projectionName)!.push(row);
+
+        const proteinId = row[proteinIdCol]?.toString();
+        if (proteinId) {
+          uniqueProteinIdsSet.add(proteinId);
+        }
+      }
+
+      // Yield control every chunk to prevent UI blocking
+      if (i % (chunkSize * 4) === 0) {
+        // Every 4 chunks
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        console.log(
+          `📈 Processed ${Math.min(
+            i + chunkSize,
+            totalRows
+          )}/${totalRows} rows...`
+        );
+      }
+    }
+
+    const uniqueProteinIds = Array.from(uniqueProteinIdsSet);
+    console.log(`🧬 Found ${uniqueProteinIds.length} unique proteins`);
+
+    // Create projections with optimized coordinate mapping
+    const projections = [];
+    for (const [projectionName, projectionRows] of projectionGroups.entries()) {
+      // Use Map for O(1) lookup instead of O(n) search
+      const coordMap = new Map<string, [number, number]>();
+
+      for (const row of projectionRows) {
+        const proteinId = row[proteinIdCol]?.toString() || "";
+        const x = parseFloat(row.x) || 0;
+        const y = parseFloat(row.y) || 0;
+        coordMap.set(proteinId, [x, y]);
+      }
+
+      // Build projection data efficiently
+      const projectionData: [number, number][] = new Array(
+        uniqueProteinIds.length
+      );
+      for (let i = 0; i < uniqueProteinIds.length; i++) {
+        projectionData[i] = coordMap.get(uniqueProteinIds[i]) || [0, 0];
+      }
+
+      const formattedName = this.formatProjectionName(projectionName);
+      projections.push({
+        name: formattedName,
+        data: projectionData,
+      });
+
+      // Yield control after each projection
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    // Extract features with optimized processing
+    const features = await this.extractFeaturesOptimized(
+      rows,
+      columnNames,
+      proteinIdCol,
+      uniqueProteinIds
+    );
+
+    const result = {
+      protein_ids: uniqueProteinIds,
+      projections,
+      features: features.features,
+      feature_data: features.feature_data,
+    };
+
+    console.log("✅ Optimized bundle format conversion completed:", {
+      protein_count: result.protein_ids.length,
+      projection_count: result.projections.length,
+      feature_count: Object.keys(result.features).length,
+    });
+
+    return result;
+  }
+
+  /**
+   * Optimized feature extraction with chunking
+   */
+  private async extractFeaturesOptimized(
+    rows: Record<string, any>[],
+    columnNames: string[],
+    proteinIdCol: string,
+    uniqueProteinIds: string[]
+  ): Promise<{
+    features: Record<string, Feature>;
+    feature_data: Record<string, number[]>;
+  }> {
+    // Exclude coordinate and ID columns
+    const allIdColumns = new Set([
+      "projection_name",
+      "x",
+      "y",
+      "z",
+      "identifier",
+      "protein_id",
+      "id",
+      "uniprot",
+      "entry",
+      proteinIdCol,
+    ]);
+
+    const featureColumns = columnNames.filter((col) => !allIdColumns.has(col));
+    console.log(`🏷️ Processing ${featureColumns.length} feature columns...`);
+
+    const features: Record<string, Feature> = {};
+    const feature_data: Record<string, number[]> = {};
+
+    const chunkSize = 10000;
+    const totalRows = rows.length;
+
+    for (const featureCol of featureColumns) {
+      console.log(`🔍 Processing feature: ${featureCol}`);
+
+      // Use Map for better performance
+      const featureMap = new Map<string, string | null>();
+      const valueCountMap = new Map<string | null, number>();
+
+      // Process data in chunks
+      for (let i = 0; i < totalRows; i += chunkSize) {
+        const chunk = rows.slice(i, Math.min(i + chunkSize, totalRows));
+
+        for (const row of chunk) {
+          const proteinId = row[proteinIdCol]?.toString() || "";
+          const value = row[featureCol];
+          const stringValue =
+            value === null || value === undefined ? null : value.toString();
+
+          featureMap.set(proteinId, stringValue);
+          valueCountMap.set(
+            stringValue,
+            (valueCountMap.get(stringValue) || 0) + 1
+          );
+        }
+
+        // Yield control periodically
+        if (i % (chunkSize * 5) === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+      }
+
+      // Get unique values and create efficient mappings
+      const uniqueValues = Array.from(valueCountMap.keys());
+      const valueToIndex = new Map<string | null, number>();
+      uniqueValues.forEach((value, index) => {
+        valueToIndex.set(value, index);
+      });
+
+      // Generate colors and shapes efficiently
+      const colors = this.generateColors(uniqueValues.length);
+      const shapes = this.generateShapes(uniqueValues.length);
+
+      // Create feature data array efficiently
+      const featureDataArray = new Array<number>(uniqueProteinIds.length);
+      for (let i = 0; i < uniqueProteinIds.length; i++) {
+        const value = featureMap.get(uniqueProteinIds[i]) || null;
+        featureDataArray[i] = valueToIndex.get(value) || 0;
+      }
+
+      features[featureCol] = { values: uniqueValues, colors, shapes };
+      feature_data[featureCol] = featureDataArray;
+
+      // Yield control after each feature
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    return { features, feature_data };
+  }
+
+  /**
+   * Optimized legacy format conversion (placeholder - implement if needed)
+   */
+  private async convertLegacyFormatDataOptimized(
+    rows: Record<string, any>[],
+    columnNames: string[]
+  ): Promise<VisualizationData> {
+    // For now, fall back to the regular method
+    // Can be optimized later if needed
+    console.log(
+      "⚠️ Using regular legacy conversion (optimization not yet implemented)"
+    );
+    return this.convertLegacyFormatData(rows, columnNames);
+  }
+
+  /**
+   * Convert Parquet data to ProtSpace VisualizationData format
+   */
+  private convertParquetToVisualizationData(
+    rows: Record<string, any>[]
+  ): VisualizationData {
+    console.log("🔄 Converting parquet data to visualization format...");
+
+    if (!rows || rows.length === 0) {
+      throw new Error("No data rows found in parquet file");
+    }
+
+    // Extract column names from first row
+    const columnNames = Object.keys(rows[0]);
+    console.log("📊 Parquet columns found:", columnNames);
+    console.log("🔍 Sample row for analysis:", rows[0]);
+
+    // Check if this is the new ProtSpace bundle format (has projection_name, x, y columns)
+    const hasProjectionName = columnNames.includes("projection_name");
+    const hasXYCoordinates =
+      columnNames.includes("x") && columnNames.includes("y");
+
+    if (hasProjectionName && hasXYCoordinates) {
+      console.log(
+        "✅ Detected new ProtSpace bundle format with projection_name and x,y coordinates"
+      );
+      return this.convertBundleFormatData(rows, columnNames);
+    } else {
+      console.log("📊 Using legacy projection pair detection");
+      return this.convertLegacyFormatData(rows, columnNames);
+    }
+  }
+
+  /**
+   * Convert new ProtSpace bundle format data
+   */
+  private convertBundleFormatData(
+    rows: Record<string, any>[],
+    columnNames: string[]
+  ): VisualizationData {
+    console.log("🎯 Converting bundle format data...");
+
+    // Find protein ID column
+    const proteinIdCol =
+      this.findColumn(columnNames, [
+        "identifier",
+        "protein_id",
+        "id",
+        "protein",
+        "uniprot",
+      ]) || columnNames[0];
+
+    console.log(`🏷️ Using '${proteinIdCol}' as protein ID column`);
+
+    // Group data by projection type
+    const projectionGroups = new Map<string, Record<string, any>[]>();
+    for (const row of rows) {
+      const projectionName = row.projection_name || "Unknown";
+      console.log(
+        `🔍 Processing row with projection_name: "${projectionName}"`
+      );
+      if (!projectionGroups.has(projectionName)) {
+        projectionGroups.set(projectionName, []);
+      }
+      projectionGroups.get(projectionName)!.push(row);
+    }
+
+    console.log("📊 Found projections:", Array.from(projectionGroups.keys()));
+    console.log(
+      "📊 Projection sizes:",
+      Array.from(projectionGroups.entries()).map(
+        ([name, data]) => `${name}: ${data.length} points`
+      )
+    );
+
+    // Extract unique protein IDs (they might be duplicated across projections)
+    const uniqueProteinIds = Array.from(
+      new Set(
+        rows.map((row) => {
+          const value = row[proteinIdCol];
+          return value ? value.toString() : "";
+        })
+      )
+    );
+
+    console.log(`🧬 Found ${uniqueProteinIds.length} unique proteins`);
+
+    // Create projections array
+    const projections = [];
+    for (const [projectionName, projectionRows] of projectionGroups.entries()) {
+      const projectionData: [number, number][] = [];
+
+      // Create a map for faster lookup
+      const coordMap = new Map<string, [number, number]>();
+      for (const row of projectionRows) {
+        const proteinId = row[proteinIdCol]?.toString() || "";
+        const x = parseFloat(row.x) || 0;
+        const y = parseFloat(row.y) || 0;
+        coordMap.set(proteinId, [x, y]);
+      }
+
+      // Ensure all proteins have coordinates (fill missing with [0,0])
+      for (const proteinId of uniqueProteinIds) {
+        const coords = coordMap.get(proteinId) || [0, 0];
+        projectionData.push(coords);
+      }
+
+      console.log(`📈 Projection '${projectionName}':`, {
+        points: projectionData.length,
+        xRange: [
+          Math.min(...projectionData.map((p) => p[0])),
+          Math.max(...projectionData.map((p) => p[0])),
+        ],
+        yRange: [
+          Math.min(...projectionData.map((p) => p[1])),
+          Math.max(...projectionData.map((p) => p[1])),
+        ],
+        sample: projectionData.slice(0, 3),
+      });
+
+      const formattedName = this.formatProjectionName(projectionName);
+      console.log(
+        `🏷️ Formatting projection name: "${projectionName}" → "${formattedName}"`
+      );
+
+      projections.push({
+        name: formattedName,
+        data: projectionData,
+      });
+    }
+
+    // Extract features (exclude coordinate and ID columns)
+    // After merging, we may have multiple ID columns from both projections and features data
+    const allIdColumns = new Set([
+      "projection_name",
+      "x",
+      "y",
+      "z", // Coordinate and projection columns
+      "identifier",
+      "protein_id",
+      "id",
+      "uniprot",
+      "entry", // All possible ID columns
+      proteinIdCol, // The detected protein ID column
+    ]);
+
+    const featureColumns = columnNames.filter((col) => !allIdColumns.has(col));
+
+    console.log(
+      "🏷️ Feature columns (after excluding all ID columns):",
+      featureColumns
+    );
+    console.log(
+      "🚫 Excluded columns:",
+      Array.from(allIdColumns).filter((col) => columnNames.includes(col))
+    );
+
+    const features: Record<string, Feature> = {};
+    const feature_data: Record<string, number[]> = {};
+
+    // Use the first projection's data as the base for features (they should be the same across projections)
+    const baseProjectionData = projectionGroups.values().next().value || rows;
+
+    for (const featureCol of featureColumns) {
+      // Create a map of feature values by protein ID
+      const featureMap = new Map<string, string | null>();
+
+      for (const row of baseProjectionData) {
+        const proteinId = row[proteinIdCol]?.toString() || "";
+        const value = row[featureCol];
+        const stringValue =
+          value === null || value === undefined ? null : value.toString();
+        featureMap.set(proteinId, stringValue);
+      }
+
+      // Get unique values and create mappings
+      const allValues = Array.from(featureMap.values());
+      const uniqueValues = Array.from(new Set(allValues));
+      const valueToIndex = new Map<string | null, number>();
+
+      uniqueValues.forEach((value, index) => {
+        valueToIndex.set(value, index);
+      });
+
+      console.log(
+        `🏷️ Feature '${featureCol}': ${uniqueValues.length} unique values:`,
+        uniqueValues.slice(0, 5)
+      );
+
+      // Create colors and shapes
+      const colors = this.generateColors(uniqueValues.length);
+      const shapes = this.generateShapes(uniqueValues.length);
+
+      console.log(
+        `🎨 Generated colors for '${featureCol}':`,
+        colors.slice(0, 3)
+      );
+      console.log(
+        `🔺 Generated shapes for '${featureCol}':`,
+        shapes.slice(0, 3)
+      );
+
+      // Map feature values to indices for all proteins
+      const featureDataArray: number[] = uniqueProteinIds.map((proteinId) => {
+        const value = featureMap.get(proteinId) || null;
+        return valueToIndex.get(value) || 0;
+      });
+
+      features[featureCol] = { values: uniqueValues, colors, shapes };
+      feature_data[featureCol] = featureDataArray;
+
+      console.log(`📊 Feature data mapping for '${featureCol}':`, {
+        sampleMappings: featureDataArray.slice(0, 5),
+        sampleProteins: uniqueProteinIds.slice(0, 5),
+        sampleValues: featureDataArray
+          .slice(0, 5)
+          .map((idx) => uniqueValues[idx]),
+      });
+    }
+
+    const result = {
+      protein_ids: uniqueProteinIds,
+      projections,
+      features,
+      feature_data,
+    };
+
+    console.log("✅ Bundle format conversion completed:", {
+      protein_count: result.protein_ids.length,
+      projection_count: result.projections.length,
+      feature_count: Object.keys(result.features).length,
+      projection_names: result.projections.map((p) => p.name),
+      feature_names: Object.keys(result.features),
+    });
+
+    return result;
+  }
+
+  /**
+   * Convert legacy format data (for backwards compatibility)
+   */
+  private convertLegacyFormatData(
+    rows: Record<string, any>[],
+    columnNames: string[]
+  ): VisualizationData {
+    console.log("📊 Converting legacy format data...");
+
+    // Find protein ID column
+    const proteinIdCol = this.findColumn(columnNames, [
+      "identifier",
+      "protein_id",
+      "id",
+      "protein",
+      "uniprot",
+    ]);
+
+    const finalProteinIdCol = proteinIdCol || columnNames[0];
+
+    if (!finalProteinIdCol) {
       throw new Error(
-        `No projection coordinate pairs found. Found columns: ${columnNames.join(
+        `Protein ID column not found. Available columns: ${columnNames.join(
           ", "
         )}`
       );
     }
 
-    // Extract protein IDs
-    const protein_ids: string[] = [];
-    const proteinIdColumn = table.getChild(proteinIdCol);
-    for (let i = 0; i < numRows; i++) {
-      protein_ids.push(proteinIdColumn.get(i).toString());
+    // Find projection pairs using the existing logic
+    const projectionPairs = this.findProjectionPairs(columnNames);
+    console.log("🎯 Found projection pairs:", projectionPairs);
+
+    if (projectionPairs.length === 0) {
+      console.warn(
+        "⚠️ No standard projection pairs found, analyzing all numeric columns..."
+      );
+      // Try to find any numeric columns that could be coordinates
+      const numericColumns = columnNames.filter((col) => {
+        const sampleValue = rows[0][col];
+        return (
+          typeof sampleValue === "number" || !isNaN(parseFloat(sampleValue))
+        );
+      });
+      console.log("🔢 Numeric columns found:", numericColumns);
+
+      if (numericColumns.length === 0) {
+        throw new Error(
+          `No projection coordinate pairs found. Available columns: ${columnNames.join(
+            ", "
+          )}`
+        );
+      }
     }
+
+    // Continue with the rest of the legacy conversion logic...
+    // (keeping the existing logic for backwards compatibility)
+
+    // Extract protein IDs - ensure we have a valid column
+    const protein_ids: string[] = rows.map((row) => {
+      const value = row[finalProteinIdCol];
+      return value ? value.toString() : "";
+    });
+
     console.log(
       "Extracted protein IDs:",
       protein_ids.slice(0, 3),
@@ -399,12 +1324,11 @@ export class DataLoader extends LitElement {
     const projections = [];
     for (const pair of projectionPairs) {
       const projectionData: [number, number][] = [];
-      const xColumn = table.getChild(pair.xCol);
-      const yColumn = table.getChild(pair.yCol);
 
-      for (let i = 0; i < numRows; i++) {
-        const xValue = xColumn.get(i);
-        const yValue = yColumn.get(i);
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const xValue = row[pair.xCol];
+        const yValue = row[pair.yCol];
         const x = parseFloat(xValue);
         const y = parseFloat(yValue);
 
@@ -423,16 +1347,6 @@ export class DataLoader extends LitElement {
         projectionData.slice(0, 3),
         "... (showing first 3)"
       );
-      console.log(
-        `X range: ${Math.min(...projectionData.map((p) => p[0]))} to ${Math.max(
-          ...projectionData.map((p) => p[0])
-        )}`
-      );
-      console.log(
-        `Y range: ${Math.min(...projectionData.map((p) => p[1]))} to ${Math.max(
-          ...projectionData.map((p) => p[1])
-        )}`
-      );
 
       projections.push({
         name: pair.name,
@@ -440,14 +1354,9 @@ export class DataLoader extends LitElement {
       });
     }
 
-    console.log(
-      "Created projections:",
-      projections.map((p) => p.name)
-    );
-
     // Extract categorical features (columns that are not protein_id or projection coordinates)
     const usedColumns = new Set([
-      proteinIdCol,
+      finalProteinIdCol,
       ...projectionPairs.flatMap((p) => [p.xCol, p.yCol]),
     ]);
     const featureColumns = columnNames.filter(
@@ -461,21 +1370,15 @@ export class DataLoader extends LitElement {
 
     // Process each categorical column
     for (const featureCol of featureColumns) {
-      const values: (string | null)[] = [];
-      const rawValues: (string | null)[] = [];
-
-      // Extract all values for this feature
-      const featureColumn = table.getChild(featureCol);
-      for (let i = 0; i < numRows; i++) {
-        const value = featureColumn.get(i);
-        const stringValue =
-          value === null || value === undefined ? null : value.toString();
-        rawValues.push(stringValue);
-      }
+      const rawValues: (string | null)[] = rows.map((row) => {
+        const value = row[featureCol];
+        return value === null || value === undefined ? null : value.toString();
+      });
 
       // Find unique values and create mappings
       const uniqueValues = Array.from(new Set(rawValues));
       const valueToIndex = new Map<string | null, number>();
+      const values: (string | null)[] = [];
 
       uniqueValues.forEach((value, index) => {
         valueToIndex.set(value, index);
@@ -492,11 +1395,9 @@ export class DataLoader extends LitElement {
       const shapes = this.generateShapes(uniqueValues.length);
 
       // Map each protein to its feature value index
-      const featureDataArray: number[] = [];
-      for (let i = 0; i < numRows; i++) {
-        const value = rawValues[i];
-        featureDataArray.push(valueToIndex.get(value) || 0);
-      }
+      const featureDataArray: number[] = rawValues.map(
+        (value) => valueToIndex.get(value) || 0
+      );
 
       features[featureCol] = { values, colors, shapes };
       feature_data[featureCol] = featureDataArray;
@@ -670,8 +1571,20 @@ export class DataLoader extends LitElement {
    * Format projection name for display
    */
   private formatProjectionName(name: string): string {
+    console.log(`🔄 formatProjectionName input: "${name}"`);
+
+    // Handle specific cases first
+    if (name.toUpperCase() === "PCA_2") return "PCA 2";
+    if (name.toUpperCase() === "PCA_3") return "PCA 3";
+
+    // Handle other PCA variants
+    if (name.match(/^PCA_?\d+$/i)) {
+      const number = name.replace(/^PCA_?/i, "");
+      return `PCA ${number}`;
+    }
+
     // Convert names like "umap2_esm2" to "UMAP2 ESM2"
-    return name
+    const result = name
       .split("_")
       .map((part) => {
         if (part.toLowerCase().includes("umap"))
@@ -680,9 +1593,16 @@ export class DataLoader extends LitElement {
           return "PCA" + part.replace(/pca/i, "");
         if (part.toLowerCase().includes("tsne"))
           return "t-SNE" + part.replace(/tsne/i, "");
+        // Handle numeric suffixes better
+        if (/^\d+$/.test(part)) {
+          return part; // Keep numbers as is
+        }
         return part.toUpperCase();
       })
       .join(" ");
+
+    console.log(`🔄 formatProjectionName output: "${result}"`);
+    return result;
   }
 
   /**
@@ -711,11 +1631,47 @@ export class DataLoader extends LitElement {
    * Generate colors for categorical values
    */
   private generateColors(count: number): string[] {
+    if (count <= 0) return [];
+
     const colors: string[] = [];
+
+    // Use a predefined color palette for better consistency
+    const colorPalette = [
+      "#1f77b4",
+      "#ff7f0e",
+      "#2ca02c",
+      "#d62728",
+      "#9467bd",
+      "#8c564b",
+      "#e377c2",
+      "#7f7f7f",
+      "#bcbd22",
+      "#17becf",
+      "#aec7e8",
+      "#ffbb78",
+      "#98df8a",
+      "#ff9896",
+      "#c5b0d5",
+      "#c49c94",
+      "#f7b6d3",
+      "#c7c7c7",
+      "#dbdb8d",
+      "#9edae5",
+    ];
+
     for (let i = 0; i < count; i++) {
-      const hue = ((i * 360) / count) % 360;
-      colors.push(`hsla(${hue}, 70%, 50%, 0.8)`);
+      if (i < colorPalette.length) {
+        colors.push(colorPalette[i]);
+      } else {
+        // Generate HSL colors for additional values
+        const hue = ((i * 360) / count) % 360;
+        const saturation = 70 + (i % 3) * 10; // Vary saturation slightly
+        const lightness = 50 + (i % 2) * 15; // Vary lightness slightly
+        colors.push(`hsla(${hue}, ${saturation}%, ${lightness}%, 0.8)`);
+      }
     }
+
+    console.log(`🎨 Generated ${colors.length} colors for ${count} values`);
     return colors;
   }
 
@@ -723,6 +1679,8 @@ export class DataLoader extends LitElement {
    * Generate shapes for categorical values
    */
   private generateShapes(count: number): string[] {
+    if (count <= 0) return [];
+
     const shapeOptions = [
       "circle",
       "square",
@@ -735,10 +1693,13 @@ export class DataLoader extends LitElement {
       "wye",
       "asterisk",
     ];
+
     const shapes: string[] = [];
     for (let i = 0; i < count; i++) {
       shapes.push(shapeOptions[i % shapeOptions.length]);
     }
+
+    console.log(`🔺 Generated ${shapes.length} shapes for ${count} values`);
     return shapes;
   }
 

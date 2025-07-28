@@ -41,6 +41,14 @@ export interface ScatterplotConfig {
   baseOpacity?: number;
   selectedOpacity?: number;
   fadedOpacity?: number;
+
+  // Performance options
+  transitionDuration?: number;
+  largeDatasetThreshold?: number;
+  fastRenderingThreshold?: number;
+  enableTransitions?: boolean;
+  useSimpleShapes?: boolean;
+  maxPointsForComplexShapes?: number;
 }
 
 export type PointShape =
