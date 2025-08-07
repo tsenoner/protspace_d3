@@ -205,13 +205,6 @@ export class ProtspaceControlBar extends LitElement {
 
   private handleProjectionChange(event: Event) {
     const target = event.target as HTMLSelectElement;
-    const customEvent = new CustomEvent("projection-change", {
-      detail: { projection: target.value },
-      bubbles: true,
-      composed: true,
-    });
-    this.dispatchEvent(customEvent);
-
     // If auto-sync is enabled, directly update the scatterplot
     if (this.autoSync && this._scatterplotElement) {
       const projectionIndex = this.projections.findIndex(
@@ -226,17 +219,17 @@ export class ProtspaceControlBar extends LitElement {
         this.selectedProjection = target.value;
       }
     }
-  }
 
-  private handleFeatureChange(event: Event) {
-    const target = event.target as HTMLSelectElement;
-    const customEvent = new CustomEvent("feature-change", {
-      detail: { feature: target.value },
+    const customEvent = new CustomEvent("projection-change", {
+      detail: { projection: target.value },
       bubbles: true,
       composed: true,
     });
     this.dispatchEvent(customEvent);
+  }
 
+  private handleFeatureChange(event: Event) {
+    const target = event.target as HTMLSelectElement;
     // If auto-sync is enabled, directly update the scatterplot
     if (this.autoSync && this._scatterplotElement) {
       if ("selectedFeature" in this._scatterplotElement) {
@@ -244,6 +237,13 @@ export class ProtspaceControlBar extends LitElement {
         this.selectedFeature = target.value;
       }
     }
+
+    const customEvent = new CustomEvent("feature-change", {
+      detail: { feature: target.value },
+      bubbles: true,
+      composed: true,
+    });
+    this.dispatchEvent(customEvent);
   }
 
   private handleToggleSelectionMode() {

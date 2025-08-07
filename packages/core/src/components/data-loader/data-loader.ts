@@ -636,26 +636,7 @@ export class DataLoader extends LitElement {
     return mergedData;
   }
 
-  /**
-   * Analyze column types in the data
-   */
-  private analyzeColumnTypes(row: Record<string, any>): Record<string, string> {
-    const types: Record<string, string> = {};
-    for (const [key, value] of Object.entries(row)) {
-      if (value === null || value === undefined) {
-        types[key] = "null";
-      } else if (typeof value === "number") {
-        types[key] = "number";
-      } else if (typeof value === "string") {
-        types[key] = "string";
-      } else if (typeof value === "boolean") {
-        types[key] = "boolean";
-      } else {
-        types[key] = typeof value;
-      }
-    }
-    return types;
-  }
+
 
   /**
    * Create downloadable files for inspection in VS Code/Cursor
