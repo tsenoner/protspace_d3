@@ -423,12 +423,17 @@ export class ProtspaceScatterplot extends LitElement {
     });
   }
 
-  private _handleMouseOver(event: MouseEvent, point: PlotDataPoint) {
-    this._tooltipData = {
-      x: event.pageX,
-      y: event.pageY,
-      protein: point,
+  private _getLocalPointerPosition(event: MouseEvent): { x: number; y: number } {
+    const rect = this.getBoundingClientRect();
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
     };
+  }
+
+  private _handleMouseOver(event: MouseEvent, point: PlotDataPoint) {
+    const { x, y } = this._getLocalPointerPosition(event);
+    this._tooltipData = { x, y, protein: point };
 
     this.dispatchEvent(new CustomEvent("protein-hover", {
       detail: { proteinId: point.id, point },
