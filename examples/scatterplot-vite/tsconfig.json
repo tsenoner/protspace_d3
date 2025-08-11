@@ -18,5 +18,13 @@
     "esModuleInterop": true,
     "lib": ["ESNext", "DOM", "DOM.Iterable"]
   },
-  "include": ["src"]
+  "include": [
+    "src",
+    "vite.config.ts",
+    "vite.paths.ts",
+    "vite.entries.ts"
+  ],
+  "references": [
+    { "path": "./tsconfig.node.json" }
+  ]
 } 
