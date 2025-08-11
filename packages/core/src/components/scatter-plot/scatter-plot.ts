@@ -22,6 +22,7 @@ export class ProtspaceScatterplot extends LitElement {
   // Properties
   @property({ type: Object }) data: VisualizationData | null = null;
   @property({ type: Number }) selectedProjectionIndex = 0;
+  @property({ type: String }) projectionPlane: 'xy' | 'xz' | 'yz' = 'xy';
   @property({ type: String }) selectedFeature = "family";
   @property({ type: Array }) highlightedProteinIds: string[] = [];
   @property({ type: Array }) selectedProteinIds: string[] = [];
@@ -93,7 +94,7 @@ export class ProtspaceScatterplot extends LitElement {
       this._renderTimeout = null;
     }
 
-    if (changedProperties.has("data") || changedProperties.has("selectedProjectionIndex")) {
+    if (changedProperties.has("data") || changedProperties.has("selectedProjectionIndex") || changedProperties.has('projectionPlane')) {
       this._processData();
       this._buildQuadtree();
       
@@ -137,7 +138,13 @@ export class ProtspaceScatterplot extends LitElement {
   private _processData() {
     const dataToUse = this._currentData || this.data;
     if (!dataToUse) return;
-    this._plotData = DataProcessor.processVisualizationData(dataToUse, this.selectedProjectionIndex, this._internalIsolationMode, this._internalSplitHistory);
+    this._plotData = DataProcessor.processVisualizationData(
+      dataToUse,
+      this.selectedProjectionIndex,
+      this._internalIsolationMode,
+      this._internalSplitHistory,
+      this.projectionPlane
+    );
   }
 
   private _buildQuadtree() {

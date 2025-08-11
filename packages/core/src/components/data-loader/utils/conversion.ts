@@ -64,17 +64,26 @@ function convertBundleFormatData(rows: Rows, columnNames: string[]): Visualizati
 
   const projections = [] as VisualizationData["projections"];
   for (const [projectionName, projectionRows] of projectionGroups.entries()) {
-    const coordMap = new Map<string, [number, number]>();
+    const coordMap = new Map<string, [number, number] | [number, number, number]>();
     for (const row of projectionRows) {
       const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : "";
       const x = Number(row.x) || 0;
       const y = Number(row.y) || 0;
-      coordMap.set(proteinId, [x, y]);
+      const zValue = row.z;
+      const z = zValue == null ? null : Number(zValue);
+      if (z !== null && !Number.isNaN(z)) {
+        coordMap.set(proteinId, [x, y, z]);
+      } else {
+        coordMap.set(proteinId, [x, y]);
+      }
     }
-    const projectionData: [number, number][] = uniqueProteinIds.map(
-      (proteinId) => coordMap.get(proteinId) || [0, 0]
-    );
-    projections.push({ name: formatProjectionName(projectionName), data: projectionData });
+    const projectionData = uniqueProteinIds.map((proteinId) => coordMap.get(proteinId) || [0, 0]);
+    const has3D = projectionData.some((p) => p.length === 3);
+    projections.push({
+      name: formatProjectionName(projectionName),
+      data: projectionData as Array<[number, number] | [number, number, number]>,
+      metadata: has3D ? { dimension: 3 } : { dimension: 2 },
+    });
   }
 
   const allIdColumns = new Set([
@@ -157,18 +166,29 @@ async function convertBundleFormatDataOptimized(
 
   const projections = [] as VisualizationData["projections"];
   for (const [projectionName, projectionRows] of projectionGroups.entries()) {
-    const coordMap = new Map<string, [number, number]>();
+    const coordMap = new Map<string, [number, number] | [number, number, number]>();
     for (const row of projectionRows) {
       const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : "";
       const x = Number(row.x) || 0;
       const y = Number(row.y) || 0;
-      coordMap.set(proteinId, [x, y]);
+      const zValue = row.z;
+      const z = zValue == null ? null : Number(zValue);
+      if (z !== null && !Number.isNaN(z)) {
+        coordMap.set(proteinId, [x, y, z]);
+      } else {
+        coordMap.set(proteinId, [x, y]);
+      }
     }
-    const projectionData: [number, number][] = new Array(uniqueProteinIds.length);
+    const projectionData: Array<[number, number] | [number, number, number]> = new Array(uniqueProteinIds.length);
     for (let i = 0; i < uniqueProteinIds.length; i++) {
       projectionData[i] = coordMap.get(uniqueProteinIds[i]) || [0, 0];
     }
-    projections.push({ name: formatProjectionName(projectionName), data: projectionData });
+    const has3D = projectionData.some((p) => p.length === 3);
+    projections.push({
+      name: formatProjectionName(projectionName),
+      data: projectionData,
+      metadata: has3D ? { dimension: 3 } : { dimension: 2 },
+    });
     // yield
      
     await new Promise((r) => setTimeout(r, 0));

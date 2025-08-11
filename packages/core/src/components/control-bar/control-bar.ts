@@ -11,11 +11,14 @@ import type {
 @customElement("protspace-control-bar")
 export class ProtspaceControlBar extends LitElement {
   @property({ type: Array }) projections: string[] = [];
+  @state() private projectionsMeta: Array<{ name: string; metadata?: { dimension?: 2 | 3 } }> = [];
   @property({ type: Array }) features: string[] = [];
   @property({ type: String, attribute: "selected-projection" })
   selectedProjection: string = "";
   @property({ type: String, attribute: "selected-feature" })
   selectedFeature: string = "";
+  @property({ type: String, attribute: "projection-plane" })
+  projectionPlane: 'xy' | 'xz' | 'yz' = 'xy';
   @property({ type: Boolean, attribute: "selection-mode" })
   selectionMode: boolean = false;
   @property({ type: Boolean, attribute: "isolation-mode" })
@@ -55,11 +58,35 @@ export class ProtspaceControlBar extends LitElement {
         (this._scatterplotElement as any).selectedProjectionIndex =
           projectionIndex;
         this.selectedProjection = target.value;
+
+        // If projection is 3D, keep current plane; otherwise, reset to XY
+        const meta = this.projectionsMeta.find(p => p.name === this.selectedProjection);
+        const is3D = meta?.metadata?.dimension === 3;
+        const nextPlane: 'xy' | 'xz' | 'yz' = is3D ? this.projectionPlane : 'xy';
+        if ('projectionPlane' in this._scatterplotElement) {
+          (this._scatterplotElement as any).projectionPlane = nextPlane;
+        }
+        this.projectionPlane = nextPlane;
       }
     }
 
     const customEvent = new CustomEvent("projection-change", {
       detail: { projection: target.value },
+      bubbles: true,
+      composed: true,
+    });
+    this.dispatchEvent(customEvent);
+  }
+
+  private handlePlaneChange(event: Event) {
+    const target = event.target as HTMLSelectElement;
+    const plane = target.value as 'xy' | 'xz' | 'yz';
+    if (this.autoSync && this._scatterplotElement && 'projectionPlane' in this._scatterplotElement) {
+      (this._scatterplotElement as any).projectionPlane = plane;
+      this.projectionPlane = plane;
+    }
+    const customEvent = new CustomEvent('projection-plane-change', {
+      detail: { plane },
       bubbles: true,
       composed: true,
     });
@@ -249,6 +276,21 @@ export class ProtspaceControlBar extends LitElement {
               )}
             </select>
           </div>
+
+          ${(() => {
+            const meta = this.projectionsMeta.find(p => p.name === this.selectedProjection);
+            const is3D = meta?.metadata?.dimension === 3;
+            return is3D ? html`
+              <div class="control-group">
+                <label for="plane-select">Plane:</label>
+                <select id="plane-select" .value=${this.projectionPlane} @change=${this.handlePlaneChange}>
+                  <option value="xy">XY</option>
+                  <option value="xz">XZ</option>
+                  <option value="yz">YZ</option>
+                </select>
+              </div>
+            ` : null;
+          })()}
 
           <!-- Feature selection -->
           <div class="control-group">
@@ -505,7 +547,8 @@ export class ProtspaceControlBar extends LitElement {
 
   private _updateOptionsFromData(data: ProtspaceData) {
     // Update projections and features
-    this.projections = data.projections?.map((p) => p.name) || [];
+    this.projectionsMeta = (data.projections as any) || [];
+    this.projections = this.projectionsMeta.map((p) => p.name) || [];
     this.features = Object.keys(data.features || {});
 
     // Default selections if invalid

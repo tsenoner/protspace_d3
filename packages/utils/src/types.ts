@@ -6,8 +6,9 @@ export interface Feature {
 
 export interface Projection {
   name: string;
-  metadata?: Record<string, unknown>;
-  data: [number, number][]; // Array of [x, y] coordinates
+  metadata?: Record<string, unknown> & { dimension?: 2 | 3 };
+  // Each point is either [x, y] or [x, y, z]
+  data: Array<[number, number] | [number, number, number]>;
 }
 
 export interface VisualizationData {
@@ -21,6 +22,7 @@ export interface PlotDataPoint {
   id: string;
   x: number;
   y: number;
+  z?: number;
   featureValues: Record<string, string | null>;
   originalIndex: number;
 }
