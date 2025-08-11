@@ -1,36 +1,42 @@
 {
-    "compilerOptions": {
-      "target": "ES2020",
-      "lib": ["ES2020", "DOM", "DOM.Iterable"],
-      "module": "ESNext",
-      "skipLibCheck": true,
-      "moduleResolution": "bundler",
-      "allowImportingTsExtensions": true,
-      "resolveJsonModule": true,
-      "isolatedModules": true,
-      "noEmit": true,
-      "jsx": "react-jsx",
-      "strict": true,
-      "noUnusedLocals": true,
-      "noUnusedParameters": true,
-      "noFallthroughCasesInSwitch": true,
-      "experimentalDecorators": true,
-      "useDefineForClassFields": false
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "baseUrl": ".",
+    "paths": {
+      "@protspace/utils": ["packages/utils/src"],
+      "@protspace/core": ["packages/core/src"],
+      "@protspace/react": ["packages/react-bridge/src"]
+    }
+  },
+  "files": [],
+  "include": [],
+  "references": [
+    {
+      "path": "./packages/core"
     },
-    "files": [],
-    "include": [],
-    "references": [
-      {
-        "path": "./packages/core"
-      },
-      {
-        "path": "./packages/utils"
-      },
-      {
-        "path": "./packages/react-bridge"
-      },
-      {
-        "path": "./app"
-      },
-    ]
-  }
+    {
+      "path": "./packages/utils"
+    },
+    {
+      "path": "./packages/react-bridge"
+    },
+    {
+      "path": "./app"
+    },
+  ]
+}
