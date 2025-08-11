@@ -85,20 +85,22 @@ export class ProtspaceControlBar extends LitElement {
   }
 
   private handleToggleSelectionMode() {
+    // Compute and set the new selection mode locally first
+    const newSelectionMode = !this.selectionMode;
+    this.selectionMode = newSelectionMode;
+
+    // If auto-sync is enabled, update the scatterplot BEFORE notifying listeners
+    if (this.autoSync && this._scatterplotElement && "selectionMode" in this._scatterplotElement) {
+      (this._scatterplotElement as any).selectionMode = newSelectionMode;
+    }
+
+    // Now dispatch the event with the updated state so listeners read the correct value
     const customEvent = new CustomEvent("toggle-selection-mode", {
-      detail: {},
+      detail: { selectionMode: newSelectionMode },
       bubbles: true,
       composed: true,
     });
     this.dispatchEvent(customEvent);
-
-    // If auto-sync is enabled, directly update the scatterplot
-    if (this.autoSync && this._scatterplotElement) {
-      this.selectionMode = !this.selectionMode;
-      if ("selectionMode" in this._scatterplotElement) {
-        (this._scatterplotElement as any).selectionMode = this.selectionMode;
-      }
-    }
   }
 
   private handleToggleIsolationMode() {
