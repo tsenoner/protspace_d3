@@ -184,7 +184,7 @@ function createInspectionFiles(
     }, 30000);
   } catch (error) {
     // non-fatal
-    // eslint-disable-next-line no-console
+     
     console.error("Failed to create inspection files", error);
   }
 }

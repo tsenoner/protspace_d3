@@ -20,6 +20,7 @@
   "author": "",
   "devDependencies": {
     "@changesets/cli": "^2.29.4",
+    "@eslint/eslintrc": "^3.3.1",
     "turbo": "^2.5.3"
   }
 }

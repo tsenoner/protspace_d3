@@ -11,7 +11,7 @@ export async function readFileOptimized(file: File): Promise<ArrayBuffer> {
     chunks.push(new Uint8Array(chunkBuffer));
     offset += chunkSize;
     // yield control
-    // eslint-disable-next-line no-await-in-loop
+     
     await new Promise((r) => setTimeout(r, 0));
   }
   const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);

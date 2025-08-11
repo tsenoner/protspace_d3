@@ -149,7 +149,7 @@ async function convertBundleFormatDataOptimized(
       if (proteinId) uniqueProteinIdsSet.add(proteinId);
     }
     // yield
-    // eslint-disable-next-line no-await-in-loop
+     
     await new Promise((r) => setTimeout(r, 0));
   }
 
@@ -170,7 +170,7 @@ async function convertBundleFormatDataOptimized(
     }
     projections.push({ name: formatProjectionName(projectionName), data: projectionData });
     // yield
-    // eslint-disable-next-line no-await-in-loop
+     
     await new Promise((r) => setTimeout(r, 0));
   }
 
@@ -208,7 +208,7 @@ function convertLegacyFormatData(rows: Rows, columnNames: string[]): Visualizati
       const x = Number(row[pair.xCol]);
       const y = Number(row[pair.yCol]);
       if (Number.isNaN(x) || Number.isNaN(y)) {
-        // eslint-disable-next-line no-console
+         
         console.warn(`Invalid coordinates at row ${idx} for projection ${pair.name}`, { x, y });
       }
       return [x, y];
@@ -417,7 +417,7 @@ export async function extractFeaturesOptimized(
         valueCountMap.set(s, (valueCountMap.get(s) || 0) + 1);
       }
       // yield
-      // eslint-disable-next-line no-await-in-loop
+       
       await new Promise((r) => setTimeout(r, 0));
     }
 

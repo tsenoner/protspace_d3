@@ -16,12 +16,7 @@
     "noFallthroughCasesInSwitch": true,
     "experimentalDecorators": true,
     "useDefineForClassFields": false,
-    "baseUrl": ".",
-    "paths": {
-      "@protspace/utils": ["packages/utils/src"],
-      "@protspace/core": ["packages/core/src"],
-      "@protspace/react": ["packages/react-bridge/src"]
-    }
+    "baseUrl": "."
   },
   "files": [],
   "include": [],
