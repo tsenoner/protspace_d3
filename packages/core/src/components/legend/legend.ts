@@ -756,11 +756,30 @@ export class ProtspaceLegend extends LitElement {
   private handleItemClick(value: string | null) {
     const valueKey = value === null ? "null" : value;
 
-    // Toggle hidden state internally
-    if (this._hiddenValues.includes(valueKey)) {
-      this._hiddenValues = this._hiddenValues.filter((v) => v !== valueKey);
+    // Compute proposed hidden values
+    const proposedHiddenValues = this._hiddenValues.includes(valueKey)
+      ? this._hiddenValues.filter((v) => v !== valueKey)
+      : [...this._hiddenValues, valueKey];
+
+    // Compute visibility after the toggle
+    const proposedLegendItems = this.legendItems.map((item) => ({
+      ...item,
+      isVisible: !proposedHiddenValues.includes(
+        item.value === null ? "null" : item.value!
+      ),
+    }));
+
+    // If no items would remain visible, reset to show everything
+    const anyVisible = proposedLegendItems.some((item) => item.isVisible);
+    if (!anyVisible) {
+      this._hiddenValues = [];
+      this.legendItems = this.legendItems.map((item) => ({
+        ...item,
+        isVisible: true,
+      }));
     } else {
-      this._hiddenValues = [...this._hiddenValues, valueKey];
+      this._hiddenValues = proposedHiddenValues;
+      this.legendItems = proposedLegendItems;
     }
 
     // Update scatterplot if auto-hide is enabled
@@ -773,14 +792,6 @@ export class ProtspaceLegend extends LitElement {
         ...this._hiddenValues,
       ];
     }
-
-    // Update legend items visibility
-    this.legendItems = this.legendItems.map((item) => ({
-      ...item,
-      isVisible: !this._hiddenValues.includes(
-        item.value === null ? "null" : item.value!
-      ),
-    }));
 
     // Dispatch event for external listeners
     this.dispatchEvent(
@@ -820,11 +831,30 @@ export class ProtspaceLegend extends LitElement {
       }));
     }
 
+    // Update hidden values to reflect current visibility state
+    const newHiddenValues = this.legendItems
+      .filter((item) => !item.isVisible)
+      .map((item) => (item.value === null ? "null" : item.value!));
+
+    this._hiddenValues = newHiddenValues;
+
+    // Sync hidden values with scatterplot when enabled
+    if (
+      this.autoHide &&
+      this._scatterplotElement &&
+      "hiddenFeatureValues" in this._scatterplotElement
+    ) {
+      (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [
+        ...this._hiddenValues,
+      ];
+    }
+
     // Dispatch "isolate" action for double click
     this.dispatchEvent(
       new CustomEvent("legend-item-click", {
         detail: { value, action: "isolate" },
         bubbles: true,
+        composed: true,
       })
     );
 
