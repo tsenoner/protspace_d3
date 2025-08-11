@@ -4,8 +4,10 @@
 export class StructureService {
   private static readonly ALPHAFOLD_BASE_URL =
     "https://alphafold.ebi.ac.uk/files";
-  private static readonly ALPHAFOLD_URL_PATTERN = (proteinId: string) =>
-    `${StructureService.ALPHAFOLD_BASE_URL}/AF-${proteinId}-F1-model_v4.pdb`;
+  private static readonly ALPHAFOLD_MODEL_VERSIONS = ["v4", "v3", "v2", "v1"] as const;
+  private static buildAlphaFoldUrl(proteinId: string, version: string) {
+    return `${StructureService.ALPHAFOLD_BASE_URL}/AF-${proteinId}-F1-model_${version}.pdb`;
+  }
 
   /**
    * Load protein structure from available sources
@@ -14,30 +16,16 @@ export class StructureService {
    */
   public static async loadStructure(proteinId: string): Promise<StructureData> {
     const formattedId = this.formatProteinId(proteinId);
+    console.log("[StructureService] loadStructure", { input: proteinId, formattedId });
 
-    // Try AlphaFold first
+    // Try AlphaFold with version fallback
     try {
-      const alphafoldUrl = this.ALPHAFOLD_URL_PATTERN(formattedId);
-      const structureData = await this.loadFromAlphaFold(
-        alphafoldUrl,
-        formattedId
-      );
+      const structureData = await this.tryLoadFromAlphaFoldWithFallback(formattedId);
+      console.log("[StructureService] AlphaFold structure found", structureData);
       return structureData;
     } catch (alphafoldError) {
-      console.warn(
-        `AlphaFold loading failed for ${formattedId}:`,
-        alphafoldError
-      );
-
-      // Fallback to PDB
-      try {
-        const structureData = await this.loadFromPDB(formattedId);
-        return structureData;
-      } catch (pdbError) {
-        throw new Error(
-          `Failed to load structure from both AlphaFold and PDB: ${pdbError}`
-        );
-      }
+      console.warn(`AlphaFold loading failed for ${formattedId}:`, alphafoldError);
+      throw new Error(`AlphaFold structure not available for ${formattedId}`);
     }
   }
 
@@ -50,7 +38,8 @@ export class StructureService {
     proteinId: string
   ): Promise<boolean> {
     const formattedId = this.formatProteinId(proteinId);
-    const alphafoldUrl = this.ALPHAFOLD_URL_PATTERN(formattedId);
+    // Probe the latest known version first
+    const alphafoldUrl = this.buildAlphaFoldUrl(formattedId, this.ALPHAFOLD_MODEL_VERSIONS[0]);
 
     try {
       const response = await fetch(alphafoldUrl, { method: "HEAD" });
@@ -64,13 +53,11 @@ export class StructureService {
    * Load structure from AlphaFold
    * @private
    */
-  private static async loadFromAlphaFold(
-    url: string,
-    proteinId: string
-  ): Promise<StructureData> {
+  private static async loadFromAlphaFold(url: string, proteinId: string, version: string): Promise<StructureData> {
+    console.log("[StructureService] Probing AlphaFold URL", { url, proteinId, version });
     const response = await fetch(url, { method: "HEAD" });
     if (!response.ok) {
-      throw new Error(`AlphaFold structure not available for ${proteinId}`);
+      throw new Error(`AlphaFold structure not available for ${proteinId} (${version})`);
     }
 
     return {
@@ -79,30 +66,26 @@ export class StructureService {
       url,
       format: "pdb",
       metadata: {
-        confidence: "high", // AlphaFold typically has confidence scores
+        confidence: "high",
         method: "predicted",
-        version: "v4",
+        version,
       },
     };
   }
 
-  /**
-   * Load structure from PDB
-   * @private
-   */
-  private static async loadFromPDB(proteinId: string): Promise<StructureData> {
-    // For PDB, we don't need to fetch - Molstar handles PDB loading internally
-    return {
-      proteinId,
-      source: "pdb",
-      url: null, // PDB loading uses protein ID, not URL
-      format: "pdb",
-      metadata: {
-        confidence: "experimental",
-        method: "experimental",
-        version: "latest",
-      },
-    };
+  private static async tryLoadFromAlphaFoldWithFallback(proteinId: string): Promise<StructureData> {
+    const errors: unknown[] = [];
+    for (const version of this.ALPHAFOLD_MODEL_VERSIONS) {
+      try {
+        const url = this.buildAlphaFoldUrl(proteinId, version);
+        return await this.loadFromAlphaFold(url, proteinId, version);
+      } catch (e) {
+        console.warn("[StructureService] AlphaFold version failed", { proteinId, version, error: e });
+        errors.push(e);
+        continue;
+      }
+    }
+    throw errors[errors.length - 1] ?? new Error(`AlphaFold structure not available for ${proteinId}`);
   }
 
   /**
@@ -119,7 +102,7 @@ export class StructureService {
  */
 export interface StructureData {
   proteinId: string;
-  source: "alphafold" | "pdb";
+  source: "alphafold";
   url: string | null;
   format: "pdb" | "cif";
   metadata: {

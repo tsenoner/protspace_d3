@@ -119,6 +119,30 @@ export const structureViewerStyles = css`
     line-height: 1.5;
   }
 
+  .empty-container {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: var(--protspace-viewer-bg);
+    z-index: 5;
+    padding: 2rem;
+    text-align: center;
+  }
+
+  .empty-title {
+    color: var(--protspace-viewer-text);
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  .empty-message {
+    color: var(--protspace-viewer-text-muted);
+    font-size: 0.875rem;
+  }
+
   .viewer-content {
     width: 100%;
     height: 100%;

@@ -37,7 +37,11 @@ export class ProtspaceStructureViewer extends LitElement {
   @query(".viewer-content") private _viewerContainer!: HTMLElement;
 
   protected updated(changedProperties: Map<string | number | symbol, unknown>) {
+    if (changedProperties.size > 0) {
+      console.log("[StructureViewer] updated props:", Object.fromEntries(changedProperties));
+    }
     if (changedProperties.has("proteinId")) {
+      console.log("[StructureViewer] proteinId changed:", changedProperties.get("proteinId"), "->", this.proteinId);
       if (this.proteinId) {
         this._loadStructure();
       } else {
@@ -46,11 +50,13 @@ export class ProtspaceStructureViewer extends LitElement {
     }
     if (changedProperties.has("height")) {
       this.style.setProperty("--protspace-viewer-height", this.height);
+      console.log("[StructureViewer] height updated to:", this.height);
     }
   }
 
   connectedCallback() {
     super.connectedCallback();
+    console.log("[StructureViewer] connected", { autoSync: this.autoSync, autoShow: this.autoShow });
 
     if (this.autoSync) {
       this._setupAutoSync();
@@ -78,6 +84,10 @@ export class ProtspaceStructureViewer extends LitElement {
       this._scatterplotElement = document.querySelector(
         this.scatterplotSelector
       );
+      console.log("[StructureViewer] auto-sync setup: scatterplot element", {
+        selector: this.scatterplotSelector,
+        found: Boolean(this._scatterplotElement),
+      });
       if (this._scatterplotElement) {
         // Listen for protein clicks
         this._scatterplotElement.addEventListener(
@@ -88,6 +98,7 @@ export class ProtspaceStructureViewer extends LitElement {
         // Initially hide if autoShow is enabled
         if (this.autoShow && !this.proteinId) {
           this.style.display = "none";
+          console.log("[StructureViewer] autoShow enabled, hiding until selection");
         }
       }
     }, 100);
@@ -96,13 +107,14 @@ export class ProtspaceStructureViewer extends LitElement {
   private _handleProteinClick(event: Event) {
     const customEvent = event as CustomEvent;
     const { proteinId, modifierKeys } = customEvent.detail;
+    console.log("[StructureViewer] protein-click event received", { proteinId, modifierKeys });
 
     // Only respond to single clicks (not multi-selection)
     if (!modifierKeys.ctrl && !modifierKeys.shift && this.autoShow) {
       // Show structure viewer and load protein
       this.proteinId = proteinId;
       this.style.display = "block";
-      console.log(`Auto-loading structure for protein: ${proteinId}`);
+      console.log("[StructureViewer] auto-loading structure for protein:", proteinId);
     }
   }
 
@@ -152,6 +164,7 @@ export class ProtspaceStructureViewer extends LitElement {
     this._isLoading = true;
     this._error = null;
     this._structureData = null;
+    console.log("[StructureViewer] _loadStructure start", { proteinId: this.proteinId });
 
     // Dispatch loading event
     this._dispatchStructureEvent("loading");
@@ -164,23 +177,47 @@ export class ProtspaceStructureViewer extends LitElement {
       this._structureData = await StructureService.loadStructure(
         this.proteinId
       );
+      console.log("[StructureViewer] structure data loaded", this._structureData);
 
       // Create Mol* viewer
       await this.updateComplete;
       if (!this._viewerContainer) {
         throw new Error("Viewer container not available");
       }
+      console.log("[StructureViewer] creating Mol* viewer", this._viewerContainer);
       this._viewer = await createMolstarViewer(this._viewerContainer);
+      console.log("[StructureViewer] Mol* viewer created", Boolean(this._viewer));
 
       // Load structure into viewer based on source
+      console.log("[StructureViewer] displaying structure", {
+        source: this._structureData.source,
+        url: this._structureData.url,
+        format: this._structureData.format,
+      });
       await this._displayStructure(this._structureData);
+      console.log("[StructureViewer] structure displayed successfully");
 
       this._isLoading = false;
       this._dispatchStructureEvent("loaded");
     } catch (error) {
-      console.error("Structure loading error:", error);
-      this._error =
-        error instanceof Error ? error.message : "Failed to load structure";
+      console.error("[StructureViewer] Structure loading error:", error);
+      const formattedId = this.proteinId?.split(".")[0] ?? this.proteinId ?? "";
+      const genericMessage = `No 3D structure was found for ${formattedId} in AlphaFold.`;
+      const fallbackMessage = "Failed to load structure. Please try again.";
+      if (error instanceof Error) {
+        // Map low-level errors to a user-friendly message
+        const message = error.message.toLowerCase();
+        if (
+          message.includes("failed to load structure from both alphafold and pdb") ||
+          message.includes("alphafold structure not available")
+        ) {
+          this._error = genericMessage;
+        } else {
+          this._error = fallbackMessage;
+        }
+      } else {
+        this._error = fallbackMessage;
+      }
       this._isLoading = false;
       this._dispatchStructureEvent("error", this._error);
     }
@@ -196,6 +233,7 @@ export class ProtspaceStructureViewer extends LitElement {
     // Load structure based on source
     switch (structureData.source) {
       case "alphafold":
+        console.log("[StructureViewer] loading AlphaFold structure", { url: structureData.url, format: structureData.format });
         if (structureData.url) {
           await this._viewer.loadStructureFromUrl(
             structureData.url,
@@ -204,9 +242,6 @@ export class ProtspaceStructureViewer extends LitElement {
         } else {
           throw new Error("AlphaFold structure URL not available");
         }
-        break;
-      case "pdb":
-        await this._viewer.loadPdb(structureData.proteinId);
         break;
       default:
         throw new Error(
@@ -218,14 +253,16 @@ export class ProtspaceStructureViewer extends LitElement {
   private _cleanup() {
     if (this._viewer) {
       try {
+        console.log("[StructureViewer] disposing existing viewer");
         this._viewer.dispose();
       } catch (error) {
-        console.warn("Error disposing viewer:", error);
+        console.warn("[StructureViewer] Error disposing viewer:", error);
       }
       this._viewer = null;
     }
 
     if (this._viewerContainer) {
+      console.log("[StructureViewer] clearing viewer container contents");
       this._viewerContainer.innerHTML = "";
     }
 
@@ -236,6 +273,11 @@ export class ProtspaceStructureViewer extends LitElement {
     status: "loading" | "loaded" | "error",
     error?: string
   ) {
+    console.log("[StructureViewer] dispatching structure-load event", {
+      proteinId: this.proteinId,
+      status,
+      hasError: Boolean(error),
+    });
     this.dispatchEvent(
       new CustomEvent("structure-load", {
         detail: {
@@ -250,6 +292,7 @@ export class ProtspaceStructureViewer extends LitElement {
   }
 
   private _dispatchCloseEvent() {
+    console.log("[StructureViewer] dispatching structure-close event", { proteinId: this.proteinId });
     this.dispatchEvent(
       new CustomEvent("structure-close", {
         detail: {
@@ -265,8 +308,24 @@ export class ProtspaceStructureViewer extends LitElement {
   }
 
   render() {
+    const formattedId = this.proteinId?.split(".")[0] ?? this.proteinId ?? "";
+    const alphaFoldUrl = formattedId
+      ? `https://alphafold.ebi.ac.uk/entry/${formattedId}`
+      : null;
+    const pdbSearchUrl = formattedId
+      ? `https://www.rcsb.org/search?request={\"query\":{\"type\":\"terminal\",\"service\":\"text\",\"parameters\":{\"attribute\":\"rcsb_entry_container_identifiers.entry_id\",\"operator\":\"contains_words\",\"value\":\"${formattedId}\"}},\"return_type\":\"entry\"}`
+      : null;
+
     if (!this.proteinId) {
-      return html``;
+      return html`
+        <div class="viewer-container">
+          <div class="empty-container">
+            <div class="empty-title">No protein selected</div>
+            <div class="empty-message">Select a point in the scatter plot to view its 3D structure.</div>
+          </div>
+          <div class="viewer-content"></div>
+        </div>
+      `;
     }
 
     return html`
@@ -302,8 +361,13 @@ export class ProtspaceStructureViewer extends LitElement {
               <div class="error-container">
                 <div class="error-title">${this._error}</div>
                 <div class="error-message">
-                  The structure data could not be loaded. This protein may not
-                  have an available structure in AlphaFold or PDB.
+                  ${alphaFoldUrl
+                    ? html`<a href="${alphaFoldUrl}" target="_blank" rel="noopener">Check AlphaFold entry</a>`
+                    : ""}
+                  ${alphaFoldUrl && pdbSearchUrl ? html` · ` : ""}
+                  ${pdbSearchUrl
+                    ? html`<a href="${pdbSearchUrl}" target="_blank" rel="noopener">Search RCSB PDB</a>`
+                    : ""}
                 </div>
               </div>
             `
