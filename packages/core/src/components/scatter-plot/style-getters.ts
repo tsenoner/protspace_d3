@@ -8,6 +8,7 @@ export interface StyleConfig {
   selectedFeature: string;
   hiddenFeatureValues: string[];
   otherFeatureValues: string[];
+  useShapes?: boolean;
   sizes: {
     base: number;
     highlighted: number;
@@ -28,6 +29,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
   };
 
   const getPointShape = (point: PlotDataPoint): d3.SymbolType => {
+    if (styleConfig.useShapes === false) return d3.symbolCircle;
     if (!data || !styleConfig.selectedFeature) return d3.symbolCircle;
     const featureValue = point.featureValues[styleConfig.selectedFeature];
     if (featureValue === null) return d3.symbolCircle;

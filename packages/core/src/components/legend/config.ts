@@ -35,12 +35,13 @@ export const DEFAULT_STYLES = {
  */
 export const LEGEND_DEFAULTS = {
   maxVisibleValues: 10,
-  symbolSize: 16,
+  symbolSize: 6,
   symbolSizeMultiplier: 8, // For D3 symbol size calculation
   dragTimeout: 100,
   scatterplotSelector: "protspace-scatterplot",
   autoSyncDelay: 100,
   includeOthers: true,
+  includeShapes: false,
 } as const;
 
 /**

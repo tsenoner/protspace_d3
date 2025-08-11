@@ -39,6 +39,7 @@ export interface ScatterplotElement extends Element {
   selectedFeature: string;
   hiddenFeatureValues: string[];
   otherFeatureValues?: string[];
+  useShapes?: boolean;
 }
 
 /**
@@ -88,4 +89,5 @@ export interface LegendDataInput {
 
 export interface LegendSettings {
   includeOthers: boolean;
+  includeShapes: boolean;
 }

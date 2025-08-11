@@ -46,6 +46,10 @@ export class ProtspaceLegend extends LitElement {
   @state() private settingsMaxVisibleValues: number = LEGEND_DEFAULTS.maxVisibleValues;
   @property({ type: Boolean }) includeOthers: boolean = LEGEND_DEFAULTS.includeOthers;
   @state() private settingsIncludeOthers: boolean = LEGEND_DEFAULTS.includeOthers;
+  @property({ type: Boolean }) includeShapes: boolean = LEGEND_DEFAULTS.includeShapes;
+  @state() private settingsIncludeShapes: boolean = LEGEND_DEFAULTS.includeShapes;
+  @property({ type: Number }) shapeSize: number = LEGEND_DEFAULTS.symbolSize;
+  @state() private settingsShapeSize: number = LEGEND_DEFAULTS.symbolSize;
 
   // Auto-sync properties
   @property({ type: String, attribute: "scatterplot-selector" })
@@ -73,7 +77,8 @@ export class ProtspaceLegend extends LitElement {
       changedProperties.has("featureValues") ||
       changedProperties.has("proteinIds") ||
       changedProperties.has("maxVisibleValues") ||
-      changedProperties.has("includeOthers")
+      changedProperties.has("includeOthers") ||
+      changedProperties.has("includeShapes")
     ) {
       this.updateLegendItems();
     }
@@ -302,14 +307,20 @@ export class ProtspaceLegend extends LitElement {
         ? this._computeOtherConcreteValues()
         : [];
     }
+
+    // Update scatterplot to toggle shapes usage
+    if (this._scatterplotElement && "useShapes" in this._scatterplotElement) {
+      // @ts-ignore downstream component flag
+      (this._scatterplotElement as any).useShapes = this.includeShapes;
+    }
   }
 
   // Symbol rendering function using D3 symbols for consistency with scatterplot
   private renderSymbol(
     shape: string | null,
     color: string,
-    size = LEGEND_DEFAULTS.symbolSize,
-    isSelected = false
+    size: number = LEGEND_DEFAULTS.symbolSize,
+    isSelected: boolean = false
   ) {
     const halfSize = size / 2;
 
@@ -606,6 +617,8 @@ export class ProtspaceLegend extends LitElement {
     // Initialize settings value from current maxVisibleValues
     this.settingsMaxVisibleValues = this.maxVisibleValues;
     this.settingsIncludeOthers = this.includeOthers;
+    this.settingsIncludeShapes = this.includeShapes;
+    this.settingsShapeSize = this.shapeSize;
     this.showSettingsDialog = true;
 
     // Keep event for backward compatibility
@@ -830,9 +843,9 @@ export class ProtspaceLegend extends LitElement {
         ${item.value === "Other"
           ? this.renderSymbol("circle", "#888")
           : this.renderSymbol(
-              item.shape,
+              this.includeShapes ? item.shape : "circle",
               item.color,
-              LEGEND_DEFAULTS.symbolSize,
+              16,
               isItemSelected
             )}
       </div>
@@ -884,9 +897,28 @@ export class ProtspaceLegend extends LitElement {
       // Apply and close
       this.maxVisibleValues = this.settingsMaxVisibleValues;
       this.includeOthers = this.settingsIncludeOthers;
+      this.includeShapes = this.settingsIncludeShapes;
+      this.shapeSize = this.settingsShapeSize;
       this.showSettingsDialog = false;
       this.updateLegendItems();
       this.requestUpdate();
+
+      // Update scatterplot point sizes to match shape size (approximate mapping)
+      if (this._scatterplotElement && "config" in this._scatterplotElement) {
+        // d3.symbol size is area; approximate by multiplying pixel size by the same multiplier used in legend
+        const baseSize = Math.max(10, Math.round(this.shapeSize * LEGEND_DEFAULTS.symbolSizeMultiplier));
+        const highlightedSize = Math.round(baseSize * 1.5);
+        const selectedSize = Math.round(baseSize * 1.875);
+        // @ts-ignore config is a public prop on the scatterplot element
+        const currentConfig = (this._scatterplotElement as any).config || {};
+        // @ts-ignore assign merged config to trigger update
+        (this._scatterplotElement as any).config = {
+          ...currentConfig,
+          pointSize: baseSize,
+          highlightedPointSize: highlightedSize,
+          selectedPointSize: selectedSize,
+        };
+      }
     };
 
     const onClose = () => {
@@ -919,9 +951,31 @@ export class ProtspaceLegend extends LitElement {
                 style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;"
               />
             </div>
+            <div>
+              <label for="shape-size-input" class="other-item-name" style="display:block;margin-bottom:6px;">Shape size</label>
+              <input
+                id="shape-size-input"
+                type="number"
+                min="6"
+                max="64"
+                .value=${String(this.settingsShapeSize)}
+                @input=${(e: Event) => {
+                  const target = e.target as HTMLInputElement;
+                  const parsed = parseInt(target.value, 10);
+                  if (!Number.isNaN(parsed) && parsed > 0) {
+                    this.settingsShapeSize = parsed;
+                  }
+                }}
+                style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;"
+              />
+            </div>
             <label style="display:flex;align-items:center;gap:8px;">
               <input type="checkbox" .checked=${this.settingsIncludeOthers} @change=${onToggleIncludeOthers} />
               Show "Other" category
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;">
+              <input type="checkbox" .checked=${this.settingsIncludeShapes} @change=${(e: Event) => { const t = e.target as HTMLInputElement; this.settingsIncludeShapes = t.checked; }} />
+              Include shapes
             </label>
           </div>
 

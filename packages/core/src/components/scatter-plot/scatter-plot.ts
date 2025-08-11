@@ -30,6 +30,7 @@ export class ProtspaceScatterplot extends LitElement {
   @property({ type: Boolean }) selectionMode = false;
   @property({ type: Array }) hiddenFeatureValues: string[] = [];
   @property({ type: Array }) otherFeatureValues: string[] = [];
+  @property({ type: Boolean }) useShapes: boolean = false;
   @property({ type: Object }) config: Partial<ScatterplotConfig> = {};
   @property({ type: Boolean }) useCanvas = true;
   @property({ type: Boolean }) enableVirtualization = false;
@@ -131,6 +132,7 @@ export class ProtspaceScatterplot extends LitElement {
           getOpacity: (p) => this._getOpacity(p),
           getStrokeColor: (p) => this._getStrokeColor(p),
           getStrokeWidth: (p) => this._getStrokeWidth(p),
+          getShape: (p) => this._getPointShape(p),
         }
       );
     }
@@ -212,6 +214,7 @@ export class ProtspaceScatterplot extends LitElement {
             getOpacity: (p) => this._getOpacity(p),
             getStrokeColor: (p) => this._getStrokeColor(p),
             getStrokeWidth: (p) => this._getStrokeWidth(p),
+            getShape: (p) => this._getPointShape(p),
           }
         );
       }
@@ -419,6 +422,7 @@ export class ProtspaceScatterplot extends LitElement {
       selectedFeature: this.selectedFeature,
       hiddenFeatureValues: this.hiddenFeatureValues,
       otherFeatureValues: this.otherFeatureValues,
+      useShapes: this.useShapes,
       sizes: {
         base: this._mergedConfig.pointSize,
         highlighted: this._mergedConfig.highlightedPointSize,
