@@ -4,28 +4,28 @@ export const dataLoaderStyles = css`
   :host {
     display: block;
     padding: 1rem;
-    border: 2px dashed #ccc;
-    border-radius: 8px;
+    border: 2px dashed #c6d3e0;
+    border-radius: 6px;
     text-align: center;
-    background: #fafafa;
+    background: #f6f8fb;
     cursor: pointer;
     transition: all 0.3s ease;
   }
 
   :host(:hover) {
-    border-color: #666;
-    background: #f0f0f0;
+    border-color: #9bb4cc;
+    background: #eef3f8;
   }
 
   :host([loading]) {
-    border-color: #007acc;
-    background: #e6f3ff;
+    border-color: #0072b5;
+    background: #e6f2fa;
     cursor: wait;
   }
 
   :host([error]) {
-    border-color: #d32f2f;
-    background: #ffebee;
+    border-color: #c53030;
+    background: #fff5f5;
   }
 
   .drop-zone {
@@ -44,13 +44,13 @@ export const dataLoaderStyles = css`
 
   .message {
     font-size: 1.1rem;
-    color: #666;
+    color: #4a5568;
     max-width: 400px;
   }
 
   .file-info {
     font-size: 0.9rem;
-    color: #888;
+    color: #718096;
     margin-top: 0.5rem;
   }
 
@@ -58,7 +58,7 @@ export const dataLoaderStyles = css`
     width: 100%;
     max-width: 300px;
     height: 4px;
-    background: #e0e0e0;
+    background: #e5edf5;
     border-radius: 2px;
     overflow: hidden;
     margin-top: 1rem;
@@ -66,12 +66,12 @@ export const dataLoaderStyles = css`
 
   .progress-bar {
     height: 100%;
-    background: #007acc;
+    background: #0072b5;
     transition: width 0.3s ease;
   }
 
   .error-message {
-    color: #d32f2f;
+    color: #c53030;
     font-size: 0.9rem;
     margin-top: 0.5rem;
   }

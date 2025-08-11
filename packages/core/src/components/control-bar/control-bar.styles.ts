@@ -4,6 +4,12 @@ export const controlBarStyles = css`
   :host {
     display: block;
     font-family: system-ui, -apple-system, sans-serif;
+    /* UniProt-inspired design tokens */
+    --up-primary: #00a3e0; /* lighter azure */
+    --up-primary-hover: #008ec4;
+    --up-surface: #ffffff;
+    --up-border: #d9e2ec;
+    --up-muted: #4a5568;
   }
 
   .control-bar {
@@ -11,9 +17,9 @@ export const controlBarStyles = css`
     align-items: center;
     justify-content: space-between;
     padding: 0.5rem 1rem;
-    background: white;
-    border-bottom: 1px solid #e5e7eb;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    background: var(--up-surface);
+    border-bottom: 1px solid var(--up-border);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   }
 
   .left-controls {
@@ -37,23 +43,22 @@ export const controlBarStyles = css`
   label {
     font-size: 0.875rem;
     font-weight: 500;
-    color: #374151;
+    color: var(--up-muted);
   }
 
   select {
     padding: 0.25rem 0.5rem;
-    border: 1px solid #d1d5db;
-    border-radius: 0.375rem;
-    background: white;
+    border: 1px solid var(--up-border);
+    border-radius: 0.25rem;
+    background: var(--up-surface);
     font-size: 0.875rem;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   }
 
   select:focus {
     outline: none;
-    ring: 2px;
-    ring-color: #3b82f6;
-    border-color: #3b82f6;
+    border-color: var(--up-primary);
+    box-shadow: 0 0 0 2px rgba(0, 114, 181, 0.15);
   }
 
   button {
@@ -61,17 +66,17 @@ export const controlBarStyles = css`
     align-items: center;
     gap: 0.25rem;
     padding: 0.25rem 0.75rem;
-    border: 1px solid #d1d5db;
-    border-radius: 0.375rem;
-    background: white;
-    color: #374151;
+    border: 1px solid var(--up-border);
+    border-radius: 0.25rem;
+    background: var(--up-surface);
+    color: var(--up-muted);
     font-size: 0.875rem;
     cursor: pointer;
     transition: all 0.15s ease;
   }
 
   button:hover {
-    background: #f9fafb;
+    background: #f6f8fb;
   }
 
   button:disabled {
@@ -80,13 +85,13 @@ export const controlBarStyles = css`
   }
 
   button.active {
-    background: #3b82f6;
-    color: white;
-    border-color: #3b82f6;
+    background: var(--up-primary);
+    color: #ffffff;
+    border-color: var(--up-primary);
   }
 
   button.active:hover {
-    background: #2563eb;
+    background: var(--up-primary-hover);
   }
 
   .icon {
@@ -107,10 +112,10 @@ export const controlBarStyles = css`
     top: 100%;
     margin-top: 0.25rem;
     width: 10rem;
-    background: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 0.375rem;
-    box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+    background: var(--up-surface);
+    border: 1px solid var(--up-border);
+    border-radius: 0.25rem;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
     z-index: 50;
   }
 
@@ -131,7 +136,7 @@ export const controlBarStyles = css`
   }
 
   .export-menu button:hover {
-    background: #f9fafb;
+    background: #f6f8fb;
   }
 
   .chevron-down {

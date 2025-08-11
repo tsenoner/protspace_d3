@@ -5,13 +5,13 @@ export const structureViewerStyles = css`
     --protspace-viewer-width: 100%;
     --protspace-viewer-height: 400px;
     --protspace-viewer-bg: #ffffff;
-    --protspace-viewer-border: #e1e5e9;
-    --protspace-viewer-border-radius: 8px;
-    --protspace-viewer-header-bg: #f8fafc;
-    --protspace-viewer-text: #374151;
-    --protspace-viewer-text-muted: #6b7280;
-    --protspace-viewer-error: #ef4444;
-    --protspace-viewer-loading: #3b82f6;
+    --protspace-viewer-border: #d9e2ec;
+    --protspace-viewer-border-radius: 6px;
+    --protspace-viewer-header-bg: #f6f8fb;
+    --protspace-viewer-text: #334155;
+    --protspace-viewer-text-muted: #5b6b7a;
+    --protspace-viewer-error: #c53030;
+    --protspace-viewer-loading: #00a3e0;
 
     display: block;
     width: var(--protspace-viewer-width);
@@ -19,7 +19,7 @@ export const structureViewerStyles = css`
     border: 1px solid var(--protspace-viewer-border);
     border-radius: var(--protspace-viewer-border-radius);
     overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
   }
 
   .header {
@@ -58,7 +58,7 @@ export const structureViewerStyles = css`
 
   .close-button:hover {
     color: var(--protspace-viewer-text);
-    background: rgba(0, 0, 0, 0.05);
+    background: rgba(0, 0, 0, 0.04);
   }
 
   .viewer-container {
@@ -126,7 +126,7 @@ export const structureViewerStyles = css`
 
   .tips {
     padding: 0.5rem 1rem;
-    background: #f8fafc;
+    background: #f6f8fb;
     border-top: 1px solid var(--protspace-viewer-border);
     font-size: 0.75rem;
     color: var(--protspace-viewer-text-muted);

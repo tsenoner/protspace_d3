@@ -52,8 +52,8 @@ export const LEGEND_STYLES = {
     outline: 2,
   },
   colors: {
-    defaultStroke: "#333",
-    selectedStroke: "#3B82F6",
+    defaultStroke: "#394150",
+    selectedStroke: "#00A3E0",
     fallback: "#888888",
   },
   outlineShapes: new Set(["plus", "asterisk", "cross", "times"]),

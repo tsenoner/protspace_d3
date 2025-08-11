@@ -72,7 +72,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     if (styleConfig.selectedProteinIds.includes(point.id))
       return "var(--protspace-selection-color, #FF5500)";
     if (styleConfig.highlightedProteinIds.includes(point.id))
-      return "var(--protspace-highlight-color, #3B82F6)";
+      return "var(--protspace-highlight-color, #00A3E0)";
     return "var(--protspace-default-stroke, #333333)";
   };
 

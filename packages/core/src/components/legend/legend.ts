@@ -19,26 +19,26 @@ export class ProtspaceLegend extends LitElement {
     :host {
       --legend-bg: #ffffff;
       --legend-bg-dark: #1f2937;
-      --legend-border: #e1e5e9;
+      --legend-border: #d9e2ec; /* softer border for UniProt */
       --legend-border-dark: #374151;
-      --legend-border-radius: 8px;
+      --legend-border-radius: 6px;
       --legend-padding: 0.75rem;
       --legend-item-padding: 0.625rem;
       --legend-item-gap: 0.5rem;
-      --legend-text-color: #374151;
+      --legend-text-color: #334155;
       --legend-text-color-dark: #f9fafb;
-      --legend-text-secondary: #6b7280;
+      --legend-text-secondary: #5b6b7a;
       --legend-text-secondary-dark: #9ca3af;
-      --legend-hover-bg: #f3f4f6;
+      --legend-hover-bg: #f6f8fb;
       --legend-hover-bg-dark: #374151;
-      --legend-hidden-bg: #f9fafb;
+      --legend-hidden-bg: #f6f8fb;
       --legend-hidden-bg-dark: #374151;
       --legend-hidden-opacity: 0.5;
-      --legend-active-bg: #dbeafe;
+      --legend-active-bg: #e6f1f8;
       --legend-active-bg-dark: #1e3a8a;
-      --legend-drag-bg: #eff6ff;
+      --legend-drag-bg: #eaf4fb;
       --legend-drag-bg-dark: #1e3a8a;
-      --legend-selected-ring: #ef4444;
+      --legend-selected-ring: #00a3e0; /* UniProt lighter azure */
       --legend-extracted-border: #10b981;
 
       display: block;
@@ -47,8 +47,7 @@ export class ProtspaceLegend extends LitElement {
       border-radius: var(--legend-border-radius);
       padding: var(--legend-padding) !important;
       max-width: 320px;
-      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1),
-        0 1px 2px 0 rgba(0, 0, 0, 0.06);
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.06);
       user-select: none;
     }
 
@@ -211,7 +210,7 @@ export class ProtspaceLegend extends LitElement {
     .view-button {
       background: none;
       border: none;
-      color: #3b82f6;
+      color: #00a3e0;
       cursor: pointer;
       font-size: 0.75rem;
       font-weight: 500;
@@ -222,7 +221,7 @@ export class ProtspaceLegend extends LitElement {
     }
 
     .view-button:hover {
-      color: #2563eb;
+      color: #008ec4;
     }
 
     .legend-count {
@@ -403,7 +402,7 @@ export class ProtspaceLegend extends LitElement {
     .extract-button {
       background: none;
       border: none;
-      color: #3b82f6;
+      color: #00a3e0;
       cursor: pointer;
       font-size: 0.875rem;
       font-weight: 500;
@@ -413,7 +412,7 @@ export class ProtspaceLegend extends LitElement {
     }
 
     .extract-button:hover {
-      color: #2563eb;
+      color: #008ec4;
     }
 
     .modal-footer {

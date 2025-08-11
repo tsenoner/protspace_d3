@@ -6,8 +6,8 @@ export const scatterplotStyles = css`
     --protspace-width: 100%;
     --protspace-height: 600px;
     --protspace-bg-color: #ffffff;
-    --protspace-border-color: #e1e5e9;
-    --protspace-border-radius: 8px;
+    --protspace-border-color: #d9e2ec; /* UniProt-like subtle border */
+    --protspace-border-radius: 6px;
 
     /* Points */
     --protspace-point-size: 80px;
@@ -18,9 +18,9 @@ export const scatterplotStyles = css`
     --protspace-point-opacity-faded: 0.2;
 
     /* Selection */
-    --protspace-selection-color: #ff5500;
-    --protspace-highlight-color: #3b82f6;
-    --protspace-default-stroke: #333333;
+    --protspace-selection-color: #ff8a3d; /* warmer but softer */
+    --protspace-highlight-color: #00a3e0; /* UniProt azure */
+    --protspace-default-stroke: #3a3a3a;
     --protspace-stroke-width-base: 1px;
     --protspace-stroke-width-highlighted: 2px;
     --protspace-stroke-width-selected: 3px;
@@ -31,12 +31,12 @@ export const scatterplotStyles = css`
 
     /* Tooltip */
     --protspace-tooltip-bg: rgba(255, 255, 255, 0.95);
-    --protspace-tooltip-border: #e1e5e9;
-    --protspace-tooltip-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --protspace-tooltip-border: #d9e2ec;
+    --protspace-tooltip-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
 
     /* Brush */
-    --protspace-brush-stroke: #3b82f6;
-    --protspace-brush-fill: rgba(59, 130, 246, 0.15);
+    --protspace-brush-stroke: #0072b5;
+    --protspace-brush-fill: rgba(0, 114, 181, 0.15);
 
     display: block;
     width: var(--protspace-width);
@@ -89,7 +89,7 @@ export const scatterplotStyles = css`
     width: 3rem;
     height: 3rem;
     border: 2px solid #e5e7eb;
-    border-top: 2px solid #3b82f6;
+    border-top: 2px solid #00a3e0;
     border-radius: 50%;
     animation: spin 1s linear infinite;
   }
@@ -109,7 +109,7 @@ export const scatterplotStyles = css`
     right: 0.5rem;
     z-index: 10;
     padding: 0.5rem;
-    background: #3b82f6;
+    background: #00a3e0;
     color: white;
     font-size: 0.75rem;
     border-radius: 0.375rem;
@@ -139,12 +139,12 @@ export const scatterplotStyles = css`
 
   .tooltip-feature {
     font-size: 0.75rem;
-    color: #6b7280;
+    color: #5b6b7a;
   }
 
   .tooltip-hint {
     font-size: 0.75rem;
-    color: #9ca3af;
+    color: #94a3b8;
     margin-top: 0.25rem;
     display: flex;
     align-items: center;
