@@ -38,6 +38,7 @@ export interface ScatterplotElement extends Element {
   getCurrentData(): ScatterplotData | null;
   selectedFeature: string;
   hiddenFeatureValues: string[];
+  otherFeatureValues?: string[];
 }
 
 /**

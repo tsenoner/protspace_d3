@@ -27,7 +27,7 @@ export class ProtspaceLegend extends LitElement {
   };
   @property({ type: Array }) featureValues: (string | null)[] = [];
   @property({ type: Array }) proteinIds: string[] = [];
-  @property({ type: Number }) maxVisibleValues =
+  @property({ type: Number }) maxVisibleValues: number =
     LEGEND_DEFAULTS.maxVisibleValues;
   @property({ type: Array }) selectedItems: string[] = [];
   @property({ type: Boolean }) isolationMode = false;
@@ -40,8 +40,10 @@ export class ProtspaceLegend extends LitElement {
   @state() private legendItems: LegendItem[] = [];
   @state() private otherItems: OtherItem[] = [];
   @state() private showOtherDialog = false;
+  @state() private showSettingsDialog = false;
   @state() private draggedItem: string | null = null;
   @state() private dragTimeout: number | null = null;
+  @state() private settingsMaxVisibleValues: number = LEGEND_DEFAULTS.maxVisibleValues;
 
   // Auto-sync properties
   @property({ type: String, attribute: "scatterplot-selector" })
@@ -289,6 +291,11 @@ export class ProtspaceLegend extends LitElement {
     // Set items state
     this.legendItems = legendItems;
     this.otherItems = otherItems;
+
+    // Update scatterplot with current Other bucket value list for consistent coloring
+    if (this._scatterplotElement && "otherFeatureValues" in this._scatterplotElement) {
+      (this._scatterplotElement as ScatterplotElement).otherFeatureValues = this._computeOtherConcreteValues();
+    }
   }
 
   // Symbol rendering function using D3 symbols for consistency with scatterplot
@@ -385,6 +392,10 @@ export class ProtspaceLegend extends LitElement {
       (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [
         ...expandedHidden,
       ];
+      // Also provide the list of concrete values that are in the Other bucket
+      if ("otherFeatureValues" in this._scatterplotElement) {
+        (this._scatterplotElement as ScatterplotElement).otherFeatureValues = this._computeOtherConcreteValues();
+      }
     }
 
     // Dispatch event for external listeners
@@ -442,6 +453,9 @@ export class ProtspaceLegend extends LitElement {
       (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [
         ...expandedHidden,
       ];
+      if ("otherFeatureValues" in this._scatterplotElement) {
+        (this._scatterplotElement as ScatterplotElement).otherFeatureValues = this._computeOtherConcreteValues();
+      }
     }
 
     // Dispatch "isolate" action for double click
@@ -570,7 +584,24 @@ export class ProtspaceLegend extends LitElement {
     this.requestUpdate();
   }
 
+  /**
+   * Compute list of concrete values that belong to the synthetic "Other" bucket
+   */
+  private _computeOtherConcreteValues(): string[] {
+    const values: string[] = [];
+    for (const item of this.otherItems) {
+      if (item.value === null) values.push("null");
+      else values.push(item.value);
+    }
+    return values;
+  }
+
   private handleCustomize() {
+    // Initialize settings value from current maxVisibleValues
+    this.settingsMaxVisibleValues = this.maxVisibleValues;
+    this.showSettingsDialog = true;
+
+    // Keep event for backward compatibility
     this.dispatchEvent(
       new CustomEvent("legend-customize", {
         bubbles: true,
@@ -669,7 +700,7 @@ export class ProtspaceLegend extends LitElement {
       <div class="legend-container">
         ${this._renderHeader()} ${this._renderLegendContent(sortedLegendItems)}
       </div>
-      ${this.renderOtherDialog()}
+      ${this.renderOtherDialog()} ${this.renderSettingsDialog()}
     `;
   }
 
@@ -823,6 +854,64 @@ export class ProtspaceLegend extends LitElement {
       >
         (view)
       </button>
+    `;
+  }
+
+  private renderSettingsDialog() {
+    if (!this.showSettingsDialog) return html``;
+
+    const onInputChange = (e: Event) => {
+      const target = e.target as HTMLInputElement;
+      const parsed = parseInt(target.value, 10);
+      if (!Number.isNaN(parsed) && parsed > 0) {
+        this.settingsMaxVisibleValues = parsed;
+      }
+    };
+
+    const onSave = () => {
+      // Apply and close
+      this.maxVisibleValues = this.settingsMaxVisibleValues;
+      this.showSettingsDialog = false;
+      this.updateLegendItems();
+      this.requestUpdate();
+    };
+
+    const onClose = () => {
+      this.showSettingsDialog = false;
+    };
+
+    return html`
+      <div class="modal-overlay" @click=${onClose}>
+        <div class="modal-content" @click=${(e: Event) => e.stopPropagation()}>
+          <div class="modal-header">
+            <h3 class="modal-title">Legend settings</h3>
+            <button class="close-button" @click=${onClose}>
+              <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <div class="modal-description">Select how many top feature values to show in the legend. Remaining values will be grouped into "Other".</div>
+
+          <div class="other-items-list">
+            <label for="max-visible-input" class="other-item-name" style="display:block;margin-bottom:6px;">Max legend items</label>
+            <input
+              id="max-visible-input"
+              type="number"
+              min="1"
+              .value=${String(this.settingsMaxVisibleValues)}
+              @input=${onInputChange}
+              style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;"
+            />
+          </div>
+
+          <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button class="modal-close-button" @click=${onClose}>Cancel</button>
+            <button class="extract-button" @click=${onSave}>Save</button>
+          </div>
+        </div>
+      </div>
     `;
   }
 }

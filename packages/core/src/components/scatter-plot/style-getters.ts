@@ -7,6 +7,7 @@ export interface StyleConfig {
   highlightedProteinIds: string[];
   selectedFeature: string;
   hiddenFeatureValues: string[];
+  otherFeatureValues: string[];
   sizes: {
     base: number;
     highlighted: number;
@@ -42,6 +43,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     if (!data || !styleConfig.selectedFeature) return "#888888";
     const featureValue = point.featureValues[styleConfig.selectedFeature];
     if (featureValue === null) return "#888888";
+    if (styleConfig.otherFeatureValues.includes(featureValue)) return "#888888";
     const feature = data.features[styleConfig.selectedFeature];
     return feature.colors[feature.values.indexOf(featureValue)] || "#888888";
   };

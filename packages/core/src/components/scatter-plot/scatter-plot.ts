@@ -29,6 +29,7 @@ export class ProtspaceScatterplot extends LitElement {
   @property({ type: Boolean }) isolationMode = false;
   @property({ type: Boolean }) selectionMode = false;
   @property({ type: Array }) hiddenFeatureValues: string[] = [];
+  @property({ type: Array }) otherFeatureValues: string[] = [];
   @property({ type: Object }) config: Partial<ScatterplotConfig> = {};
   @property({ type: Boolean }) useCanvas = true;
   @property({ type: Boolean }) enableVirtualization = false;
@@ -417,6 +418,7 @@ export class ProtspaceScatterplot extends LitElement {
       highlightedProteinIds: this.highlightedProteinIds,
       selectedFeature: this.selectedFeature,
       hiddenFeatureValues: this.hiddenFeatureValues,
+      otherFeatureValues: this.otherFeatureValues,
       sizes: {
         base: this._mergedConfig.pointSize,
         highlighted: this._mergedConfig.highlightedPointSize,
