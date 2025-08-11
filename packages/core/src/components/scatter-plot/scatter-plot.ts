@@ -127,12 +127,11 @@ export class ProtspaceScatterplot extends LitElement {
         () => this._scales,
         () => this._transform,
         {
-          getColor: (p) => this._getColor(p),
-          getPointSize: (p) => this._getPointSize(p),
-          getOpacity: (p) => this._getOpacity(p),
-          getStrokeColor: (p) => this._getStrokeColor(p),
-          getStrokeWidth: (p) => this._getStrokeWidth(p),
-          getShape: (p) => this._getPointShape(p),
+          getColor: (p: PlotDataPoint) => this._getColor(p),
+          getPointSize: (p: PlotDataPoint) => this._getPointSize(p),
+          getOpacity: (p: PlotDataPoint) => this._getOpacity(p),
+          getStrokeColor: (p: PlotDataPoint) => this._getStrokeColor(p),
+          getStrokeWidth: (p: PlotDataPoint) => this._getStrokeWidth(p),
         }
       );
     }
@@ -209,12 +208,11 @@ export class ProtspaceScatterplot extends LitElement {
           () => this._scales,
           () => this._transform,
           {
-            getColor: (p) => this._getColor(p),
-            getPointSize: (p) => this._getPointSize(p),
-            getOpacity: (p) => this._getOpacity(p),
-            getStrokeColor: (p) => this._getStrokeColor(p),
-            getStrokeWidth: (p) => this._getStrokeWidth(p),
-            getShape: (p) => this._getPointShape(p),
+            getColor: (p: PlotDataPoint) => this._getColor(p),
+            getPointSize: (p: PlotDataPoint) => this._getPointSize(p),
+            getOpacity: (p: PlotDataPoint) => this._getOpacity(p),
+            getStrokeColor: (p: PlotDataPoint) => this._getStrokeColor(p),
+            getStrokeWidth: (p: PlotDataPoint) => this._getStrokeWidth(p),
           }
         );
       }
