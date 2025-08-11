@@ -183,6 +183,28 @@ export class ProtspaceLegend extends LitElement {
     this.featureValues = featureValues;
   }
 
+  private _expandHiddenValues(hiddenValues: string[]): string[] {
+    const expanded: string[] = [];
+
+    for (const value of hiddenValues) {
+      if (value === "Other") {
+        // Expand the synthetic Other bucket to its actual values
+        for (const otherItem of this.otherItems) {
+          if (otherItem.value === null) {
+            expanded.push("null");
+          } else {
+            expanded.push(otherItem.value);
+          }
+        }
+      } else {
+        expanded.push(value);
+      }
+    }
+
+    // De-duplicate in case of overlaps
+    return Array.from(new Set(expanded));
+  }
+
   private _handleFeatureChange(event: Event) {
     const customEvent = event as CustomEvent;
     const { feature } = customEvent.detail;
@@ -359,8 +381,9 @@ export class ProtspaceLegend extends LitElement {
       this._scatterplotElement &&
       "hiddenFeatureValues" in this._scatterplotElement
     ) {
+      const expandedHidden = this._expandHiddenValues(this._hiddenValues);
       (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [
-        ...this._hiddenValues,
+        ...expandedHidden,
       ];
     }
 
@@ -415,8 +438,9 @@ export class ProtspaceLegend extends LitElement {
       this._scatterplotElement &&
       "hiddenFeatureValues" in this._scatterplotElement
     ) {
+      const expandedHidden = this._expandHiddenValues(this._hiddenValues);
       (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [
-        ...this._hiddenValues,
+        ...expandedHidden,
       ];
     }
 
