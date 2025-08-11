@@ -124,7 +124,8 @@ export class LegendDataProcessor {
     topItems: Array<[string | null, number]>,
     otherCount: number,
     isolationMode: boolean,
-    featureData: LegendFeatureData
+    featureData: LegendFeatureData,
+    includeOthers: boolean
   ): LegendItem[] {
     // Create legend items with z-order
     const items: LegendItem[] = topItems.map(([value, count], index) => {
@@ -149,8 +150,8 @@ export class LegendDataProcessor {
       };
     });
 
-    // Add "Other" if needed and if we're not in isolation mode
-    if (otherCount > 0 && !isolationMode) {
+    // Add "Other" if needed, enabled, and if we're not in isolation mode
+    if (otherCount > 0 && includeOthers && !isolationMode) {
       items.push({
         value: "Other",
         color: DEFAULT_STYLES.other.color,
@@ -252,7 +253,8 @@ export class LegendDataProcessor {
     maxVisibleValues: number,
     isolationMode: boolean,
     splitHistory: string[][],
-    existingLegendItems: LegendItem[]
+    existingLegendItems: LegendItem[],
+    includeOthers: boolean
   ): {
     legendItems: LegendItem[];
     otherItems: OtherItem[];
@@ -272,10 +274,15 @@ export class LegendDataProcessor {
       filteredIndices
     );
 
+    // Determine effective cap. When Others is disabled, show all categories
+    const effectiveMaxVisibleValues = includeOthers
+      ? maxVisibleValues
+      : Number.MAX_SAFE_INTEGER;
+
     // Sort and limit items
     const { topItems, otherItems, otherCount } = this.sortAndLimitItems(
       frequencyMap,
-      maxVisibleValues,
+      effectiveMaxVisibleValues,
       isolationMode
     );
 
@@ -284,7 +291,8 @@ export class LegendDataProcessor {
       topItems,
       otherCount,
       isolationMode,
-      featureData
+      featureData,
+      includeOthers
     );
 
     // Add null entry if needed
@@ -293,6 +301,7 @@ export class LegendDataProcessor {
     // Add extracted items
     this.addExtractedItems(items, frequencyMap, existingLegendItems);
 
-    return { legendItems: items, otherItems };
+    // If Others is disabled, ensure otherItems is empty as well
+    return { legendItems: items, otherItems: includeOthers ? otherItems : [] };
   }
 }

@@ -44,6 +44,8 @@ export class ProtspaceLegend extends LitElement {
   @state() private draggedItem: string | null = null;
   @state() private dragTimeout: number | null = null;
   @state() private settingsMaxVisibleValues: number = LEGEND_DEFAULTS.maxVisibleValues;
+  @property({ type: Boolean }) includeOthers: boolean = LEGEND_DEFAULTS.includeOthers;
+  @state() private settingsIncludeOthers: boolean = LEGEND_DEFAULTS.includeOthers;
 
   // Auto-sync properties
   @property({ type: String, attribute: "scatterplot-selector" })
@@ -70,7 +72,8 @@ export class ProtspaceLegend extends LitElement {
       changedProperties.has("selectedFeature") ||
       changedProperties.has("featureValues") ||
       changedProperties.has("proteinIds") ||
-      changedProperties.has("maxVisibleValues")
+      changedProperties.has("maxVisibleValues") ||
+      changedProperties.has("includeOthers")
     ) {
       this.updateLegendItems();
     }
@@ -285,7 +288,8 @@ export class ProtspaceLegend extends LitElement {
       this.maxVisibleValues,
       this.isolationMode,
       this.splitHistory,
-      this.legendItems
+      this.legendItems,
+      this.includeOthers
     );
 
     // Set items state
@@ -294,7 +298,9 @@ export class ProtspaceLegend extends LitElement {
 
     // Update scatterplot with current Other bucket value list for consistent coloring
     if (this._scatterplotElement && "otherFeatureValues" in this._scatterplotElement) {
-      (this._scatterplotElement as ScatterplotElement).otherFeatureValues = this._computeOtherConcreteValues();
+      (this._scatterplotElement as ScatterplotElement).otherFeatureValues = this.includeOthers
+        ? this._computeOtherConcreteValues()
+        : [];
     }
   }
 
@@ -599,6 +605,7 @@ export class ProtspaceLegend extends LitElement {
   private handleCustomize() {
     // Initialize settings value from current maxVisibleValues
     this.settingsMaxVisibleValues = this.maxVisibleValues;
+    this.settingsIncludeOthers = this.includeOthers;
     this.showSettingsDialog = true;
 
     // Keep event for backward compatibility
@@ -868,9 +875,15 @@ export class ProtspaceLegend extends LitElement {
       }
     };
 
+    const onToggleIncludeOthers = (e: Event) => {
+      const target = e.target as HTMLInputElement;
+      this.settingsIncludeOthers = target.checked;
+    };
+
     const onSave = () => {
       // Apply and close
       this.maxVisibleValues = this.settingsMaxVisibleValues;
+      this.includeOthers = this.settingsIncludeOthers;
       this.showSettingsDialog = false;
       this.updateLegendItems();
       this.requestUpdate();
@@ -892,18 +905,24 @@ export class ProtspaceLegend extends LitElement {
             </button>
           </div>
 
-          <div class="modal-description">Select how many top feature values to show in the legend. Remaining values will be grouped into "Other".</div>
+          <div class="modal-description">Legend display options</div>
 
-          <div class="other-items-list">
-            <label for="max-visible-input" class="other-item-name" style="display:block;margin-bottom:6px;">Max legend items</label>
-            <input
-              id="max-visible-input"
-              type="number"
-              min="1"
-              .value=${String(this.settingsMaxVisibleValues)}
-              @input=${onInputChange}
-              style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;"
-            />
+          <div class="other-items-list" style="display:flex;flex-direction:column;gap:10px;">
+            <div>
+              <label for="max-visible-input" class="other-item-name" style="display:block;margin-bottom:6px;">Max legend items</label>
+              <input
+                id="max-visible-input"
+                type="number"
+                min="1"
+                .value=${String(this.settingsMaxVisibleValues)}
+                @input=${onInputChange}
+                style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;"
+              />
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;">
+              <input type="checkbox" .checked=${this.settingsIncludeOthers} @change=${onToggleIncludeOthers} />
+              Show "Other" category
+            </label>
           </div>
 
           <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;">

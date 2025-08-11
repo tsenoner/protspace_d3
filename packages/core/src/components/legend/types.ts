@@ -85,3 +85,7 @@ export interface LegendDataInput {
     }
   >;
 }
+
+export interface LegendSettings {
+  includeOthers: boolean;
+}
