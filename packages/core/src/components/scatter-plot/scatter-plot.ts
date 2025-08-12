@@ -110,7 +110,8 @@ export class ProtspaceScatterplot extends LitElement {
       }
     }
     if (changedProperties.has("config")) {
-      this._mergedConfig = { ...DEFAULT_CONFIG, ...this.config };
+      const prev = this._mergedConfig;
+      this._mergedConfig = { ...DEFAULT_CONFIG, ...prev, ...this.config };
     }
     if (changedProperties.has("selectionMode")) {
       this._updateSelectionMode();

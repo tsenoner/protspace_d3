@@ -309,10 +309,9 @@ export class ProtspaceLegend extends LitElement {
     }
 
     // Update scatterplot to toggle shapes usage
-    if (this._scatterplotElement && "useShapes" in this._scatterplotElement) {
-      // @ts-ignore downstream component flag
-      (this._scatterplotElement as any).useShapes = this.includeShapes;
-    }
+      if (this._scatterplotElement && "useShapes" in this._scatterplotElement) {
+        (this._scatterplotElement as any).useShapes = this.includeShapes;
+      }
   }
 
   // Symbol rendering function using D3 symbols for consistency with scatterplot
