@@ -194,7 +194,7 @@ Promise.all([
   // UI elements
   const selectedProteinElement = document.getElementById(
     "selectedProtein"
-  ) as HTMLElement;
+  ) as HTMLElement | null;
 
   if (
     plotElement &&
@@ -681,6 +681,9 @@ Promise.all([
 
     // Update selected protein display
     const updateSelectedProteinDisplay = (proteinId: string | null) => {
+      if (!selectedProteinElement) {
+        return;
+      }
       if (proteinId) {
         selectedProteinElement.textContent = `Selected: ${proteinId}`;
         selectedProteinElement.style.color = "#3b82f6";
