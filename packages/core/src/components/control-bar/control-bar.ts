@@ -30,6 +30,10 @@ export class ProtspaceControlBar extends LitElement {
   autoSync: boolean = true;
 
   @state() private showExportMenu: boolean = false;
+  @state() private showFilterMenu: boolean = false;
+  @state() private featureValuesMap: Record<string, (string | null)[]> = {};
+  @state() private filterConfig: Record<string, { enabled: boolean; value: string | null }> = {};
+  @state() private lastAppliedFilterConfig: Record<string, { enabled: boolean; value: string | null }> = {};
   private _scatterplotElement: ScatterplotElementLike | null = null;
 
   // Stable listeners for proper add/remove
@@ -293,7 +297,56 @@ export class ProtspaceControlBar extends LitElement {
             Clear
           </button>
 
-          
+          <!-- Filter dropdown -->
+          <div class="export-container">
+            <button @click=${this.toggleFilterMenu} title="Filter Options">
+              <svg class="icon" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 5h18M6 12h12M10 19h4" />
+              </svg>
+              Filter
+              <svg class="chevron-down" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            ${this.showFilterMenu
+              ? html`
+                  <div class="export-menu" style="width: 22rem; max-height: 22rem; overflow: auto;">
+                    <div style="padding: 0.5rem 0.75rem; font-weight: 600; color: var(--up-muted);">Configure filters</div>
+                    <ul>
+                      ${this.features.map((feature) => {
+                        const cfg = this.filterConfig[feature] || { enabled: false, value: null };
+                        const values = this.featureValuesMap[feature] || [];
+                        return html`
+                          <li style="padding: 0.25rem 0.75rem; display:flex; align-items:center; gap:0.5rem;">
+                            <input type="checkbox" .checked=${cfg.enabled} @change=${(e: Event) => {
+                              const target = e.target as HTMLInputElement;
+                              this.handleFilterToggle(feature, target.checked);
+                            }} />
+                            <div style="flex: 1; min-width: 7rem;">${feature}</div>
+                            <select id=${`filter-value-${feature}`} .value=${cfg.value === null ? "__NULL__" : (cfg.value ?? "")} 
+                              ?disabled=${!cfg.enabled}
+                              @change=${(e: Event) => {
+                                const target = e.target as HTMLSelectElement;
+                                this.handleFilterValueChange(feature, target.value);
+                              }}
+                            >
+                              <option value="">-- select --</option>
+                              <option value="__NULL__">N/A</option>
+                              ${Array.from(new Set(values.filter(v => v !== null)))
+                                .map(v => html`<option value=${String(v)}>${String(v)}</option>`)}
+                            </select>
+                          </li>`;
+                      })}
+                    </ul>
+                    <div style="display:flex; gap:8px; justify-content:flex-end; padding: 0.5rem 0.75rem;">
+                      <button @click=${() => { this.showFilterMenu = false; }}>Cancel</button>
+                      <button @click=${this.applyFilters} class="active">Apply</button>
+                    </div>
+                  </div>
+                `
+              : ""}
+          </div>
 
           <!-- Export dropdown -->
           <div class="export-container">
@@ -383,6 +436,7 @@ export class ProtspaceControlBar extends LitElement {
   private handleDocumentClick(event: Event) {
     if (!this.contains(event.target as Node)) {
       this.showExportMenu = false;
+      this.showFilterMenu = false;
     }
   }
 
@@ -435,6 +489,24 @@ export class ProtspaceControlBar extends LitElement {
 
     console.log("🔄 Control bar handling data change:", data);
     this._updateOptionsFromData(data);
+    // Update feature value options for filter UI
+    try {
+      const features = (data as any).features || {};
+      const map: Record<string, (string | null)[]> = {};
+      Object.keys(features).forEach((k) => {
+        const vals = features[k]?.values as (string | null)[] | undefined;
+        if (Array.isArray(vals)) map[k] = vals;
+      });
+      this.featureValuesMap = map;
+      // Initialize filter config entries for new features (preserve existing selections)
+      const nextConfig: typeof this.filterConfig = { ...this.filterConfig };
+      Object.keys(map).forEach((k) => {
+        if (!nextConfig[k]) nextConfig[k] = { enabled: false, value: null };
+      });
+      this.filterConfig = nextConfig;
+    } catch (e) {
+      // noop
+    }
     this.requestUpdate();
   }
 
@@ -496,6 +568,23 @@ export class ProtspaceControlBar extends LitElement {
         // Extract projections and features
         this._updateOptionsFromData(data);
         console.log("📊 Synced features:", this.features);
+        // Build feature values map for filter UI
+        try {
+          const features = (data as any).features || {};
+          const map: Record<string, (string | null)[]> = {};
+          Object.keys(features).forEach((k) => {
+            const vals = features[k]?.values as (string | null)[] | undefined;
+            if (Array.isArray(vals)) map[k] = vals;
+          });
+          this.featureValuesMap = map;
+          const nextConfig: typeof this.filterConfig = { ...this.filterConfig };
+          Object.keys(map).forEach((k) => {
+            if (!nextConfig[k]) nextConfig[k] = { enabled: false, value: null };
+          });
+          this.filterConfig = nextConfig;
+        } catch (e) {
+          // noop
+        }
 
         // Sync current values from scatterplot
         if (
@@ -555,6 +644,117 @@ export class ProtspaceControlBar extends LitElement {
         this.requestUpdate();
       }
     }
+  }
+
+  private toggleFilterMenu() {
+    const opening = !this.showFilterMenu;
+    this.showFilterMenu = opening;
+    if (opening) {
+      // Restore last applied configuration if available
+      if (this.lastAppliedFilterConfig && Object.keys(this.lastAppliedFilterConfig).length > 0) {
+        const merged: typeof this.filterConfig = { ...this.filterConfig };
+        for (const key of Object.keys(this.lastAppliedFilterConfig)) {
+          const prev = merged[key] || { enabled: false, value: null };
+          const applied = this.lastAppliedFilterConfig[key];
+          merged[key] = { ...prev, ...applied };
+        }
+        this.filterConfig = merged;
+        // Force select dropdowns to show restored values after render
+        this.updateComplete.then(() => {
+          for (const [feature, cfg] of Object.entries(this.filterConfig)) {
+            const select = this.renderRoot?.querySelector(`#filter-value-${CSS.escape(feature)}`) as HTMLSelectElement | null;
+            if (select) {
+              const desired = cfg.value === null ? "__NULL__" : (cfg.value ?? "");
+              if (select.value !== desired) select.value = desired;
+            }
+          }
+        });
+      }
+    }
+  }
+
+  private handleFilterToggle(feature: string, enabled: boolean) {
+    const current = this.filterConfig[feature] || { enabled: false, value: null };
+    this.filterConfig = { ...this.filterConfig, [feature]: { ...current, enabled } };
+  }
+
+  private handleFilterValueChange(feature: string, value: string) {
+    const parsed: string | null = value === "__NULL__" ? null : value;
+    const current = this.filterConfig[feature] || { enabled: false, value: null };
+    this.filterConfig = { ...this.filterConfig, [feature]: { ...current, value: parsed } };
+  }
+
+  private applyFilters() {
+    if (!this._scatterplotElement || !("getCurrentData" in this._scatterplotElement)) {
+      return;
+    }
+    const sp = this._scatterplotElement as any;
+    const data = sp.getCurrentData?.();
+    if (!data) return;
+
+    // Collect active filters
+    const activeFilters = Object.entries(this.filterConfig)
+      .filter(([, cfg]) => cfg.enabled && (cfg.value !== undefined))
+      .map(([feature, cfg]) => ({ feature, value: cfg.value as string | null }));
+
+    if (activeFilters.length === 0) {
+      this.showFilterMenu = false;
+      return;
+    }
+
+    // Compute membership for each protein
+    const numProteins: number = Array.isArray(data.protein_ids) ? data.protein_ids.length : 0;
+    const indices: number[] = new Array(numProteins);
+
+    for (let i = 0; i < numProteins; i++) {
+      let isMatch = true;
+      for (const { feature, value } of activeFilters) {
+        const featureIdxArr: number[] | undefined = data.feature_data?.[feature];
+        const valuesArr: (string | null)[] | undefined = data.features?.[feature]?.values;
+        if (!featureIdxArr || !valuesArr) { isMatch = false; break; }
+        const vi = featureIdxArr[i];
+        const v = (vi != null && vi >= 0 && vi < valuesArr.length) ? valuesArr[vi] : null;
+        if (v !== value) { isMatch = false; break; }
+      }
+      // 0 => Filtered Proteins, 1 => Other Proteins
+      indices[i] = isMatch ? 0 : 1;
+    }
+
+    // Add or replace synthetic Custom feature
+    const customName = "Custom";
+    const newFeatures = { ...data.features };
+    newFeatures[customName] = {
+      values: ["Filtered Proteins", "Other Proteins"],
+      colors: ["#00A35A", "#9AA0A6"],
+      shapes: ["circle", "circle"],
+    };
+    const newFeatureData = { ...data.feature_data, [customName]: indices };
+
+    const newData = { ...data, features: newFeatures, feature_data: newFeatureData };
+
+    this.lastAppliedFilterConfig = JSON.parse(JSON.stringify(this.filterConfig));
+
+    // Apply to scatterplot and select the Custom feature
+    sp.data = newData;
+    if ("selectedFeature" in sp) sp.selectedFeature = customName;
+    this.features = Object.keys(newData.features || {});
+    this.selectedFeature = customName;
+    this.featureValuesMap = { ...this.featureValuesMap, [customName]: newFeatures[customName].values as unknown as (string | null)[] };
+    this.updateComplete.then(() => {
+      const featureSelect = this.renderRoot?.querySelector('#feature-select') as HTMLSelectElement | null;
+      if (featureSelect && featureSelect.value !== customName) {
+        featureSelect.value = customName;
+      }
+    });
+
+    // Let listeners know the feature changed to Custom
+    this.dispatchEvent(new CustomEvent("feature-change", {
+      detail: { feature: customName },
+      bubbles: true,
+      composed: true,
+    }));
+
+    this.showFilterMenu = false;
   }
 }
 
