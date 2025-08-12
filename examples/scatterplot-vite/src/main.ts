@@ -391,11 +391,6 @@ Promise.all([
         plotElement.selectionMode = false;
         plotElement.hiddenFeatureValues = [];
 
-        // Exit split mode if active
-        if (plotElement.isInSplitMode()) {
-          plotElement.exitSplitMode();
-        }
-
         console.log("📊 Scatterplot updated with:", {
           projections: newData.projections.map((p) => p.name),
           features: Object.keys(newData.features),
@@ -427,7 +422,6 @@ Promise.all([
               controlBar.selectedFeature =
                 Object.keys(newData.features)[0] || "";
               controlBar.selectionMode = false;
-              controlBar.isolationMode = false;
               controlBar.selectedProteinsCount = 0;
               controlBar.requestUpdate();
               resolve(undefined);
@@ -471,7 +465,7 @@ Promise.all([
                     "🔧 Using advanced chunked processing for mega dataset..."
                   );
                   const chunkSize = 2000; // Larger chunks for better performance
-                  const featureValues: string[] = [];
+                  const featureValues: (string | null)[] = [];
 
                   // Pre-allocate array for better memory performance
                   featureValues.length = newData.protein_ids.length;
@@ -514,7 +508,7 @@ Promise.all([
                 } else if (isLargeDataset) {
                   // Large datasets: Standard chunked processing
                   const chunkSize = 1000;
-                  const featureValues: string[] = [];
+                  const featureValues: (string | null)[] = [];
 
                   for (
                     let i = 0;
@@ -712,7 +706,6 @@ Promise.all([
         customEvent.detail;
 
       isolationMode = newIsolationMode;
-      controlBar.isolationMode = isolationMode;
       controlBar.selectedProteinsCount = selectedProteinsCount;
       controlBar.requestUpdate();
 
@@ -897,16 +890,6 @@ Promise.all([
       console.log(`Selection mode: ${selectionMode ? "ON" : "OFF"}`);
     });
 
-    // Handle isolation mode toggle for local state tracking
-    controlBar.addEventListener("toggle-isolation-mode", () => {
-      // Update local isolation mode state
-      isolationMode = plotElement.isInSplitMode();
-      selectedProteins = []; // Reset local selected proteins after split operations
-      updateLegend();
-      updateSelectedProteinDisplay(null);
-      console.log(`Isolation mode: ${isolationMode ? "ON" : "OFF"}`);
-    });
-
     // Handle clear selections for local state
     controlBar.addEventListener("clear-selections", () => {
       selectedProteins = [];
@@ -971,9 +954,6 @@ Promise.all([
             break;
           case "pdf":
             await exporter.exportPDF(exportOptions);
-            break;
-          case "svg":
-            exporter.exportSVG(exportOptions);
             break;
           default:
             console.warn(`Unknown export type: ${exportType}`);
