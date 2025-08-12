@@ -26,7 +26,6 @@ export class ProtspaceScatterplot extends LitElement {
   @property({ type: String }) selectedFeature = "family";
   @property({ type: Array }) highlightedProteinIds: string[] = [];
   @property({ type: Array }) selectedProteinIds: string[] = [];
-  @property({ type: Boolean }) isolationMode = false;
   @property({ type: Boolean }) selectionMode = false;
   @property({ type: Array }) hiddenFeatureValues: string[] = [];
   @property({ type: Array }) otherFeatureValues: string[] = [];
@@ -40,13 +39,7 @@ export class ProtspaceScatterplot extends LitElement {
   @state() private _tooltipData: { x: number; y: number; protein: PlotDataPoint } | null = null;
   @state() private _mergedConfig = DEFAULT_CONFIG;
   @state() private _transform = d3.zoomIdentity;
-  @state() private _splitMode = false;
-  @state() private _splitHistory: string[][] = [];
-  @state() private _currentData: VisualizationData | null = null;
-
-  // Internal split state
-  @state() private _internalSplitHistory: string[][] = [];
-  @state() private _internalIsolationMode = false;
+  
 
   // Queries
   @query("canvas") private _canvas?: HTMLCanvasElement;
@@ -140,13 +133,13 @@ export class ProtspaceScatterplot extends LitElement {
   }
 
   private _processData() {
-    const dataToUse = this._currentData || this.data;
+    const dataToUse = this.data;
     if (!dataToUse) return;
     this._plotData = DataProcessor.processVisualizationData(
       dataToUse,
       this.selectedProjectionIndex,
-      this._internalIsolationMode,
-      this._internalSplitHistory,
+      false,
+      undefined,
       this.projectionPlane
     );
   }
@@ -616,43 +609,7 @@ export class ProtspaceScatterplot extends LitElement {
   }
 
   getCurrentData(): VisualizationData | null {
-    return this._currentData || this.data;
-  }
-
-  isInSplitMode(): boolean {
-    return this._splitMode;
-  }
-
-  enterSplitMode(selectedIds: string[]) {
-    this._splitMode = true;
-    this._splitHistory.push([...selectedIds]);
-    this.dispatchEvent(new CustomEvent("split-state-change", {
-      detail: { splitMode: true, selectedIds, splitHistory: this._splitHistory },
-      bubbles: true,
-    }));
-    this.requestUpdate();
-  }
-
-  createNestedSplit(selectedIds: string[]) {
-    if (this._splitMode) {
-      this._splitHistory.push([...selectedIds]);
-      this.dispatchEvent(new CustomEvent("split-state-change", {
-        detail: { splitMode: true, selectedIds, splitHistory: this._splitHistory },
-        bubbles: true,
-      }));
-      this.requestUpdate();
-    }
-  }
-
-  exitSplitMode() {
-    this._splitMode = false;
-    this._splitHistory = [];
-    this._currentData = null;
-    this.dispatchEvent(new CustomEvent("split-state-change", {
-      detail: { splitMode: false, selectedIds: [], splitHistory: [] },
-      bubbles: true,
-    }));
-    this.requestUpdate();
+    return this.data;
   }
 
   resetZoom() {
@@ -691,9 +648,7 @@ export class ProtspaceScatterplot extends LitElement {
         ${this.selectionMode ? html`
           <div class="mode-indicator" style="z-index: 10;">Selection Mode</div>
         ` : ""}
-        ${this._splitMode ? html`
-          <div class="mode-indicator" style="z-index: 10;">Split Mode</div>
-        ` : ""}
+        
       </div>
     `;
   }

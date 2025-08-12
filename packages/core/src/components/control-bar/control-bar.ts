@@ -5,7 +5,6 @@ import type {
   DataChangeDetail,
   ProtspaceData,
   ScatterplotElementLike,
-  SplitStateChangeDetail,
 } from "./types";
 
 @customElement("protspace-control-bar")
@@ -21,8 +20,6 @@ export class ProtspaceControlBar extends LitElement {
   projectionPlane: 'xy' | 'xz' | 'yz' = 'xy';
   @property({ type: Boolean, attribute: "selection-mode" })
   selectionMode: boolean = false;
-  @property({ type: Boolean, attribute: "isolation-mode" })
-  isolationMode: boolean = false;
   @property({ type: Number, attribute: "selected-proteins-count" })
   selectedProteinsCount: number = 0;
 
@@ -38,8 +35,6 @@ export class ProtspaceControlBar extends LitElement {
   // Stable listeners for proper add/remove
   private _onDocumentClick = (event: Event) => this.handleDocumentClick(event);
   private _onDataChange = (event: Event) => this._handleDataChange(event);
-  private _onSplitStateChange = (event: Event) =>
-    this._handleSplitStateChange(event);
   private _onProteinClick = (event: Event) => this._handleProteinSelection(event);
 
   static styles = controlBarStyles;
@@ -130,39 +125,6 @@ export class ProtspaceControlBar extends LitElement {
     this.dispatchEvent(customEvent);
   }
 
-  private handleToggleIsolationMode() {
-    const customEvent = new CustomEvent("toggle-isolation-mode", {
-      detail: {},
-      bubbles: true,
-      composed: true,
-    });
-    this.dispatchEvent(customEvent);
-
-    // If auto-sync is enabled, handle isolation mode directly
-    if (this.autoSync && this._scatterplotElement) {
-      const scatterplot = this._scatterplotElement as any;
-
-      if (!scatterplot.isInSplitMode?.() && this.selectedProteinsCount > 0) {
-        // Enter split mode with selected proteins
-        if (scatterplot.enterSplitMode && scatterplot.selectedProteinIds) {
-          scatterplot.enterSplitMode(scatterplot.selectedProteinIds);
-        }
-      } else if (
-        scatterplot.isInSplitMode?.() &&
-        this.selectedProteinsCount > 0
-      ) {
-        // Create nested split
-        if (scatterplot.createNestedSplit && scatterplot.selectedProteinIds) {
-          scatterplot.createNestedSplit(scatterplot.selectedProteinIds);
-        }
-      } else {
-        // Exit split mode
-        if (scatterplot.exitSplitMode) {
-          scatterplot.exitSplitMode();
-        }
-      }
-    }
-  }
 
   private handleClearSelections() {
     const customEvent = new CustomEvent("clear-selections", {
@@ -235,27 +197,7 @@ export class ProtspaceControlBar extends LitElement {
     this.showExportMenu = !this.showExportMenu;
   }
 
-  private getIsolationModeTitle(): string {
-    if (this.isolationMode && this.selectedProteinsCount > 0) {
-      return "Split again to further refine view";
-    } else if (this.isolationMode && this.selectedProteinsCount === 0) {
-      return "Exit split mode and view all proteins";
-    } else if (this.selectedProteinsCount === 0) {
-      return "Select proteins first to split data";
-    } else {
-      return "Split view to focus on selected proteins only";
-    }
-  }
-
-  private getIsolationModeText(): string {
-    if (this.isolationMode && this.selectedProteinsCount > 0) {
-      return "Split Again";
-    } else if (this.isolationMode && this.selectedProteinsCount === 0) {
-      return "Show All Data";
-    } else {
-      return "Split Data";
-    }
-  }
+  
 
   render() {
     return html`
@@ -313,9 +255,7 @@ export class ProtspaceControlBar extends LitElement {
           <button
             class=${this.selectionMode ? "active" : ""}
             @click=${this.handleToggleSelectionMode}
-            title=${this.isolationMode
-              ? "Select proteins within the split view for further refinement"
-              : "Select proteins by clicking or dragging to enclose multiple points"}
+            title="Select proteins by clicking or dragging to enclose multiple points"
           >
             <svg class="icon" viewBox="0 0 24 24">
               <rect
@@ -353,22 +293,7 @@ export class ProtspaceControlBar extends LitElement {
             Clear
           </button>
 
-          <!-- Split mode toggle -->
-          <button
-            class=${this.isolationMode ? "active" : ""}
-            ?disabled=${!this.isolationMode && this.selectedProteinsCount === 0}
-            @click=${this.handleToggleIsolationMode}
-            title=${this.getIsolationModeTitle()}
-          >
-            <svg class="icon" viewBox="0 0 24 24">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
-              />
-            </svg>
-            ${this.getIsolationModeText()}
-          </button>
+          
 
           <!-- Export dropdown -->
           <div class="export-container">
@@ -449,10 +374,6 @@ export class ProtspaceControlBar extends LitElement {
         this._onDataChange
       );
       this._scatterplotElement.removeEventListener(
-        "split-state-change",
-        this._onSplitStateChange
-      );
-      this._scatterplotElement.removeEventListener(
         "protein-click",
         this._onProteinClick
       );
@@ -482,10 +403,6 @@ export class ProtspaceControlBar extends LitElement {
         this._scatterplotElement.addEventListener(
           "data-change",
           this._onDataChange
-        );
-        this._scatterplotElement.addEventListener(
-          "split-state-change",
-          this._onSplitStateChange
         );
 
         // Listen for protein selection changes
@@ -521,15 +438,7 @@ export class ProtspaceControlBar extends LitElement {
     this.requestUpdate();
   }
 
-  private _handleSplitStateChange(event: Event) {
-    const { isolationMode, selectedProteinsCount } = (
-      event as CustomEvent<SplitStateChangeDetail>
-    ).detail;
-
-    this.isolationMode = isolationMode;
-    this.selectedProteinsCount = selectedProteinsCount;
-    this.requestUpdate();
-  }
+  
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private _handleProteinSelection(_event: Event) {
