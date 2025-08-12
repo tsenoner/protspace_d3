@@ -735,7 +735,9 @@ export class ProtspaceLegend extends LitElement {
                 <div class="other-item">
                   <div class="other-item-info">
                     <span class="other-item-name">
-                      ${item.value === null ? "N/A" : item.value}
+                      ${item.value === null || (typeof item.value === "string" && item.value.trim() === "")
+                        ? "N\\A"
+                        : item.value}
                     </span>
                     <span class="other-item-count">(${item.count})</span>
                   </div>
@@ -920,7 +922,10 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _renderItemText(item: LegendItem) {
-    const displayText = item.value === null ? "N/A" : item.value;
+    const isEmptyString =
+      typeof item.value === "string" && item.value.trim() === "";
+    const displayText =
+      item.value === null || isEmptyString ? "N\\A" : item.value;
 
     return html` <span class="legend-text">${displayText}</span> `;
   }

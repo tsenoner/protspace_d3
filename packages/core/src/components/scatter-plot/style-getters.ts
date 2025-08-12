@@ -22,6 +22,10 @@ export interface StyleConfig {
 }
 
 export function createStyleGetters(data: VisualizationData | null, styleConfig: StyleConfig) {
+  const isNullishDisplay = (value: unknown): boolean => {
+    return value === null || (typeof value === "string" && value.trim() === "");
+  };
+
   const getPointSize = (point: PlotDataPoint): number => {
     if (styleConfig.selectedProteinIds.includes(point.id)) return styleConfig.sizes.selected;
     if (styleConfig.highlightedProteinIds.includes(point.id)) return styleConfig.sizes.highlighted;
@@ -39,7 +43,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     ) {
       return d3.symbolCircle;
     }
-    if (featureValue === null) return d3.symbolCircle;
+    if (isNullishDisplay(featureValue)) return d3.symbolCircle;
     const feature = data.features[styleConfig.selectedFeature];
     if (!feature || !feature.shapes) return d3.symbolCircle;
     const valueIndex = feature.values.indexOf(featureValue);
@@ -51,19 +55,39 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
   const getColor = (point: PlotDataPoint): string => {
     if (!data || !styleConfig.selectedFeature) return "#888888";
     const featureValue = point.featureValues[styleConfig.selectedFeature];
-    if (featureValue === null) return "#888888";
-    if (styleConfig.otherFeatureValues.includes(featureValue)) return "#888888";
     const feature = data.features[styleConfig.selectedFeature];
-    return feature.colors[feature.values.indexOf(featureValue)] || "#888888";
+    if (!feature) return "#888888";
+    // All values categorized as "Other" share the same neutral color
+    if (featureValue !== null && styleConfig.otherFeatureValues.includes(featureValue)) return "#888888";
+    // For null/empty-string display category, try to use configured color if present
+    if (isNullishDisplay(featureValue)) {
+      const idxNullish = feature.values.findIndex(
+        (v) => v === null || (typeof v === "string" && v.trim() === "")
+      );
+      if (idxNullish !== -1 && feature.colors[idxNullish]) {
+        return feature.colors[idxNullish];
+      }
+      return "#888888";
+    }
+    const idx = feature.values.indexOf(featureValue);
+    return feature.colors[idx] || "#888888";
   };
 
   const getOpacity = (point: PlotDataPoint): number => {
     const featureValue = point.featureValues[styleConfig.selectedFeature];
-    if (
-      (featureValue !== null && styleConfig.hiddenFeatureValues.includes(featureValue)) ||
-      (featureValue === null && styleConfig.hiddenFeatureValues.includes("null"))
-    )
+    if (isNullishDisplay(featureValue)) {
+      if (
+        styleConfig.hiddenFeatureValues.includes("null") ||
+        styleConfig.hiddenFeatureValues.includes("")
+      ) {
+        return 0;
+      }
+    } else if (
+      featureValue !== null &&
+      styleConfig.hiddenFeatureValues.includes(featureValue)
+    ) {
       return 0;
+    }
     if (
       styleConfig.highlightedProteinIds.includes(point.id) ||
       styleConfig.selectedProteinIds.includes(point.id)

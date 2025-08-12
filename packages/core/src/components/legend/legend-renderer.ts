@@ -165,7 +165,10 @@ export class LegendRenderer {
    * Render the item text label
    */
   static renderItemText(item: LegendItem): TemplateResult {
-    const displayText = item.value === null ? "N/A" : item.value;
+    const isEmptyString =
+      typeof item.value === "string" && item.value.trim() === "";
+    const displayText =
+      item.value === null || isEmptyString ? "N\\A" : item.value;
     return html`<span class="legend-text">${displayText}</span>`;
   }
 
