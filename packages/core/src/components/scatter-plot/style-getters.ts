@@ -32,6 +32,13 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     if (styleConfig.useShapes === false) return d3.symbolCircle;
     if (!data || !styleConfig.selectedFeature) return d3.symbolCircle;
     const featureValue = point.featureValues[styleConfig.selectedFeature];
+    // Treat all values that fall into the synthetic "Other" bucket as identical
+    if (
+      featureValue !== null &&
+      styleConfig.otherFeatureValues.includes(featureValue)
+    ) {
+      return d3.symbolCircle;
+    }
     if (featureValue === null) return d3.symbolCircle;
     const feature = data.features[styleConfig.selectedFeature];
     if (!feature || !feature.shapes) return d3.symbolCircle;
