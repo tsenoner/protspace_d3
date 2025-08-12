@@ -497,7 +497,9 @@ export class ProtspaceLegend extends LitElement {
   }
 
   // Handle element drag over
-  private handleDragOver(item: LegendItem) {
+  private handleDragOver(event: DragEvent, item: LegendItem) {
+    event.preventDefault();
+
     if (!this.draggedItem || this.draggedItem === item.value) return;
 
     // Use a debounced approach to prevent too many re-renders
@@ -508,6 +510,42 @@ export class ProtspaceLegend extends LitElement {
     this.dragTimeout = window.setTimeout(() => {
       this._performDragReorder(item);
     }, LEGEND_DEFAULTS.dragTimeout);
+  }
+
+  // Handle drop on a legend item (supports merging extracted items back into Other)
+  private handleDrop(event: DragEvent, targetItem: LegendItem) {
+    event.preventDefault();
+
+    // Only handle special case when dropping onto "Other"
+    if (targetItem.value === "Other" && this.draggedItem) {
+      const draggedItem = this.legendItems.find(
+        (i) => i.value === this.draggedItem
+      );
+
+      // Only merge items that were extracted from Other and are real values
+      if (draggedItem && draggedItem.extractedFromOther && draggedItem.value) {
+        this._mergeExtractedBackToOther(draggedItem.value);
+      }
+    }
+
+    this.handleDragEnd();
+  }
+
+  // Merge an extracted value back into the synthetic Other bucket
+  private _mergeExtractedBackToOther(value: string) {
+    this.legendItems = this.legendItems.filter((i) => i.value !== value);
+
+    this.updateLegendItems();
+
+    this.dispatchEvent(
+      new CustomEvent("legend-item-click", {
+        detail: { value, action: "merge-into-other" },
+        bubbles: true,
+        composed: true,
+      })
+    );
+
+    this.requestUpdate();
   }
 
   private _performDragReorder(targetItem: LegendItem): void {
@@ -781,7 +819,8 @@ export class ProtspaceLegend extends LitElement {
         @dblclick=${() => this.handleItemDoubleClick(item.value)}
         draggable="true"
         @dragstart=${() => this.handleDragStart(item)}
-        @dragover=${() => this.handleDragOver(item)}
+        @dragover=${(e: DragEvent) => this.handleDragOver(e, item)}
+        @drop=${(e: DragEvent) => this.handleDrop(e, item)}
         @dragend=${() => this.handleDragEnd()}
       >
         <div class="legend-item-content">
