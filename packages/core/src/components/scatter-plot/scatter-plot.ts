@@ -132,6 +132,7 @@ export class ProtspaceScatterplot extends LitElement {
           getOpacity: (p: PlotDataPoint) => this._getOpacity(p),
           getStrokeColor: (p: PlotDataPoint) => this._getStrokeColor(p),
           getStrokeWidth: (p: PlotDataPoint) => this._getStrokeWidth(p),
+          getShape: (p: PlotDataPoint) => this._getPointShape(p),
         }
       );
     }
@@ -213,6 +214,7 @@ export class ProtspaceScatterplot extends LitElement {
             getOpacity: (p: PlotDataPoint) => this._getOpacity(p),
             getStrokeColor: (p: PlotDataPoint) => this._getStrokeColor(p),
             getStrokeWidth: (p: PlotDataPoint) => this._getStrokeWidth(p),
+            getShape: (p: PlotDataPoint) => this._getPointShape(p),
           }
         );
       }

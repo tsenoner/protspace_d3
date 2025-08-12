@@ -7,6 +7,7 @@ export interface CanvasStyleGetters {
   getOpacity: (point: PlotDataPoint) => number;
   getStrokeColor: (point: PlotDataPoint) => string;
   getStrokeWidth: (point: PlotDataPoint) => number;
+  getShape: (point: PlotDataPoint) => d3.SymbolType;
 }
 
 export class CanvasRenderer {
@@ -61,8 +62,9 @@ export class CanvasRenderer {
     ctx.translate(transform.x, transform.y);
     ctx.scale(transform.k, transform.k);
 
-    // Batch points by style
+    // Batch points by style and shape
     const pointGroups = new Map<string, PlotDataPoint[]>();
+    const groupMeta = new Map<string, { isCircle: boolean; path?: Path2D }>();
     for (const point of pointsData) {
       const opacity = this.style.getOpacity(point);
       if (opacity === 0) continue;
@@ -70,15 +72,29 @@ export class CanvasRenderer {
       const size = Math.sqrt(this.style.getPointSize(point)) / 3;
       const strokeColor = this.style.getStrokeColor(point);
       const strokeWidth = this.style.getStrokeWidth(point);
-      const key = `${color}_${size}_${strokeColor}_${strokeWidth}_${opacity}`;
+      const shape = this.style.getShape(point);
+      const isCircle = shape === d3.symbolCircle;
+      // Convert our radius-like size back to d3.symbol size (area)
+      const area = Math.pow(size * 3, 2);
+      const pathString = isCircle ? null : d3.symbol().type(shape).size(area)()!;
+      const shapeKey = isCircle ? "circle" : `path:${pathString}`;
+      const key = `${color}_${size}_${strokeColor}_${strokeWidth}_${opacity}_${shapeKey}`;
       const arr = pointGroups.get(key);
       if (arr) arr.push(point);
       else pointGroups.set(key, [point]);
+      if (!groupMeta.has(key)) {
+        groupMeta.set(key, { isCircle, path: isCircle ? undefined : new Path2D(pathString!) });
+      }
     }
 
     pointGroups.forEach((groupPoints, styleKey) => {
       if (groupPoints.length === 0) return;
-      const [color, sizeStr, strokeColor, strokeWidthStr, opacityStr] = styleKey.split("_");
+      const parts = styleKey.split("_");
+      const color = parts[0];
+      const sizeStr = parts[1];
+      const strokeColor = parts[2];
+      const strokeWidthStr = parts[3];
+      const opacityStr = parts[4];
       const pointSize = parseFloat(sizeStr);
       const lineWidth = parseFloat(strokeWidthStr);
       const opacity = parseFloat(opacityStr);
@@ -87,15 +103,32 @@ export class CanvasRenderer {
       ctx.strokeStyle = strokeColor;
       ctx.lineWidth = lineWidth / transform.k;
 
-      ctx.beginPath();
-      for (const p of groupPoints) {
-        const x = scales.x(p.x);
-        const y = scales.y(p.y);
-        ctx.moveTo(x + pointSize, y);
-        ctx.arc(x, y, pointSize, 0, 2 * Math.PI);
+      const meta = groupMeta.get(styleKey)!;
+      if (meta.isCircle) {
+        // Fast path for circles
+        ctx.beginPath();
+        for (const p of groupPoints) {
+          const x = scales.x(p.x);
+          const y = scales.y(p.y);
+          ctx.moveTo(x + pointSize, y);
+          ctx.arc(x, y, pointSize, 0, 2 * Math.PI);
+        }
+        ctx.fill();
+        if (lineWidth > 0) ctx.stroke();
+      } else {
+        // Use Path2D constructed from d3 symbol path for non-circle shapes
+        const shapePath = meta.path!;
+
+        for (const p of groupPoints) {
+          const x = scales.x(p.x);
+          const y = scales.y(p.y);
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.fill(shapePath);
+          if (lineWidth > 0) ctx.stroke(shapePath);
+          ctx.restore();
+        }
       }
-      ctx.fill();
-      if (lineWidth > 0) ctx.stroke();
     });
 
     ctx.restore();
