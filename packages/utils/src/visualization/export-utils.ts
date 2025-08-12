@@ -185,19 +185,27 @@ export class ProtSpaceExporter {
     }
     const legendExportState = this.readLegendExportState();
     const featureNameFromLegend = legendExportState?.feature;
+    const hiddenSet = this.readHiddenFeatureValueKeys();
     const legendItems = legendExportState
-      ? legendExportState.items.map((it) => ({
-          value: it.value === null ? "N/A" : String(it.value),
-          color: it.color,
-          shape: it.shape,
-          count: it.count,
-          feature: featureNameFromLegend || this.element.selectedFeature,
-        }))
-      : this.computeLegendFromData(
-          currentData,
-          this.element.selectedFeature,
-          options.includeSelection === true ? this.selectedProteins : undefined
-        );
+      ? legendExportState.items
+          .filter((it) => it.isVisible)
+          .map((it) => ({
+            value: it.value === null ? "N/A" : String(it.value),
+            color: it.color,
+            shape: it.shape,
+            count: it.count,
+            feature: featureNameFromLegend || this.element.selectedFeature,
+          }))
+      : this
+          .computeLegendFromData(
+            currentData,
+            this.element.selectedFeature,
+            options.includeSelection === true ? this.selectedProteins : undefined
+          )
+          .filter((it) => {
+            const key = it.value === "N/A" ? "null" : it.value;
+            return !hiddenSet.has(key);
+          });
 
     // Compose final image with legend = 1/5 width
     const combinedWidth = Math.round(scatterCanvas.width * 1.1);
@@ -392,6 +400,21 @@ export class ProtSpaceExporter {
     return false;
   }
 
+  /**
+   * Read hidden feature values from the live scatterplot so exports mirror visibility.
+   * Returns keys in the same format used internally (e.g., "null" for null values).
+   */
+  private readHiddenFeatureValueKeys(): Set<string> {
+    try {
+      const raw = Array.isArray((this.element as any).hiddenFeatureValues)
+        ? ((this.element as any).hiddenFeatureValues as string[])
+        : [];
+      return new Set(raw);
+    } catch (_e) {
+      return new Set<string>();
+    }
+  }
+
   private drawCanvasSymbol(
     ctx: CanvasRenderingContext2D,
     shape: string,
@@ -532,20 +555,28 @@ export class ProtSpaceExporter {
     const data = this.element.getCurrentData();
     const legendExportState = this.readLegendExportState();
     const featureNameFromLegend = legendExportState?.feature;
+    const hiddenSet = this.readHiddenFeatureValueKeys();
     const legendItems = data
       ? legendExportState
-        ? legendExportState.items.map((it) => ({
-            value: it.value === null ? "N/A" : String(it.value),
-            color: it.color,
-            shape: it.shape,
-            count: it.count,
-            feature: featureNameFromLegend || this.element.selectedFeature,
-          }))
-        : this.computeLegendFromData(
-            data,
-            this.element.selectedFeature,
-            options.includeSelection === true ? this.selectedProteins : undefined
-          )
+        ? legendExportState.items
+            .filter((it) => it.isVisible)
+            .map((it) => ({
+              value: it.value === null ? "N/A" : String(it.value),
+              color: it.color,
+              shape: it.shape,
+              count: it.count,
+              feature: featureNameFromLegend || this.element.selectedFeature,
+            }))
+        : this
+            .computeLegendFromData(
+              data,
+              this.element.selectedFeature,
+              options.includeSelection === true ? this.selectedProteins : undefined
+            )
+            .filter((it) => {
+              const key = it.value === "N/A" ? "null" : it.value;
+              return !hiddenSet.has(key);
+            })
       : [];
     const legendCanvas = this.renderLegendToCanvas(
       legendItems,
