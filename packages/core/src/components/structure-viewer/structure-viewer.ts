@@ -38,10 +38,9 @@ export class ProtspaceStructureViewer extends LitElement {
 
   protected updated(changedProperties: Map<string | number | symbol, unknown>) {
     if (changedProperties.size > 0) {
-      console.log("[StructureViewer] updated props:", Object.fromEntries(changedProperties));
+      
     }
     if (changedProperties.has("proteinId")) {
-      console.log("[StructureViewer] proteinId changed:", changedProperties.get("proteinId"), "->", this.proteinId);
       if (this.proteinId) {
         this._loadStructure();
       } else {
@@ -50,13 +49,12 @@ export class ProtspaceStructureViewer extends LitElement {
     }
     if (changedProperties.has("height")) {
       this.style.setProperty("--protspace-viewer-height", this.height);
-      console.log("[StructureViewer] height updated to:", this.height);
     }
   }
 
   connectedCallback() {
     super.connectedCallback();
-    console.log("[StructureViewer] connected", { autoSync: this.autoSync, autoShow: this.autoShow });
+    
 
     if (this.autoSync) {
       this._setupAutoSync();
@@ -84,10 +82,7 @@ export class ProtspaceStructureViewer extends LitElement {
       this._scatterplotElement = document.querySelector(
         this.scatterplotSelector
       );
-      console.log("[StructureViewer] auto-sync setup: scatterplot element", {
-        selector: this.scatterplotSelector,
-        found: Boolean(this._scatterplotElement),
-      });
+      
       if (this._scatterplotElement) {
         // Listen for protein clicks
         this._scatterplotElement.addEventListener(
@@ -98,7 +93,6 @@ export class ProtspaceStructureViewer extends LitElement {
         // Initially hide if autoShow is enabled
         if (this.autoShow && !this.proteinId) {
           this.style.display = "none";
-          console.log("[StructureViewer] autoShow enabled, hiding until selection");
         }
       }
     }, 100);
@@ -107,14 +101,12 @@ export class ProtspaceStructureViewer extends LitElement {
   private _handleProteinClick(event: Event) {
     const customEvent = event as CustomEvent;
     const { proteinId, modifierKeys } = customEvent.detail;
-    console.log("[StructureViewer] protein-click event received", { proteinId, modifierKeys });
 
     // Only respond to single clicks (not multi-selection)
     if (!modifierKeys.ctrl && !modifierKeys.shift && this.autoShow) {
       // Show structure viewer and load protein
       this.proteinId = proteinId;
       this.style.display = "block";
-      console.log("[StructureViewer] auto-loading structure for protein:", proteinId);
     }
   }
 
@@ -164,7 +156,6 @@ export class ProtspaceStructureViewer extends LitElement {
     this._isLoading = true;
     this._error = null;
     this._structureData = null;
-    console.log("[StructureViewer] _loadStructure start", { proteinId: this.proteinId });
 
     // Dispatch loading event
     this._dispatchStructureEvent("loading");
@@ -177,25 +168,18 @@ export class ProtspaceStructureViewer extends LitElement {
       this._structureData = await StructureService.loadStructure(
         this.proteinId
       );
-      console.log("[StructureViewer] structure data loaded", this._structureData);
-
+      
       // Create Mol* viewer
       await this.updateComplete;
       if (!this._viewerContainer) {
         throw new Error("Viewer container not available");
       }
-      console.log("[StructureViewer] creating Mol* viewer", this._viewerContainer);
       this._viewer = await createMolstarViewer(this._viewerContainer);
-      console.log("[StructureViewer] Mol* viewer created", Boolean(this._viewer));
+      
 
       // Load structure into viewer based on source
-      console.log("[StructureViewer] displaying structure", {
-        source: this._structureData.source,
-        url: this._structureData.url,
-        format: this._structureData.format,
-      });
       await this._displayStructure(this._structureData);
-      console.log("[StructureViewer] structure displayed successfully");
+      
 
       this._isLoading = false;
       this._dispatchStructureEvent("loaded");
@@ -233,7 +217,6 @@ export class ProtspaceStructureViewer extends LitElement {
     // Load structure based on source
     switch (structureData.source) {
       case "alphafold":
-        console.log("[StructureViewer] loading AlphaFold structure", { url: structureData.url, format: structureData.format });
         if (structureData.url) {
           await this._viewer.loadStructureFromUrl(
             structureData.url,
@@ -253,7 +236,6 @@ export class ProtspaceStructureViewer extends LitElement {
   private _cleanup() {
     if (this._viewer) {
       try {
-        console.log("[StructureViewer] disposing existing viewer");
         this._viewer.dispose();
       } catch (error) {
         console.warn("[StructureViewer] Error disposing viewer:", error);
@@ -262,7 +244,6 @@ export class ProtspaceStructureViewer extends LitElement {
     }
 
     if (this._viewerContainer) {
-      console.log("[StructureViewer] clearing viewer container contents");
       this._viewerContainer.innerHTML = "";
     }
 
@@ -273,11 +254,6 @@ export class ProtspaceStructureViewer extends LitElement {
     status: "loading" | "loaded" | "error",
     error?: string
   ) {
-    console.log("[StructureViewer] dispatching structure-load event", {
-      proteinId: this.proteinId,
-      status,
-      hasError: Boolean(error),
-    });
     this.dispatchEvent(
       new CustomEvent("structure-load", {
         detail: {
@@ -292,7 +268,6 @@ export class ProtspaceStructureViewer extends LitElement {
   }
 
   private _dispatchCloseEvent() {
-    console.log("[StructureViewer] dispatching structure-close event", { proteinId: this.proteinId });
     this.dispatchEvent(
       new CustomEvent("structure-close", {
         detail: {

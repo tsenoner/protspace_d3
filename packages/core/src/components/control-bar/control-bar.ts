@@ -403,10 +403,6 @@ export class ProtspaceControlBar extends LitElement {
       ) as ScatterplotElementLike | null;
 
       if (this._scatterplotElement) {
-        console.log(
-          "🔗 Control bar connected to scatterplot:",
-          this.scatterplotSelector
-        );
 
         // Listen for data changes
         this._scatterplotElement.addEventListener(
@@ -442,7 +438,6 @@ export class ProtspaceControlBar extends LitElement {
     const { data } = (event as CustomEvent<DataChangeDetail>).detail || {};
     if (!data) return;
 
-    console.log("🔄 Control bar handling data change:", data);
     this._updateOptionsFromData(data);
     // Update feature value options for filter UI
     try {
@@ -498,12 +493,7 @@ export class ProtspaceControlBar extends LitElement {
       this.selectedFeature = this.features[0] || "";
     }
 
-    console.log("✅ Control bar updated with:", {
-      projections: this.projections,
-      features: this.features,
-      selectedProjection: this.selectedProjection,
-      selectedFeature: this.selectedFeature,
-    });
+
   }
 
   private _syncWithScatterplot() {
@@ -518,11 +508,10 @@ export class ProtspaceControlBar extends LitElement {
       }
 
       if (data) {
-        console.log("🔗 Syncing control bar with scatterplot data:", data);
 
         // Extract projections and features
         this._updateOptionsFromData(data);
-        console.log("📊 Synced features:", this.features);
+        
         // Build feature values map for filter UI
         try {
           const features = (data as any).features || {};
@@ -589,12 +578,7 @@ export class ProtspaceControlBar extends LitElement {
           this.selectedFeature = this.features[0];
         }
 
-        console.log("✅ Sync completed with:", {
-          projections: this.projections,
-          features: this.features,
-          selectedProjection: this.selectedProjection,
-          selectedFeature: this.selectedFeature,
-        });
+        
 
         this.requestUpdate();
       }

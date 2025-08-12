@@ -261,7 +261,6 @@ export class DataLoader extends LitElement {
 
       // Check if this is a parquetbundle file
       if (file.name.endsWith(".parquetbundle") || isParquetBundle(arrayBuffer)) {
-        console.log("🔍 Detected parquetbundle format, extracting...");
         const extractedData = await extractRowsFromParquetBundle(arrayBuffer, { disableInspection });
         this.progress = 70;
         const visualizationData = await convertParquetToVisualizationDataOptimized(extractedData);
@@ -277,9 +276,6 @@ export class DataLoader extends LitElement {
         this.dispatchDataLoaded(visualizationData);
       }
 
-      console.log("✅ Data conversion completed successfully");
-      console.log("📊 About to dispatch data-loaded event...");
-      console.log("✅ dispatchDataLoaded called successfully");
     } catch (error) {
       this.error =
         error instanceof Error ? error.message : "Unknown error occurred";
@@ -288,103 +284,6 @@ export class DataLoader extends LitElement {
       this.setLoading(false);
     }
   }
-
-  /**
-   * Optimized file reading with chunking for large files
-   */
-  // moved to utils/file-io
-
-  /**
-   * Check if the file is a parquetbundle format
-   */
-  // moved to utils/bundle
-
-  /**
-   * Extract data from parquetbundle format
-   */
-  // moved to utils/bundle
-
-  /**
-   * Merge projections data with features data based on protein identifiers
-   */
-  // moved to utils/bundle
-
-
-
-  /**
-   * Create downloadable files for inspection in VS Code/Cursor
-   */
-  // moved to utils/bundle
-
-  /**
-   * Convert Parquet data to ProtSpace VisualizationData format with performance optimizations
-   */
-  // moved to utils/conversion
-
-  /**
-   * Optimized conversion for large datasets using chunking
-   */
-  // moved to utils/conversion
-
-  /**
-   * Optimized bundle format conversion with chunking
-   */
-  // moved to utils/conversion
-
-  /**
-   * Optimized feature extraction with chunking
-   */
-  // moved to utils/conversion
-
-  /**
-   * Optimized legacy format conversion (placeholder - implement if needed)
-   */
-  // moved to utils/conversion
-
-  /**
-   * Convert Parquet data to ProtSpace VisualizationData format
-   */
-  // moved to utils/conversion
-
-  /**
-   * Convert new ProtSpace bundle format data
-   */
-  // moved to utils/conversion
-
-  /**
-   * Convert legacy format data (for backwards compatibility)
-   */
-  // moved to utils/conversion
-
-  /**
-   * Find a column by trying multiple possible names
-   */
-  // moved to utils/bundle
-
-  /**
-   * Find all projection coordinate pairs in the column names
-   */
-  // moved to utils/conversion
-
-  /**
-   * Format projection name for display
-   */
-  // moved to utils/conversion
-
-  /**
-   * Infer projection name from column names
-   */
-  // moved to utils/conversion
-
-  /**
-   * Generate colors for categorical values
-   */
-  // moved to utils/conversion
-
-  /**
-   * Generate shapes for categorical values
-   */
-  // moved to utils/conversion
 
   private setLoading(loading: boolean) {
     this.loading = loading;

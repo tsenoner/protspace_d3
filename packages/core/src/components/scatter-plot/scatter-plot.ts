@@ -310,9 +310,6 @@ export class ProtspaceScatterplot extends LitElement {
       return;
     }
 
-    const dataSize = this._plotData.length;
-    console.log(`🎯 Rendering ${dataSize} data points using canvas...`);
-
     // Always prefer canvas for better performance
     if (this._canvas && this.useCanvas) {
       this._renderCanvas();
@@ -330,7 +327,6 @@ export class ProtspaceScatterplot extends LitElement {
     if (!this._canvasRenderer || !this._scales) return;
     this._canvasRenderer.render(this._plotData);
     this._mainGroup?.selectAll(".protein-point").remove();
-    console.log(`✅ Canvas rendering completed for ${this._plotData.length} points`);
   }
 
   private _renderSVG() {
@@ -592,16 +588,13 @@ export class ProtspaceScatterplot extends LitElement {
       this.enableVirtualization = true;
       config.enableTransitions = false;
       config.useSimpleShapes = true;
-      console.log(`⚡ Configured for FAST performance mode (${dataSize} points) - Canvas enabled`);
     } else if (mode === "auto" || dataSize > config.largeDatasetThreshold) {
       this.useCanvas = true; // Always prefer canvas for better performance
       config.enableTransitions = false;
-      console.log(`⚖️ Configured for BALANCED performance mode (${dataSize} points) - Canvas enabled`);
     } else {
       this.useCanvas = true; // Canvas is fast even for small datasets
       config.enableTransitions = false; // Canvas doesn't use transitions
       config.useSimpleShapes = false;
-      console.log(`✨ Configured for QUALITY performance mode (${dataSize} points) - Canvas enabled`);
     }
     
     this._mergedConfig = config;

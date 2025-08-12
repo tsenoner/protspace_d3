@@ -106,7 +106,6 @@ export class ProtSpaceExporter {
   async exportPNG(options: ExportOptions = {}): Promise<void> {
     try {
       await this.exportCombinedPNG(options);
-      console.log("PNG export completed: single image with embedded legend");
     } catch (error) {
       console.error("PNG export failed:", error);
       throw error;
@@ -425,7 +424,6 @@ export class ProtSpaceExporter {
   async exportPDF(options: ExportOptions = {}): Promise<void> {
     try {
       await this.exportCombinedPDF(options);
-      console.log("PDF export completed: single file containing scatterplot and legend");
     } catch (error) {
       console.error("PDF export failed:", error);
       throw error;

@@ -16,12 +16,10 @@ export class StructureService {
    */
   public static async loadStructure(proteinId: string): Promise<StructureData> {
     const formattedId = this.formatProteinId(proteinId);
-    console.log("[StructureService] loadStructure", { input: proteinId, formattedId });
 
     // Try AlphaFold with version fallback
     try {
       const structureData = await this.tryLoadFromAlphaFoldWithFallback(formattedId);
-      console.log("[StructureService] AlphaFold structure found", structureData);
       return structureData;
     } catch (alphafoldError) {
       console.warn(`AlphaFold loading failed for ${formattedId}:`, alphafoldError);
@@ -54,7 +52,6 @@ export class StructureService {
    * @private
    */
   private static async loadFromAlphaFold(url: string, proteinId: string, version: string): Promise<StructureData> {
-    console.log("[StructureService] Probing AlphaFold URL", { url, proteinId, version });
     const response = await fetch(url, { method: "HEAD" });
     if (!response.ok) {
       throw new Error(`AlphaFold structure not available for ${proteinId} (${version})`);
