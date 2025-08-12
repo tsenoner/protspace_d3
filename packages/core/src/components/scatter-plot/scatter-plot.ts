@@ -197,6 +197,11 @@ export class ProtspaceScatterplot extends LitElement {
         }
       });
     this._svgSelection.call(this._zoom);
+    this._svgSelection.on("dblclick.zoom", null);
+    this._svgSelection.on("dblclick.reset", (event: MouseEvent) => {
+      event.preventDefault();
+      this.resetZoom();
+    });
   }
 
   private _updateSizeAndRender() {
@@ -263,6 +268,11 @@ export class ProtspaceScatterplot extends LitElement {
       // Re-enable zoom
       if (this._zoom) {
         this._svgSelection.call(this._zoom);
+        this._svgSelection.on("dblclick.zoom", null);
+        this._svgSelection.on("dblclick.reset", (event: MouseEvent) => {
+          event.preventDefault();
+          this.resetZoom();
+        });
       }
       this._brush = null;
     }
