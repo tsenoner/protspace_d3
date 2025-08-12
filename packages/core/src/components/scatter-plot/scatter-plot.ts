@@ -106,6 +106,13 @@ export class ProtspaceScatterplot extends LitElement {
       const prev = this._mergedConfig;
       this._mergedConfig = { ...DEFAULT_CONFIG, ...prev, ...this.config };
     }
+    if (
+      changedProperties.has('selectedFeature') ||
+      changedProperties.has('hiddenFeatureValues') ||
+      changedProperties.has('otherFeatureValues')
+    ) {
+      this._buildQuadtree();
+    }
     if (changedProperties.has("selectionMode")) {
       this._updateSelectionMode();
     }
@@ -146,8 +153,9 @@ export class ProtspaceScatterplot extends LitElement {
 
   private _buildQuadtree() {
     if (!this._plotData.length || !this._scales) return;
+    const visiblePoints = this._plotData.filter((d) => this._getOpacity(d) > 0);
     this._quadtreeIndex.setScales(this._scales);
-    this._quadtreeIndex.rebuild(this._plotData);
+    this._quadtreeIndex.rebuild(visiblePoints);
   }
 
   private _initializeInteractions() {
@@ -281,6 +289,7 @@ export class ProtspaceScatterplot extends LitElement {
     const selectedIds: string[] = [];
 
     this._plotData.forEach((d) => {
+      if (this._getOpacity(d) === 0) return;
       const pointX = this._scales!.x(d.x);
       const pointY = this._scales!.y(d.y);
 
@@ -525,7 +534,7 @@ export class ProtspaceScatterplot extends LitElement {
       const distance = Math.sqrt(
         Math.pow(dataX - pointX, 2) + Math.pow(dataY - pointY, 2)
       );
-      const pointRadius = Math.sqrt(this._getPointSize(nearestPoint)) / 3 / this._transform.k;
+      const pointRadius = Math.sqrt(this._getPointSize(nearestPoint)) / 3;
 
       if (distance <= pointRadius) {
         this._handleMouseOver(event, nearestPoint);
@@ -562,7 +571,7 @@ export class ProtspaceScatterplot extends LitElement {
       const distance = Math.sqrt(
         Math.pow(dataX - pointX, 2) + Math.pow(dataY - pointY, 2)
       );
-      const pointRadius = Math.sqrt(this._getPointSize(nearestPoint)) / 3 / this._transform.k;
+      const pointRadius = Math.sqrt(this._getPointSize(nearestPoint)) / 3;
 
       if (distance <= pointRadius) {
         this._handleClick(event, nearestPoint);
