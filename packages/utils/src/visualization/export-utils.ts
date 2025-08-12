@@ -25,6 +25,22 @@ export interface ExportableElement extends Element {
   selectedProteinIds?: string[];
 }
 
+// Narrow typing for accessing the legend component from this utils package
+type LegendExportItem = {
+  value: string | null | "Other";
+  color: string;
+  shape: string;
+  count: number;
+  isVisible: boolean;
+  zOrder: number;
+  extractedFromOther?: boolean;
+};
+type LegendExportState = {
+  feature: string;
+  includeShapes: boolean;
+  items: LegendExportItem[];
+};
+
 export interface ExportOptions {
   includeSelection?: boolean;
   exportName?: string;
@@ -142,17 +158,27 @@ export class ProtSpaceExporter {
       canvasOptions
     );
 
-    // Build legend data from current data (no reliance on legend component)
+    // Build legend data – prefer live legend component state for exact parity (includes "Other")
     const currentData = this.element.getCurrentData();
     if (!currentData) {
       console.error("No data available for legend generation");
       return;
     }
-    const legendItems = this.computeLegendFromData(
-      currentData,
-      this.element.selectedFeature,
-      options.includeSelection === true ? this.selectedProteins : undefined
-    );
+    const legendExportState = this.readLegendExportState();
+    const featureNameFromLegend = legendExportState?.feature;
+    const legendItems = legendExportState
+      ? legendExportState.items.map((it) => ({
+          value: it.value === null ? "N/A" : String(it.value),
+          color: it.color,
+          shape: it.shape,
+          count: it.count,
+          feature: featureNameFromLegend || this.element.selectedFeature,
+        }))
+      : this.computeLegendFromData(
+          currentData,
+          this.element.selectedFeature,
+          options.includeSelection === true ? this.selectedProteins : undefined
+        );
 
     // Compose final image with legend = 1/5 width
     const combinedWidth = Math.round(scatterCanvas.width * 1.1);
@@ -164,7 +190,8 @@ export class ProtSpaceExporter {
       legendItems,
       legendWidth,
       combinedHeight,
-      options
+      options,
+      featureNameFromLegend || this.element.selectedFeature
     );
 
     // Composite
@@ -249,7 +276,8 @@ export class ProtSpaceExporter {
     items: Array<{ value: string; color: string; shape: string; count: number; feature: string }>,
     width: number,
     height: number,
-    options: ExportOptions
+    options: ExportOptions,
+    overrideFeatureName?: string
   ): HTMLCanvasElement {
     const canvas = document.createElement("canvas");
     canvas.width = Math.max(100, Math.floor(width));
@@ -284,7 +312,8 @@ export class ProtSpaceExporter {
     ctx.fillStyle = "#374151";
     ctx.font = `500 16px Arial, sans-serif`;
     ctx.textBaseline = "middle";
-    ctx.fillText(items[0]?.feature ? `${items[0].feature}` : "Legend", padding, padding + headerHeight / 2);
+    const headerLabel = overrideFeatureName || items[0]?.feature || "Legend";
+    ctx.fillText(`${headerLabel}`, padding, padding + headerHeight / 2);
 
     // Items
     let y = padding + headerHeight;
@@ -419,6 +448,24 @@ export class ProtSpaceExporter {
   }
 
   /**
+   * Read legend export state from the live legend component if available.
+   */
+  private readLegendExportState(): LegendExportState | null {
+    const legendEl = document.querySelector("protspace-legend") as
+      | (Element & { getLegendExportData?: () => LegendExportState })
+      | null;
+    try {
+      if (legendEl && typeof (legendEl as any).getLegendExportData === "function") {
+        const state = (legendEl as any).getLegendExportData();
+        if (state && Array.isArray(state.items)) return state as LegendExportState;
+      }
+    } catch (_e) {
+      // fall back to compute
+    }
+    return null;
+  }
+
+  /**
    * Export visualization as a single PDF file (scatterplot on first page, legend on second if present)
    */
   async exportPDF(options: ExportOptions = {}): Promise<void> {
@@ -462,20 +509,31 @@ export class ProtSpaceExporter {
     const scatterImg = scatterCanvas.toDataURL("image/png", 1.0);
     const scatterRatio = scatterCanvas.width / scatterCanvas.height;
 
-    // Build programmatic legend items and render to canvas
+    // Build programmatic legend items and render to canvas (prefer live legend state)
     const data = this.element.getCurrentData();
+    const legendExportState = this.readLegendExportState();
+    const featureNameFromLegend = legendExportState?.feature;
     const legendItems = data
-      ? this.computeLegendFromData(
-          data,
-          this.element.selectedFeature,
-          options.includeSelection === true ? this.selectedProteins : undefined
-        )
+      ? legendExportState
+        ? legendExportState.items.map((it) => ({
+            value: it.value === null ? "N/A" : String(it.value),
+            color: it.color,
+            shape: it.shape,
+            count: it.count,
+            feature: featureNameFromLegend || this.element.selectedFeature,
+          }))
+        : this.computeLegendFromData(
+            data,
+            this.element.selectedFeature,
+            options.includeSelection === true ? this.selectedProteins : undefined
+          )
       : [];
     const legendCanvas = this.renderLegendToCanvas(
       legendItems,
       Math.max(100, Math.round(scatterCanvas.width * 0.1)),
       scatterCanvas.height,
-      options
+      options,
+      featureNameFromLegend || this.element.selectedFeature
     );
     const legendImg = legendCanvas.toDataURL("image/png", 1.0);
     const legendRatio = legendCanvas.width / legendCanvas.height;

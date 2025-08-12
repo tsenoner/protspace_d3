@@ -84,6 +84,32 @@ export class ProtspaceLegend extends LitElement {
     }
   }
 
+  /**
+   * Public accessor for export consumers (PNG/PDF) to read the exact legend
+   * state as currently rendered, including the synthetic "Other" bucket.
+   * Returned items are sorted by z-order and include visibility flags.
+   */
+  public getLegendExportData(): {
+    feature: string;
+    includeShapes: boolean;
+    items: Array<{
+      value: string | null | "Other";
+      color: string;
+      shape: string;
+      count: number;
+      isVisible: boolean;
+      zOrder: number;
+      extractedFromOther?: boolean;
+    }>;
+  } {
+    const sorted = [...this.legendItems].sort((a, b) => a.zOrder - b.zOrder);
+    return {
+      feature: this.featureData.name || this.featureName || "Legend",
+      includeShapes: this.includeShapes,
+      items: sorted.map((i) => ({ ...i })),
+    };
+  }
+
   connectedCallback() {
     super.connectedCallback();
 
