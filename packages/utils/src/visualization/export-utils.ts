@@ -23,6 +23,7 @@ export interface ExportableElement extends Element {
   getCurrentData(): ExportableData | null;
   selectedFeature: string;
   selectedProteinIds?: string[];
+  hiddenFeatureValues?: string[];
 }
 
 // Narrow typing for accessing the legend component from this utils package
@@ -93,25 +94,43 @@ export class ProtSpaceExporter {
   /**
    * Export protein IDs as text file
    */
-  exportProteinIds(options: ExportOptions = {}): void {
+  exportProteinIds(_options: ExportOptions = {}): void {
     const data = this.element.getCurrentData();
     if (!data) {
       console.error("No data available for export");
       return;
     }
 
-    const ids =
-      options.includeSelection && this.selectedProteins.length > 0
-        ? this.selectedProteins
-        : data.protein_ids || [];
+    // Compute visibility based on the scatterplot's current hidden feature values
+    const selectedFeature = this.element.selectedFeature;
+    const featureIndices = data.feature_data?.[selectedFeature];
+    const featureInfo = data.features?.[selectedFeature];
+    const hiddenValues: string[] = Array.isArray((this.element as any).hiddenFeatureValues)
+      ? ((this.element as any).hiddenFeatureValues as string[])
+      : [];
 
-    const idsStr = ids.join("\n");
+    let visibleIds: string[] = [];
+    if (featureIndices && featureInfo && Array.isArray(featureInfo.values)) {
+      const hiddenSet = new Set(hiddenValues);
+      visibleIds = data.protein_ids.filter((_id, i) => {
+        const vi = featureIndices[i];
+        const value: string | null =
+          typeof vi === "number" && vi >= 0 && vi < featureInfo.values.length
+            ? (featureInfo.values[vi] ?? null)
+            : null;
+        const key = value === null ? "null" : String(value);
+        return !hiddenSet.has(key);
+      });
+    } else {
+      // Fallback: if we cannot determine feature visibility, export all ids
+      visibleIds = data.protein_ids || [];
+    }
+
+    const idsStr = visibleIds.join("\n");
     const idsUri = `data:text/plain;charset=utf-8,${encodeURIComponent(
       idsStr
     )}`;
-    const fileName = options.includeSelection
-      ? "selected_protein_ids.txt"
-      : "protein_ids.txt";
+    const fileName = "protein_ids.txt";
 
     this.downloadFile(idsUri, fileName);
   }
