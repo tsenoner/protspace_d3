@@ -586,6 +586,9 @@ export class ProtspaceLegend extends LitElement {
     // Add to the legend items
     this.legendItems = [...this.legendItems, newItem];
 
+    // Recompute legend to remove the extracted value from Other and update counts
+    this.updateLegendItems();
+
     // Close the dialog
     this.showOtherDialog = false;
 

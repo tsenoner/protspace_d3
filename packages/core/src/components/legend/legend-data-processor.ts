@@ -301,7 +301,41 @@ export class LegendDataProcessor {
     // Add extracted items
     this.addExtractedItems(items, frequencyMap, existingLegendItems);
 
-    // If Others is disabled, ensure otherItems is empty as well
-    return { legendItems: items, otherItems: includeOthers ? otherItems : [] };
+    if (includeOthers && !isolationMode) {
+      // Build a set of values already shown individually (exclude null and the synthetic "Other")
+      const individuallyShownValues = new Set(
+        items
+          .map((i) => i.value)
+          .filter((v): v is string => v !== null && v !== "Other")
+      );
+
+      // Filter Other dialog items by removing already extracted/visible ones
+      const filteredOtherItems = otherItems.filter(
+        (oi) => oi.value !== null && !individuallyShownValues.has(oi.value)
+      );
+
+      // Recompute Other count
+      const newOtherCount = filteredOtherItems.reduce(
+        (sum, oi) => sum + oi.count,
+        0
+      );
+
+      // Update the "Other" legend item count or remove it if empty
+      const otherIndex = items.findIndex((i) => i.value === "Other");
+      if (otherIndex !== -1) {
+        if (newOtherCount > 0) {
+          items[otherIndex] = { ...items[otherIndex], count: newOtherCount };
+        } else {
+          // Remove the Other item entirely when no remaining entries
+          items.splice(otherIndex, 1);
+        }
+      }
+
+      // Return with filtered otherItems list
+      return { legendItems: items, otherItems: filteredOtherItems };
+    }
+
+    // If Others is disabled or we're in isolation mode, ensure otherItems is empty
+    return { legendItems: items, otherItems: [] };
   }
 }
