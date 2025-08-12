@@ -92,8 +92,8 @@ export class DataLoader extends LitElement {
             : this.error
             ? "Error loading data"
             : this.allowDrop
-            ? "Drop a Parquet or ParquetBundle file here or click to browse"
-            : "Click to load Parquet or ParquetBundle file"}
+            ? "Drop a ParquetBundle file here or click to browse"
+            : "Click to load a ParquetBundle file"}
         </div>
 
         ${this.fileInfo
