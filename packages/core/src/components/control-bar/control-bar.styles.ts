@@ -90,6 +90,30 @@ export const controlBarStyles = css`
     border-color: var(--up-primary);
   }
 
+  /* Make Filter button text more visible even when not active */
+  .right-controls .export-container > button {
+    color: #0b0f19; /* very dark text for light mode */
+    font-weight: 400;
+  }
+  @media (prefers-color-scheme: dark) {
+    .right-controls .export-container > button {
+      color: #ffffff; /* crisp white in dark mode */
+      font-weight: 400;
+    }
+  }
+
+  /* High-contrast labels inside filter panel */
+  .export-menu .filter-label {
+    color: #0b0f19;
+    font-weight: 400;
+  }
+  @media (prefers-color-scheme: dark) {
+    .export-menu .filter-label {
+      color: #ffffff;
+      font-weight: 400;
+    }
+  }
+
   button.active:hover {
     background: var(--up-primary-hover);
   }

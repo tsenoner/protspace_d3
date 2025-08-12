@@ -299,7 +299,7 @@ export class ProtspaceControlBar extends LitElement {
 
           <!-- Filter dropdown -->
           <div class="export-container">
-            <button @click=${this.toggleFilterMenu} title="Filter Options">
+            <button class=${this.showFilterMenu ? "active" : ""} @click=${this.toggleFilterMenu} title="Filter Options">
               <svg class="icon" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 5h18M6 12h12M10 19h4" />
               </svg>
@@ -312,7 +312,7 @@ export class ProtspaceControlBar extends LitElement {
             ${this.showFilterMenu
               ? html`
                   <div class="export-menu" style="width: 22rem; max-height: 22rem; overflow: auto;">
-                    <div style="padding: 0.5rem 0.75rem; font-weight: 600; color: var(--up-muted);">Configure filters</div>
+                    <div style="padding: 0.5rem 0.75rem; font-weight: 600; color: var(--up-muted);"></div>
                     <ul>
                       ${this.features.map((feature) => {
                         const cfg = this.filterConfig[feature] || { enabled: false, value: null };
@@ -323,7 +323,7 @@ export class ProtspaceControlBar extends LitElement {
                               const target = e.target as HTMLInputElement;
                               this.handleFilterToggle(feature, target.checked);
                             }} />
-                            <div style="flex: 1; min-width: 7rem;">${feature}</div>
+                            <div class="filter-label" style="flex: 1; min-width: 7rem;">${feature}</div>
                             <select id=${`filter-value-${feature}`} .value=${cfg.value === null ? "__NULL__" : (cfg.value ?? "")} 
                               ?disabled=${!cfg.enabled}
                               @change=${(e: Event) => {
