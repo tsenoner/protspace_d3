@@ -51,6 +51,18 @@ export interface ScatterplotProps {
   onProteinClick?: (proteinId: string, event?: React.MouseEvent) => void;
   onProteinHover?: (proteinId: string | null) => void;
   onViewStructure?: (proteinId: string | null) => void;
+  customColoring?: CustomColoring;
+}
+
+export interface CustomColoring {
+  filter: {
+    enabledByFeature: Record<string, boolean>;
+    allowedValuesByFeature: Record<string, Set<string>>;
+  };
+  customColors: {
+    filtered: string;
+    other: string;
+  };
 }
 
 

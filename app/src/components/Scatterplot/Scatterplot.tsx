@@ -43,6 +43,7 @@ export default function Scatterplot({
   onProteinClick,
   onProteinHover,
   onViewStructure,
+  customColoring,
 }: ScatterplotProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -77,13 +78,13 @@ export default function Scatterplot({
 
   // Factories for visual encodings
   const getColor = useMemo(
-    () => getColorFactory(data, selectedFeature, { otherFeatureValues }),
-    [data, selectedFeature, otherFeatureValues]
+    () => getColorFactory(data, selectedFeature, { otherFeatureValues, customColoring }),
+    [data, selectedFeature, otherFeatureValues, customColoring]
   );
 
   const getShape = useMemo(
-    () => getShapeFactory(data, selectedFeature, { otherFeatureValues, useShapes }),
-    [data, selectedFeature, otherFeatureValues, useShapes]
+    () => getShapeFactory(data, selectedFeature, { otherFeatureValues, useShapes, customColoring }),
+    [data, selectedFeature, otherFeatureValues, useShapes, customColoring]
   );
 
   const getOpacity = useMemo(

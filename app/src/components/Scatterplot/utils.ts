@@ -1,6 +1,6 @@
 import * as d3 from "d3";
 import { DEFAULT_CONFIG, DEFAULT_STYLES, SHAPE_MAPPING, COLORS } from "./constants";
-import { PlotDataPoint, VisualizationData } from "./types";
+import { CustomColoring, PlotDataPoint, VisualizationData } from "./types";
 
 export function computePlotData(
   data: VisualizationData,
@@ -63,11 +63,31 @@ export function buildScales(plotData: PlotDataPoint[], width: number, height: nu
 export function getColorFactory(
   data: VisualizationData | null,
   selectedFeature: string,
-  options?: { otherFeatureValues?: string[] }
+  options?: { otherFeatureValues?: string[]; customColoring?: CustomColoring }
 ) {
   const otherSet = new Set(options?.otherFeatureValues ?? []);
+  const custom = options?.customColoring;
   return (protein: PlotDataPoint) => {
-    if (!data || !data.features[selectedFeature]) return DEFAULT_STYLES.other.color;
+    if (!data) return DEFAULT_STYLES.other.color;
+
+    // Custom coloring mode: binary classes by filter membership
+    if (selectedFeature === "__custom__" && custom) {
+      const { enabledByFeature, allowedValuesByFeature } = custom.filter;
+      let passes = true;
+      for (const f of Object.keys(enabledByFeature)) {
+        if (!enabledByFeature[f]) continue;
+        const value = protein.featureValues[f];
+        const key = value === null ? "null" : String(value);
+        const allowed = allowedValuesByFeature[f] || new Set<string>();
+        if (!allowed.has(key)) {
+          passes = false;
+          break;
+        }
+      }
+      return passes ? custom.customColors.filtered : custom.customColors.other;
+    }
+
+    if (!data.features[selectedFeature]) return DEFAULT_STYLES.other.color;
 
     const featureValue = protein.featureValues[selectedFeature];
     if (featureValue === null) {
@@ -100,12 +120,19 @@ export function getColorFactory(
 export function getShapeFactory(
   data: VisualizationData | null,
   selectedFeature: string,
-  options?: { otherFeatureValues?: string[]; useShapes?: boolean }
+  options?: { otherFeatureValues?: string[]; useShapes?: boolean; customColoring?: CustomColoring }
 ) {
   const otherSet = new Set(options?.otherFeatureValues ?? []);
   const useShapes = options?.useShapes ?? true;
   return (protein: PlotDataPoint) => {
-    if (!data || !data.features[selectedFeature]) return DEFAULT_STYLES.other.shape;
+    if (!data) return DEFAULT_STYLES.other.shape;
+
+    // Custom coloring: keep shapes simple (circle)
+    if (selectedFeature === "__custom__" && options?.customColoring) {
+      return DEFAULT_STYLES.other.shape;
+    }
+
+    if (!data.features[selectedFeature]) return DEFAULT_STYLES.other.shape;
 
     const featureValue = protein.featureValues[selectedFeature];
     if (!useShapes) return DEFAULT_STYLES.other.shape;

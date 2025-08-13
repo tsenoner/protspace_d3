@@ -19,6 +19,7 @@ export function ControlBar({
   onToggleSelectionMode,
   onClearSelections,
   onExport,
+  onOpenFilter,
 }: ControlBarProps) {
   return (
     <div className="flex items-center justify-between px-4 py-2 bg-white border-b shadow-sm">
@@ -68,6 +69,24 @@ export function ControlBar({
           </svg>
           <span>Select</span>
         </ModeToggleButton>
+
+        <button
+          onClick={onOpenFilter}
+          type="button"
+          className={"px-3 py-1 border border-gray-300 rounded-md flex items-center space-x-1 hover:bg-gray-100"}
+          title="Open filter configuration"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-4 w-4 mr-1"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h18M6 12h12M10 19h4" />
+          </svg>
+          <span>Filter</span>
+        </button>
 
         <button
           onClick={onClearSelections}

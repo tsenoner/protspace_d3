@@ -14,6 +14,7 @@ export interface ControlBarProps {
   onToggleSelectionMode: () => void;
   onClearSelections: () => void;
   onExport: (type: ExportType) => void;
+  onOpenFilter: () => void;
 }
 
 
