@@ -70,7 +70,7 @@ export default function ProtSpaceApp() {
   // derived moved into hook
 
   return (
-    <main className="flex min-h-screen flex-col">
+    <main className="flex h-screen flex-col">
       {/* Header */}
       <Header
         onSearch={handleSearch}
