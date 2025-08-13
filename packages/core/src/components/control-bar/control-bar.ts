@@ -148,7 +148,7 @@ export class ProtspaceControlBar extends LitElement {
     }
   }
 
-  private handleExport(type: "json" | "ids" | "png" | "svg" | "pdf") {
+  private handleExport(type: "json" | "ids" | "png" | "pdf") {
     const customEvent = new CustomEvent("export", {
       detail: { type },
       bubbles: true,
