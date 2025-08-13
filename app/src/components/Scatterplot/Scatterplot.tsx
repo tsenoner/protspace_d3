@@ -137,6 +137,11 @@ export default function Scatterplot({
     [highlightedProteinIds, selectedProteinIds, pointSize, highlightedPointSize, selectedPointSize]
   );
 
+  // Compute only the points that are actually visible (opacity > 0)
+  const visiblePlotData = useMemo(() => {
+    return plotData.filter((p) => getOpacity(p) > 0);
+  }, [plotData, getOpacity]);
+
   // Initialize SVG, layers, and zoom via hook
   const { zoomRef, mainGroupRef, brushGroupRef } = useZoomSetup(
     svgRef,
@@ -151,7 +156,7 @@ export default function Scatterplot({
     brushGroupRef,
     zoomRef,
     selectionMode,
-    plotData,
+    visiblePlotData,
     scales,
     dimensions.width,
     dimensions.height,
@@ -196,7 +201,7 @@ export default function Scatterplot({
   );
 
   // Spatial index for hit testing in SVG overlay (coordinates are in screen space pre-transform)
-  const { findNearest } = useSpatialIndex(plotData, scales);
+  const { findNearest } = useSpatialIndex(visiblePlotData, scales);
 
   // SVG interaction overlay: handle hover/click using quadtree + transform
   useEffect(() => {
@@ -211,6 +216,12 @@ export default function Scatterplot({
       // First: find a nearby candidate with a small search radius
       const candidate = findNearest(sx, sy, 10 / (t.k || 1));
       if (candidate && scales) {
+        // Ignore invisible candidates
+        if (getOpacity(candidate) <= 0) {
+          setTooltipData(null);
+          if (onProteinHover) onProteinHover(null);
+          return;
+        }
         // Verify cursor is actually over the rendered point (circle-approx)
         const px = scales.x(candidate.x);
         const py = scales.y(candidate.y);
@@ -235,6 +246,8 @@ export default function Scatterplot({
       const sy = (my - t.y) / t.k;
       const candidate = findNearest(sx, sy, 10 / (t.k || 1));
       if (candidate && scales) {
+        // Ignore invisible candidates
+        if (getOpacity(candidate) <= 0) return;
         const px = scales.x(candidate.x);
         const py = scales.y(candidate.y);
         const sizeArea = getSize(candidate);
