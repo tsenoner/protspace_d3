@@ -240,8 +240,34 @@ export function useProtspace() {
   const totalProteins = visualizationData?.protein_ids.length || 0;
 
   const displayedProteins = useMemo(() => {
-    return totalProteins;
-  }, [totalProteins]);
+    // If no data or no feature is selected, show all
+    if (!visualizationData || !selectedFeature) return totalProteins;
+
+    // If nothing is hidden, show all
+    if (!hiddenFeatureValues || hiddenFeatureValues.length === 0) {
+      return totalProteins;
+    }
+
+    const feature = visualizationData.features[selectedFeature];
+    const featureData = visualizationData.feature_data[selectedFeature];
+    if (!feature || !Array.isArray(feature.values) || !Array.isArray(featureData)) {
+      return totalProteins;
+    }
+
+    const hidden = new Set(hiddenFeatureValues);
+
+    // Count proteins whose value is NOT hidden
+    let visibleCount = 0;
+    for (let i = 0; i < featureData.length; i += 1) {
+      const valueIndex = featureData[i];
+      const rawValue = feature.values[valueIndex];
+      const normalized = rawValue === null ? "null" : String(rawValue);
+      if (!hidden.has(normalized)) {
+        visibleCount += 1;
+      }
+    }
+    return visibleCount;
+  }, [visualizationData, selectedFeature, hiddenFeatureValues, totalProteins]);
 
   const projectionName =
     visualizationData?.projections[selectedProjectionIndex]?.name || "";

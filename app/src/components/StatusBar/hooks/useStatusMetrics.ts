@@ -22,7 +22,7 @@ export function useStatusMetrics(params: {
     const base = formatNumber(displayedProteins);
     if (!isFiltered || totalProteins === 0) return base;
     const percent = Math.round((displayedProteins / totalProteins) * 100);
-    return `${base} (${percent}%)`;
+    return `${base} (~${percent}%)`;
   }, [displayedProteins, totalProteins, isFiltered]);
 
   const formattedSelected = useMemo(
@@ -38,7 +38,7 @@ export function useStatusMetrics(params: {
     ? "text-orange-600"
     : undefined;
 
-  const displayedLabel = isFiltered ? "Filtered:" : "Displayed:";
+  const displayedLabel = "Displayed:";
 
   return {
     isFiltered,
