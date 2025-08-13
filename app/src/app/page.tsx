@@ -25,8 +25,6 @@ export default function ProtSpaceApp() {
     selectedFeature,
     selectedProteinIds,
     highlightedProteinIds,
-    isolationMode,
-    splitHistory,
     selectionMode,
     viewStructureId,
     hiddenFeatureValues,
@@ -40,7 +38,6 @@ export default function ProtSpaceApp() {
     handleProteinHover,
     handleSearch,
     handleRemoveProtein,
-    handleToggleIsolationMode,
     handleToggleVisibility,
     handleExtractFromOther,
     handleSetZOrder,
@@ -109,10 +106,8 @@ export default function ProtSpaceApp() {
         }
         selectedFeature={selectedFeature}
         onFeatureChange={setSelectedFeature}
-        selectionMode={selectionMode}
-        onToggleSelectionMode={() => setSelectionMode(!selectionMode)}
-        isolationMode={isolationMode}
-        onToggleIsolationMode={handleToggleIsolationMode}
+         selectionMode={selectionMode}
+         onToggleSelectionMode={() => setSelectionMode(!selectionMode)}
         selectedProteinsCount={selectedProteinIds.length}
         onExport={onExport}
         onClearSelections={() => {
@@ -132,8 +127,6 @@ export default function ProtSpaceApp() {
               selectedFeature={selectedFeature}
               selectedProteinIds={selectedProteinIds}
               highlightedProteinIds={highlightedProteinIds}
-              isolationMode={isolationMode}
-              splitHistory={splitHistory}
               selectionMode={selectionMode}
               hiddenFeatureValues={hiddenFeatureValues}
               otherFeatureValues={otherLegendValues}
@@ -187,8 +180,6 @@ export default function ProtSpaceApp() {
               }}
               selectedItems={Array.from(selectedFeatureItemsSet)}
               className="w-full lg:w-auto"
-              isolationMode={isolationMode}
-              splitHistory={splitHistory}
               ref={legendRef}
             />
           )}

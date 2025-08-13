@@ -28,8 +28,6 @@ export interface InteractiveLegendProps {
   onPointSizesChange?: (sizes: { pointSize: number; highlightedPointSize: number; selectedPointSize: number }) => void;
   selectedItems?: string[];
   className?: string;
-  isolationMode?: boolean;
-  splitHistory?: string[][];
   includeOthers?: boolean;
   includeShapes?: boolean;
   shapeSize?: number;

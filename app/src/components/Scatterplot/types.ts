@@ -37,8 +37,6 @@ export interface ScatterplotProps {
   selectedFeature: string;
   highlightedProteinIds: string[];
   selectedProteinIds: string[];
-  isolationMode: boolean;
-  splitHistory?: string[][];
   selectionMode: boolean;
   hiddenFeatureValues?: string[];
   otherFeatureValues?: string[];

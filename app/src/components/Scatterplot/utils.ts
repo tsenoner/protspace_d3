@@ -5,8 +5,7 @@ import { PlotDataPoint, VisualizationData } from "./types";
 export function computePlotData(
   data: VisualizationData,
   selectedProjectionIndex: number,
-  isolationMode: boolean,
-  splitHistory?: string[][]
+  
 ): PlotDataPoint[] {
   if (!data || !data.projections[selectedProjectionIndex]) return [];
 
@@ -36,17 +35,6 @@ export function computePlotData(
       originalIndex: index,
     };
   });
-
-  if (isolationMode && splitHistory && splitHistory.length > 0) {
-    let filteredData = processedData.filter((p) => splitHistory[0].includes(p.id));
-    if (splitHistory.length > 1) {
-      for (let i = 1; i < splitHistory.length; i++) {
-        const splitIds = splitHistory[i];
-        filteredData = filteredData.filter((p) => splitIds.includes(p.id));
-      }
-    }
-    return filteredData;
-  }
 
   return processedData;
 }

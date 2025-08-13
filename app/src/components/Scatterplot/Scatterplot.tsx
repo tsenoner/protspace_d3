@@ -29,8 +29,6 @@ export default function Scatterplot({
   selectedFeature,
   highlightedProteinIds = [],
   selectedProteinIds = [],
-  isolationMode = false,
-  splitHistory,
   selectionMode = false,
   hiddenFeatureValues = [],
   otherFeatureValues = [],
@@ -68,11 +66,9 @@ export default function Scatterplot({
     if (!data) return [] as PlotDataPoint[];
     return computePlotData(
       data,
-      selectedProjectionIndex,
-      isolationMode,
-      splitHistory
+      selectedProjectionIndex
     );
-  }, [data, selectedProjectionIndex, isolationMode, splitHistory]);
+  }, [data, selectedProjectionIndex]);
 
   // Memoize scales to prevent recalculation when other props change
   const scales = useMemo(() => {
@@ -315,28 +311,7 @@ export default function Scatterplot({
       )}
 
       {/* Isolation mode indicator */}
-      {isolationMode && splitHistory && (
-        <div className="absolute top-2 left-2 z-10 px-2 py-1 bg-primary text-white text-xs rounded-md flex items-center">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-4 w-4 mr-1"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M13 10V3L4 14h7v7l9-11h-7z"
-            />
-          </svg>
-          <span>
-            Split Mode: Showing {plotData.length} proteins (
-            {splitHistory.length} splits)
-          </span>
-        </div>
-      )}
+      
 
       {/* Selection Mode Indicator */}
       {selectionMode && (

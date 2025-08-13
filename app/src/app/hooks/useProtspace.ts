@@ -13,8 +13,7 @@ export function useProtspace() {
   const [highlightedProteinIds, setHighlightedProteinIds] = useState<string[]>(
     []
   );
-  const [isolationMode, setIsolationMode] = useState(false);
-  const [splitHistory, setSplitHistory] = useState<string[][]>([]);
+  
   const [selectionMode, setSelectionMode] = useState(false);
   const [viewStructureId, setViewStructureId] = useState<string | null>(null);
   const [hiddenFeatureValues, setHiddenFeatureValues] = useState<string[]>([]);
@@ -169,25 +168,7 @@ export function useProtspace() {
     ]);
   };
 
-  const handleToggleIsolationMode = () => {
-    if (!isolationMode) {
-      if (selectedProteinIds.length === 0) {
-        return;
-      }
-      setIsolationMode(true);
-      setSplitHistory((prev) => [...prev, [...selectedProteinIds]]);
-      setSelectedProteinIds([]);
-    } else {
-      if (selectedProteinIds.length > 0) {
-        setSplitHistory((prev) => [...prev, [...selectedProteinIds]]);
-        setSelectedProteinIds([]);
-      } else {
-        setIsolationMode(false);
-        setSplitHistory([]);
-        setHiddenFeatureValues([]);
-      }
-    }
-  };
+  
 
   const handleImportData = (data: any) => {
     try {
@@ -197,8 +178,7 @@ export function useProtspace() {
       setSelectedFeature(firstFeature || "");
       setSelectedProteinIds([]);
       setHighlightedProteinIds([]);
-      setIsolationMode(false);
-      setSplitHistory([]);
+      
       setHiddenFeatureValues([]);
       setSelectionMode(false);
       setViewStructureId(null);
@@ -252,23 +232,8 @@ export function useProtspace() {
   const totalProteins = visualizationData?.protein_ids.length || 0;
 
   const displayedProteins = useMemo(() => {
-    if (!isolationMode || !splitHistory || splitHistory.length === 0) {
-      return totalProteins;
-    }
-    if (!visualizationData) return 0;
-    const displayedIds = new Set(splitHistory[0]);
-    if (splitHistory.length > 1) {
-      for (let i = 1; i < splitHistory.length; i++) {
-        const currentSplit = splitHistory[i];
-        Array.from(displayedIds).forEach((id) => {
-          if (!currentSplit.includes(id)) {
-            displayedIds.delete(id);
-          }
-        });
-      }
-    }
-    return displayedIds.size;
-  }, [isolationMode, splitHistory, totalProteins, visualizationData]);
+    return totalProteins;
+  }, [totalProteins]);
 
   const projectionName =
     visualizationData?.projections[selectedProjectionIndex]?.name || "";
@@ -304,8 +269,6 @@ export function useProtspace() {
     selectedFeature,
     selectedProteinIds,
     highlightedProteinIds,
-    isolationMode,
-    splitHistory,
     selectionMode,
     viewStructureId,
     hiddenFeatureValues,
@@ -316,8 +279,6 @@ export function useProtspace() {
     setSelectedFeature,
     setSelectedProteinIds,
     setHighlightedProteinIds,
-    setIsolationMode,
-    setSplitHistory,
     setSelectionMode,
     setViewStructureId,
     // handlers
@@ -325,7 +286,6 @@ export function useProtspace() {
     handleProteinHover,
     handleSearch,
     handleRemoveProtein,
-    handleToggleIsolationMode,
     handleToggleVisibility,
     handleExtractFromOther,
     handleSetZOrder,

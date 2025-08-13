@@ -3,37 +3,13 @@ import { LegendItem } from "./types";
 
 export function buildFrequencyMap(
   featureValues: (string | null)[],
-  isolationMode: boolean,
-  splitHistory?: string[][],
   proteinIds?: string[]
 ): Map<string | null, number> {
   const frequencyMap = new Map<string | null, number>();
 
-  if (isolationMode && splitHistory && splitHistory.length > 0 && proteinIds) {
-    const filteredIndices = new Set<number>();
-    proteinIds.forEach((id, index) => {
-      let isIncluded = splitHistory[0].includes(id);
-      if (isIncluded && splitHistory.length > 1) {
-        for (let i = 1; i < splitHistory.length; i++) {
-          if (!splitHistory[i].includes(id)) {
-            isIncluded = false;
-            break;
-          }
-        }
-      }
-      if (isIncluded) filteredIndices.add(index);
-    });
-
-    featureValues.forEach((value, index) => {
-      if (filteredIndices.has(index)) {
-        frequencyMap.set(value, (frequencyMap.get(value) || 0) + 1);
-      }
-    });
-  } else {
-    featureValues.forEach((value) => {
-      frequencyMap.set(value, (frequencyMap.get(value) || 0) + 1);
-    });
-  }
+  featureValues.forEach((value) => {
+    frequencyMap.set(value, (frequencyMap.get(value) || 0) + 1);
+  });
 
   return frequencyMap;
 }

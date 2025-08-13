@@ -13,12 +13,10 @@ export function ControlBar({
   selectedProjection,
   selectedFeature,
   selectionMode,
-  isolationMode,
   selectedProteinsCount,
   onProjectionChange,
   onFeatureChange,
   onToggleSelectionMode,
-  onToggleIsolationMode,
   onClearSelections,
   onExport,
 }: ControlBarProps) {
@@ -42,11 +40,7 @@ export function ControlBar({
         <ModeToggleButton
           active={selectionMode}
           onClick={onToggleSelectionMode}
-          title={
-            isolationMode
-              ? "Select proteins within the split view for further refinement"
-              : "Select proteins by clicking or dragging to enclose multiple points"
-          }
+          title={"Select proteins by clicking or dragging to enclose multiple points"}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -101,42 +95,7 @@ export function ControlBar({
           <span>Clear</span>
         </button>
 
-        <ModeToggleButton
-          active={isolationMode}
-          onClick={onToggleIsolationMode}
-          disabled={!isolationMode && selectedProteinsCount === 0}
-          title={
-            isolationMode && selectedProteinsCount > 0
-              ? "Split again to further refine view"
-              : isolationMode && selectedProteinsCount === 0
-              ? "Exit split mode and view all proteins"
-              : selectedProteinsCount === 0
-              ? "Select proteins first to split data"
-              : "Split view to focus on selected proteins only"
-          }
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-4 w-4 mr-1"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
-            />
-          </svg>
-          <span>
-            {isolationMode && selectedProteinsCount > 0
-              ? "Split Again"
-              : isolationMode && selectedProteinsCount === 0
-              ? "Show All Data"
-              : "Split Data"}
-          </span>
-        </ModeToggleButton>
+        
 
         <ExportMenu onExport={onExport} />
       </div>

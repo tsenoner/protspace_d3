@@ -37,9 +37,7 @@ const InteractiveLegend = forwardRef<
       onPointSizesChange,
       selectedItems = [],
       className = "",
-      isolationMode = false,
-      splitHistory,
-      includeOthers = !isolationMode,
+      includeOthers = true,
       includeShapes = false,
       shapeSize,
     },
@@ -76,8 +74,6 @@ const InteractiveLegend = forwardRef<
 
       const frequencyMap = buildFrequencyMap(
         featureValues,
-        isolationMode,
-        splitHistory,
         proteinIds
       );
 
@@ -90,7 +86,7 @@ const InteractiveLegend = forwardRef<
           },
           frequencyMap,
           maxVisibleValues: localMaxVisible,
-          includeOther: localIncludeOthers && !isolationMode,
+          includeOther: localIncludeOthers,
           previousItems,
         });
 
@@ -108,7 +104,7 @@ const InteractiveLegend = forwardRef<
 
         return itemsWithVisibility;
       });
-    }, [featureData, featureValues, isolationMode, splitHistory, proteinIds, localMaxVisible, localIncludeOthers, localIncludeShapes]);
+    }, [featureData, featureValues, proteinIds, localMaxVisible, localIncludeOthers, localIncludeShapes]);
 
     // Process data into legend items
     useEffect(() => {
