@@ -34,12 +34,13 @@ const InteractiveLegend = forwardRef<
       onOpenCustomization,
       onOtherValuesChange,
       onUseShapesChange,
+      onPointSizesChange,
       selectedItems = [],
       className = "",
       isolationMode = false,
       splitHistory,
       includeOthers = !isolationMode,
-      includeShapes = true,
+      includeShapes = false,
       shapeSize,
     },
     ref
@@ -383,7 +384,6 @@ const InteractiveLegend = forwardRef<
                 onDragEnd={handleDragEnd}
                 onOpenOther={() => setShowOtherDialog(true)}
                 includeShapes={localIncludeShapes}
-                shapeSize={localShapeSize}
                 onDropOn={handleDropOnItem}
               />
             );
@@ -415,6 +415,13 @@ const InteractiveLegend = forwardRef<
             setLocalIncludeShapes(is);
             setLocalShapeSize(ss);
             recomputeLegend();
+            // Emit point sizes for scatterplot based on shape size input
+            if (onPointSizesChange) {
+              const base = Math.max(10, Math.round(ss * LEGEND_DEFAULTS.symbolSizeMultiplier));
+              const highlighted = Math.round(base * 1.5);
+              const selected = Math.round(base * 1.875);
+              onPointSizesChange({ pointSize: base, highlightedPointSize: highlighted, selectedPointSize: selected });
+            }
           }}
         />
       </div>

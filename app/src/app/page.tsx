@@ -7,7 +7,8 @@ import InteractiveLegend from "@/components/InteractiveLegend/InteractiveLegend"
 import Scatterplot from "@/components/Scatterplot/Scatterplot";
 import StatusBar from "@/components/StatusBar/StatusBar";
 import dynamic from "next/dynamic";
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { DEFAULT_CONFIG as SCATTER_DEFAULTS } from "@/components/Scatterplot/constants";
 import { useProtspace } from "./hooks/useProtspace";
 import { useExport } from "./hooks/useExport";
 
@@ -57,6 +58,13 @@ export default function ProtSpaceApp() {
 
   // Ref for the legend component
   const legendRef = useRef<{ downloadAsImage: () => Promise<void> }>(null);
+
+  // Point size state controlled from legend settings
+  const [pointSizes, setPointSizes] = useState({
+    pointSize: SCATTER_DEFAULTS.pointSize,
+    highlightedPointSize: SCATTER_DEFAULTS.highlightedPointSize,
+    selectedPointSize: SCATTER_DEFAULTS.selectedPointSize,
+  });
 
   // Export handler
   const { handleExport: onExport } = useExport({
@@ -130,6 +138,9 @@ export default function ProtSpaceApp() {
               hiddenFeatureValues={hiddenFeatureValues}
               otherFeatureValues={otherLegendValues}
               useShapes={useShapes}
+              pointSize={pointSizes.pointSize}
+              highlightedPointSize={pointSizes.highlightedPointSize}
+              selectedPointSize={pointSizes.selectedPointSize}
               onProteinClick={handleProteinClick}
               onProteinHover={handleProteinHover}
               onViewStructure={setViewStructureId}
@@ -171,6 +182,9 @@ export default function ProtSpaceApp() {
               onOpenCustomization={handleOpenCustomization}
               onOtherValuesChange={setOtherLegendValues}
               onUseShapesChange={setUseShapes}
+              onPointSizesChange={({ pointSize, highlightedPointSize, selectedPointSize }) => {
+                setPointSizes({ pointSize, highlightedPointSize, selectedPointSize });
+              }}
               selectedItems={Array.from(selectedFeatureItemsSet)}
               className="w-full lg:w-auto"
               isolationMode={isolationMode}

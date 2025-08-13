@@ -43,6 +43,9 @@ export interface ScatterplotProps {
   hiddenFeatureValues?: string[];
   otherFeatureValues?: string[];
   useShapes?: boolean;
+  pointSize?: number;
+  highlightedPointSize?: number;
+  selectedPointSize?: number;
   baseOpacity?: number;
   selectedOpacity?: number;
   fadedOpacity?: number;

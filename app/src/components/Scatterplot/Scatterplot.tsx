@@ -35,6 +35,9 @@ export default function Scatterplot({
   hiddenFeatureValues = [],
   otherFeatureValues = [],
   useShapes = true,
+  pointSize = DEFAULT_CONFIG.pointSize,
+  highlightedPointSize = DEFAULT_CONFIG.highlightedPointSize,
+  selectedPointSize = DEFAULT_CONFIG.selectedPointSize,
   baseOpacity = DEFAULT_CONFIG.baseOpacity,
   selectedOpacity = DEFAULT_CONFIG.selectedOpacity,
   fadedOpacity = DEFAULT_CONFIG.fadedOpacity,
@@ -124,8 +127,15 @@ export default function Scatterplot({
   );
 
   const getSize = useMemo(
-    () => getSizeFactory(highlightedProteinIds, selectedProteinIds),
-    [highlightedProteinIds, selectedProteinIds]
+    () => {
+      // Override default sizes using props
+      return (protein: PlotDataPoint) => {
+        if (highlightedProteinIds.includes(protein.id)) return highlightedPointSize;
+        if (selectedProteinIds.includes(protein.id)) return selectedPointSize;
+        return pointSize;
+      };
+    },
+    [highlightedProteinIds, selectedProteinIds, pointSize, highlightedPointSize, selectedPointSize]
   );
 
   // Initialize SVG, layers, and zoom via hook

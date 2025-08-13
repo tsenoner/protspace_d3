@@ -19,7 +19,7 @@ export function useProtspace() {
   const [viewStructureId, setViewStructureId] = useState<string | null>(null);
   const [hiddenFeatureValues, setHiddenFeatureValues] = useState<string[]>([]);
   const [otherLegendValues, setOtherLegendValues] = useState<string[]>([]);
-  const [useShapes, setUseShapes] = useState<boolean>(true);
+  const [useShapes, setUseShapes] = useState<boolean>(false);
 
   // Load data when component mounts
   const loadData = async (dataPath?: string) => {

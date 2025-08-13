@@ -25,6 +25,7 @@ export interface InteractiveLegendProps {
   onOpenCustomization?: () => void;
   onOtherValuesChange?: (values: string[]) => void;
   onUseShapesChange?: (use: boolean) => void;
+  onPointSizesChange?: (sizes: { pointSize: number; highlightedPointSize: number; selectedPointSize: number }) => void;
   selectedItems?: string[];
   className?: string;
   isolationMode?: boolean;
