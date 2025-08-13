@@ -52,6 +52,9 @@ export default function ProtSpaceApp() {
     displayedProteins,
     projectionName,
     selectedFeatureItemsSet,
+    projectionPlane,
+    projectionDimension,
+    setProjectionPlane,
   } = useProtspace();
 
   // Ref for the legend component
@@ -121,12 +124,19 @@ export default function ProtSpaceApp() {
             : []
         }
         selectedProjection={projectionName}
+        projectionPlane={projectionPlane}
+        projectionDimension={projectionDimension as any}
         onProjectionChange={(name) => {
           const index =
             visualizationData?.projections.findIndex((p) => p.name === name) ||
             0;
           setSelectedProjectionIndex(index);
+          const dim = visualizationData?.projections[index]?.metadata?.dimension;
+          if (dim === 3 && projectionPlane === undefined) {
+            setProjectionPlane('xy');
+          }
         }}
+        onProjectionPlaneChange={(p) => setProjectionPlane(p)}
         features={
           visualizationData
             ? (
@@ -164,6 +174,7 @@ export default function ProtSpaceApp() {
             <Scatterplot
               data={visualizationData}
               selectedProjectionIndex={selectedProjectionIndex}
+              projectionPlane={projectionPlane}
               selectedFeature={isCustomColoring ? "__custom__" : selectedFeature}
               selectedProteinIds={selectedProteinIds}
               highlightedProteinIds={highlightedProteinIds}

@@ -19,6 +19,7 @@ export function useProtspace() {
   const [hiddenFeatureValues, setHiddenFeatureValues] = useState<string[]>([]);
   const [otherLegendValues, setOtherLegendValues] = useState<string[]>([]);
   const [useShapes, setUseShapes] = useState<boolean>(false);
+  const [projectionPlane, setProjectionPlane] = useState<'xy' | 'xz' | 'yz'>('xy');
 
   // Load data when component mounts
   const loadData = async (dataPath?: string) => {
@@ -174,6 +175,9 @@ export function useProtspace() {
     try {
       setVisualizationData(data as VisualizationData);
       setSelectedProjectionIndex(0);
+      // Default plane by projection dimensionality
+      const dim = (data as VisualizationData)?.projections?.[0]?.metadata?.dimension;
+      setProjectionPlane(dim === 3 ? 'xy' : 'xy');
       const firstFeature = data && data.features ? Object.keys(data.features)[0] : "";
       setSelectedFeature(firstFeature || "");
       setSelectedProteinIds([]);
@@ -271,6 +275,7 @@ export function useProtspace() {
 
   const projectionName =
     visualizationData?.projections[selectedProjectionIndex]?.name || "";
+  const projectionDimension = visualizationData?.projections[selectedProjectionIndex]?.metadata?.dimension || 2;
 
   const selectedFeatureItemsSet = useMemo(() => {
     if (!selectedProteinIds.length || !visualizationData || !selectedFeature)
@@ -308,6 +313,8 @@ export function useProtspace() {
     hiddenFeatureValues,
     otherLegendValues,
     useShapes,
+    projectionPlane,
+    projectionDimension,
     // setters
     setSelectedProjectionIndex,
     setSelectedFeature,
@@ -327,6 +334,7 @@ export function useProtspace() {
     handleImportData,
     setOtherLegendValues,
     setUseShapes,
+    setProjectionPlane,
     // derived
     totalProteins,
     displayedProteins,

@@ -24,6 +24,7 @@ export interface PlotDataPoint {
   id: string;
   x: number;
   y: number;
+  z?: number;
   featureValues: Record<string, string | null>;
   originalIndex: number;
 }
@@ -34,6 +35,7 @@ export interface ScatterplotProps {
   height?: number;
   resolutionScale?: number;
   selectedProjectionIndex: number;
+  projectionPlane?: 'xy' | 'xz' | 'yz';
   selectedFeature: string;
   highlightedProteinIds: string[];
   selectedProteinIds: string[];

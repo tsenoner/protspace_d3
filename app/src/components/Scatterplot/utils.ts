@@ -5,14 +5,23 @@ import { CustomColoring, PlotDataPoint, VisualizationData } from "./types";
 export function computePlotData(
   data: VisualizationData,
   selectedProjectionIndex: number,
-  
+  projectionPlane: 'xy' | 'xz' | 'yz' = 'xy'
 ): PlotDataPoint[] {
   if (!data || !data.projections[selectedProjectionIndex]) return [];
 
   const processedData: PlotDataPoint[] = data.protein_ids.map((id, index) => {
     const point = data.projections[selectedProjectionIndex].data[index];
-    const x = Array.isArray(point) ? Number(point[0]) : 0;
-    const y = Array.isArray(point) ? Number(point[1]) : 0;
+    let x = Array.isArray(point) ? Number(point[0]) : 0;
+    let y = Array.isArray(point) ? Number(point[1]) : 0;
+    const z = Array.isArray(point) && point.length === 3 ? Number(point[2]) : undefined;
+    if (z !== undefined && !Number.isNaN(z)) {
+      if (projectionPlane === 'xz') {
+        y = z;
+      } else if (projectionPlane === 'yz') {
+        x = Number(point[1]);
+        y = z;
+      }
+    }
 
     const featureValues: Record<string, string | null> = {};
     Object.keys(data.features).forEach((featureKey) => {
@@ -27,13 +36,15 @@ export function computePlotData(
           : null;
     });
 
-    return {
+    const base: PlotDataPoint = {
       id,
       x,
       y,
       featureValues,
       originalIndex: index,
     };
+    if (z !== undefined && !Number.isNaN(z)) base.z = z;
+    return base;
   });
 
   return processedData;

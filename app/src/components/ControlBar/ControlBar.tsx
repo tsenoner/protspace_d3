@@ -12,10 +12,13 @@ export function ControlBar({
   features,
   selectedProjection,
   selectedFeature,
+  projectionPlane,
+  projectionDimension,
   selectionMode,
   selectedProteinsCount,
   onProjectionChange,
   onFeatureChange,
+  onProjectionPlaneChange,
   onToggleSelectionMode,
   onClearSelections,
   onExport,
@@ -29,6 +32,23 @@ export function ControlBar({
           selectedProjection={selectedProjection}
           onChange={onProjectionChange}
         />
+
+        {projectionDimension === 3 && (
+          <div className="flex items-center space-x-2">
+            <label htmlFor="plane-select" className="text-sm font-medium text-gray-700">Plane:</label>
+            <select
+              id="plane-select"
+              aria-label="Projection plane"
+              value={projectionPlane}
+              onChange={(e) => onProjectionPlaneChange && onProjectionPlaneChange(e.target.value as any)}
+              className="py-1 px-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--primary-600)] focus:border-[color:var(--primary-600)]"
+            >
+              <option value="xy">XY</option>
+              <option value="xz">XZ</option>
+              <option value="yz">YZ</option>
+            </select>
+          </div>
+        )}
 
         <FeatureSelect
           features={features}

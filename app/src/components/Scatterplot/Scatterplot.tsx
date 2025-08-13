@@ -26,6 +26,7 @@ export default function Scatterplot({
   height = DEFAULT_CONFIG.height,
   resolutionScale = DEFAULT_CONFIG.canvasResolutionScale,
   selectedProjectionIndex,
+  projectionPlane = 'xy',
   selectedFeature,
   highlightedProteinIds = [],
   selectedProteinIds = [],
@@ -67,9 +68,10 @@ export default function Scatterplot({
     if (!data) return [] as PlotDataPoint[];
     return computePlotData(
       data,
-      selectedProjectionIndex
+      selectedProjectionIndex,
+      projectionPlane
     );
-  }, [data, selectedProjectionIndex]);
+  }, [data, selectedProjectionIndex, projectionPlane]);
 
   // Memoize scales to prevent recalculation when other props change
   const scales = useMemo(() => {
