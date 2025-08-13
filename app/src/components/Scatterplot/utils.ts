@@ -72,7 +72,12 @@ export function buildScales(plotData: PlotDataPoint[], width: number, height: nu
   } as const;
 }
 
-export function getColorFactory(data: VisualizationData | null, selectedFeature: string) {
+export function getColorFactory(
+  data: VisualizationData | null,
+  selectedFeature: string,
+  options?: { otherFeatureValues?: string[] }
+) {
+  const otherSet = new Set(options?.otherFeatureValues ?? []);
   return (protein: PlotDataPoint) => {
     if (!data || !data.features[selectedFeature]) return DEFAULT_STYLES.other.color;
 
@@ -85,6 +90,11 @@ export function getColorFactory(data: VisualizationData | null, selectedFeature:
         nullIndex in data.features[selectedFeature].colors
         ? data.features[selectedFeature].colors[nullIndex]
         : DEFAULT_STYLES.null.color;
+    }
+
+    // If this value currently belongs to the Other bucket, force gray color
+    if (otherSet.has(String(featureValue))) {
+      return DEFAULT_STYLES.other.color;
     }
 
     const valueIndex =

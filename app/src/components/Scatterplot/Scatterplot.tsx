@@ -81,8 +81,8 @@ export default function Scatterplot({
 
   // Factories for visual encodings
   const getColor = useMemo(
-    () => getColorFactory(data, selectedFeature),
-    [data, selectedFeature]
+    () => getColorFactory(data, selectedFeature, { otherFeatureValues }),
+    [data, selectedFeature, otherFeatureValues]
   );
 
   const getShape = useMemo(

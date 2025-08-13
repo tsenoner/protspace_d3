@@ -121,11 +121,12 @@ const InteractiveLegend = forwardRef<
     useEffect(() => {
       if (!onOtherValuesChange) return;
       const concrete = otherItems.map(([v]) => (v === null ? "null" : (v as string)));
-      const payload = localIncludeOthers ? concrete : [];
-      const signature = JSON.stringify(payload);
+      // Always emit concrete Other membership to keep Scatterplot styling consistent,
+      // independent of whether the legend shows the Other bucket
+      const signature = JSON.stringify(concrete);
       if (signature === lastOtherValuesEmittedRef.current) return;
       lastOtherValuesEmittedRef.current = signature;
-      onOtherValuesChange(payload);
+      onOtherValuesChange(concrete);
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [otherItems, localIncludeOthers]);
 
