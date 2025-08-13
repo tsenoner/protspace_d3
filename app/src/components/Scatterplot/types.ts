@@ -63,6 +63,7 @@ export interface CustomColoring {
     filtered: string;
     other: string;
   };
+  hiddenClasses?: string[]; // e.g., ["Filtered Proteins"] or ["Other Proteins"]
 }
 
 

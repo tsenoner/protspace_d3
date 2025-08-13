@@ -98,7 +98,8 @@ export default function Scatterplot({
         selectionMode,
         baseOpacity,
         selectedOpacity,
-        fadedOpacity
+        fadedOpacity,
+        customColoring
       ),
     [
       data,
@@ -110,6 +111,7 @@ export default function Scatterplot({
       baseOpacity,
       selectedOpacity,
       fadedOpacity,
+      customColoring,
     ]
   );
 

@@ -214,10 +214,18 @@ export function useProtspace() {
 
   // Auto-reset legend visibility when all categories become hidden
   useEffect(() => {
+    if (!hiddenFeatureValues || hiddenFeatureValues.length === 0) return;
+    const hasFiltered = hiddenFeatureValues.includes("Filtered Proteins");
+    const hasOther = hiddenFeatureValues.includes("Other Proteins");
+    if (hasFiltered && hasOther) {
+      setHiddenFeatureValues([]);
+      return;
+    }
+
+    // Case 2: Regular feature legend
     if (!visualizationData || !selectedFeature) return;
     const feature = visualizationData.features[selectedFeature];
     if (!feature || !Array.isArray(feature.values) || feature.values.length === 0) return;
-    if (!hiddenFeatureValues || hiddenFeatureValues.length === 0) return;
 
     const hidden = new Set(hiddenFeatureValues);
     const normalizedKeys = feature.values.map((v) =>

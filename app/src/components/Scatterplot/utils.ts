@@ -175,20 +175,49 @@ export function getOpacityFactory(
   selectionMode: boolean,
   baseOpacity: number,
   selectedOpacity: number,
-  fadedOpacity: number
+  fadedOpacity: number,
+  customColoring?: CustomColoring
 ) {
-  // Determine if effectively all values for the selected feature are hidden.
+  // Determine if effectively all values are hidden.
   const allHidden = (() => {
+    const hidden = new Set(hiddenFeatureValues);
+    if (hidden.size === 0) return false;
+    // Custom coloring case: both classes hidden
+    if (selectedFeature === "__custom__" && customColoring) {
+      return hidden.has("Filtered Proteins") && hidden.has("Other Proteins");
+    }
     if (!data || !data.features[selectedFeature]) return false;
     const values = data.features[selectedFeature].values || [];
     if (!Array.isArray(values) || values.length === 0) return false;
-    const hidden = new Set(hiddenFeatureValues);
-    if (hidden.size === 0) return false;
     const normalizedKeys = values.map((v) => (v === null ? "null" : typeof v === "string" && v.trim() === "" ? "" : String(v)));
     return normalizedKeys.length > 0 && normalizedKeys.every((k) => hidden.has(k));
   })();
 
   return (protein: PlotDataPoint) => {
+    // Custom coloring: map to class string first
+    if (selectedFeature === "__custom__" && customColoring) {
+      const { enabledByFeature, allowedValuesByFeature } = customColoring.filter;
+      let passes = true;
+      for (const f of Object.keys(enabledByFeature)) {
+        if (!enabledByFeature[f]) continue;
+        const value = protein.featureValues[f];
+        const key = value === null ? "null" : String(value);
+        const allowed = allowedValuesByFeature[f] || new Set<string>();
+        if (!allowed.has(key)) {
+          passes = false;
+          break;
+        }
+      }
+      const className = passes ? "Filtered Proteins" : "Other Proteins";
+      if (!allHidden && hiddenFeatureValues.includes(className)) {
+        return 0;
+      }
+      if (highlightedProteinIds.includes(protein.id)) return selectedOpacity;
+      if (selectedProteinIds.length > 0 && selectedProteinIds.includes(protein.id)) return selectedOpacity;
+      if (selectionMode && selectedProteinIds.length > 0 && !selectedProteinIds.includes(protein.id)) return fadedOpacity;
+      return baseOpacity;
+    }
+
     const featureValue = protein.featureValues[selectedFeature];
     // When all are hidden, bypass hidden filtering to show everything again
     if (!allHidden) {
