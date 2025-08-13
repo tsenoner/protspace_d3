@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useMemo } from "react";
 import * as d3 from "d3";
-import { DEFAULT_CONFIG, COLORS } from "./constants";
+import { DEFAULT_CONFIG } from "./constants";
 import {
   computePlotData,
   buildScales,
@@ -17,7 +17,8 @@ import { PlotDataPoint, ScatterplotProps } from "./types";
 import { useResponsiveDimensions } from "./hooks/useResponsiveDimensions";
 import { useZoomSetup } from "./hooks/useZoomSetup";
 import { useBrushSelection } from "./hooks/useBrushSelection";
-import { useRenderPoints } from "./hooks/useRenderPoints";
+import { useCanvasLayer } from "./hooks/useCanvasLayer";
+import { useSpatialIndex } from "./hooks/useSpatialIndex";
 
 export default function ImprovedScatterplot({
   data,
@@ -40,6 +41,7 @@ export default function ImprovedScatterplot({
   onViewStructure,
 }: ScatterplotProps) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [tooltipData, setTooltipData] = useState<{
     x: number;
     y: number;
@@ -125,7 +127,8 @@ export default function ImprovedScatterplot({
   const { zoomRef, mainGroupRef, brushGroupRef } = useZoomSetup(
     svgRef,
     dimensions.width,
-    dimensions.height
+    dimensions.height,
+    (t) => setZoomTransform(t)
   );
 
   // Setup or remove brush based on selection mode via hook
@@ -151,7 +154,7 @@ export default function ImprovedScatterplot({
     }
   }, [selectedProjectionIndex]);
 
-  // Render and update points via hook
+  // Transition flag timing
   useEffect(() => {
     if (isTransitioning) {
       const timer = setTimeout(() => setIsTransitioning(false), 800);
@@ -159,28 +162,72 @@ export default function ImprovedScatterplot({
     }
   }, [isTransitioning]);
 
-  useRenderPoints(
-    svgRef,
-    mainGroupRef,
-    plotData,
+  // Canvas rendering
+  useCanvasLayer(
+    canvasRef,
+    dimensions.width,
+    dimensions.height,
     scales,
-    {
-    getColor,
-    getShape,
-    getOpacity,
-    getStrokeWidth,
-    getStrokeColor,
-    getSize,
-    },
-    highlightedProteinIds,
-    selectedProteinIds,
-    selectionMode,
     zoomTransform,
-    setTooltipData,
-    onProteinClick,
-    onProteinHover,
-    onViewStructure
+    plotData,
+    {
+      getColor,
+      getShape,
+      getOpacity,
+      getStrokeWidth,
+      getStrokeColor,
+      getSize,
+    }
   );
+
+  // Spatial index for hit testing in SVG overlay (coordinates are in screen space pre-transform)
+  const { findNearest } = useSpatialIndex(plotData, scales);
+
+  // SVG interaction overlay: handle hover/click using quadtree + transform
+  useEffect(() => {
+    if (!svgRef.current || !scales) return;
+    const svg = d3.select(svgRef.current);
+    const handleMove = (event: MouseEvent) => {
+      const [mx, my] = d3.pointer(event);
+      const t = zoomTransform ?? d3.zoomIdentity;
+      // Inverse-transform to pre-zoom screen space used by quadtree
+      const sx = (mx - t.x) / t.k;
+      const sy = (my - t.y) / t.k;
+      const pt = findNearest(sx, sy, 15 / (t.k || 1));
+      if (pt) {
+        setTooltipData({ x: mx, y: my, protein: pt });
+        if (onProteinHover) onProteinHover(pt.id);
+      } else {
+        setTooltipData(null);
+        if (onProteinHover) onProteinHover(null);
+      }
+    };
+    const handleClick = (event: MouseEvent) => {
+      const [mx, my] = d3.pointer(event);
+      const t = zoomTransform ?? d3.zoomIdentity;
+      const sx = (mx - t.x) / t.k;
+      const sy = (my - t.y) / t.k;
+      const pt = findNearest(sx, sy, 15 / (t.k || 1));
+      if (pt) {
+        if (event.altKey && onViewStructure) {
+          onViewStructure(pt.id);
+          return;
+        }
+        if (onProteinClick) onProteinClick(pt.id, event as any);
+      }
+    };
+    svg.on("mousemove.canvas-overlay", handleMove as any);
+    svg.on("click.canvas-overlay", handleClick as any);
+    svg.on("mouseleave.canvas-overlay", () => {
+      setTooltipData(null);
+      if (onProteinHover) onProteinHover(null);
+    });
+    return () => {
+      svg.on("mousemove.canvas-overlay", null);
+      svg.on("click.canvas-overlay", null);
+      svg.on("mouseleave.canvas-overlay", null);
+    };
+  }, [svgRef, scales, zoomTransform, findNearest, onProteinHover, onProteinClick, onViewStructure]);
 
   // Effect to automatically zoom to highlighted/selected proteins when they change
   useEffect(() => {
@@ -199,14 +246,24 @@ export default function ImprovedScatterplot({
       className={`relative ${className} h-full w-full overflow-hidden`}
       ref={containerRef}
     >
+      {/* Canvas for high-performance rendering */}
+      <canvas
+        ref={canvasRef}
+        width={dimensions.width}
+        height={dimensions.height}
+        className="absolute top-0 left-0 w-full h-full"
+        style={{ display: "block", border: "none", margin: 0, padding: 0, pointerEvents: "none", zIndex: 1 }}
+      />
+
+      {/* SVG overlay for interactions */}
       <svg
         ref={svgRef}
         width={dimensions.width}
         height={dimensions.height}
-        className={`w-full h-full bg-white ${
+        className={`w-full h-full ${
           selectionMode ? "cursor-crosshair" : "cursor-grab"
         }`}
-        style={{ display: "block", border: "none", margin: 0, padding: 0 }}
+        style={{ display: "block", border: "none", margin: 0, padding: 0, background: "transparent", position: "relative", zIndex: 2 }}
       />
 
       {/* Loading overlay */}
@@ -280,7 +337,7 @@ export default function ImprovedScatterplot({
       )}
 
       {/* Tooltip */}
-      {tooltipData && (
+       {tooltipData && (
         <div
           className="absolute z-10 p-2 bg-white rounded shadow-md border text-sm"
           style={{

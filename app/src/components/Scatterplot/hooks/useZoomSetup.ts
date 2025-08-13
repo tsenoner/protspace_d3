@@ -7,7 +7,8 @@ import { COLORS, DEFAULT_CONFIG } from "../constants";
 export function useZoomSetup(
   svgRef: React.RefObject<SVGSVGElement>,
   width: number,
-  height: number
+  height: number,
+  onZoom?: (transform: d3.ZoomTransform) => void
 ) {
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const mainGroupRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
@@ -30,6 +31,7 @@ export function useZoomSetup(
           mainGroupRef.current.attr("transform", event.transform);
           if (brushGroupRef.current) brushGroupRef.current.attr("transform", event.transform);
         }
+        if (onZoom) onZoom(event.transform);
       });
 
     svg.call(zoomRef.current);
