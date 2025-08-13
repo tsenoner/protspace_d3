@@ -1,304 +1,338 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import * as d3 from "d3";
-import Ajv from "ajv";
-import styles from "./Scatterplot.module.css";
+import { DEFAULT_CONFIG, COLORS } from "./constants";
+import {
+  computePlotData,
+  buildScales,
+  getColorFactory,
+  getShapeFactory,
+  getOpacityFactory,
+  getStrokeColorFactory,
+  getStrokeWidthFactory,
+  getSizeFactory,
+} from "./utils";
+import { PlotDataPoint, ScatterplotProps } from "./types";
+import { useResponsiveDimensions } from "./hooks/useResponsiveDimensions";
+import { useZoomSetup } from "./hooks/useZoomSetup";
+import { useBrushSelection } from "./hooks/useBrushSelection";
+import { useRenderPoints } from "./hooks/useRenderPoints";
 
-// Types
-interface Feature {
-  values: string[];
-  colors: string[];
-  shapes: string[];
-}
-
-interface Projection {
-  data: [number, number][]; // Array of [x, y] coordinates
-  name: string;
-}
-
-interface VisualizationData {
-  protein_ids: string[];
-  projections: Projection[];
-  features: Record<string, Feature>;
-  feature_data: Record<string, (number | null)[]>;
-}
-
-interface PlotDataPoint {
-  id: string;
-  x: number;
-  y: number;
-  features: Record<string, string | null>;
-}
-
-interface StyleForFeature {
-  color: string;
-  marker: string;
-}
-
-// Move constants outside component
-const PLOT_CONFIG = {
-  width: 800,
-  height: 600,
-  margin: { top: 40, right: 40, bottom: 40, left: 40 },
-  viewBox: "0 0 800 600",
-};
-
-const SHAPE_MAPPING = {
-  asterisk: d3.symbolAsterisk,
-  circle: d3.symbolCircle,
-  cross: d3.symbolCross,
-  diamond: d3.symbolDiamond,
-  plus: d3.symbolPlus,
-  square: d3.symbolSquare,
-  star: d3.symbolStar,
-  triangle: d3.symbolTriangle,
-  wye: d3.symbolWye,
-  times: d3.symbolTimes,
-} as const;
-
-export default function Scatterplot() {
+export default function ImprovedScatterplot({
+  data,
+  width = DEFAULT_CONFIG.width,
+  height = DEFAULT_CONFIG.height,
+  selectedProjectionIndex,
+  selectedFeature,
+  highlightedProteinIds = [],
+  selectedProteinIds = [],
+  isolationMode = false,
+  splitHistory,
+  selectionMode = false,
+  hiddenFeatureValues = [],
+  baseOpacity = DEFAULT_CONFIG.baseOpacity,
+  selectedOpacity = DEFAULT_CONFIG.selectedOpacity,
+  fadedOpacity = DEFAULT_CONFIG.fadedOpacity,
+  className = "",
+  onProteinClick,
+  onProteinHover,
+  onViewStructure,
+}: ScatterplotProps) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const errorRef = useRef<HTMLDivElement>(null);
-  const projectionSelectRef = useRef<HTMLSelectElement>(null);
-  const featureSelectRef = useRef<HTMLSelectElement>(null);
-  const [visualizationData, setVisualizationData] =
-    useState<VisualizationData | null>(null);
+  const [tooltipData, setTooltipData] = useState<{
+    x: number;
+    y: number;
+    protein: PlotDataPoint;
+  } | null>(null);
+  const [zoomTransform, setZoomTransform] = useState<d3.ZoomTransform | null>(
+    null
+  );
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const prevProjectionIndex = useRef(selectedProjectionIndex);
+  const prevHighlighted = useRef<string[]>([]);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { dimensions } = useResponsiveDimensions(containerRef, { width, height });
 
-  // Add state for selected values
-  const [selectedProjection, setSelectedProjection] = useState(0);
-  const [selectedFeature, setSelectedFeature] = useState("");
+  // Process protein data when inputs change - memoize to prevent unnecessary recalculations
+  const plotData = useMemo(() => {
+    if (!data) return [] as PlotDataPoint[];
+    return computePlotData(
+      data,
+      selectedProjectionIndex,
+      isolationMode,
+      splitHistory
+    );
+  }, [data, selectedProjectionIndex, isolationMode, splitHistory]);
 
-  // Move these functions inside useEffect to avoid dependency issues
+  // Memoize scales to prevent recalculation when other props change
+  const scales = useMemo(() => {
+    return buildScales(plotData, dimensions.width, dimensions.height);
+  }, [plotData, dimensions.width, dimensions.height]);
+
+  // Factories for visual encodings
+  const getColor = useMemo(
+    () => getColorFactory(data, selectedFeature),
+    [data, selectedFeature]
+  );
+
+  const getShape = useMemo(
+    () => getShapeFactory(data, selectedFeature),
+    [data, selectedFeature]
+  );
+
+  const getOpacity = useMemo(
+    () =>
+      getOpacityFactory(
+        selectedFeature,
+        hiddenFeatureValues,
+        highlightedProteinIds,
+        selectedProteinIds,
+        selectionMode,
+        baseOpacity,
+        selectedOpacity,
+        fadedOpacity
+      ),
+    [
+      selectedFeature,
+      hiddenFeatureValues,
+      highlightedProteinIds,
+      selectedProteinIds,
+      selectionMode,
+      baseOpacity,
+      selectedOpacity,
+      fadedOpacity,
+    ]
+  );
+
+  const getStrokeWidth = useMemo(
+    () => getStrokeWidthFactory(highlightedProteinIds, selectedProteinIds),
+    [highlightedProteinIds, selectedProteinIds]
+  );
+
+  const getStrokeColor = useMemo(
+    () => getStrokeColorFactory(highlightedProteinIds, selectedProteinIds),
+    [highlightedProteinIds, selectedProteinIds]
+  );
+
+  const getSize = useMemo(
+    () => getSizeFactory(highlightedProteinIds, selectedProteinIds),
+    [highlightedProteinIds, selectedProteinIds]
+  );
+
+  // Initialize SVG, layers, and zoom via hook
+  const { zoomRef, mainGroupRef, brushGroupRef } = useZoomSetup(
+    svgRef,
+    dimensions.width,
+    dimensions.height
+  );
+
+  // Setup or remove brush based on selection mode via hook
+  useBrushSelection(
+    svgRef,
+    brushGroupRef,
+    zoomRef,
+    selectionMode,
+    plotData,
+    scales,
+    dimensions.width,
+    dimensions.height,
+    onProteinClick
+  );
+
+  // Track projection changes
   useEffect(() => {
-    function validateData(
-      schema: object,
-      data: unknown
-    ): data is VisualizationData {
-      const ajv = new Ajv({ allErrors: true });
-      const validate = ajv.compile(schema);
-
-      const valid = validate(data);
-      if (!valid) {
-        const errorMessage =
-          "Schema validation errors: " + ajv.errorsText(validate.errors);
-        displayError(errorMessage);
-        console.error("Validation errors:", validate.errors);
-        return false;
-      }
-
-      clearError();
-      return true;
+    // If projection changed, set transitioning state
+    if (prevProjectionIndex.current !== selectedProjectionIndex) {
+      setIsTransitioning(true);
+      // Store new projection index
+      prevProjectionIndex.current = selectedProjectionIndex;
     }
+  }, [selectedProjectionIndex]);
 
-    function initializeVisualization(data: VisualizationData) {
-      initializeDropdowns(data);
-      // Set initial feature selection
-      setSelectedFeature(Object.keys(data.features)[0]);
-      setVisualizationData(data);
-    }
-
-    // Load data when component mounts
-    Promise.all([
-      d3.json("/data/schema.json") as Promise<object>,
-      d3.json("/data/example/basic.json") as Promise<VisualizationData>,
-    ])
-      .then(([schema, data]) => {
-        if (!validateData(schema, data)) return;
-        initializeVisualization(data);
-      })
-      .catch((error) => {
-        displayError("Error loading JSON data: " + error);
-        console.error("Error loading JSON:", error);
-      });
-  }, []); // Empty dependency array since all dependencies are now inside
-
-  // Set up initial dropdown options
-  function initializeDropdowns(data: VisualizationData) {
-    if (!projectionSelectRef.current || !featureSelectRef.current) return;
-
-    // Clear existing options
-    projectionSelectRef.current.innerHTML = "";
-    featureSelectRef.current.innerHTML = "";
-
-    // Add feature options
-    Object.keys(data.features).forEach((feature) => {
-      const option = document.createElement("option");
-      option.value = feature;
-      option.text = feature;
-      featureSelectRef.current?.appendChild(option);
-    });
-
-    // Add projection options
-    data.projections.forEach((projection, index) => {
-      const option = document.createElement("option");
-      option.value = index.toString();
-      option.text = projection.name;
-      projectionSelectRef.current?.appendChild(option);
-    });
-  }
-
-  // Create scales for the plot
-  function createScales(plotData: PlotDataPoint[]) {
-    const xExtent = d3.extent(plotData, (d) => d.x);
-    const yExtent = d3.extent(plotData, (d) => d.y);
-
-    return {
-      x: d3
-        .scaleLinear()
-        .domain(xExtent as [number, number])
-        .range([
-          PLOT_CONFIG.margin.left,
-          PLOT_CONFIG.width - PLOT_CONFIG.margin.right,
-        ]),
-      y: d3
-        .scaleLinear()
-        .domain(yExtent as [number, number])
-        .range([
-          PLOT_CONFIG.height - PLOT_CONFIG.margin.bottom,
-          PLOT_CONFIG.margin.top,
-        ]),
-    };
-  }
-
-  // Update plot when data or selections change
+  // Render and update points via hook
   useEffect(() => {
-    if (!visualizationData || !svgRef.current) return;
-
-    // We can now assert that visualizationData is not null
-    const data = visualizationData; // Create a non-null reference
-
-    // Helper functions moved inside to properly handle dependencies
-    function preparePlotData(projection: Projection): PlotDataPoint[] {
-      return data.protein_ids.map((id, i) => ({
-        id,
-        x: projection.data[i][0],
-        y: projection.data[i][1],
-        features: mapFeatures(id, i),
-      }));
+    if (isTransitioning) {
+      const timer = setTimeout(() => setIsTransitioning(false), 800);
+      return () => clearTimeout(timer);
     }
+  }, [isTransitioning]);
 
-    function mapFeatures(
-      proteinId: string,
-      index: number
-    ): Record<string, string | null> {
-      const features: Record<string, string | null> = {};
+  useRenderPoints(
+    svgRef,
+    mainGroupRef,
+    plotData,
+    scales,
+    {
+    getColor,
+    getShape,
+    getOpacity,
+    getStrokeWidth,
+    getStrokeColor,
+    getSize,
+    },
+    highlightedProteinIds,
+    selectedProteinIds,
+    selectionMode,
+    zoomTransform,
+    setTooltipData,
+    onProteinClick,
+    onProteinHover,
+    onViewStructure
+  );
 
-      Object.keys(data.features).forEach((featureKey) => {
-        const featureIndex = data.feature_data[featureKey][index];
-        features[featureKey] =
-          featureIndex !== null && featureIndex !== undefined
-            ? data.features[featureKey].values[featureIndex]
-            : null;
-      });
+  // Effect to automatically zoom to highlighted/selected proteins when they change
+  useEffect(() => {
+    // Don't auto-zoom at all - auto-zooming has been disabled as requested by the user
+    // Just update the previous highlights reference for tracking purposes
+    prevHighlighted.current = [...highlightedProteinIds];
+  }, [highlightedProteinIds, selectedProteinIds]);
 
-      return features;
-    }
-
-    function getStyleForFeature(
-      feature: string,
-      value: string | null
-    ): StyleForFeature | null {
-      if (!value || !data.features[feature]) return null;
-
-      const featureConfig = data.features[feature];
-      const valueIndex = featureConfig.values.indexOf(value);
-
-      if (valueIndex === -1) return null;
-
-      return {
-        color: featureConfig.colors[valueIndex],
-        marker: featureConfig.shapes[valueIndex],
-      };
-    }
-
-    const plotData = preparePlotData(data.projections[selectedProjection]);
-    const scales = createScales(plotData);
-
-    // Clear existing plot
-    d3.select(svgRef.current).selectAll("*").remove();
-
-    // Create new plot
-    d3.select(svgRef.current)
-      .selectAll<SVGPathElement, PlotDataPoint>("path")
-      .data(plotData)
-      .enter()
-      .append("path")
-      .attr("d", (d) => {
-        const style = getStyleForFeature(
-          selectedFeature,
-          d.features[selectedFeature]
-        );
-        const shapeName = style?.marker || "circle";
-        const symbolType =
-          SHAPE_MAPPING[shapeName as keyof typeof SHAPE_MAPPING] ||
-          d3.symbolCircle;
-        return d3.symbol().type(symbolType).size(200)();
-      })
-      .attr("transform", (d) => `translate(${scales.x(d.x)}, ${scales.y(d.y)})`)
-      .attr("fill", (d) => {
-        const style = getStyleForFeature(
-          selectedFeature,
-          d.features[selectedFeature]
-        );
-        return style?.color || "#000";
-      })
-      .attr("stroke", "#333")
-      .attr("stroke-width", 1);
-  }, [visualizationData, selectedProjection, selectedFeature]);
-
-  // Handle selection changes
-  const handleProjectionChange = (
-    event: React.ChangeEvent<HTMLSelectElement>
-  ) => {
-    setSelectedProjection(Number(event.target.value));
-  };
-
-  const handleFeatureChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedFeature(event.target.value);
-  };
-
-  // Error handling
-  function displayError(message: string) {
-    if (errorRef.current) {
-      errorRef.current.textContent = message;
-    }
-  }
-
-  function clearError() {
-    if (errorRef.current) {
-      errorRef.current.textContent = "";
-    }
-  }
+  // Track data readiness for loading overlay
+  useEffect(() => {
+    setIsDataLoaded(Boolean(scales && plotData.length > 0));
+  }, [scales, plotData]);
 
   return (
-    <div className={styles.container}>
-      <div className={styles.controlsContainer}>
-        <select
-          ref={projectionSelectRef}
-          className={styles.select}
-          onChange={handleProjectionChange}
-          value={selectedProjection}
-        >
-          {/* Projection options will be populated programmatically */}
-        </select>
-        <select
-          ref={featureSelectRef}
-          className={styles.select}
-          onChange={handleFeatureChange}
-          value={selectedFeature}
-        >
-          {/* Feature options will be populated programmatically */}
-        </select>
-      </div>
-      <div ref={errorRef} className={styles.errorMessage}></div>
+    <div
+      className={`relative ${className} h-full w-full overflow-hidden`}
+      ref={containerRef}
+    >
       <svg
         ref={svgRef}
-        width={PLOT_CONFIG.width}
-        height={PLOT_CONFIG.height}
-        viewBox={PLOT_CONFIG.viewBox}
-        className={styles.scatterplot}
+        width={dimensions.width}
+        height={dimensions.height}
+        className={`w-full h-full bg-white ${
+          selectionMode ? "cursor-crosshair" : "cursor-grab"
+        }`}
+        style={{ display: "block", border: "none", margin: 0, padding: 0 }}
       />
+
+      {/* Loading overlay */}
+      {(!isDataLoaded || isTransitioning) && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 z-10">
+          <div className="flex flex-col items-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            <p className="mt-2 text-gray-600">
+              {isTransitioning ? "Changing projection..." : "Loading data..."}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Isolation mode indicator */}
+      {isolationMode && splitHistory && (
+        <div className="absolute top-2 left-2 z-10 px-2 py-1 bg-primary text-white text-xs rounded-md flex items-center">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-4 w-4 mr-1"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M13 10V3L4 14h7v7l9-11h-7z"
+            />
+          </svg>
+          <span>
+            Split Mode: Showing {plotData.length} proteins (
+            {splitHistory.length} splits)
+          </span>
+        </div>
+      )}
+
+      {/* Selection Mode Indicator */}
+      {selectionMode && (
+        <div className="absolute top-2 right-2 z-10 px-2 py-1 bg-primary text-white text-xs rounded-md flex items-center">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-4 w-4 mr-1"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            {/* Outer rectangle (selection box) */}
+            <rect
+              x="3"
+              y="3"
+              width="18"
+              height="18"
+              rx="1"
+              strokeWidth="1.5"
+              stroke="currentColor"
+              strokeDasharray="2 1"
+              fill="none"
+            />
+
+            {/* Dots representing data points */}
+            <circle cx="8" cy="8" r="1.5" fill="currentColor" />
+            <circle cx="12" cy="14" r="1.5" fill="currentColor" />
+            <circle cx="16" cy="10" r="1.5" fill="currentColor" />
+            <circle cx="7" cy="16" r="1.5" fill="currentColor" />
+            <circle cx="17" cy="17" r="1.5" fill="currentColor" />
+          </svg>
+          <span>Selection Mode: Drag to select proteins</span>
+        </div>
+      )}
+
+      {/* Tooltip */}
+      {tooltipData && (
+        <div
+          className="absolute z-10 p-2 bg-white rounded shadow-md border text-sm"
+          style={{
+            left: tooltipData.x + 10,
+            top:
+              tooltipData.y > dimensions.height / 2
+                ? tooltipData.y - 120 // Position above when in bottom half
+                : tooltipData.y + 10, // Position below when in top half
+            pointerEvents: "none",
+            transform: "translateY(-50%)", // Center vertically relative to the point
+            maxWidth: "200px", // Limit width to prevent overflow
+            wordWrap: "break-word", // Allow text to wrap
+          }}
+        >
+          <div className="font-bold">{tooltipData.protein.id}</div>
+          <div className="text-xs">
+            {selectedFeature}:{" "}
+            {tooltipData.protein.featureValues[selectedFeature] || "N/A"}
+          </div>
+          <div className="text-xs mt-1 text-gray-500">
+            <div className="flex items-center mb-1">
+              Click to add to selection
+            </div>
+            <div className="flex items-center mb-1">
+              Ctrl+Click to toggle selection
+            </div>
+            <div className="flex items-center">
+              Alt+Click to view 3D structure
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-4 w-4 ml-1"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                />
+              </svg>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
