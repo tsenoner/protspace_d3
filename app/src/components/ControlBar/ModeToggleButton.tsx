@@ -24,7 +24,7 @@ export function ModeToggleButton({
       type="button"
       className={`px-3 py-1 rounded-md flex items-center space-x-1 ${
         active
-          ? "bg-[--color-primary] text-white hover:bg-[color:var(--primary-700)]"
+          ? "bg-[color:var(--primary)] text-white hover:bg-[color:var(--primary-700)] border border-transparent"
           : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-100"
       } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
       title={title}
