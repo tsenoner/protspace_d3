@@ -68,6 +68,10 @@ export default function FilterDialog({
           </button>
         </div>
 
+        <div className="mb-3 text-sm text-gray-600">
+          Choose which values to include for each feature.
+        </div>
+
         <div className="max-h-[60vh] overflow-auto pr-2">
           {features.map((feature) => {
             const allValues = getFeatureValues(feature);
@@ -160,9 +164,6 @@ export default function FilterDialog({
                       </div>
                     )}
                   </div>
-                </div>
-                <div className="mt-2 text-xs text-gray-500">
-                  Choose which values to include for this feature when filtering.
                 </div>
               </div>
             );
