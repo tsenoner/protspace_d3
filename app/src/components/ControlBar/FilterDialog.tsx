@@ -57,7 +57,7 @@ export default function FilterDialog({
   }, [features, enabledByFeature, allowedValuesByFeature]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75">
       <div className="bg-white rounded-md shadow-lg w-full max-w-3xl p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold">Configure Filter</h2>
