@@ -1,6 +1,6 @@
 "use client";
 
-export type ExportType = "json" | "ids" | "png" | "svg" | "pdf";
+export type ExportType = "json" | "ids" | "png" | "pdf";
 
 export interface ControlBarProps {
   projections: string[];

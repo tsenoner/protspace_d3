@@ -54,7 +54,7 @@ export function ExportMenu({ onExport }: ExportMenuProps) {
         <div className="absolute z-10 right-0 mt-1 w-40 bg-white rounded-md shadow-lg border border-gray-200">
           <ul className="py-1" role="menu" aria-label="Export">
             {(
-              ["json", "ids", "png", "svg", "pdf"] as const
+              ["json", "ids", "png", "pdf"] as const
             ).map((type) => (
               <li key={type} role="none">
                 <button
