@@ -193,27 +193,47 @@ export default function ImprovedScatterplot({
       // Inverse-transform to pre-zoom screen space used by quadtree
       const sx = (mx - t.x) / t.k;
       const sy = (my - t.y) / t.k;
-      const pt = findNearest(sx, sy, 15 / (t.k || 1));
-      if (pt) {
-        setTooltipData({ x: mx, y: my, protein: pt });
-        if (onProteinHover) onProteinHover(pt.id);
-      } else {
-        setTooltipData(null);
-        if (onProteinHover) onProteinHover(null);
+      // First: find a nearby candidate with a small search radius
+      const candidate = findNearest(sx, sy, 10 / (t.k || 1));
+      if (candidate && scales) {
+        // Verify cursor is actually over the rendered point (circle-approx)
+        const px = scales.x(candidate.x);
+        const py = scales.y(candidate.y);
+        const sizeArea = getSize(candidate);
+        const r = Math.sqrt(sizeArea) / 3; // matches canvas rendering
+        const dx = sx - px;
+        const dy = sy - py;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance <= r) {
+          setTooltipData({ x: mx, y: my, protein: candidate });
+          if (onProteinHover) onProteinHover(candidate.id);
+          return;
+        }
       }
+      setTooltipData(null);
+      if (onProteinHover) onProteinHover(null);
     };
     const handleClick = (event: MouseEvent) => {
       const [mx, my] = d3.pointer(event);
       const t = zoomTransform ?? d3.zoomIdentity;
       const sx = (mx - t.x) / t.k;
       const sy = (my - t.y) / t.k;
-      const pt = findNearest(sx, sy, 15 / (t.k || 1));
-      if (pt) {
-        if (event.altKey && onViewStructure) {
-          onViewStructure(pt.id);
-          return;
+      const candidate = findNearest(sx, sy, 10 / (t.k || 1));
+      if (candidate && scales) {
+        const px = scales.x(candidate.x);
+        const py = scales.y(candidate.y);
+        const sizeArea = getSize(candidate);
+        const r = Math.sqrt(sizeArea) / 3;
+        const dx = sx - px;
+        const dy = sy - py;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance <= r) {
+          if (event.altKey && onViewStructure) {
+            onViewStructure(candidate.id);
+            return;
+          }
+          if (onProteinClick) onProteinClick(candidate.id, event as any);
         }
-        if (onProteinClick) onProteinClick(pt.id, event as any);
       }
     };
     svg.on("mousemove.canvas-overlay", handleMove as any);
@@ -261,7 +281,7 @@ export default function ImprovedScatterplot({
         width={dimensions.width}
         height={dimensions.height}
         className={`w-full h-full ${
-          selectionMode ? "cursor-crosshair" : "cursor-grab"
+          selectionMode ? "cursor-crosshair" : "cursor-default"
         }`}
         style={{ display: "block", border: "none", margin: 0, padding: 0, background: "transparent", position: "relative", zIndex: 2 }}
       />
