@@ -4,7 +4,7 @@
 import ControlBar from "@/components/ControlBar/ControlBar";
 import { Header } from "@/components/Header";
 import InteractiveLegend from "@/components/InteractiveLegend/InteractiveLegend";
-import ImprovedScatterplot from "@/components/Scatterplot/Scatterplot";
+import Scatterplot from "@/components/Scatterplot/Scatterplot";
 import StatusBar from "@/components/StatusBar/StatusBar";
 import dynamic from "next/dynamic";
 import { useRef } from "react";
@@ -116,7 +116,7 @@ export default function ProtSpaceApp() {
         {/* Main Visualization Area */}
         <div className="flex-grow h-full overflow-hidden p-0">
           {visualizationData ? (
-            <ImprovedScatterplot
+            <Scatterplot
               data={visualizationData}
               selectedProjectionIndex={selectedProjectionIndex}
               selectedFeature={selectedFeature}

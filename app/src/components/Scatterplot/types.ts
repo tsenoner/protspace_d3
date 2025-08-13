@@ -32,6 +32,7 @@ export interface ScatterplotProps {
   data: VisualizationData | null;
   width?: number;
   height?: number;
+  resolutionScale?: number;
   selectedProjectionIndex: number;
   selectedFeature: string;
   highlightedProteinIds: string[];

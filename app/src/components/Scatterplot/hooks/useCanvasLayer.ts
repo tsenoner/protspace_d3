@@ -17,6 +17,7 @@ export function useCanvasLayer(
   canvasRef: React.RefObject<HTMLCanvasElement>,
   width: number,
   height: number,
+  resolutionScale: number,
   scales: { x: d3.ScaleLinear<number, number>; y: d3.ScaleLinear<number, number> } | null,
   transform: d3.ZoomTransform | null,
   plotData: PlotDataPoint[],
@@ -26,7 +27,7 @@ export function useCanvasLayer(
   useEffect(() => {
     if (!canvasRef.current) return;
     const canvas = canvasRef.current;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = (window.devicePixelRatio || 1) * Math.max(1, resolutionScale || 1);
     canvas.width = Math.max(1, Math.floor(width * dpr));
     canvas.height = Math.max(1, Math.floor(height * dpr));
     canvas.style.width = `${width}px`;
@@ -40,7 +41,7 @@ export function useCanvasLayer(
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
     }
-  }, [canvasRef, width, height]);
+  }, [canvasRef, width, height, resolutionScale]);
 
   // Render
   useEffect(() => {

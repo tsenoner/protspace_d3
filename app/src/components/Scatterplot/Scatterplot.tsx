@@ -20,10 +20,11 @@ import { useBrushSelection } from "./hooks/useBrushSelection";
 import { useCanvasLayer } from "./hooks/useCanvasLayer";
 import { useSpatialIndex } from "./hooks/useSpatialIndex";
 
-export default function ImprovedScatterplot({
+export default function Scatterplot({
   data,
   width = DEFAULT_CONFIG.width,
   height = DEFAULT_CONFIG.height,
+  resolutionScale = DEFAULT_CONFIG.canvasResolutionScale,
   selectedProjectionIndex,
   selectedFeature,
   highlightedProteinIds = [],
@@ -167,6 +168,7 @@ export default function ImprovedScatterplot({
     canvasRef,
     dimensions.width,
     dimensions.height,
+    resolutionScale,
     scales,
     zoomTransform,
     plotData,

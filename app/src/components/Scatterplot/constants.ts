@@ -12,6 +12,7 @@ export const DEFAULT_CONFIG = {
   highlightedPointSize: 120,
   selectedPointSize: 150,
   zoomExtent: [0.1, 10] as [number, number],
+  canvasResolutionScale: 2,
 };
 
 export const COLORS = {
