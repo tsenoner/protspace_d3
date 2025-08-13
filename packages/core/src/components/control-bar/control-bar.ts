@@ -32,8 +32,9 @@ export class ProtspaceControlBar extends LitElement {
   @state() private showExportMenu: boolean = false;
   @state() private showFilterMenu: boolean = false;
   @state() private featureValuesMap: Record<string, (string | null)[]> = {};
-  @state() private filterConfig: Record<string, { enabled: boolean; value: string | null }> = {};
-  @state() private lastAppliedFilterConfig: Record<string, { enabled: boolean; value: string | null }> = {};
+  @state() private filterConfig: Record<string, { enabled: boolean; values: (string | null)[] }> = {};
+  @state() private lastAppliedFilterConfig: Record<string, { enabled: boolean; values: (string | null)[] }> = {};
+  @state() private openValueMenus: Record<string, boolean> = {};
   private _scatterplotElement: ScatterplotElementLike | null = null;
 
   // Stable listeners for proper add/remove
@@ -275,27 +276,45 @@ export class ProtspaceControlBar extends LitElement {
                     <div style="padding: 0.5rem 0.75rem; font-weight: 600; color: var(--up-muted);"></div>
                     <ul>
                       ${this.features.map((feature) => {
-                        const cfg = this.filterConfig[feature] || { enabled: false, value: null };
+                        const cfg = this.filterConfig[feature] || { enabled: false, values: [] };
                         const values = this.featureValuesMap[feature] || [];
                         return html`
-                          <li style="padding: 0.25rem 0.75rem; display:flex; align-items:center; gap:0.5rem;">
+                          <li style="padding: 0.25rem 0.75rem; display:flex; align-items:center; gap:0.5rem; position: relative;">
                             <input type="checkbox" .checked=${cfg.enabled} @change=${(e: Event) => {
                               const target = e.target as HTMLInputElement;
                               this.handleFilterToggle(feature, target.checked);
                             }} />
                             <div class="filter-label" style="flex: 1; min-width: 7rem;">${feature}</div>
-                            <select id=${`filter-value-${feature}`} .value=${cfg.value === null ? "__NULL__" : (cfg.value ?? "")} 
-                              ?disabled=${!cfg.enabled}
-                              @change=${(e: Event) => {
-                                const target = e.target as HTMLSelectElement;
-                                this.handleFilterValueChange(feature, target.value);
-                              }}
-                            >
-                              <option value="">-- select --</option>
-                              <option value="__NULL__">N/A</option>
-                              ${Array.from(new Set(values.filter(v => v !== null)))
-                                .map(v => html`<option value=${String(v)}>${String(v)}</option>`)}
-                            </select>
+                            <button ?disabled=${!cfg.enabled} @click=${() => this.toggleValueMenu(feature)} style="padding: 0.25rem 0.5rem; border: 1px solid var(--up-border); border-radius: 0.25rem;">
+                              ${cfg.values && cfg.values.length > 0 ? `${cfg.values.length} selected` : 'Select values'}
+                              <svg class="chevron-down" viewBox="0 0 24 24" style="vertical-align: middle;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </button>
+                            ${this.openValueMenus[feature] && cfg.enabled ? html`
+                              <div class="export-menu" style="position:absolute; right:0; top: 2rem; width: 16rem; max-height: 14rem; overflow:auto;">
+                                <div style="display:flex; justify-content: space-between; gap: 0.5rem; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--up-border);">
+                                  <button @click=${() => this.selectAllValues(feature)} style="padding: 0.25rem 0.5rem; border: 1px solid var(--up-border); border-radius: 0.25rem;">Select all</button>
+                                  <button @click=${() => this.clearAllValues(feature)} style="padding: 0.25rem 0.5rem; border: 1px solid var(--up-border); border-radius: 0.25rem;">None</button>
+                                </div>
+                                <div style="padding: 0.25rem 0.25rem;">
+                                  <label style="display:flex; align-items:center; gap: 0.5rem; padding: 0.25rem 0.5rem;">
+                                    <input type="checkbox" .checked=${(cfg.values || []).includes(null)} @change=${(e: Event) => this.handleValueToggle(feature, null, (e.target as HTMLInputElement).checked)} />
+                                    <span>N/A</span>
+                                  </label>
+                                  ${Array.from(new Set(values.filter(v => v !== null)))
+                                    .map(v => html`
+                                      <label style="display:flex; align-items:center; gap: 0.5rem; padding: 0.25rem 0.5rem;">
+                                        <input type="checkbox" .checked=${(cfg.values || []).includes(String(v))} @change=${(e: Event) => this.handleValueToggle(feature, String(v), (e.target as HTMLInputElement).checked)} />
+                                        <span>${String(v)}</span>
+                                      </label>
+                                    `)}
+                                </div>
+                                <div style="padding: 0.5rem 0.75rem; border-top: 1px solid var(--up-border); text-align: right;">
+                                  <button @click=${() => this.toggleValueMenu(feature)} style="padding: 0.25rem 0.5rem; border: 1px solid var(--up-border); border-radius: 0.25rem;">Done</button>
+                                </div>
+                              </div>
+                            ` : ''}
                           </li>`;
                       })}
                     </ul>
@@ -392,6 +411,7 @@ export class ProtspaceControlBar extends LitElement {
     if (!this.contains(event.target as Node)) {
       this.showExportMenu = false;
       this.showFilterMenu = false;
+      this.openValueMenus = {};
     }
   }
 
@@ -451,7 +471,7 @@ export class ProtspaceControlBar extends LitElement {
       // Initialize filter config entries for new features (preserve existing selections)
       const nextConfig: typeof this.filterConfig = { ...this.filterConfig };
       Object.keys(map).forEach((k) => {
-        if (!nextConfig[k]) nextConfig[k] = { enabled: false, value: null };
+        if (!nextConfig[k]) nextConfig[k] = { enabled: false, values: [] };
       });
       this.filterConfig = nextConfig;
     } catch (e) {
@@ -523,7 +543,7 @@ export class ProtspaceControlBar extends LitElement {
           this.featureValuesMap = map;
           const nextConfig: typeof this.filterConfig = { ...this.filterConfig };
           Object.keys(map).forEach((k) => {
-            if (!nextConfig[k]) nextConfig[k] = { enabled: false, value: null };
+            if (!nextConfig[k]) nextConfig[k] = { enabled: false, values: [] };
           });
           this.filterConfig = nextConfig;
         } catch (e) {
@@ -593,34 +613,43 @@ export class ProtspaceControlBar extends LitElement {
       if (this.lastAppliedFilterConfig && Object.keys(this.lastAppliedFilterConfig).length > 0) {
         const merged: typeof this.filterConfig = { ...this.filterConfig };
         for (const key of Object.keys(this.lastAppliedFilterConfig)) {
-          const prev = merged[key] || { enabled: false, value: null };
+          const prev = merged[key] || { enabled: false, values: [] };
           const applied = this.lastAppliedFilterConfig[key];
           merged[key] = { ...prev, ...applied };
         }
         this.filterConfig = merged;
-        // Force select dropdowns to show restored values after render
-        this.updateComplete.then(() => {
-          for (const [feature, cfg] of Object.entries(this.filterConfig)) {
-            const select = this.renderRoot?.querySelector(`#filter-value-${CSS.escape(feature)}`) as HTMLSelectElement | null;
-            if (select) {
-              const desired = cfg.value === null ? "__NULL__" : (cfg.value ?? "");
-              if (select.value !== desired) select.value = desired;
-            }
-          }
-        });
+        this.openValueMenus = {};
       }
     }
   }
 
   private handleFilterToggle(feature: string, enabled: boolean) {
-    const current = this.filterConfig[feature] || { enabled: false, value: null };
+    const current = this.filterConfig[feature] || { enabled: false, values: [] };
     this.filterConfig = { ...this.filterConfig, [feature]: { ...current, enabled } };
+    if (!enabled) this.openValueMenus = { ...this.openValueMenus, [feature]: false };
   }
 
-  private handleFilterValueChange(feature: string, value: string) {
-    const parsed: string | null = value === "__NULL__" ? null : value;
-    const current = this.filterConfig[feature] || { enabled: false, value: null };
-    this.filterConfig = { ...this.filterConfig, [feature]: { ...current, value: parsed } };
+  private toggleValueMenu(feature: string) {
+    this.openValueMenus = { ...this.openValueMenus, [feature]: !this.openValueMenus[feature] };
+  }
+
+  private handleValueToggle(feature: string, value: string | null, checked: boolean) {
+    const current = this.filterConfig[feature] || { enabled: false, values: [] };
+    const next = new Set(current.values || []);
+    if (checked) next.add(value);
+    else next.delete(value);
+    this.filterConfig = { ...this.filterConfig, [feature]: { ...current, values: Array.from(next) } };
+  }
+
+  private selectAllValues(feature: string) {
+    const all = this.featureValuesMap[feature] || [];
+    const current = this.filterConfig[feature] || { enabled: false, values: [] };
+    this.filterConfig = { ...this.filterConfig, [feature]: { ...current, values: Array.from(new Set(all)) } };
+  }
+
+  private clearAllValues(feature: string) {
+    const current = this.filterConfig[feature] || { enabled: false, values: [] };
+    this.filterConfig = { ...this.filterConfig, [feature]: { ...current, values: [] } };
   }
 
   private applyFilters() {
@@ -633,8 +662,8 @@ export class ProtspaceControlBar extends LitElement {
 
     // Collect active filters
     const activeFilters = Object.entries(this.filterConfig)
-      .filter(([, cfg]) => cfg.enabled && (cfg.value !== undefined))
-      .map(([feature, cfg]) => ({ feature, value: cfg.value as string | null }));
+      .filter(([, cfg]) => cfg.enabled && Array.isArray(cfg.values) && cfg.values.length > 0)
+      .map(([feature, cfg]) => ({ feature, values: cfg.values as (string | null)[] }));
 
     if (activeFilters.length === 0) {
       this.showFilterMenu = false;
@@ -647,13 +676,13 @@ export class ProtspaceControlBar extends LitElement {
 
     for (let i = 0; i < numProteins; i++) {
       let isMatch = true;
-      for (const { feature, value } of activeFilters) {
+      for (const { feature, values } of activeFilters) {
         const featureIdxArr: number[] | undefined = data.feature_data?.[feature];
         const valuesArr: (string | null)[] | undefined = data.features?.[feature]?.values;
         if (!featureIdxArr || !valuesArr) { isMatch = false; break; }
         const vi = featureIdxArr[i];
         const v = (vi != null && vi >= 0 && vi < valuesArr.length) ? valuesArr[vi] : null;
-        if (v !== value) { isMatch = false; break; }
+        if (!values.some((allowed) => allowed === v)) { isMatch = false; break; }
       }
       // 0 => Filtered Proteins, 1 => Other Proteins
       indices[i] = isMatch ? 0 : 1;
