@@ -82,10 +82,19 @@ export default function ProtSpaceApp() {
   // Export handler
   const { handleExport: onExport } = useExport({
     visualizationData,
-    selectedFeature,
+    selectedFeature: isCustomColoring ? "__custom__" : selectedFeature,
     selectedProteinIds,
     hiddenFeatureValues,
     useShapes,
+    customColoring: isCustomColoring
+      ? {
+          filter: customFilter,
+          customColors: {
+            filtered: "#1f77b4",
+            other: "#cccccc",
+          },
+        }
+      : undefined,
   });
  
 

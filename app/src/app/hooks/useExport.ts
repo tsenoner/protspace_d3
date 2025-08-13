@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import type { ExportType } from "@/components/ControlBar/types";
-import type { VisualizationData } from "@/components/Scatterplot/types";
+import type { VisualizationData, CustomColoring } from "@/components/Scatterplot/types";
 
 type LegendItem = {
   value: string | null;
@@ -187,12 +187,14 @@ export function useExport({
   selectedProteinIds,
   hiddenFeatureValues,
   useShapes,
+  customColoring,
 }: {
   visualizationData: VisualizationData | null;
   selectedFeature: string;
   selectedProteinIds: string[];
   hiddenFeatureValues: string[];
   useShapes: boolean;
+  customColoring?: CustomColoring;
 }) {
   const handleExport = useCallback(
     (type: ExportType) => {
@@ -209,10 +211,53 @@ export function useExport({
           break;
         }
         case "ids": {
-          const ids =
-            selectedProteinIds.length > 0
-              ? selectedProteinIds
-              : visualizationData.protein_ids;
+          const hidden = new Set(hiddenFeatureValues || []);
+          let ids: string[] = [];
+
+          // If no feature selected or nothing is hidden, export all
+          if (!selectedFeature || hidden.size === 0) {
+            ids = visualizationData.protein_ids;
+          } else if (customColoring) {
+            // Determine class for each protein: "Filtered Proteins" or "Other Proteins"
+            const { enabledByFeature, allowedValuesByFeature } = customColoring.filter;
+            ids = visualizationData.protein_ids.filter((id, index) => {
+              let passes = true;
+              for (const f of Object.keys(enabledByFeature)) {
+                if (!enabledByFeature[f]) continue;
+                const valueIndex = visualizationData.feature_data[f][index];
+                const values = visualizationData.features[f]?.values || [];
+                const rawValue = values[valueIndex] ?? null;
+                const key = rawValue === null ? "null" : String(rawValue);
+                const allowed = allowedValuesByFeature[f] || new Set<string>();
+                if (!allowed.has(key)) {
+                  passes = false;
+                  break;
+                }
+              }
+              const className = passes ? "Filtered Proteins" : "Other Proteins";
+              // When a class is hidden, exclude it; otherwise include
+              return !hidden.has(className);
+            });
+          } else {
+            // Regular feature-based visibility
+            const featureValues = visualizationData.features[selectedFeature]?.values;
+            const featureData = visualizationData.feature_data[selectedFeature];
+            if (!featureValues || !featureData) {
+              ids = visualizationData.protein_ids;
+            } else {
+              ids = visualizationData.protein_ids.filter((id, index) => {
+                const valueIndex = featureData[index];
+                const rawValue = featureValues[valueIndex] ?? null;
+                const key = rawValue === null ? "null" : String(rawValue);
+                return !hidden.has(key);
+              });
+            }
+          }
+
+          if (selectedProteinIds && selectedProteinIds.length > 0) {
+            const selectedSet = new Set(selectedProteinIds);
+            ids = ids.filter((id) => selectedSet.has(id));
+          }
           const idsStr = ids.join("\n");
           const idsUri = `data:text/plain;charset=utf-8,${encodeURIComponent(idsStr)}`;
           const link = document.createElement("a");
@@ -364,7 +409,7 @@ export function useExport({
         }
       }
     },
-    [hiddenFeatureValues, selectedFeature, selectedProteinIds, useShapes, visualizationData]
+    [customColoring, hiddenFeatureValues, selectedFeature, selectedProteinIds, useShapes, visualizationData]
   );
 
   return { handleExport } as const;
