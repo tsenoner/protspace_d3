@@ -18,6 +18,8 @@ export function useProtspace() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [viewStructureId, setViewStructureId] = useState<string | null>(null);
   const [hiddenFeatureValues, setHiddenFeatureValues] = useState<string[]>([]);
+  const [otherLegendValues, setOtherLegendValues] = useState<string[]>([]);
+  const [useShapes, setUseShapes] = useState<boolean>(true);
 
   // Load data when component mounts
   const loadData = async (dataPath?: string) => {
@@ -187,112 +189,6 @@ export function useProtspace() {
     }
   };
 
-  const handleSaveSession = () => {
-    if (!visualizationData) return;
-
-    const sessionData = {
-      protein_ids: visualizationData.protein_ids,
-      features: visualizationData.features,
-      feature_data: visualizationData.feature_data,
-      projections: visualizationData.projections,
-      projectIndex: selectedProjectionIndex,
-      feature: selectedFeature,
-      selected: selectedProteinIds,
-      highlighted: highlightedProteinIds,
-      isolation: isolationMode,
-      hidden: hiddenFeatureValues,
-      selectionMode: selectionMode,
-      viewStructureId: viewStructureId,
-    };
-
-    const dataStr = JSON.stringify(sessionData);
-    const dataUri = `data:application/json;charset=utf-8,${encodeURIComponent(
-      dataStr
-    )}`;
-    const exportName = "protspace_session";
-    const linkElement = document.createElement("a");
-    linkElement.setAttribute("href", dataUri);
-    linkElement.setAttribute("download", `${exportName}.protspace`);
-    linkElement.click();
-  };
-
-  const handleLoadSession = () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".protspace,.json";
-
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        try {
-          const content = event.target?.result as string;
-          const sessionData = JSON.parse(content);
-
-          if (sessionData.protein_ids && sessionData.features) {
-            if (sessionData.projectIndex !== undefined) {
-              setVisualizationData({
-                protein_ids: sessionData.protein_ids,
-                features: sessionData.features,
-                feature_data: sessionData.feature_data,
-                projections: sessionData.projections,
-              });
-
-              setSelectedProjectionIndex(sessionData.projectIndex || 0);
-              setSelectedFeature(sessionData.feature || "");
-              setSelectedProteinIds([
-                ...Array.from(new Set((sessionData.selected || []) as string[])),
-              ]);
-              setHighlightedProteinIds([
-                ...Array.from(
-                  new Set((sessionData.highlighted || []) as string[])
-                ),
-              ]);
-              setIsolationMode(sessionData.isolation || false);
-              setHiddenFeatureValues([
-                ...Array.from(new Set((sessionData.hidden || []) as string[])),
-              ]);
-              setSelectionMode(sessionData.selectionMode || false);
-              setViewStructureId(sessionData.viewStructureId || null);
-            } else {
-              const dataUrl = URL.createObjectURL(file);
-              await loadData(dataUrl);
-              URL.revokeObjectURL(dataUrl);
-            }
-          } else {
-            const dataPath = sessionData.dataPath || "/data/example/basic.json";
-            await loadData(dataPath);
-
-            setSelectedProjectionIndex(sessionData.projectIndex || 0);
-            setSelectedFeature(sessionData.feature || "");
-            setSelectedProteinIds([
-              ...Array.from(new Set((sessionData.selected || []) as string[])),
-            ]);
-            setHighlightedProteinIds([
-              ...Array.from(new Set((sessionData.highlighted || []) as string[])),
-            ]);
-            setIsolationMode(sessionData.isolation || false);
-            setHiddenFeatureValues([
-              ...Array.from(new Set((sessionData.hidden || []) as string[])),
-            ]);
-          }
-        } catch (error) {
-          console.error("Error loading session:", error);
-        }
-      };
-      reader.readAsText(file);
-    };
-    input.click();
-  };
-
-  const handleShareSession = () => {
-    handleSaveSession();
-  };
-
-  // Export handled in the page to include SVG/PNG/PDF rendering logic
-
   const handleImportData = (data: any) => {
     try {
       setVisualizationData(data as VisualizationData);
@@ -335,6 +231,23 @@ export function useProtspace() {
   const handleOpenCustomization = () => {
     alert("Legend customization would open a modal dialog here.");
   };
+
+  // Auto-reset legend visibility when all categories become hidden
+  useEffect(() => {
+    if (!visualizationData || !selectedFeature) return;
+    const feature = visualizationData.features[selectedFeature];
+    if (!feature || !Array.isArray(feature.values) || feature.values.length === 0) return;
+    if (!hiddenFeatureValues || hiddenFeatureValues.length === 0) return;
+
+    const hidden = new Set(hiddenFeatureValues);
+    const normalizedKeys = feature.values.map((v) =>
+      v === null ? "null" : typeof v === "string" && v.trim() === "" ? "" : String(v)
+    );
+    const allHidden = normalizedKeys.length > 0 && normalizedKeys.every((k) => hidden.has(k));
+    if (allHidden) {
+      setHiddenFeatureValues([]);
+    }
+  }, [visualizationData, selectedFeature, hiddenFeatureValues]);
 
   const totalProteins = visualizationData?.protein_ids.length || 0;
 
@@ -396,6 +309,8 @@ export function useProtspace() {
     selectionMode,
     viewStructureId,
     hiddenFeatureValues,
+    otherLegendValues,
+    useShapes,
     // setters
     setSelectedProjectionIndex,
     setSelectedFeature,
@@ -411,14 +326,13 @@ export function useProtspace() {
     handleSearch,
     handleRemoveProtein,
     handleToggleIsolationMode,
-    handleSaveSession,
-    handleLoadSession,
-    handleShareSession,
     handleToggleVisibility,
     handleExtractFromOther,
     handleSetZOrder,
     handleOpenCustomization,
     handleImportData,
+    setOtherLegendValues,
+    setUseShapes,
     // derived
     totalProteins,
     displayedProteins,

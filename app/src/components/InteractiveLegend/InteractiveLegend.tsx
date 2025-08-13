@@ -14,6 +14,8 @@ import { InteractiveLegendProps, LegendItem } from "./types";
 import { useLegendExport } from "./hooks/useLegendExport";
 import { useLegendDnD } from "./hooks/useLegendDnD";
 import LegendListItem from "./LegendListItem";
+import LegendSettingsDialog from "./LegendSettingsDialog";
+import { LEGEND_DEFAULTS } from "./constants";
 
 const InteractiveLegend = forwardRef<
   { downloadAsImage: () => Promise<void> },
@@ -25,20 +27,34 @@ const InteractiveLegend = forwardRef<
       featureValues,
       proteinIds,
       maxVisibleValues = 10,
+      hiddenFeatureValues = [],
       onToggleVisibility,
       onExtractFromOther,
       onSetZOrder,
       onOpenCustomization,
+      onOtherValuesChange,
+      onUseShapesChange,
       selectedItems = [],
       className = "",
       isolationMode = false,
       splitHistory,
+      includeOthers = !isolationMode,
+      includeShapes = true,
+      shapeSize,
     },
     ref
   ) => {
     const [legendItems, setLegendItems] = useState<LegendItem[]>([]);
     const [otherItems, setOtherItems] = useState<[string | null, number][]>([]);
     const [showOtherDialog, setShowOtherDialog] = useState(false);
+    const [settingsOpen, setSettingsOpen] = useState(false);
+    const [localMaxVisible, setLocalMaxVisible] = useState<number>(maxVisibleValues);
+    const [localIncludeOthers, setLocalIncludeOthers] = useState<boolean>(includeOthers);
+    const [localIncludeShapes, setLocalIncludeShapes] = useState<boolean>(includeShapes);
+    const [localShapeSize, setLocalShapeSize] = useState<number>(shapeSize ?? LEGEND_DEFAULTS.symbolSize);
+    const hiddenValuesRef = useRef<string[]>(hiddenFeatureValues);
+    const lastOtherValuesEmittedRef = useRef<string>("__init__");
+    const lastUseShapesEmittedRef = useRef<boolean | null>(null);
 
     // Export hook
     const { componentRef, downloadAsImage } = useLegendExport();
@@ -49,8 +65,8 @@ const InteractiveLegend = forwardRef<
       setLegendItems(updated);
     });
 
-    // Process data into legend items
-    useEffect(() => {
+    // Helper to recompute items from current inputs
+    const recomputeLegend = useCallback(() => {
       if (!featureData || !featureValues || featureValues.length === 0) {
         setOtherItems([]);
         setLegendItems([]);
@@ -72,44 +88,70 @@ const InteractiveLegend = forwardRef<
             shapes: featureData.shapes,
           },
           frequencyMap,
-          maxVisibleValues,
-          includeOther: !isolationMode,
+          maxVisibleValues: localMaxVisible,
+          includeOther: localIncludeOthers && !isolationMode,
           previousItems,
         });
 
         setOtherItems(otherItems);
 
-        // Shallow equality check to avoid unnecessary state churn
-        if (items.length === previousItems.length) {
-          let allEqual = true;
-          for (let i = 0; i < items.length; i++) {
-            const a = items[i];
-            const b = previousItems[i];
-            if (
-              a.value !== b.value ||
-              a.isVisible !== b.isVisible ||
-              a.zOrder !== b.zOrder ||
-              a.color !== b.color ||
-              a.shape !== b.shape ||
-              a.count !== b.count
-            ) {
-              allEqual = false;
-              break;
-            }
-          }
-          if (allEqual) return previousItems;
-        }
+        const hiddenSet = new Set(hiddenValuesRef.current);
+        const areAllOtherHidden = otherItems.length > 0 && otherItems.every(([v]) => v !== null && hiddenSet.has(v));
+        const itemsWithVisibility = items.map((it) => ({
+          ...it,
+          isVisible:
+            it.value === "Other"
+              ? !areAllOtherHidden
+              : !hiddenSet.has(it.value === null ? "null" : (it.value as string)),
+        }));
 
-        return items;
+        return itemsWithVisibility;
       });
+    }, [featureData, featureValues, isolationMode, splitHistory, proteinIds, localMaxVisible, localIncludeOthers, localIncludeShapes]);
+
+    // Process data into legend items
+    useEffect(() => {
+      recomputeLegend();
     }, [
-      featureData,
-      featureValues,
-      maxVisibleValues,
-      isolationMode,
-      splitHistory,
-      proteinIds,
+      recomputeLegend,
     ]);
+
+    // Emit Other concrete values to parent after state commits
+    useEffect(() => {
+      if (!onOtherValuesChange) return;
+      const concrete = otherItems.map(([v]) => (v === null ? "null" : (v as string)));
+      const payload = localIncludeOthers ? concrete : [];
+      const signature = JSON.stringify(payload);
+      if (signature === lastOtherValuesEmittedRef.current) return;
+      lastOtherValuesEmittedRef.current = signature;
+      onOtherValuesChange(payload);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [otherItems, localIncludeOthers]);
+
+    // Emit useShapes flag to parent after state commits
+    useEffect(() => {
+      if (!onUseShapesChange) return;
+      if (lastUseShapesEmittedRef.current === localIncludeShapes) return;
+      lastUseShapesEmittedRef.current = localIncludeShapes;
+      onUseShapesChange(localIncludeShapes);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [localIncludeShapes]);
+
+    // Keep a ref of hidden feature values for computing visibility on recompute
+    useEffect(() => {
+      hiddenValuesRef.current = hiddenFeatureValues;
+      setLegendItems((prev) => {
+        const hiddenSet = new Set(hiddenFeatureValues);
+        const areAllOtherHidden = otherItems.length > 0 && otherItems.every(([v]) => v !== null && hiddenSet.has(v));
+        return prev.map((it) => ({
+          ...it,
+          isVisible:
+            it.value === "Other"
+              ? !areAllOtherHidden
+              : !hiddenSet.has(it.value === null ? "null" : (it.value as string)),
+        }));
+      });
+    }, [hiddenFeatureValues]);
 
     // Handle item click (toggle visibility)
     const handleItemClick = useCallback(
@@ -125,10 +167,25 @@ const InteractiveLegend = forwardRef<
 
         // Then call the parent handler
         if (onToggleVisibility) {
-          onToggleVisibility(value);
+          if (value === "Other") {
+            const otherConcrete = otherItems
+              .map(([v]) => v)
+              .filter((v): v is string => v !== null);
+            if (otherConcrete.length === 0) return;
+            const hiddenSet = new Set(hiddenValuesRef.current);
+            const allHidden = otherConcrete.every((v) => hiddenSet.has(v));
+            // If all hidden, show all; otherwise hide all
+            for (const v of otherConcrete) {
+              const isHidden = hiddenSet.has(v);
+              if (allHidden && isHidden) onToggleVisibility(v);
+              if (!allHidden && !isHidden) onToggleVisibility(v);
+            }
+          } else {
+            onToggleVisibility(value);
+          }
         }
       },
-      [onToggleVisibility]
+      [onToggleVisibility, otherItems]
     );
 
     // Handle item double-click (show only this or show all)
@@ -213,8 +270,29 @@ const InteractiveLegend = forwardRef<
         if (onExtractFromOther) {
           onExtractFromOther(value);
         }
+
+        // Recompute to update Other bucket and counts
+        recomputeLegend();
       },
-      [otherItems, featureData, legendItems.length, onExtractFromOther]
+      [otherItems, featureData, legendItems.length, onExtractFromOther, recomputeLegend]
+    );
+
+    // Handle drop on an item to support merging extracted values back into Other
+    const handleDropOnItem = useCallback(
+      (target: LegendItem) => {
+        if (target.value !== "Other") return;
+        // Find any dragged item in state via draggedItem ref from hook is not exposed; rely on removing any extracted being reordered onto Other:
+        // Simplify: if there is exactly one extracted item selected as dragged, use draggedItem value
+        // Our hook tracks draggedItem name; reusing it here via closure
+        const dragged = draggedItem;
+        if (!dragged) return;
+        const draggedEntry = legendItems.find((i) => i.value === dragged);
+        if (!draggedEntry || !draggedEntry.extractedFromOther || !draggedEntry.value) return;
+        // Remove extracted item and trigger recompute
+        setLegendItems((prev) => prev.filter((i) => i.value !== draggedEntry.value));
+        recomputeLegend();
+      },
+      [draggedItem, legendItems, recomputeLegend]
     );
 
     // Adapt DnD hook to local state setter signature
@@ -241,7 +319,10 @@ const InteractiveLegend = forwardRef<
         <div className="flex justify-between items-center mb-3">
           <h3 className="font-medium">{featureData.name}</h3>
           <button
-            onClick={onOpenCustomization}
+            onClick={() => {
+              setShowOtherDialog(false);
+              setSettingsOpen(true);
+            }}
             className="text-gray-500 hover:text-gray-700"
             title="Customize Legend"
           >
@@ -301,6 +382,9 @@ const InteractiveLegend = forwardRef<
                 onDragOver={onDragOverItem}
                 onDragEnd={handleDragEnd}
                 onOpenOther={() => setShowOtherDialog(true)}
+                includeShapes={localIncludeShapes}
+                shapeSize={localShapeSize}
+                onDropOn={handleDropOnItem}
               />
             );
           })}
@@ -314,6 +398,25 @@ const InteractiveLegend = forwardRef<
             onClose={() => setShowOtherDialog(false)}
           />
         )}
+
+        {/* Settings dialog */}
+        <LegendSettingsDialog
+          open={settingsOpen}
+          maxVisibleValues={localMaxVisible}
+          includeOthers={localIncludeOthers}
+          includeShapes={localIncludeShapes}
+          shapeSize={localShapeSize}
+          onClose={() => setSettingsOpen(false)}
+          onSave={({ maxVisibleValues: mv, includeOthers: io, includeShapes: is, shapeSize: ss }) => {
+            setSettingsOpen(false);
+            // Store locally and recompute
+            setLocalMaxVisible(mv);
+            setLocalIncludeOthers(io);
+            setLocalIncludeShapes(is);
+            setLocalShapeSize(ss);
+            recomputeLegend();
+          }}
+        />
       </div>
     );
   }

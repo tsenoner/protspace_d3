@@ -26,6 +26,22 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     return value === null || (typeof value === "string" && value.trim() === "");
   };
 
+  // Detect if the user has effectively hidden all values for the selected feature
+  // In that case, we ignore the hidden filter to avoid rendering an empty plot.
+  const computeAllHidden = (): boolean => {
+    if (!data || !styleConfig.selectedFeature) return false;
+    const feature = data.features[styleConfig.selectedFeature];
+    if (!feature || !Array.isArray(feature.values)) return false;
+    const hidden = new Set(styleConfig.hiddenFeatureValues);
+    if (hidden.size === 0) return false;
+    const normalizedKeys = feature.values.map((v) =>
+      v === null ? "null" : typeof v === "string" && v.trim() === "" ? "" : (v as string)
+    );
+    return normalizedKeys.length > 0 && normalizedKeys.every((k) => hidden.has(k));
+  };
+
+  const allHidden = computeAllHidden();
+
   const getPointSize = (point: PlotDataPoint): number => {
     if (styleConfig.selectedProteinIds.includes(point.id)) return styleConfig.sizes.selected;
     if (styleConfig.highlightedProteinIds.includes(point.id)) return styleConfig.sizes.highlighted;
@@ -75,18 +91,20 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
 
   const getOpacity = (point: PlotDataPoint): number => {
     const featureValue = point.featureValues[styleConfig.selectedFeature];
-    if (isNullishDisplay(featureValue)) {
-      if (
-        styleConfig.hiddenFeatureValues.includes("null") ||
-        styleConfig.hiddenFeatureValues.includes("")
+    if (!allHidden) {
+      if (isNullishDisplay(featureValue)) {
+        if (
+          styleConfig.hiddenFeatureValues.includes("null") ||
+          styleConfig.hiddenFeatureValues.includes("")
+        ) {
+          return 0;
+        }
+      } else if (
+        featureValue !== null &&
+        styleConfig.hiddenFeatureValues.includes(featureValue)
       ) {
         return 0;
       }
-    } else if (
-      featureValue !== null &&
-      styleConfig.hiddenFeatureValues.includes(featureValue)
-    ) {
-      return 0;
     }
     if (
       styleConfig.highlightedProteinIds.includes(point.id) ||

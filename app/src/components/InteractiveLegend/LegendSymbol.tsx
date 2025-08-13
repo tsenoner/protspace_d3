@@ -1,7 +1,7 @@
 "use client";
 
 import * as d3 from "d3";
-import { SHAPE_MAPPING } from "./constants";
+import { LEGEND_DEFAULTS, SHAPE_MAPPING } from "./constants";
 
 interface LegendSymbolProps {
   shape: string | null;
@@ -10,13 +10,13 @@ interface LegendSymbolProps {
   isSelected?: boolean;
 }
 
-export function LegendSymbol({ shape, color, size = 16, isSelected = false }: LegendSymbolProps) {
+export function LegendSymbol({ shape, color, size = LEGEND_DEFAULTS.symbolSize, isSelected = false }: LegendSymbolProps) {
   const halfSize = size / 2;
 
   const shapeKey = (shape || "circle").toLowerCase() as keyof typeof SHAPE_MAPPING;
   const symbolType = SHAPE_MAPPING[shapeKey] || d3.symbolCircle;
 
-  const path = d3.symbol().type(symbolType).size(size * 8)();
+  const path = d3.symbol().type(symbolType).size(size * LEGEND_DEFAULTS.symbolSizeMultiplier)();
 
   const isOutlineOnly =
     shapeKey === "plus" || shapeKey === "asterisk" || String(shapeKey).includes("_stroke");

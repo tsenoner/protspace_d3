@@ -99,11 +99,18 @@ export function getColorFactory(data: VisualizationData | null, selectedFeature:
   };
 }
 
-export function getShapeFactory(data: VisualizationData | null, selectedFeature: string) {
+export function getShapeFactory(
+  data: VisualizationData | null,
+  selectedFeature: string,
+  options?: { otherFeatureValues?: string[]; useShapes?: boolean }
+) {
+  const otherSet = new Set(options?.otherFeatureValues ?? []);
+  const useShapes = options?.useShapes ?? true;
   return (protein: PlotDataPoint) => {
     if (!data || !data.features[selectedFeature]) return DEFAULT_STYLES.other.shape;
 
     const featureValue = protein.featureValues[selectedFeature];
+    if (!useShapes) return DEFAULT_STYLES.other.shape;
     if (featureValue === null) {
       const values = data.features[selectedFeature].values;
       const nullIndex = values && Array.isArray(values) ? values.findIndex((v) => v === null) : -1;
@@ -125,12 +132,17 @@ export function getShapeFactory(data: VisualizationData | null, selectedFeature:
     if (valueIndex === -1 || !data.features[selectedFeature].shapes || !(valueIndex in data.features[selectedFeature].shapes))
       return DEFAULT_STYLES.other.shape;
 
+    if (otherSet.has(String(featureValue))) {
+      return DEFAULT_STYLES.other.shape;
+    }
+
     const shapeName = data.features[selectedFeature].shapes[valueIndex] as keyof typeof SHAPE_MAPPING;
     return SHAPE_MAPPING[shapeName] || DEFAULT_STYLES.other.shape;
   };
 }
 
 export function getOpacityFactory(
+  data: VisualizationData | null,
   selectedFeature: string,
   hiddenFeatureValues: string[],
   highlightedProteinIds: string[],
@@ -140,10 +152,24 @@ export function getOpacityFactory(
   selectedOpacity: number,
   fadedOpacity: number
 ) {
+  // Determine if effectively all values for the selected feature are hidden.
+  const allHidden = (() => {
+    if (!data || !data.features[selectedFeature]) return false;
+    const values = data.features[selectedFeature].values || [];
+    if (!Array.isArray(values) || values.length === 0) return false;
+    const hidden = new Set(hiddenFeatureValues);
+    if (hidden.size === 0) return false;
+    const normalizedKeys = values.map((v) => (v === null ? "null" : typeof v === "string" && v.trim() === "" ? "" : String(v)));
+    return normalizedKeys.length > 0 && normalizedKeys.every((k) => hidden.has(k));
+  })();
+
   return (protein: PlotDataPoint) => {
     const featureValue = protein.featureValues[selectedFeature];
-    if ((featureValue !== null && hiddenFeatureValues.includes(featureValue)) || (featureValue === null && hiddenFeatureValues.includes("null"))) {
-      return 0;
+    // When all are hidden, bypass hidden filtering to show everything again
+    if (!allHidden) {
+      if ((featureValue !== null && hiddenFeatureValues.includes(featureValue)) || (featureValue === null && hiddenFeatureValues.includes("null"))) {
+        return 0;
+      }
     }
 
     if (highlightedProteinIds.includes(protein.id)) return selectedOpacity;

@@ -41,6 +41,8 @@ export interface ScatterplotProps {
   splitHistory?: string[][];
   selectionMode: boolean;
   hiddenFeatureValues?: string[];
+  otherFeatureValues?: string[];
+  useShapes?: boolean;
   baseOpacity?: number;
   selectedOpacity?: number;
   fadedOpacity?: number;

@@ -33,6 +33,8 @@ export default function Scatterplot({
   splitHistory,
   selectionMode = false,
   hiddenFeatureValues = [],
+  otherFeatureValues = [],
+  useShapes = true,
   baseOpacity = DEFAULT_CONFIG.baseOpacity,
   selectedOpacity = DEFAULT_CONFIG.selectedOpacity,
   fadedOpacity = DEFAULT_CONFIG.fadedOpacity,
@@ -81,13 +83,14 @@ export default function Scatterplot({
   );
 
   const getShape = useMemo(
-    () => getShapeFactory(data, selectedFeature),
-    [data, selectedFeature]
+    () => getShapeFactory(data, selectedFeature, { otherFeatureValues, useShapes }),
+    [data, selectedFeature, otherFeatureValues, useShapes]
   );
 
   const getOpacity = useMemo(
     () =>
       getOpacityFactory(
+        data,
         selectedFeature,
         hiddenFeatureValues,
         highlightedProteinIds,
@@ -98,6 +101,7 @@ export default function Scatterplot({
         fadedOpacity
       ),
     [
+      data,
       selectedFeature,
       hiddenFeatureValues,
       highlightedProteinIds,

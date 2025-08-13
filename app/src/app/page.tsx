@@ -40,13 +40,15 @@ export default function ProtSpaceApp() {
     handleSearch,
     handleRemoveProtein,
     handleToggleIsolationMode,
-    handleSaveSession,
-    handleLoadSession,
     handleToggleVisibility,
     handleExtractFromOther,
     handleSetZOrder,
     handleOpenCustomization,
+    setOtherLegendValues,
+    setUseShapes,
     handleImportData,
+    otherLegendValues,
+    useShapes,
     totalProteins,
     displayedProteins,
     projectionName,
@@ -126,6 +128,8 @@ export default function ProtSpaceApp() {
               splitHistory={splitHistory}
               selectionMode={selectionMode}
               hiddenFeatureValues={hiddenFeatureValues}
+              otherFeatureValues={otherLegendValues}
+              useShapes={useShapes}
               onProteinClick={handleProteinClick}
               onProteinHover={handleProteinHover}
               onViewStructure={setViewStructureId}
@@ -160,10 +164,13 @@ export default function ProtSpaceApp() {
                 ];
               })}
               proteinIds={visualizationData.protein_ids}
+              hiddenFeatureValues={hiddenFeatureValues}
               onToggleVisibility={handleToggleVisibility}
               onExtractFromOther={handleExtractFromOther}
               onSetZOrder={handleSetZOrder}
               onOpenCustomization={handleOpenCustomization}
+              onOtherValuesChange={setOtherLegendValues}
+              onUseShapesChange={setUseShapes}
               selectedItems={Array.from(selectedFeatureItemsSet)}
               className="w-full lg:w-auto"
               isolationMode={isolationMode}

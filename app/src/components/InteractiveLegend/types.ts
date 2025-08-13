@@ -18,14 +18,20 @@ export interface InteractiveLegendProps {
   featureValues: (string | null)[];
   proteinIds?: string[];
   maxVisibleValues?: number;
+  hiddenFeatureValues?: string[];
   onToggleVisibility?: (value: string | null) => void;
   onExtractFromOther?: (value: string) => void;
   onSetZOrder?: (zOrderMapping: Record<string, number>) => void;
   onOpenCustomization?: () => void;
+  onOtherValuesChange?: (values: string[]) => void;
+  onUseShapesChange?: (use: boolean) => void;
   selectedItems?: string[];
   className?: string;
   isolationMode?: boolean;
   splitHistory?: string[][];
+  includeOthers?: boolean;
+  includeShapes?: boolean;
+  shapeSize?: number;
 }
 
 export interface OtherItemsDialogProps {

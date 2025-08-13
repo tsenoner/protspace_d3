@@ -13,6 +13,9 @@ interface LegendListItemProps {
   onDragOver: (item: LegendItem) => void;
   onDragEnd: () => void;
   onOpenOther?: () => void;
+  onDropOn?: (target: LegendItem) => void;
+  includeShapes?: boolean;
+  shapeSize?: number;
 }
 
 export function LegendListItem({
@@ -25,6 +28,9 @@ export function LegendListItem({
   onDragOver,
   onDragEnd,
   onOpenOther,
+  onDropOn,
+  includeShapes = true,
+  shapeSize = 16,
 }: LegendListItemProps) {
   return (
     <li
@@ -41,7 +47,14 @@ export function LegendListItem({
       onDoubleClick={() => onDoubleClick(item.value)}
       draggable={true}
       onDragStart={() => onDragStart(item)}
-      onDragOver={() => onDragOver(item)}
+      onDragOver={(e) => {
+        e.preventDefault();
+        onDragOver(item);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        onDropOn?.(item);
+      }}
       onDragEnd={onDragEnd}
     >
       <div className="flex items-center">
@@ -51,10 +64,10 @@ export function LegendListItem({
           </svg>
         </div>
         <div className="mr-2">
-          {item.value === "Other" || !item.isVisible ? (
-            <LegendSymbol shape="circle" color={item.isVisible ? "#888" : "#ccc"} />
+          {item.value === "Other" ? (
+            <LegendSymbol shape="circle" color="#888" size={shapeSize} />
           ) : (
-            <LegendSymbol shape={item.shape} color={item.color} size={16} isSelected={isSelected} />
+            <LegendSymbol shape={includeShapes ? item.shape : "circle"} color={item.color} size={shapeSize} isSelected={isSelected} />
           )}
         </div>
         <span>{item.value === null ? "N/A" : item.value}</span>

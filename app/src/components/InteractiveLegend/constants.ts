@@ -24,4 +24,9 @@ export const DEFAULT_STYLES = {
   },
 } as const;
 
+export const LEGEND_DEFAULTS = {
+  symbolSize: 16,
+  symbolSizeMultiplier: 8,
+} as const;
+
 

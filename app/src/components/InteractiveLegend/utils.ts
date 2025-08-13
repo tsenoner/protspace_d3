@@ -106,7 +106,24 @@ export function computeLegendItems(params: {
     }
   });
 
-  return { items, otherItems: otherItemsArray };
+  // Filter otherItems so that extracted/individually shown values are excluded and update Other count accordingly
+  const individuallyShown = new Set(
+    items.map((i) => i.value).filter((v): v is string => v !== null && v !== "Other")
+  );
+  const filteredOtherItems = otherItemsArray.filter(
+    ([v]) => v !== null && !individuallyShown.has(v)
+  );
+  const recomputedOtherCount = filteredOtherItems.reduce((sum, [, c]) => sum + c, 0);
+  const otherIdx = items.findIndex((i) => i.value === "Other");
+  if (otherIdx !== -1) {
+    if (recomputedOtherCount > 0) {
+      items[otherIdx] = { ...items[otherIdx], count: recomputedOtherCount };
+    } else {
+      items.splice(otherIdx, 1);
+    }
+  }
+
+  return { items, otherItems: filteredOtherItems };
 }
 
 export function toZOrderMap(items: LegendItem[]): Record<string, number> {
