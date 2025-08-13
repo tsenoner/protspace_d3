@@ -12,3 +12,8 @@ export type { ProtspaceStructureViewer } from "./components/structure-viewer/str
 export type { ProtspaceControlBar } from "./components/control-bar/control-bar";
 // export * from './components/data-loader';
 // export * from './shared';
+
+// Utilities for data loading (used by React app for importing bundles)
+export { readFileOptimized } from "./components/data-loader/utils/file-io";
+export { isParquetBundle, extractRowsFromParquetBundle } from "./components/data-loader/utils/bundle";
+export { convertParquetToVisualizationDataOptimized } from "./components/data-loader/utils/conversion";
