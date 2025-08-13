@@ -21,7 +21,7 @@
   "author": "",
   "devDependencies": {
     "@changesets/cli": "^2.29.4",
-    "@eslint/eslintrc": "^3.3.1",
+    "@eslint/eslintrc": "^3.3.0",
     "@types/three": "^0.179.0",
     "turbo": "^2.5.3"
   }
