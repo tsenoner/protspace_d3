@@ -61,7 +61,17 @@ export function useBrushSelection(
 
       brushGroupRef.current.call(brush as any);
     } else {
-      if (zoomRef.current) svg.call(zoomRef.current);
+      if (zoomRef.current) {
+        svg.call(zoomRef.current);
+        // Ensure double-click resets view instead of zooming
+        svg.on("dblclick.zoom", null);
+        svg.on("dblclick.reset", (event: MouseEvent) => {
+          event.preventDefault();
+          if (zoomRef.current) {
+            svg.transition().duration(750).call(zoomRef.current.transform, d3.zoomIdentity);
+          }
+        });
+      }
     }
 
     const style = document.createElement("style");
