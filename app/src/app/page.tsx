@@ -85,6 +85,7 @@ export default function ProtSpaceApp() {
     selectedFeature,
     selectedProteinIds,
     hiddenFeatureValues,
+    useShapes,
   });
  
 

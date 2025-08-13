@@ -48,7 +48,8 @@ function drawLegendOnCanvas(
   canvasWidth: number,
   canvasHeight: number,
   selectedFeature: string,
-  items: LegendItem[]
+  items: LegendItem[],
+  includeShapes: boolean
 ): void {
   const legendPadding = 20;
   const legendItemHeight = 30;
@@ -82,78 +83,90 @@ function drawLegendOnCanvas(
     const symbolX = canvasWidth - legendWidth + legendPadding + symbolSize;
     const symbolY = y;
 
-    ctx.fillStyle = color;
-    ctx.strokeStyle = "#333";
-    ctx.lineWidth = 1;
-
-    switch (shape) {
-      case "circle":
-        ctx.beginPath();
-        ctx.arc(symbolX, symbolY, symbolSize / 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        break;
-      case "square":
-        ctx.fillRect(
-          symbolX - symbolSize / 2,
-          symbolY - symbolSize / 2,
-          symbolSize,
-          symbolSize
-        );
-        ctx.strokeRect(
-          symbolX - symbolSize / 2,
-          symbolY - symbolSize / 2,
-          symbolSize,
-          symbolSize
-        );
-        break;
-      case "triangle":
-        ctx.beginPath();
-        ctx.moveTo(symbolX, symbolY - symbolSize / 2);
-        ctx.lineTo(symbolX - symbolSize / 2, symbolY + symbolSize / 2);
-        ctx.lineTo(symbolX + symbolSize / 2, symbolY + symbolSize / 2);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        break;
-      case "diamond":
-        ctx.beginPath();
-        ctx.moveTo(symbolX, symbolY - symbolSize / 2);
-        ctx.lineTo(symbolX + symbolSize / 2, symbolY);
-        ctx.lineTo(symbolX, symbolY + symbolSize / 2);
-        ctx.lineTo(symbolX - symbolSize / 2, symbolY);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        break;
-      case "cross":
-        ctx.beginPath();
-        ctx.moveTo(symbolX - symbolSize / 2, symbolY - symbolSize / 2);
-        ctx.lineTo(symbolX + symbolSize / 2, symbolY + symbolSize / 2);
-        ctx.moveTo(symbolX + symbolSize / 2, symbolY - symbolSize / 2);
-        ctx.lineTo(symbolX - symbolSize / 2, symbolY + symbolSize / 2);
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = color;
-        ctx.stroke();
-        break;
-      case "star":
-        ctx.beginPath();
-        for (let j = 0; j < 5; j += 1) {
-          const x1 = symbolX + Math.cos((Math.PI * 2 * j) / 5) * (symbolSize / 2);
-          const y1 = symbolY + Math.sin((Math.PI * 2 * j) / 5) * (symbolSize / 2);
-          const x2 = symbolX + Math.cos((Math.PI * 2 * j + Math.PI) / 5) * (symbolSize / 4);
-          const y2 = symbolY + Math.sin((Math.PI * 2 * j + Math.PI) / 5) * (symbolSize / 4);
-          if (j === 0) ctx.moveTo(x1, y1);
-          else ctx.lineTo(x1, y1);
-          ctx.lineTo(x2, y2);
-        }
-        ctx.closePath();
-        ctx.fill();
-        break;
-      default:
-        ctx.beginPath();
-        ctx.arc(symbolX, symbolY, symbolSize / 2, 0, Math.PI * 2);
-        ctx.fill();
+    if (includeShapes) {
+      ctx.fillStyle = color;
+      ctx.strokeStyle = "#333";
+      ctx.lineWidth = 1;
+      switch (shape) {
+        case "circle":
+          ctx.beginPath();
+          ctx.arc(symbolX, symbolY, symbolSize / 2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          break;
+        case "square":
+          ctx.fillRect(
+            symbolX - symbolSize / 2,
+            symbolY - symbolSize / 2,
+            symbolSize,
+            symbolSize
+          );
+          ctx.strokeRect(
+            symbolX - symbolSize / 2,
+            symbolY - symbolSize / 2,
+            symbolSize,
+            symbolSize
+          );
+          break;
+        case "triangle":
+          ctx.beginPath();
+          ctx.moveTo(symbolX, symbolY - symbolSize / 2);
+          ctx.lineTo(symbolX - symbolSize / 2, symbolY + symbolSize / 2);
+          ctx.lineTo(symbolX + symbolSize / 2, symbolY + symbolSize / 2);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+          break;
+        case "diamond":
+          ctx.beginPath();
+          ctx.moveTo(symbolX, symbolY - symbolSize / 2);
+          ctx.lineTo(symbolX + symbolSize / 2, symbolY);
+          ctx.lineTo(symbolX, symbolY + symbolSize / 2);
+          ctx.lineTo(symbolX - symbolSize / 2, symbolY);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+          break;
+        case "cross":
+          ctx.beginPath();
+          ctx.moveTo(symbolX - symbolSize / 2, symbolY - symbolSize / 2);
+          ctx.lineTo(symbolX + symbolSize / 2, symbolY + symbolSize / 2);
+          ctx.moveTo(symbolX + symbolSize / 2, symbolY - symbolSize / 2);
+          ctx.lineTo(symbolX - symbolSize / 2, symbolY + symbolSize / 2);
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = color;
+          ctx.stroke();
+          break;
+        case "star":
+          ctx.beginPath();
+          for (let j = 0; j < 5; j += 1) {
+            const x1 = symbolX + Math.cos((Math.PI * 2 * j) / 5) * (symbolSize / 2);
+            const y1 = symbolY + Math.sin((Math.PI * 2 * j) / 5) * (symbolSize / 2);
+            const x2 = symbolX + Math.cos((Math.PI * 2 * j + Math.PI) / 5) * (symbolSize / 4);
+            const y2 = symbolY + Math.sin((Math.PI * 2 * j + Math.PI) / 5) * (symbolSize / 4);
+            if (j === 0) ctx.moveTo(x1, y1);
+            else ctx.lineTo(x1, y1);
+            ctx.lineTo(x2, y2);
+          }
+          ctx.closePath();
+          ctx.fill();
+          break;
+        default:
+          ctx.beginPath();
+          ctx.arc(symbolX, symbolY, symbolSize / 2, 0, Math.PI * 2);
+          ctx.fill();
+      }
+    } else {
+      // simple swatch
+      ctx.save();
+      ctx.fillStyle = color || "#888";
+      ctx.strokeStyle = "#333";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(symbolX, symbolY, symbolSize / 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
     }
 
     ctx.fillStyle = "#666";
@@ -173,11 +186,13 @@ export function useExport({
   selectedFeature,
   selectedProteinIds,
   hiddenFeatureValues,
+  useShapes,
 }: {
   visualizationData: VisualizationData | null;
   selectedFeature: string;
   selectedProteinIds: string[];
   hiddenFeatureValues: string[];
+  useShapes: boolean;
 }) {
   const handleExport = useCallback(
     (type: ExportType) => {
@@ -208,104 +223,148 @@ export function useExport({
         }
         case "png":
         case "pdf": {
-          const svgElement = document
-            .querySelector(".scatter-plot-container")
-            ?.closest("svg") as SVGElement | null;
-          if (!svgElement) {
+          const container = document.querySelector(
+            '[data-ps-scatterplot="true"]'
+          ) as HTMLElement | null;
+          if (!container) {
             alert("Could not find visualization element to export.");
             return;
           }
 
-          const svgClone = svgElement.cloneNode(true) as SVGElement;
-          const originalWidth = svgElement.clientWidth;
-          const originalHeight = svgElement.clientHeight;
-          const scale = 2;
+          (async () => {
+            const { default: html2canvas } = await import("html2canvas-pro");
+            const scatterCanvas = await html2canvas(container, {
+              backgroundColor: "#ffffff",
+              scale: 2,
+              useCORS: true,
+              allowTaint: false,
+              logging: false,
+              width: container.clientWidth,
+              height: container.clientHeight,
+              scrollX: 0,
+              scrollY: 0,
+              ignoreElements: (el) =>
+                (el as HTMLElement).hasAttribute?.("data-ps-export-ignore") === true,
+            });
 
-          svgClone.setAttribute("width", String(originalWidth * scale));
-          svgClone.setAttribute("height", String(originalHeight * scale));
-
-          const mainGroup = svgClone.querySelector(".scatter-plot-container");
-          if (mainGroup) {
-            mainGroup.setAttribute(
-              "transform",
-              `scale(${scale}) ${mainGroup.getAttribute("transform") || ""}`
+            // Build legend
+            const items = buildLegendItems(
+              visualizationData,
+              selectedFeature,
+              hiddenFeatureValues,
+              10
             );
-          }
 
-          const toRemove = svgClone.querySelectorAll(
-            ".absolute, .z-10, button, .reset-view-button, [class*='tooltip'], [class*='control']"
-          );
-          toRemove.forEach((el) => el.remove());
+            // Compose output
+            const combinedWidth = Math.round(scatterCanvas.width * 1.1);
+            const combinedHeight = scatterCanvas.height;
+            const legendWidth = combinedWidth - scatterCanvas.width;
 
-          const svgString = new XMLSerializer().serializeToString(svgClone);
-          const canvas = document.createElement("canvas");
-          canvas.width = originalWidth * scale;
-          canvas.height = originalHeight * scale;
-          const ctx = canvas.getContext("2d");
-          if (!ctx) {
-            alert("Could not create canvas context for export.");
-            return;
-          }
-          ctx.fillStyle = "white";
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-          const img = new Image();
-          const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
-          const url = URL.createObjectURL(svgBlob);
-
-          img.onload = async () => {
-            try {
-              ctx.drawImage(img, 0, 0);
-              const items = buildLegendItems(
-                visualizationData,
-                selectedFeature,
-                hiddenFeatureValues,
-                10
-              );
-              drawLegendOnCanvas(
-                ctx,
-                canvas.width,
-                canvas.height,
-                selectedFeature,
-                items
-              );
-
-              if (type === "png") {
-                const dataUrl = canvas.toDataURL("image/png");
-                const link = document.createElement("a");
-                link.href = dataUrl;
-                link.download = "protspace_visualization.png";
-                link.click();
-              } else {
-                const jsPdfModule = await import("jspdf");
-                const jsPDF = (jsPdfModule as unknown as { default: any }).default || (jsPdfModule as any);
-                const isLandscape = canvas.width > canvas.height;
-                const pdf = new (jsPDF as any)({ orientation: isLandscape ? "landscape" : "portrait", unit: "mm" });
-                const pdfWidth = pdf.internal.pageSize.getWidth();
-                const pdfHeight = pdf.internal.pageSize.getHeight();
-                const ratio = Math.min(pdfWidth / canvas.width, pdfHeight / canvas.height);
-                const imgData = canvas.toDataURL("image/png");
-                pdf.addImage(imgData, "PNG", 0, 0, canvas.width * ratio, canvas.height * ratio);
-                pdf.save("protspace_visualization.pdf");
-              }
-            } catch (error) {
-              console.error("Error in export:", error);
-              alert("Export failed: " + (error as Error).message);
-            } finally {
-              URL.revokeObjectURL(url);
+            const outCanvas = document.createElement("canvas");
+            outCanvas.width = combinedWidth;
+            outCanvas.height = combinedHeight;
+            const outCtx = outCanvas.getContext("2d");
+            if (!outCtx) {
+              alert("Could not create canvas context for export.");
+              return;
             }
-          };
-          img.onerror = () => {
-            console.error("Failed to load SVG as image");
-            URL.revokeObjectURL(url);
-            alert("Failed to process the visualization for export.");
-          };
-          img.src = url;
+            // Background
+            outCtx.fillStyle = "#ffffff";
+            outCtx.fillRect(0, 0, combinedWidth, combinedHeight);
+            // Draw scatter
+            outCtx.drawImage(scatterCanvas, 0, 0);
+            // Draw legend area
+            const legendCanvas = document.createElement("canvas");
+            legendCanvas.width = Math.max(100, legendWidth);
+            legendCanvas.height = combinedHeight;
+            const legendCtx = legendCanvas.getContext("2d");
+            if (legendCtx) {
+              // fill bg
+              legendCtx.fillStyle = "#ffffff";
+              legendCtx.fillRect(0, 0, legendCanvas.width, legendCanvas.height);
+              drawLegendOnCanvas(
+                legendCtx,
+                legendCanvas.width,
+                legendCanvas.height,
+                selectedFeature,
+                items,
+                Boolean(useShapes)
+              );
+              outCtx.drawImage(legendCanvas, scatterCanvas.width, 0);
+            }
+
+            if (type === "png") {
+              const dataUrl = outCanvas.toDataURL("image/png");
+              const link = document.createElement("a");
+              link.href = dataUrl;
+              link.download = "protspace_visualization.png";
+              link.click();
+            } else {
+              const { default: jsPDF } = await import("jspdf");
+              const scatterImg = scatterCanvas.toDataURL("image/png", 1.0);
+              const legendImg = legendCanvas.toDataURL("image/png", 1.0);
+              const scatterRatio = scatterCanvas.width / scatterCanvas.height;
+              const legendRatio = legendCanvas.width / legendCanvas.height;
+
+              const pdf: any = new (jsPDF as any)({ orientation: scatterRatio > 1 ? "landscape" : "portrait", unit: "mm", format: "a4" });
+              const title = "ProtSpace Visualization";
+              const dateStr = new Date().toISOString().replace("T", " ").replace(/\..+$/, "");
+
+              const pdfWidth = pdf.internal.pageSize.getWidth();
+              const pdfHeight = pdf.internal.pageSize.getHeight();
+              const margin = 15;
+              const headerHeight = 10;
+              const footerHeight = 8;
+              const contentLeft = margin;
+              const contentTop = margin + headerHeight;
+              const contentWidth = pdfWidth - 2 * margin;
+              const contentHeight = pdfHeight - 2 * margin - headerHeight - footerHeight;
+              const gap = 6;
+
+              // Header
+              pdf.setFontSize(12);
+              pdf.text(title, contentLeft, margin + 6);
+              pdf.setFontSize(9);
+              const origin = (typeof window !== "undefined" && (window as any)?.location?.origin) || "";
+              pdf.text(`${dateStr}${origin ? `  •  ${origin}` : ""}`, pdfWidth - margin, margin + 6, { align: "right" });
+
+              // Target widths ~90% scatter, ~10% legend
+              const legendTargetW = (contentWidth - gap) * 0.1;
+              const scatterTargetW = contentWidth - gap - legendTargetW;
+              let sW = scatterTargetW;
+              let sH = sW / scatterRatio;
+              let lW = legendTargetW;
+              let lH = lW / legendRatio;
+              const maxH = Math.max(sH, lH);
+              if (maxH > contentHeight) {
+                const scale = contentHeight / maxH;
+                sW *= scale;
+                sH *= scale;
+                lW *= scale;
+                lH *= scale;
+              }
+              const y = contentTop + (contentHeight - Math.max(sH, lH)) / 2;
+              const xScatter = contentLeft;
+              const xLegend = xScatter + sW + gap;
+              pdf.addImage(scatterImg, "PNG", xScatter, y, sW, sH);
+              pdf.addImage(legendImg, "PNG", xLegend, y, lW, lH);
+
+              // Footer
+              pdf.setFontSize(9);
+              pdf.text("Page 1 of 1", pdfWidth - margin, pdfHeight - margin, { align: "right" });
+
+              const stamped = new Date().toISOString().replace(/[:T]/g, "-").replace(/\..+$/, "");
+              pdf.save(`protspace_visualization_${stamped}.pdf`);
+            }
+          })().catch((err) => {
+            console.error("Export failed", err);
+            alert("Export failed: " + (err as Error).message);
+          });
           break;
         }
       }
     },
-    [hiddenFeatureValues, selectedFeature, selectedProteinIds, visualizationData]
+    [hiddenFeatureValues, selectedFeature, selectedProteinIds, useShapes, visualizationData]
   );
 
   return { handleExport } as const;

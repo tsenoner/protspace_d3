@@ -293,6 +293,7 @@ export default function Scatterplot({
     <div
       className={`relative ${className} h-full w-full overflow-hidden`}
       ref={containerRef}
+      data-ps-scatterplot="true"
     >
       {/* Canvas for high-performance rendering */}
       <canvas
@@ -316,7 +317,7 @@ export default function Scatterplot({
 
       {/* Loading overlay */}
       {(!isDataLoaded || isTransitioning) && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 z-10">
+        <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 z-10" data-ps-export-ignore>
           <div className="flex flex-col items-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
             <p className="mt-2 text-gray-600">
@@ -331,7 +332,7 @@ export default function Scatterplot({
 
       {/* Selection Mode Indicator */}
       {selectionMode && (
-        <div className="absolute top-2 right-2 z-10 px-2 py-1 bg-primary text-white text-xs rounded-md flex items-center">
+        <div className="absolute top-2 right-2 z-10 px-2 py-1 bg-primary text-white text-xs rounded-md flex items-center" data-ps-export-ignore>
           <svg
             xmlns="http://www.w3.org/2000/svg"
             className="h-4 w-4 mr-1"
@@ -367,6 +368,7 @@ export default function Scatterplot({
        {tooltipData && (
         <div
           className="absolute z-10 p-2 bg-white rounded shadow-md border text-sm"
+          data-ps-export-ignore
           style={{
             left: tooltipData.x + 10,
             top:
