@@ -19,18 +19,6 @@ export default function StructureViewer({
 
   if (!proteinId) return null;
 
-  // Error-only card keeps previous UX
-  if (error) {
-    return (
-      <div className="w-full bg-white rounded-md shadow-sm mt-4">
-        <StructureHeader title={title} proteinId={proteinId} onClose={onClose} />
-        <div className="text-center text-red-500 p-4">
-          <p className="font-medium">{error}</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="w-full bg-white rounded-md shadow-sm mt-4">
       <StructureHeader title={title} proteinId={proteinId} onClose={onClose} />

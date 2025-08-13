@@ -19,9 +19,13 @@ export function useStructureViewer(proteinId: string | null) {
   const viewerRef = useRef<MolstarViewer | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const lastLoadedIdRef = useRef<string | null>(null);
+  const apiControllerRef = useRef<AbortController | null>(null);
 
   const cleanup = useCallback(() => {
-    setState((s) => ({ ...s, error: null }));
+    try {
+      apiControllerRef.current?.abort();
+    } catch {}
+    apiControllerRef.current = null;
     try {
       viewerRef.current?.dispose?.();
     } catch {}
@@ -32,7 +36,8 @@ export function useStructureViewer(proteinId: string | null) {
   useEffect(() => {
     if (!proteinId || !containerRef.current) return;
 
-    const formattedId = proteinId.split(".")[0];
+    // Normalize ID: strip isoform and variant suffixes like ".1" or "-2"
+    const formattedId = proteinId.split(/[.\-]/)[0];
     let isCancelled = false;
 
     async function run() {
@@ -51,35 +56,60 @@ export function useStructureViewer(proteinId: string | null) {
         if (isCancelled) return;
         viewerRef.current = viewer;
 
-        // Prefer AlphaFold PDB
-        const alphafoldUrl = `https://alphafold.ebi.ac.uk/files/AF-${formattedId}-F1-model_v4.pdb`;
-        const head = await fetch(alphafoldUrl, { method: "HEAD" });
-        if (!head.ok) {
-          setState({ isLoading: false, error: `AlphaFold structure is not available for ${formattedId}.` });
-          lastLoadedIdRef.current = formattedId;
-          return;
+        // Query AlphaFold API for actual file URL to avoid guessing versions
+        apiControllerRef.current?.abort();
+        const controller = new AbortController();
+        apiControllerRef.current = controller;
+        const apiUrl = `https://alphafold.ebi.ac.uk/api/prediction/${formattedId}`;
+        const apiResp = await fetch(apiUrl, {
+          signal: controller.signal,
+          headers: { Accept: "application/json" },
+        });
+        if (isCancelled) return;
+        if (!apiResp.ok) {
+          throw new Error("AlphaFold structure not available");
+        }
+        const predictions: Array<any> = await apiResp.json();
+        if (!Array.isArray(predictions) || predictions.length === 0) {
+          throw new Error("AlphaFold structure not available");
         }
 
-        await viewer.loadStructureFromUrl(alphafoldUrl, "pdb");
+        // Prefer PDB, then CIF, then Binary CIF (BCIF)
+        const candidate = predictions[0];
+        const pdbUrl: string | undefined = candidate?.pdbUrl || candidate?.uncompressedPdbUrl;
+        const cifUrl: string | undefined = candidate?.cifUrl;
+        const bcifUrl: string | undefined = candidate?.bcifUrl;
+
+        const sources: Array<{ url: string; format: "pdb" | undefined }> = [];
+        if (pdbUrl) sources.push({ url: pdbUrl, format: "pdb" });
+        if (cifUrl) sources.push({ url: cifUrl, format: undefined });
+        if (bcifUrl) sources.push({ url: bcifUrl, format: undefined });
+
+        if (sources.length === 0) {
+          throw new Error("AlphaFold structure not available");
+        }
+
+        let loaded = false;
+        for (const { url, format } of sources) {
+          try {
+            await viewer.loadStructureFromUrl(url, format);
+            loaded = true;
+            break;
+          } catch {
+            if (isCancelled) return;
+            // try next source
+          }
+        }
+        if (!loaded) throw new Error("AlphaFold structure not available");
+
         if (isCancelled) return;
         setState({ isLoading: false, error: null });
         lastLoadedIdRef.current = formattedId;
       } catch (e) {
-        // Fallback to direct PDB load
-        try {
-          if (!viewerRef.current && containerRef.current) {
-            await ensureMolstarResourcesLoaded();
-            viewerRef.current = await createMolstarViewer(containerRef.current);
-          }
-          await viewerRef.current.loadPdb(formattedId);
-          if (!isCancelled) {
-            setState({ isLoading: false, error: null });
-            lastLoadedIdRef.current = formattedId;
-          }
-        } catch (err) {
-          if (!isCancelled) {
-            setState({ isLoading: false, error: "Failed to load protein structure" });
-          }
+        // On any failure, present a clear error and avoid caching as loaded
+        if (!isCancelled) {
+          cleanup();
+          setState({ isLoading: false, error: `AlphaFold structure is not available for ${formattedId}.` });
         }
       }
     }
