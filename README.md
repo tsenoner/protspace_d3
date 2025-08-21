@@ -48,12 +48,6 @@ protspace/
 │       │   └── index.ts
 │       └── package.json
 │
-├── apps/
-│   └── src/
-│       ├── app/                 # Next.js 14 app router
-│       ├── components/          # Existing components (migration) and app components
-│       └── package.json
-│
 ├── examples/                    # Standalone examples
 │   └── scatterplot-vite/        # Scatterplot example using Vite
 │       ├── index.html
@@ -90,8 +84,6 @@ pnpm build
 # Start development
 pnpm dev
 ```
-
-The Next.js demo app will be available at `http://localhost:3000`.
 
 ## 📦 Package Overview
 
@@ -148,8 +140,6 @@ function MyComponent() {
 ```bash
 # Development
 pnpm dev          # Start all packages in dev mode
-pnpm dev:app      # Start only the Next.js app
-pnpm dev:core     # Start only core components
 
 # Building
 pnpm build        # Build all packages
@@ -172,15 +162,6 @@ Turborepo allows you to work efficiently with specific packages:
 ```bash
 # Work on core components only
 turbo dev --filter=@protspace/core
-
-# Build and test React bridge
-turbo build test --filter=@protspace/react
-
-# Work on Next.js app with its dependencies
-turbo dev --filter=nextjs-app
-
-# Work on everything except demo
-turbo dev --filter=!demo
 ```
 
 ### Development Workflow
@@ -194,8 +175,6 @@ turbo dev --filter=!demo
    This starts all packages in watch mode with hot reloading.
 
 2. **Make changes** to components in `packages/core/src/components/`
-
-3. **See changes reflected** immediately in the Next.js app at `localhost:3000`
 
 4. **Test your changes**:
 
