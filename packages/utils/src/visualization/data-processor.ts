@@ -6,13 +6,16 @@ export class DataProcessor {
       data: VisualizationData,
       projectionIndex: number,
       isolationMode: boolean = false,
-      splitHistory?: string[][]
+      splitHistory?: string[][],
+      projectionPlane: 'xy' | 'xz' | 'yz' = 'xy'
     ): PlotDataPoint[] {
       if (!data.projections[projectionIndex]) return [];
   
       const processedData: PlotDataPoint[] = data.protein_ids.map((id, index) => {
-        const coordinates = data.projections[projectionIndex].data[index] as [number, number];
-        
+        const coordinates = data.projections[projectionIndex].data[index] as
+          | [number, number]
+          | [number, number, number];
+
         // Map feature values for this protein
         const featureValues: Record<string, string | null> = {};
         Object.keys(data.features).forEach((featureKey) => {
@@ -27,13 +30,28 @@ export class DataProcessor {
               : null;
         });
   
-        return {
+        // Determine 2D mapping depending on plane for 3D coordinates
+        let xVal = coordinates[0];
+        let yVal = coordinates[1];
+        const base = {
           id,
-          x: coordinates[0],
-          y: coordinates[1],
+          x: xVal,
+          y: yVal,
           featureValues,
           originalIndex: index,
-        };
+        } as PlotDataPoint;
+        if (coordinates.length === 3) {
+          base.z = coordinates[2];
+          if (projectionPlane === 'xz') {
+            yVal = coordinates[2];
+          } else if (projectionPlane === 'yz') {
+            xVal = coordinates[1];
+            yVal = coordinates[2];
+          }
+          base.x = xVal;
+          base.y = yVal;
+        }
+        return base;
       });
   
       // Apply isolation filtering if needed

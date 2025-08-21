@@ -5,8 +5,9 @@
   "packageManager": "pnpm@10.11.0",
   "scripts": {
     "build": "turbo build",
-    "dev": "turbo dev",
-    "dev:example:scatterplot-vite": "pnpm --filter @protspace/example-scatterplot dev",
+    "dev": "turbo run dev",
+    "dev:app": "turbo run dev --filter=protspace-app",
+    "dev:core": "turbo run --filter @protspace/example-scatterplot dev",
     "test": "turbo test",
     "lint": "turbo lint",
     "type-check": "turbo type-check",
@@ -20,6 +21,8 @@
   "author": "",
   "devDependencies": {
     "@changesets/cli": "^2.29.4",
+    "@eslint/eslintrc": "^3.3.0",
+    "@types/three": "^0.179.0",
     "turbo": "^2.5.3"
   }
 }
