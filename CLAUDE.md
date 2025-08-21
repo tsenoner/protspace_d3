@@ -5,8 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ### Build & Development
-- `pnpm dev` - Start all packages in development mode with hot reloading
-- `pnpm dev:app` - Start only the Next.js app at `localhost:3000`
+- `pnpm dev` - Start scatterplot example in development mode with hot reloading
 - `pnpm build` - Build all packages using Turborepo
 - `pnpm test` - Run all tests across packages
 - `pnpm lint` - Lint all packages 
@@ -14,8 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Package-Specific Development
 - `turbo dev --filter=@protspace/core` - Work on core components only
-- `turbo build test --filter=@protspace/react` - Build and test React bridge
-- `pnpm dev:example:scatterplot-vite` - Run standalone Vite example
+- `turbo build test --filter=@protspace/react-bridge` - Build and test React bridge
 
 ### Release Management
 - `pnpm changeset` - Create a changeset for version management
@@ -24,20 +22,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture Overview
 
-ProtSpace is a monorepo for interactive protein space visualization components targeting bioinformatics research. The architecture follows a hybrid approach:
+ProtSpace is a monorepo for interactive protein space visualization components targeting bioinformatics research, focused on framework-agnostic web components.
 
-### Core Components (Future/Planned)
-- **Web Components** (`@protspace/core`) - Framework-agnostic Lit components for scatterplot and interactive legend using D3.js for direct DOM manipulation
-- **React Bridge** (`@protspace/react`) - React wrappers around web components
-
-### Current Implementation
-- **Next.js App** (`app/`) - Main demonstration application with React components
-- **Components**: Header, ControlBar, Scatterplot, InteractiveLegend, StructureViewer, StatusBar
-- **Data Format**: JSON schema for protein data with projections, features, and feature data
+### Core Components
+- **Web Components** (`packages/core/`) - Framework-agnostic Lit components for scatterplot, interactive legend, and structure viewer using D3.js for direct DOM manipulation
+- **React Bridge** (`packages/react-bridge/`) - React wrappers around web components  
+- **Utilities** (`packages/utils/`) - Shared utilities for data processing, visualization, and structure handling
+- **Example** (`examples/scatterplot-vite/`) - Standalone Vite example demonstrating core components
 
 ### Technology Stack
 - **Monorepo**: Turborepo with pnpm workspaces
-- **Framework**: Next.js 15 with React 19
+- **Framework**: Lit web components for framework-agnostic components
 - **Visualization**: D3.js for data visualization
 - **3D Structures**: Molstar integration for AlphaFold protein structures  
 - **Styling**: Tailwind CSS with light DOM approach for web components
@@ -61,12 +56,12 @@ Proteins are visualized using:
 
 ### Working with Components
 - Prefer editing existing components over creating new files
-- Follow existing patterns in `app/src/components/`
+- Follow existing patterns in `packages/core/src/components/`
 - Use TypeScript interfaces for proper typing
 - Maintain responsive design for desktop/tablet (no mobile targeting)
 
-### Web Component Migration
-The project is planning migration to web components. See `docs/web-component-migration/README.md` for detailed migration strategy using Lit framework.
+### Web Component Implementation
+The project uses Lit-based web components for framework-agnostic visualization. See `docs/web-component-migration/README.md` for implementation details and patterns.
 
 ### Performance Considerations
 - Handle datasets from ~100 to 1M+ proteins
@@ -81,4 +76,4 @@ The project is planning migration to web components. See `docs/web-component-mig
 - No authentication required - file-based sharing model
 
 ### Testing
-Current testing infrastructure uses standard Next.js/React tooling. Future web components will use Vitest and component-specific testing strategies.
+Testing infrastructure uses Vitest for web components with component-specific testing strategies.
