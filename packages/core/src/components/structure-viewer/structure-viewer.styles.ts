@@ -113,12 +113,6 @@ export const structureViewerStyles = css`
     margin-bottom: 0.5rem;
   }
 
-  .error-message {
-    color: var(--protspace-viewer-text-muted);
-    font-size: 0.875rem;
-    line-height: 1.5;
-  }
-
   .empty-container {
     position: absolute;
     inset: 0;
@@ -180,5 +174,3 @@ export const structureViewerStyles = css`
     }
   }
 `;
-
-

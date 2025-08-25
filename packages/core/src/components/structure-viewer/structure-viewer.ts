@@ -38,7 +38,6 @@ export class ProtspaceStructureViewer extends LitElement {
 
   protected updated(changedProperties: Map<string | number | symbol, unknown>) {
     if (changedProperties.size > 0) {
-      
     }
     if (changedProperties.has("proteinId")) {
       if (this.proteinId) {
@@ -54,7 +53,6 @@ export class ProtspaceStructureViewer extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    
 
     if (this.autoSync) {
       this._setupAutoSync();
@@ -82,7 +80,7 @@ export class ProtspaceStructureViewer extends LitElement {
       this._scatterplotElement = document.querySelector(
         this.scatterplotSelector
       );
-      
+
       if (this._scatterplotElement) {
         // Listen for protein clicks
         this._scatterplotElement.addEventListener(
@@ -168,31 +166,31 @@ export class ProtspaceStructureViewer extends LitElement {
       this._structureData = await StructureService.loadStructure(
         this.proteinId
       );
-      
+
       // Create Mol* viewer
       await this.updateComplete;
       if (!this._viewerContainer) {
         throw new Error("Viewer container not available");
       }
       this._viewer = await createMolstarViewer(this._viewerContainer);
-      
 
       // Load structure into viewer based on source
       await this._displayStructure(this._structureData);
-      
 
       this._isLoading = false;
       this._dispatchStructureEvent("loaded");
     } catch (error) {
       console.error("[StructureViewer] Structure loading error:", error);
       const formattedId = this.proteinId?.split(".")[0] ?? this.proteinId ?? "";
-      const genericMessage = `No 3D structure was found for ${formattedId} in AlphaFold.`;
+      const genericMessage = `No 3D structure was found for ${formattedId}.`;
       const fallbackMessage = "Failed to load structure. Please try again.";
       if (error instanceof Error) {
         // Map low-level errors to a user-friendly message
         const message = error.message.toLowerCase();
         if (
-          message.includes("failed to load structure from both alphafold and pdb") ||
+          message.includes(
+            "failed to load structure from both alphafold and pdb"
+          ) ||
           message.includes("alphafold structure not available")
         ) {
           this._error = genericMessage;
@@ -283,20 +281,14 @@ export class ProtspaceStructureViewer extends LitElement {
   }
 
   render() {
-    const formattedId = this.proteinId?.split(".")[0] ?? this.proteinId ?? "";
-    const alphaFoldUrl = formattedId
-      ? `https://alphafold.ebi.ac.uk/entry/${formattedId}`
-      : null;
-    const pdbSearchUrl = formattedId
-      ? `https://www.rcsb.org/search?request={\"query\":{\"type\":\"terminal\",\"service\":\"text\",\"parameters\":{\"attribute\":\"rcsb_entry_container_identifiers.entry_id\",\"operator\":\"contains_words\",\"value\":\"${formattedId}\"}},\"return_type\":\"entry\"}`
-      : null;
-
     if (!this.proteinId) {
       return html`
         <div class="viewer-container">
           <div class="empty-container">
             <div class="empty-title">No protein selected</div>
-            <div class="empty-message">Select a point in the scatter plot to view its 3D structure.</div>
+            <div class="empty-message">
+              Select a point in the scatter plot to view its 3D structure.
+            </div>
           </div>
           <div class="viewer-content"></div>
         </div>
@@ -335,15 +327,6 @@ export class ProtspaceStructureViewer extends LitElement {
           ? html`
               <div class="error-container">
                 <div class="error-title">${this._error}</div>
-                <div class="error-message">
-                  ${alphaFoldUrl
-                    ? html`<a href="${alphaFoldUrl}" target="_blank" rel="noopener">Check AlphaFold entry</a>`
-                    : ""}
-                  ${alphaFoldUrl && pdbSearchUrl ? html` · ` : ""}
-                  ${pdbSearchUrl
-                    ? html`<a href="${pdbSearchUrl}" target="_blank" rel="noopener">Search RCSB PDB</a>`
-                    : ""}
-                </div>
               </div>
             `
           : ""}
