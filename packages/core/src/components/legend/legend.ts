@@ -50,6 +50,7 @@ export class ProtspaceLegend extends LitElement {
   @state() private settingsIncludeShapes: boolean = LEGEND_DEFAULTS.includeShapes;
   @property({ type: Number }) shapeSize: number = LEGEND_DEFAULTS.symbolSize;
   @state() private settingsShapeSize: number = LEGEND_DEFAULTS.symbolSize;
+  @state() private manualOtherValues: string[] = [];
 
   // Auto-sync properties
   @property({ type: String, attribute: "scatterplot-selector" })
@@ -69,6 +70,7 @@ export class ProtspaceLegend extends LitElement {
       changedProperties.has("selectedFeature")
     ) {
       this._updateFeatureDataFromData();
+      this.manualOtherValues = [];
     }
 
     if (
@@ -249,6 +251,7 @@ export class ProtspaceLegend extends LitElement {
 
     // Clear hidden values when feature changes
     this._hiddenValues = [];
+    this.manualOtherValues = [];
     if (
       this.autoHide &&
       this._scatterplotElement &&
@@ -320,7 +323,8 @@ export class ProtspaceLegend extends LitElement {
       this.isolationMode,
       this.splitHistory,
       this.legendItems,
-      this.includeOthers
+      this.includeOthers,
+      this.manualOtherValues
     );
 
     // Set items state
@@ -548,9 +552,30 @@ export class ProtspaceLegend extends LitElement {
         (i) => i.value === this.draggedItem
       );
 
-      // Only merge items that were extracted from Other and are real values
-      if (draggedItem && draggedItem.extractedFromOther && draggedItem.value) {
+      if (!draggedItem) {
+        this.handleDragEnd();
+        return;
+      }
+
+      // If the item was previously extracted, use the original merge flow
+      if (draggedItem.extractedFromOther && draggedItem.value) {
         this._mergeExtractedBackToOther(draggedItem.value);
+      } else if (draggedItem.value && draggedItem.value !== "Other") {
+        // Manually move any non-null, non-Other value into Other
+        if (!this.manualOtherValues.includes(draggedItem.value)) {
+          this.manualOtherValues = [...this.manualOtherValues, draggedItem.value];
+        }
+        // Recompute legend to reflect manual move
+        this.updateLegendItems();
+
+        // Notify parent with "merge-into-other" action
+        this.dispatchEvent(
+          new CustomEvent("legend-item-click", {
+            detail: { value: draggedItem.value, action: "merge-into-other" },
+            bubbles: true,
+            composed: true,
+          })
+        );
       }
     }
 
@@ -632,6 +657,11 @@ export class ProtspaceLegend extends LitElement {
     // Find this item in otherItems
     const itemToExtract = this.otherItems.find((item) => item.value === value);
     if (!itemToExtract) return;
+
+    // If this value was manually assigned to Other, remove it from the manual list
+    if (this.manualOtherValues.includes(value)) {
+      this.manualOtherValues = this.manualOtherValues.filter((v) => v !== value);
+    }
 
     // Find the valueIndex for color and shape
     const valueIndex = this.featureData.values.indexOf(value);
@@ -972,6 +1002,17 @@ export class ProtspaceLegend extends LitElement {
       this.includeShapes = this.settingsIncludeShapes;
       this.shapeSize = this.settingsShapeSize;
       this.showSettingsDialog = false;
+      this.manualOtherValues = [];
+      this._hiddenValues = [];
+      this.legendItems = [];
+
+      if (
+        this.autoHide &&
+        this._scatterplotElement &&
+        "hiddenFeatureValues" in this._scatterplotElement
+      ) {
+        (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [];
+      }
       this.updateLegendItems();
       this.requestUpdate();
 

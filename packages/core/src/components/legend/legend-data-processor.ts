@@ -78,7 +78,8 @@ export class LegendDataProcessor {
   static sortAndLimitItems(
     frequencyMap: Map<string | null, number>,
     maxVisibleValues: number,
-    isolationMode: boolean
+    isolationMode: boolean,
+    manuallyOtherValues: Set<string>
   ): {
     topItems: Array<[string | null, number]>;
     otherItems: OtherItem[];
@@ -90,17 +91,43 @@ export class LegendDataProcessor {
     );
 
     // When in isolation mode, we only show the values that actually appear in the data
-    const filteredSortedItems = isolationMode
-      ? sortedItems.filter(([value]) => frequencyMap.has(value))
-      : sortedItems;
+    // Count how many of the original top-N are being manually assigned to Other
+    const manualCountInOriginalTop = Array.from(frequencyMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, maxVisibleValues)
+      .filter(([value]) => value !== null && manuallyOtherValues.has(String(value)))
+      .length;
 
-    // Take the top N items
-    const topItems = filteredSortedItems.slice(0, maxVisibleValues);
+    // Reduce effective capacity by the number of manual top items to avoid backfilling
+    const effectiveTopCap = Math.max(0, maxVisibleValues - manualCountInOriginalTop);
+
+    const filteredSortedItems = (isolationMode
+      ? sortedItems.filter(([value]) => frequencyMap.has(value))
+      : sortedItems
+    ).filter(([value]) => {
+      // Always allow null; otherwise, if value is manually assigned to Other, exclude from top selection
+      if (value === null) return true;
+      return !manuallyOtherValues.has(String(value));
+    });
+
+    // Take the top items using the reduced cap to prevent backfilling
+    const topItems = filteredSortedItems.slice(0, effectiveTopCap);
 
     // Get items that will go into the "Other" category (excluding null)
-    const otherItemsArray = filteredSortedItems
+    // Build Other array as: everything beyond top cap + all manual-to-Other values, deduped
+    const beyondCap = sortedItems
       .slice(maxVisibleValues)
       .filter(([value]) => value !== null);
+    const manualPairs = sortedItems.filter(
+      ([value]) => value !== null && manuallyOtherValues.has(String(value))
+    );
+    const seen = new Set<string>();
+    const otherItemsArray = [...beyondCap, ...manualPairs].filter(([value]) => {
+      const key = String(value);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 
     // Store "Other" items for the dialog
     const otherItems = otherItemsArray.map(([value, count]) => ({
@@ -254,11 +281,13 @@ export class LegendDataProcessor {
     isolationMode: boolean,
     splitHistory: string[][],
     existingLegendItems: LegendItem[],
-    includeOthers: boolean
+    includeOthers: boolean,
+    manuallyOtherValues: string[] = []
   ): {
     legendItems: LegendItem[];
     otherItems: OtherItem[];
   } {
+    const manualOtherSet = new Set<string>(manuallyOtherValues);
     // Get filtered indices based on split history
     const filteredIndices = this.getFilteredIndices(
       isolationMode,
@@ -283,7 +312,8 @@ export class LegendDataProcessor {
     const { topItems, otherItems, otherCount } = this.sortAndLimitItems(
       frequencyMap,
       effectiveMaxVisibleValues,
-      isolationMode
+      isolationMode,
+      manualOtherSet
     );
 
     // Create legend items
@@ -310,9 +340,9 @@ export class LegendDataProcessor {
       );
 
       // Filter Other dialog items by removing already extracted/visible ones
-      const filteredOtherItems = otherItems.filter(
-        (oi) => oi.value !== null && !individuallyShownValues.has(oi.value)
-      );
+      const filteredOtherItems = otherItems
+        .filter((oi) => oi.value !== null)
+        .filter((oi) => !individuallyShownValues.has(oi.value!));
 
       // Recompute Other count
       const newOtherCount = filteredOtherItems.reduce(
