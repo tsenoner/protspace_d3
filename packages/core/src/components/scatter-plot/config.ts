@@ -18,6 +18,7 @@ export const DEFAULT_CONFIG: Required<ScatterplotConfig> = {
   enableTransitions: false,
   useSimpleShapes: false,
   maxPointsForComplexShapes: 2000,
+  zoomSizeScaleExponent: 1.0,
 };
 
 

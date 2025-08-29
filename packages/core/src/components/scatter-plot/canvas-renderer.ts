@@ -15,17 +15,20 @@ export class CanvasRenderer {
   private getScales: () => { x: d3.ScaleLinear<number, number>; y: d3.ScaleLinear<number, number> } | null;
   private getTransform: () => d3.ZoomTransform;
   private style: CanvasStyleGetters;
+  private getSizeScaleExponent: () => number = () => 1;
 
   constructor(
     canvas: HTMLCanvasElement,
     getScales: () => { x: d3.ScaleLinear<number, number>; y: d3.ScaleLinear<number, number> } | null,
     getTransform: () => d3.ZoomTransform,
-    style: CanvasStyleGetters
+    style: CanvasStyleGetters,
+    getSizeScaleExponent?: () => number
   ) {
     this.canvas = canvas;
     this.getScales = getScales;
     this.getTransform = getTransform;
     this.style = style;
+    if (getSizeScaleExponent) this.getSizeScaleExponent = getSizeScaleExponent;
   }
 
   setupHighDPICanvas(width: number, height: number) {
@@ -95,7 +98,9 @@ export class CanvasRenderer {
       const strokeColor = parts[2];
       const strokeWidthStr = parts[3];
       const opacityStr = parts[4];
-      const pointSize = parseFloat(sizeStr);
+      const basePointSize = parseFloat(sizeStr);
+      const exp = this.getSizeScaleExponent();
+      const pointSize = Math.max(0.5, basePointSize / Math.pow(transform.k, exp));
       const lineWidth = parseFloat(strokeWidthStr);
       const opacity = parseFloat(opacityStr);
       ctx.globalAlpha = opacity;
@@ -124,6 +129,9 @@ export class CanvasRenderer {
           const y = scales.y(p.y);
           ctx.save();
           ctx.translate(x, y);
+          // Counteract global zoom proportionally so shapes keep readable size
+          const invKExp = 1 / Math.pow(transform.k, this.getSizeScaleExponent());
+          ctx.scale(invKExp, invKExp);
           ctx.fill(shapePath);
           if (lineWidth > 0) ctx.stroke(shapePath);
           ctx.restore();

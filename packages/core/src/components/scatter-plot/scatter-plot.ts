@@ -134,7 +134,8 @@ export class ProtspaceScatterplot extends LitElement {
           getStrokeColor: (p: PlotDataPoint) => this._getStrokeColor(p),
           getStrokeWidth: (p: PlotDataPoint) => this._getStrokeWidth(p),
           getShape: (p: PlotDataPoint) => this._getPointShape(p),
-        }
+        },
+        () => this._mergedConfig.zoomSizeScaleExponent
       );
     }
   }
@@ -222,7 +223,8 @@ export class ProtspaceScatterplot extends LitElement {
             getStrokeColor: (p: PlotDataPoint) => this._getStrokeColor(p),
             getStrokeWidth: (p: PlotDataPoint) => this._getStrokeWidth(p),
             getShape: (p: PlotDataPoint) => this._getPointShape(p),
-          }
+          },
+          () => this._mergedConfig.zoomSizeScaleExponent
         );
       }
       this._canvasRenderer.setupHighDPICanvas(width, height);
@@ -534,7 +536,8 @@ export class ProtspaceScatterplot extends LitElement {
       const distance = Math.sqrt(
         Math.pow(dataX - pointX, 2) + Math.pow(dataY - pointY, 2)
       );
-      const pointRadius = Math.sqrt(this._getPointSize(nearestPoint)) / 3;
+      const exp = this._mergedConfig.zoomSizeScaleExponent ?? 1;
+      const pointRadius = (Math.sqrt(this._getPointSize(nearestPoint)) / 3) / Math.pow(this._transform.k, exp);
 
       if (distance <= pointRadius) {
         this._handleMouseOver(event, nearestPoint);
@@ -571,7 +574,8 @@ export class ProtspaceScatterplot extends LitElement {
       const distance = Math.sqrt(
         Math.pow(dataX - pointX, 2) + Math.pow(dataY - pointY, 2)
       );
-      const pointRadius = Math.sqrt(this._getPointSize(nearestPoint)) / 3;
+      const exp = this._mergedConfig.zoomSizeScaleExponent ?? 1;
+      const pointRadius = (Math.sqrt(this._getPointSize(nearestPoint)) / 3) / Math.pow(this._transform.k, exp);
 
       if (distance <= pointRadius) {
         this._handleClick(event, nearestPoint);
