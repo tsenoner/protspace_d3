@@ -60,3 +60,12 @@ export const LEGEND_STYLES = {
   },
   outlineShapes: new Set(["plus", "asterisk", "cross", "times"]),
 } as const;
+
+/**
+ * Features that should be sorted by the first number present in the label
+ * instead of by feature size (count).
+ */
+export const FIRST_NUMBER_SORT_FEATURES = new Set<string>([
+  "length_fixed",
+  "length_quantile",
+]);

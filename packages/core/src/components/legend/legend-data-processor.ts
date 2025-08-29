@@ -79,21 +79,72 @@ export class LegendDataProcessor {
     frequencyMap: Map<string | null, number>,
     maxVisibleValues: number,
     isolationMode: boolean,
-    manuallyOtherValues: Set<string>
+    manuallyOtherValues: Set<string>,
+    sortAlphabetically: boolean
   ): {
     topItems: Array<[string | null, number]>;
     otherItems: OtherItem[];
     otherCount: number;
   } {
-    // Convert to array and sort by frequency (descending)
-    const sortedItems = Array.from(frequencyMap.entries()).sort(
-      (a, b) => b[1] - a[1]
-    );
+    // Convert to array and sort either by the first number found in the value string (ascending)
+    // or by frequency (descending)
+    const entries = Array.from(frequencyMap.entries());
+    const sortedItems = entries.sort((a, b) => {
+      if (sortAlphabetically) {
+        const getFirstNumber = (val: string | null): number => {
+          if (val === null) return Number.POSITIVE_INFINITY;
+          const match = String(val).match(/-?\d+(?:\.\d+)?/);
+          return match ? parseFloat(match[0]) : Number.POSITIVE_INFINITY;
+        };
+        const getPatternRank = (val: string | null): number => {
+          if (val === null) return 99;
+          const s = String(val).trim();
+          if (/^[<>]/.test(s)) return 0; // e.g., ">50" or "<50" should come first
+          if (/^\d+\s*-\s*\d+/.test(s)) return 1; // range like "50-100"
+          if (/^\d+\s*\+/.test(s)) return 2; // plus like "2000+"
+          return 3; // anything else
+        };
+        const an = getFirstNumber(a[0]);
+        const bn = getFirstNumber(b[0]);
+        if (an !== bn) return an - bn;
+        // If first numbers are equal, prioritize comparator forms ("<", ">") before ranges
+        const ar = getPatternRank(a[0]);
+        const br = getPatternRank(b[0]);
+        if (ar !== br) return ar - br;
+        // Final tie-break by count desc to have a stable, meaningful secondary order
+        return (b[1] ?? 0) - (a[1] ?? 0);
+      }
+      return b[1] - a[1];
+    });
 
     // When in isolation mode, we only show the values that actually appear in the data
     // Count how many of the original top-N are being manually assigned to Other
     const manualCountInOriginalTop = Array.from(frequencyMap.entries())
-      .sort((a, b) => b[1] - a[1])
+      .sort((a, b) => {
+        if (sortAlphabetically) {
+          const getFirstNumber = (val: string | null): number => {
+            if (val === null) return Number.POSITIVE_INFINITY;
+            const match = String(val).match(/-?\d+(?:\.\d+)?/);
+            return match ? parseFloat(match[0]) : Number.POSITIVE_INFINITY;
+          };
+          const getPatternRank = (val: string | null): number => {
+            if (val === null) return 99;
+            const s = String(val).trim();
+            if (/^[<>]/.test(s)) return 0;
+            if (/^\d+\s*-\s*\d+/.test(s)) return 1;
+            if (/^\d+\s*\+/.test(s)) return 2;
+            return 3;
+          };
+          const an = getFirstNumber(a[0]);
+          const bn = getFirstNumber(b[0]);
+          if (an !== bn) return an - bn;
+          const ar = getPatternRank(a[0]);
+          const br = getPatternRank(b[0]);
+          if (ar !== br) return ar - br;
+          return (b[1] ?? 0) - (a[1] ?? 0);
+        }
+        return b[1] - a[1];
+      })
       .slice(0, maxVisibleValues)
       .filter(([value]) => value !== null && manuallyOtherValues.has(String(value)))
       .length;
@@ -282,7 +333,8 @@ export class LegendDataProcessor {
     splitHistory: string[][],
     existingLegendItems: LegendItem[],
     includeOthers: boolean,
-    manuallyOtherValues: string[] = []
+    manuallyOtherValues: string[] = [],
+    sortAlphabetically: boolean = false
   ): {
     legendItems: LegendItem[];
     otherItems: OtherItem[];
@@ -313,7 +365,8 @@ export class LegendDataProcessor {
       frequencyMap,
       effectiveMaxVisibleValues,
       isolationMode,
-      manualOtherSet
+      manualOtherSet,
+      sortAlphabetically
     );
 
     // Create legend items

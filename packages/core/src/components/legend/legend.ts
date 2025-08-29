@@ -3,7 +3,7 @@ import { LitElement, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
 // Import types and configuration
-import { LEGEND_DEFAULTS, LEGEND_STYLES, SHAPE_MAPPING } from "./config";
+import { LEGEND_DEFAULTS, LEGEND_STYLES, SHAPE_MAPPING, FIRST_NUMBER_SORT_FEATURES } from "./config";
 import { legendStyles } from "./legend.styles";
 import { LegendDataProcessor } from "./legend-data-processor";
 import type {
@@ -51,6 +51,8 @@ export class ProtspaceLegend extends LitElement {
   @property({ type: Number }) shapeSize: number = LEGEND_DEFAULTS.symbolSize;
   @state() private settingsShapeSize: number = LEGEND_DEFAULTS.symbolSize;
   @state() private manualOtherValues: string[] = [];
+  @state() private featureSortModes: Record<string, "size" | "alpha"> = {};
+  @state() private settingsFeatureSortModes: Record<string, "size" | "alpha"> = {};
 
   // Auto-sync properties
   @property({ type: String, attribute: "scatterplot-selector" })
@@ -71,6 +73,7 @@ export class ProtspaceLegend extends LitElement {
     ) {
       this._updateFeatureDataFromData();
       this.manualOtherValues = [];
+      this._ensureSortModeDefaults();
     }
 
     if (
@@ -279,6 +282,18 @@ export class ProtspaceLegend extends LitElement {
     }
   }
 
+  private _ensureSortModeDefaults() {
+    const featureNames = this.data?.features ? Object.keys(this.data.features) : [];
+    if (featureNames.length === 0) return;
+    const updated: Record<string, "size" | "alpha"> = { ...this.featureSortModes };
+    for (const fname of featureNames) {
+      if (!(fname in updated)) {
+        updated[fname] = FIRST_NUMBER_SORT_FEATURES.has(fname) ? "alpha" : "size";
+      }
+    }
+    this.featureSortModes = updated;
+  }
+
   private _syncWithScatterplot() {
     if (
       !this._scatterplotElement ||
@@ -315,6 +330,8 @@ export class ProtspaceLegend extends LitElement {
     }
 
     // Use the data processor to handle all legend item processing
+    const sortMode = this.featureSortModes[this.selectedFeature] ?? (FIRST_NUMBER_SORT_FEATURES.has(this.selectedFeature) ? "alpha" : "size");
+    const sortAlphabetically = sortMode === "alpha";
     const { legendItems, otherItems } = LegendDataProcessor.processLegendItems(
       this.featureData,
       this.featureValues,
@@ -324,7 +341,8 @@ export class ProtspaceLegend extends LitElement {
       this.splitHistory,
       this.legendItems,
       this.includeOthers,
-      this.manualOtherValues
+      this.manualOtherValues,
+      sortAlphabetically
     );
 
     // Set items state
@@ -1001,6 +1019,8 @@ export class ProtspaceLegend extends LitElement {
       this.includeOthers = this.settingsIncludeOthers;
       this.includeShapes = this.settingsIncludeShapes;
       this.shapeSize = this.settingsShapeSize;
+      // apply sorting preferences
+      this.featureSortModes = { ...this.settingsFeatureSortModes };
       this.showSettingsDialog = false;
       this.manualOtherValues = [];
       this._hiddenValues = [];
@@ -1037,6 +1057,16 @@ export class ProtspaceLegend extends LitElement {
     const onClose = () => {
       this.showSettingsDialog = false;
     };
+
+    // Build list of features and initialize temp settings map
+    const featureNames = this.data?.features ? Object.keys(this.data.features) : [];
+    if (featureNames.length && Object.keys(this.settingsFeatureSortModes).length === 0) {
+      const initial: Record<string, "size" | "alpha"> = {};
+      for (const fname of featureNames) {
+        initial[fname] = this.featureSortModes[fname] ?? (FIRST_NUMBER_SORT_FEATURES.has(fname) ? "alpha" : "size");
+      }
+      this.settingsFeatureSortModes = initial;
+    }
 
     return html`
       <div class="modal-overlay" @click=${onClose}>
@@ -1090,6 +1120,34 @@ export class ProtspaceLegend extends LitElement {
               <input type="checkbox" .checked=${this.settingsIncludeShapes} @change=${(e: Event) => { const t = e.target as HTMLInputElement; this.settingsIncludeShapes = t.checked; }} />
               Include shapes
             </label>
+            <div style="margin-top:12px;">
+              <div class="other-item-name" style="margin-bottom:6px;">Sorting</div>
+              <div style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow:auto;">
+                ${featureNames.map((fname) => html`
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid #eee;border-radius:6px;padding:6px 8px;">
+                    <span style="font-size:12px;opacity:0.8;">${fname}</span>
+                    <span>
+                      <label style="margin-right:8px;">
+                        <input
+                          type="radio"
+                          name=${`sort-${fname}`}
+                          .checked=${this.settingsFeatureSortModes[fname] === "size"}
+                          @change=${() => { this.settingsFeatureSortModes = { ...this.settingsFeatureSortModes, [fname]: "size" }; }}
+                        /> by feature size
+                      </label>
+                      <label>
+                        <input
+                          type="radio"
+                          name=${`sort-${fname}`}
+                          .checked=${this.settingsFeatureSortModes[fname] === "alpha"}
+                          @change=${() => { this.settingsFeatureSortModes = { ...this.settingsFeatureSortModes, [fname]: "alpha" }; }}
+                        /> by number
+                      </label>
+                    </span>
+                  </div>
+                `)}
+              </div>
+            </div>
           </div>
 
           <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;">
