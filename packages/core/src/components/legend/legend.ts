@@ -1090,6 +1090,7 @@ export class ProtspaceLegend extends LitElement {
                 type="number"
                 min="1"
                 .value=${String(this.settingsMaxVisibleValues)}
+                placeholder=${String(LEGEND_DEFAULTS.maxVisibleValues)}
                 @input=${onInputChange}
                 style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;"
               />
@@ -1102,6 +1103,7 @@ export class ProtspaceLegend extends LitElement {
                 min="6"
                 max="64"
                 .value=${String(this.settingsShapeSize)}
+                placeholder=${String(LEGEND_DEFAULTS.symbolSize)}
                 @input=${(e: Event) => {
                   const target = e.target as HTMLInputElement;
                   const parsed = parseInt(target.value, 10);

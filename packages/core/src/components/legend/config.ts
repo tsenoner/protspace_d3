@@ -35,7 +35,7 @@ export const DEFAULT_STYLES = {
  */
 export const LEGEND_DEFAULTS = {
   maxVisibleValues: 10,
-  symbolSize: 6,
+  symbolSize: 10,
   symbolSizeMultiplier: 8, // For D3 symbol size calculation
   dragTimeout: 100,
   scatterplotSelector: "protspace-scatterplot",
