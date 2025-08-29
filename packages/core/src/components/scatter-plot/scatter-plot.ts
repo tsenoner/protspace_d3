@@ -379,6 +379,7 @@ export class ProtspaceScatterplot extends LitElement {
     enterPoints
       .attr("fill", (d) => this._getColor(d))
       .attr("stroke", (d) => this._getStrokeColor(d))
+      .attr("stroke-opacity", 0.5)
       .attr("stroke-width", (d) => this._getStrokeWidth(d))
       .attr("opacity", enableTransitions ? 0 : (d) => this._getOpacity(d));
 

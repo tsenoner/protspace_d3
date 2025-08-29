@@ -119,7 +119,12 @@ export class CanvasRenderer {
           ctx.arc(x, y, pointSize, 0, 2 * Math.PI);
         }
         ctx.fill();
-        if (lineWidth > 0) ctx.stroke();
+        if (lineWidth > 0) {
+          ctx.save();
+          ctx.globalAlpha = 0.5 * opacity;
+          ctx.stroke();
+          ctx.restore();
+        }
       } else {
         // Use Path2D constructed from d3 symbol path for non-circle shapes
         const shapePath = meta.path!;
@@ -133,7 +138,12 @@ export class CanvasRenderer {
           const invKExp = 1 / Math.pow(transform.k, this.getSizeScaleExponent());
           ctx.scale(invKExp, invKExp);
           ctx.fill(shapePath);
-          if (lineWidth > 0) ctx.stroke(shapePath);
+          if (lineWidth > 0) {
+            ctx.save();
+            ctx.globalAlpha = 0.5 * opacity;
+            ctx.stroke(shapePath);
+            ctx.restore();
+          }
           ctx.restore();
         }
       }

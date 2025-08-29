@@ -71,6 +71,7 @@ export class ScatterplotRenderer {
       .attr('d', d => this._createPointPath(d, styleGetters))
       .attr('fill', d => styleGetters.getColor(d))
       .attr('stroke', d => styleGetters.getStrokeColor(d))
+      .attr('stroke-opacity', 0.5)
       .attr('stroke-width', d => styleGetters.getStrokeWidth(d))
       .attr('opacity', 0)
       .attr('transform', d => `translate(${this.scales!.x(d.x)}, ${this.scales!.y(d.y)})`)
@@ -90,6 +91,7 @@ export class ScatterplotRenderer {
       .attr('fill', d => styleGetters.getColor(d))
       .attr('opacity', d => styleGetters.getOpacity(d))
       .attr('stroke', d => styleGetters.getStrokeColor(d))
+      .attr('stroke-opacity', 0.5)
       .attr('stroke-width', d => styleGetters.getStrokeWidth(d))
       .attr('transform', d => `translate(${this.scales!.x(d.x)}, ${this.scales!.y(d.y)})`);
   }
@@ -126,14 +128,14 @@ export class ScatterplotRenderer {
         .transition()
         .duration(150)
         .attr('stroke-width', 3)
-        .attr('stroke-opacity', 1);
+        .attr('stroke-opacity', 0.5);
     } else {
       // Deselection animation
       point
         .transition()
         .duration(150)
         .attr('stroke-width', 1)
-        .attr('stroke-opacity', 1);
+        .attr('stroke-opacity', 0.5);
     }
   }
 }
