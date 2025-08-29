@@ -53,8 +53,9 @@ export class ProtspaceScatterplot extends LitElement {
   private _mainGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
   private _brushGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
   private _brush: d3.BrushBehavior<unknown> | null = null;
-  private _renderTimeout: number | null = null;
   private _canvasRenderer: CanvasRenderer | null = null;
+  private _zoomRafId: number | null = null;
+  private _styleSig: string | null = null;
 
   // Computed properties
   private get _scales() {
@@ -83,15 +84,11 @@ export class ProtspaceScatterplot extends LitElement {
   }
 
   updated(changedProperties: Map<string, any>) {
-    // Clear any pending render timeout to avoid inconsistent states
-    if (this._renderTimeout) {
-      clearTimeout(this._renderTimeout);
-      this._renderTimeout = null;
-    }
-
     if (changedProperties.has("data") || changedProperties.has("selectedProjectionIndex") || changedProperties.has('projectionPlane')) {
       this._processData();
       this._buildQuadtree();
+      this._canvasRenderer?.invalidatePositionCache();
+      this._canvasRenderer?.invalidateStyleCache();
       
       // Dispatch data-change event for auto-sync with control bar and other components
       if (changedProperties.has("data") && this.data) {
@@ -105,6 +102,9 @@ export class ProtspaceScatterplot extends LitElement {
     if (changedProperties.has("config")) {
       const prev = this._mergedConfig;
       this._mergedConfig = { ...DEFAULT_CONFIG, ...prev, ...this.config };
+      this._updateStyleSignature();
+      this._canvasRenderer?.invalidateStyleCache();
+      this._canvasRenderer?.setStyleSignature(this._styleSig);
     }
     if (
       changedProperties.has('selectedFeature') ||
@@ -112,6 +112,9 @@ export class ProtspaceScatterplot extends LitElement {
       changedProperties.has('otherFeatureValues')
     ) {
       this._buildQuadtree();
+      this._canvasRenderer?.invalidateStyleCache();
+      this._updateStyleSignature();
+      this._canvasRenderer?.setStyleSignature(this._styleSig);
     }
     if (changedProperties.has("selectionMode")) {
       this._updateSelectionMode();
@@ -134,8 +137,11 @@ export class ProtspaceScatterplot extends LitElement {
           getStrokeColor: (p: PlotDataPoint) => this._getStrokeColor(p),
           getStrokeWidth: (p: PlotDataPoint) => this._getStrokeWidth(p),
           getShape: (p: PlotDataPoint) => this._getPointShape(p),
-        }
+        },
+        () => this._mergedConfig.zoomSizeScaleExponent
       );
+      this._updateStyleSignature();
+      this._canvasRenderer.setStyleSignature(this._styleSig);
     }
   }
 
@@ -186,15 +192,15 @@ export class ProtspaceScatterplot extends LitElement {
         if (this._brushGroup) {
           this._brushGroup.attr("transform", event.transform);
         }
-        // Debounce canvas rendering
+        // Smooth canvas rendering during zoom using requestAnimationFrame
         if (this.useCanvas && this._canvas) {
-          if (this._renderTimeout) {
-            clearTimeout(this._renderTimeout);
+          if (this._zoomRafId !== null) {
+            cancelAnimationFrame(this._zoomRafId);
           }
-          this._renderTimeout = window.setTimeout(() => {
+          this._zoomRafId = requestAnimationFrame(() => {
+            this._zoomRafId = null;
             this._renderCanvas();
-            this._renderTimeout = null;
-          }, 200); // 200ms delay
+          });
         }
       });
     this._svgSelection.call(this._zoom);
@@ -222,10 +228,14 @@ export class ProtspaceScatterplot extends LitElement {
             getStrokeColor: (p: PlotDataPoint) => this._getStrokeColor(p),
             getStrokeWidth: (p: PlotDataPoint) => this._getStrokeWidth(p),
             getShape: (p: PlotDataPoint) => this._getPointShape(p),
-          }
+          },
+          () => this._mergedConfig.zoomSizeScaleExponent
         );
+        this._updateStyleSignature();
+        this._canvasRenderer.setStyleSignature(this._styleSig);
       }
       this._canvasRenderer.setupHighDPICanvas(width, height);
+      this._canvasRenderer.invalidatePositionCache();
     }
     
     if (this._svg) {
@@ -377,6 +387,7 @@ export class ProtspaceScatterplot extends LitElement {
     enterPoints
       .attr("fill", (d) => this._getColor(d))
       .attr("stroke", (d) => this._getStrokeColor(d))
+      .attr("stroke-opacity", 0.5)
       .attr("stroke-width", (d) => this._getStrokeWidth(d))
       .attr("opacity", enableTransitions ? 0 : (d) => this._getOpacity(d));
 
@@ -534,7 +545,8 @@ export class ProtspaceScatterplot extends LitElement {
       const distance = Math.sqrt(
         Math.pow(dataX - pointX, 2) + Math.pow(dataY - pointY, 2)
       );
-      const pointRadius = Math.sqrt(this._getPointSize(nearestPoint)) / 3;
+      const exp = this._mergedConfig.zoomSizeScaleExponent ?? 1;
+      const pointRadius = (Math.sqrt(this._getPointSize(nearestPoint)) / 3) / Math.pow(this._transform.k, exp);
 
       if (distance <= pointRadius) {
         this._handleMouseOver(event, nearestPoint);
@@ -571,7 +583,8 @@ export class ProtspaceScatterplot extends LitElement {
       const distance = Math.sqrt(
         Math.pow(dataX - pointX, 2) + Math.pow(dataY - pointY, 2)
       );
-      const pointRadius = Math.sqrt(this._getPointSize(nearestPoint)) / 3;
+      const exp = this._mergedConfig.zoomSizeScaleExponent ?? 1;
+      const pointRadius = (Math.sqrt(this._getPointSize(nearestPoint)) / 3) / Math.pow(this._transform.k, exp);
 
       if (distance <= pointRadius) {
         this._handleClick(event, nearestPoint);
@@ -653,6 +666,18 @@ export class ProtspaceScatterplot extends LitElement {
         
       </div>
     `;
+  }
+
+  private _updateStyleSignature() {
+    const cfg = this._mergedConfig;
+    const parts = [
+      `ps:${cfg.pointSize}`,
+      `ph:${cfg.highlightedPointSize}`,
+      `psel:${cfg.selectedPointSize}`,
+      `feat:${this.selectedFeature}`,
+      `sh:${this.useShapes ? 1 : 0}`,
+    ];
+    this._styleSig = parts.join("|");
   }
 }
 

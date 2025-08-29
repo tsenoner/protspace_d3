@@ -78,29 +78,107 @@ export class LegendDataProcessor {
   static sortAndLimitItems(
     frequencyMap: Map<string | null, number>,
     maxVisibleValues: number,
-    isolationMode: boolean
+    isolationMode: boolean,
+    manuallyOtherValues: Set<string>,
+    sortAlphabetically: boolean
   ): {
     topItems: Array<[string | null, number]>;
     otherItems: OtherItem[];
     otherCount: number;
   } {
-    // Convert to array and sort by frequency (descending)
-    const sortedItems = Array.from(frequencyMap.entries()).sort(
-      (a, b) => b[1] - a[1]
-    );
+    // Convert to array and sort either by the first number found in the value string (ascending)
+    // or by frequency (descending)
+    const entries = Array.from(frequencyMap.entries());
+    const sortedItems = entries.sort((a, b) => {
+      if (sortAlphabetically) {
+        const getFirstNumber = (val: string | null): number => {
+          if (val === null) return Number.POSITIVE_INFINITY;
+          const match = String(val).match(/-?\d+(?:\.\d+)?/);
+          return match ? parseFloat(match[0]) : Number.POSITIVE_INFINITY;
+        };
+        const getPatternRank = (val: string | null): number => {
+          if (val === null) return 99;
+          const s = String(val).trim();
+          if (/^[<>]/.test(s)) return 0; // e.g., ">50" or "<50" should come first
+          if (/^\d+\s*-\s*\d+/.test(s)) return 1; // range like "50-100"
+          if (/^\d+\s*\+/.test(s)) return 2; // plus like "2000+"
+          return 3; // anything else
+        };
+        const an = getFirstNumber(a[0]);
+        const bn = getFirstNumber(b[0]);
+        if (an !== bn) return an - bn;
+        // If first numbers are equal, prioritize comparator forms ("<", ">") before ranges
+        const ar = getPatternRank(a[0]);
+        const br = getPatternRank(b[0]);
+        if (ar !== br) return ar - br;
+        // Final tie-break by count desc to have a stable, meaningful secondary order
+        return (b[1] ?? 0) - (a[1] ?? 0);
+      }
+      return b[1] - a[1];
+    });
 
     // When in isolation mode, we only show the values that actually appear in the data
-    const filteredSortedItems = isolationMode
-      ? sortedItems.filter(([value]) => frequencyMap.has(value))
-      : sortedItems;
+    // Count how many of the original top-N are being manually assigned to Other
+    const manualCountInOriginalTop = Array.from(frequencyMap.entries())
+      .sort((a, b) => {
+        if (sortAlphabetically) {
+          const getFirstNumber = (val: string | null): number => {
+            if (val === null) return Number.POSITIVE_INFINITY;
+            const match = String(val).match(/-?\d+(?:\.\d+)?/);
+            return match ? parseFloat(match[0]) : Number.POSITIVE_INFINITY;
+          };
+          const getPatternRank = (val: string | null): number => {
+            if (val === null) return 99;
+            const s = String(val).trim();
+            if (/^[<>]/.test(s)) return 0;
+            if (/^\d+\s*-\s*\d+/.test(s)) return 1;
+            if (/^\d+\s*\+/.test(s)) return 2;
+            return 3;
+          };
+          const an = getFirstNumber(a[0]);
+          const bn = getFirstNumber(b[0]);
+          if (an !== bn) return an - bn;
+          const ar = getPatternRank(a[0]);
+          const br = getPatternRank(b[0]);
+          if (ar !== br) return ar - br;
+          return (b[1] ?? 0) - (a[1] ?? 0);
+        }
+        return b[1] - a[1];
+      })
+      .slice(0, maxVisibleValues)
+      .filter(([value]) => value !== null && manuallyOtherValues.has(String(value)))
+      .length;
 
-    // Take the top N items
-    const topItems = filteredSortedItems.slice(0, maxVisibleValues);
+    // Reduce effective capacity by the number of manual top items to avoid backfilling
+    const effectiveTopCap = Math.max(0, maxVisibleValues - manualCountInOriginalTop);
+
+    const filteredSortedItems = (isolationMode
+      ? sortedItems.filter(([value]) => frequencyMap.has(value))
+      : sortedItems
+    ).filter(([value]) => {
+      // Always allow null; otherwise, if value is manually assigned to Other, exclude from top selection
+      if (value === null) return true;
+      return !manuallyOtherValues.has(String(value));
+    });
+
+    // Take the top items using the reduced cap to prevent backfilling
+    const topItems = filteredSortedItems.slice(0, effectiveTopCap);
 
     // Get items that will go into the "Other" category (excluding null)
-    const otherItemsArray = filteredSortedItems
+    // Build Other array as: everything beyond top cap + all manual-to-Other values, deduped
+    const beyondCap = sortedItems
       .slice(maxVisibleValues)
       .filter(([value]) => value !== null);
+    const manualPairs = sortedItems.filter(
+      ([value]) => value !== null && manuallyOtherValues.has(String(value))
+    );
+    const seen = new Set<string>();
+    const otherItemsArray = [...beyondCap, ...manualPairs].filter(([value]) => {
+      const key = String(value);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 
     // Store "Other" items for the dialog
     const otherItems = otherItemsArray.map(([value, count]) => ({
@@ -254,11 +332,14 @@ export class LegendDataProcessor {
     isolationMode: boolean,
     splitHistory: string[][],
     existingLegendItems: LegendItem[],
-    includeOthers: boolean
+    includeOthers: boolean,
+    manuallyOtherValues: string[] = [],
+    sortAlphabetically: boolean = false
   ): {
     legendItems: LegendItem[];
     otherItems: OtherItem[];
   } {
+    const manualOtherSet = new Set<string>(manuallyOtherValues);
     // Get filtered indices based on split history
     const filteredIndices = this.getFilteredIndices(
       isolationMode,
@@ -283,7 +364,9 @@ export class LegendDataProcessor {
     const { topItems, otherItems, otherCount } = this.sortAndLimitItems(
       frequencyMap,
       effectiveMaxVisibleValues,
-      isolationMode
+      isolationMode,
+      manualOtherSet,
+      sortAlphabetically
     );
 
     // Create legend items
@@ -310,9 +393,9 @@ export class LegendDataProcessor {
       );
 
       // Filter Other dialog items by removing already extracted/visible ones
-      const filteredOtherItems = otherItems.filter(
-        (oi) => oi.value !== null && !individuallyShownValues.has(oi.value)
-      );
+      const filteredOtherItems = otherItems
+        .filter((oi) => oi.value !== null)
+        .filter((oi) => !individuallyShownValues.has(oi.value!));
 
       // Recompute Other count
       const newOtherCount = filteredOtherItems.reduce(

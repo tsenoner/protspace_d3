@@ -3,7 +3,7 @@ import { LitElement, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
 // Import types and configuration
-import { LEGEND_DEFAULTS, LEGEND_STYLES, SHAPE_MAPPING } from "./config";
+import { LEGEND_DEFAULTS, LEGEND_STYLES, SHAPE_MAPPING, FIRST_NUMBER_SORT_FEATURES } from "./config";
 import { legendStyles } from "./legend.styles";
 import { LegendDataProcessor } from "./legend-data-processor";
 import type {
@@ -50,6 +50,9 @@ export class ProtspaceLegend extends LitElement {
   @state() private settingsIncludeShapes: boolean = LEGEND_DEFAULTS.includeShapes;
   @property({ type: Number }) shapeSize: number = LEGEND_DEFAULTS.symbolSize;
   @state() private settingsShapeSize: number = LEGEND_DEFAULTS.symbolSize;
+  @state() private manualOtherValues: string[] = [];
+  @state() private featureSortModes: Record<string, "size" | "alpha"> = {};
+  @state() private settingsFeatureSortModes: Record<string, "size" | "alpha"> = {};
 
   // Auto-sync properties
   @property({ type: String, attribute: "scatterplot-selector" })
@@ -69,6 +72,8 @@ export class ProtspaceLegend extends LitElement {
       changedProperties.has("selectedFeature")
     ) {
       this._updateFeatureDataFromData();
+      this.manualOtherValues = [];
+      this._ensureSortModeDefaults();
     }
 
     if (
@@ -249,6 +254,7 @@ export class ProtspaceLegend extends LitElement {
 
     // Clear hidden values when feature changes
     this._hiddenValues = [];
+    this.manualOtherValues = [];
     if (
       this.autoHide &&
       this._scatterplotElement &&
@@ -274,6 +280,18 @@ export class ProtspaceLegend extends LitElement {
         };
       }
     }
+  }
+
+  private _ensureSortModeDefaults() {
+    const featureNames = this.data?.features ? Object.keys(this.data.features) : [];
+    if (featureNames.length === 0) return;
+    const updated: Record<string, "size" | "alpha"> = { ...this.featureSortModes };
+    for (const fname of featureNames) {
+      if (!(fname in updated)) {
+        updated[fname] = FIRST_NUMBER_SORT_FEATURES.has(fname) ? "alpha" : "size";
+      }
+    }
+    this.featureSortModes = updated;
   }
 
   private _syncWithScatterplot() {
@@ -312,6 +330,8 @@ export class ProtspaceLegend extends LitElement {
     }
 
     // Use the data processor to handle all legend item processing
+    const sortMode = this.featureSortModes[this.selectedFeature] ?? (FIRST_NUMBER_SORT_FEATURES.has(this.selectedFeature) ? "alpha" : "size");
+    const sortAlphabetically = sortMode === "alpha";
     const { legendItems, otherItems } = LegendDataProcessor.processLegendItems(
       this.featureData,
       this.featureValues,
@@ -320,7 +340,9 @@ export class ProtspaceLegend extends LitElement {
       this.isolationMode,
       this.splitHistory,
       this.legendItems,
-      this.includeOthers
+      this.includeOthers,
+      this.manualOtherValues,
+      sortAlphabetically
     );
 
     // Set items state
@@ -548,9 +570,30 @@ export class ProtspaceLegend extends LitElement {
         (i) => i.value === this.draggedItem
       );
 
-      // Only merge items that were extracted from Other and are real values
-      if (draggedItem && draggedItem.extractedFromOther && draggedItem.value) {
+      if (!draggedItem) {
+        this.handleDragEnd();
+        return;
+      }
+
+      // If the item was previously extracted, use the original merge flow
+      if (draggedItem.extractedFromOther && draggedItem.value) {
         this._mergeExtractedBackToOther(draggedItem.value);
+      } else if (draggedItem.value && draggedItem.value !== "Other") {
+        // Manually move any non-null, non-Other value into Other
+        if (!this.manualOtherValues.includes(draggedItem.value)) {
+          this.manualOtherValues = [...this.manualOtherValues, draggedItem.value];
+        }
+        // Recompute legend to reflect manual move
+        this.updateLegendItems();
+
+        // Notify parent with "merge-into-other" action
+        this.dispatchEvent(
+          new CustomEvent("legend-item-click", {
+            detail: { value: draggedItem.value, action: "merge-into-other" },
+            bubbles: true,
+            composed: true,
+          })
+        );
       }
     }
 
@@ -632,6 +675,11 @@ export class ProtspaceLegend extends LitElement {
     // Find this item in otherItems
     const itemToExtract = this.otherItems.find((item) => item.value === value);
     if (!itemToExtract) return;
+
+    // If this value was manually assigned to Other, remove it from the manual list
+    if (this.manualOtherValues.includes(value)) {
+      this.manualOtherValues = this.manualOtherValues.filter((v) => v !== value);
+    }
 
     // Find the valueIndex for color and shape
     const valueIndex = this.featureData.values.indexOf(value);
@@ -971,7 +1019,20 @@ export class ProtspaceLegend extends LitElement {
       this.includeOthers = this.settingsIncludeOthers;
       this.includeShapes = this.settingsIncludeShapes;
       this.shapeSize = this.settingsShapeSize;
+      // apply sorting preferences
+      this.featureSortModes = { ...this.settingsFeatureSortModes };
       this.showSettingsDialog = false;
+      this.manualOtherValues = [];
+      this._hiddenValues = [];
+      this.legendItems = [];
+
+      if (
+        this.autoHide &&
+        this._scatterplotElement &&
+        "hiddenFeatureValues" in this._scatterplotElement
+      ) {
+        (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [];
+      }
       this.updateLegendItems();
       this.requestUpdate();
 
@@ -997,6 +1058,16 @@ export class ProtspaceLegend extends LitElement {
       this.showSettingsDialog = false;
     };
 
+    // Build list of features and initialize temp settings map
+    const featureNames = this.data?.features ? Object.keys(this.data.features) : [];
+    if (featureNames.length && Object.keys(this.settingsFeatureSortModes).length === 0) {
+      const initial: Record<string, "size" | "alpha"> = {};
+      for (const fname of featureNames) {
+        initial[fname] = this.featureSortModes[fname] ?? (FIRST_NUMBER_SORT_FEATURES.has(fname) ? "alpha" : "size");
+      }
+      this.settingsFeatureSortModes = initial;
+    }
+
     return html`
       <div class="modal-overlay" @click=${onClose}>
         <div class="modal-content" @click=${(e: Event) => e.stopPropagation()}>
@@ -1019,6 +1090,7 @@ export class ProtspaceLegend extends LitElement {
                 type="number"
                 min="1"
                 .value=${String(this.settingsMaxVisibleValues)}
+                placeholder=${String(LEGEND_DEFAULTS.maxVisibleValues)}
                 @input=${onInputChange}
                 style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;"
               />
@@ -1031,6 +1103,7 @@ export class ProtspaceLegend extends LitElement {
                 min="6"
                 max="64"
                 .value=${String(this.settingsShapeSize)}
+                placeholder=${String(LEGEND_DEFAULTS.symbolSize)}
                 @input=${(e: Event) => {
                   const target = e.target as HTMLInputElement;
                   const parsed = parseInt(target.value, 10);
@@ -1049,6 +1122,34 @@ export class ProtspaceLegend extends LitElement {
               <input type="checkbox" .checked=${this.settingsIncludeShapes} @change=${(e: Event) => { const t = e.target as HTMLInputElement; this.settingsIncludeShapes = t.checked; }} />
               Include shapes
             </label>
+            <div style="margin-top:12px;">
+              <div class="other-item-name" style="margin-bottom:6px;">Sorting</div>
+              <div style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow:auto;">
+                ${featureNames.map((fname) => html`
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid #eee;border-radius:6px;padding:6px 8px;">
+                    <span style="font-size:12px;opacity:0.8;">${fname}</span>
+                    <span>
+                      <label style="margin-right:8px;">
+                        <input
+                          type="radio"
+                          name=${`sort-${fname}`}
+                          .checked=${this.settingsFeatureSortModes[fname] === "size"}
+                          @change=${() => { this.settingsFeatureSortModes = { ...this.settingsFeatureSortModes, [fname]: "size" }; }}
+                        /> by feature size
+                      </label>
+                      <label>
+                        <input
+                          type="radio"
+                          name=${`sort-${fname}`}
+                          .checked=${this.settingsFeatureSortModes[fname] === "alpha"}
+                          @change=${() => { this.settingsFeatureSortModes = { ...this.settingsFeatureSortModes, [fname]: "alpha" }; }}
+                        /> by number
+                      </label>
+                    </span>
+                  </div>
+                `)}
+              </div>
+            </div>
           </div>
 
           <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;">

@@ -35,7 +35,7 @@ export const DEFAULT_STYLES = {
  */
 export const LEGEND_DEFAULTS = {
   maxVisibleValues: 10,
-  symbolSize: 6,
+  symbolSize: 10,
   symbolSizeMultiplier: 8, // For D3 symbol size calculation
   dragTimeout: 100,
   scatterplotSelector: "protspace-scatterplot",
@@ -60,3 +60,12 @@ export const LEGEND_STYLES = {
   },
   outlineShapes: new Set(["plus", "asterisk", "cross", "times"]),
 } as const;
+
+/**
+ * Features that should be sorted by the first number present in the label
+ * instead of by feature size (count).
+ */
+export const FIRST_NUMBER_SORT_FEATURES = new Set<string>([
+  "length_fixed",
+  "length_quantile",
+]);

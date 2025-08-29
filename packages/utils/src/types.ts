@@ -51,6 +51,7 @@ export interface ScatterplotConfig {
   enableTransitions?: boolean;
   useSimpleShapes?: boolean;
   maxPointsForComplexShapes?: number;
+  zoomSizeScaleExponent?: number;
 }
 
 export type PointShape =
