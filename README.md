@@ -256,6 +256,7 @@ turbo test --filter=@protspace/core
 - **Components**: See `docs/components/` for detailed component APIs
 - **Examples**: 
     - `examples/scatterplot-vite/`: Scatterplot demo using Vite. Run with `pnpm dev:example:scatterplot-vite`.
+    - **🚀 Auto-Deploy to GitHub Pages**: The scatterplot example automatically deploys to GitHub Pages on push to main branch via GitHub Actions. Enable GitHub Pages in repository settings (source: GitHub Actions), then push changes to deploy. The workflow builds all workspace dependencies and deploys the example with sample protein data for immediate testing. Use `./scripts/deploy-example.sh` for local builds.
     - Check `examples/` for other usage examples (as they are added).
 - **Migration Guide**: `docs/migration-guide.md` for migrating from existing implementations
 
