@@ -138,6 +138,13 @@ export class ProtspaceScatterplot extends LitElement {
         this._canvasRenderer?.setZOrderMapping(this._zOrderMapping);
       }
     }
+    // Ensure selection/highlight changes immediately reflect in canvas styles
+    if (
+      changedProperties.has('selectedProteinIds') ||
+      changedProperties.has('highlightedProteinIds')
+    ) {
+      this._canvasRenderer?.invalidateStyleCache();
+    }
     if (changedProperties.has("selectionMode")) {
       this._updateSelectionMode();
     }
