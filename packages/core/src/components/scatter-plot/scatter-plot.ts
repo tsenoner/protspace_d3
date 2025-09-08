@@ -56,6 +56,7 @@ export class ProtspaceScatterplot extends LitElement {
   private _canvasRenderer: CanvasRenderer | null = null;
   private _zoomRafId: number | null = null;
   private _styleSig: string | null = null;
+  private _zOrderMapping: Record<string, number> = {};
 
   // Computed properties
   private get _scales() {
@@ -76,11 +77,26 @@ export class ProtspaceScatterplot extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this.resizeObserver.observe(this);
+
+    // Listen for legend z-order changes
+    this.addEventListener('legend-zorder-change', this._handleLegendZOrderChange.bind(this));
   }
 
   disconnectedCallback() {
     this.resizeObserver.disconnect();
     super.disconnectedCallback();
+  }
+
+  private _handleLegendZOrderChange(event: Event) {
+    const customEvent = event as CustomEvent;
+    const { zOrderMapping } = customEvent.detail;
+
+    if (zOrderMapping) {
+      this._zOrderMapping = { ...zOrderMapping };
+      // Update CanvasRenderer with new z-order mapping
+      this._canvasRenderer?.setZOrderMapping(this._zOrderMapping);
+      this._renderPlot();
+    }
   }
 
   updated(changedProperties: Map<string, any>) {
@@ -115,6 +131,10 @@ export class ProtspaceScatterplot extends LitElement {
       this._canvasRenderer?.invalidateStyleCache();
       this._updateStyleSignature();
       this._canvasRenderer?.setStyleSignature(this._styleSig);
+      if (changedProperties.has('selectedFeature')) {
+        this._canvasRenderer?.setSelectedFeature(this.selectedFeature);
+        this._canvasRenderer?.setZOrderMapping(this._zOrderMapping);
+      }
     }
     if (changedProperties.has("selectionMode")) {
       this._updateSelectionMode();
@@ -142,6 +162,8 @@ export class ProtspaceScatterplot extends LitElement {
       );
       this._updateStyleSignature();
       this._canvasRenderer.setStyleSignature(this._styleSig);
+      this._canvasRenderer.setSelectedFeature(this.selectedFeature);
+      this._canvasRenderer.setZOrderMapping(this._zOrderMapping);
     }
   }
 
@@ -233,6 +255,8 @@ export class ProtspaceScatterplot extends LitElement {
         );
         this._updateStyleSignature();
         this._canvasRenderer.setStyleSignature(this._styleSig);
+        this._canvasRenderer.setSelectedFeature(this.selectedFeature);
+        this._canvasRenderer.setZOrderMapping(this._zOrderMapping);
       }
       this._canvasRenderer.setupHighDPICanvas(width, height);
       this._canvasRenderer.invalidatePositionCache();

@@ -349,6 +349,9 @@ export class ProtspaceLegend extends LitElement {
     this.legendItems = legendItems;
     this.otherItems = otherItems;
 
+    // Dispatch z-order change to update scatterplot rendering order
+    this._dispatchZOrderChange();
+
     // Update scatterplot with current Other bucket value list for consistent coloring
     if (this._scatterplotElement && "otherFeatureValues" in this._scatterplotElement) {
       (this._scatterplotElement as ScatterplotElement).otherFeatureValues = this.includeOthers
@@ -652,12 +655,23 @@ export class ProtspaceLegend extends LitElement {
       }
     });
 
-    this.dispatchEvent(
-      new CustomEvent("legend-zorder-change", {
-        detail: { zOrderMapping: zOrderMap },
-        bubbles: true,
-      })
-    );
+    // Dispatch event directly to scatterplot element if available
+    if (this._scatterplotElement) {
+      this._scatterplotElement.dispatchEvent(
+        new CustomEvent("legend-zorder-change", {
+          detail: { zOrderMapping: zOrderMap },
+          bubbles: false,
+        })
+      );
+    } else {
+      // Fallback to bubbling event
+      this.dispatchEvent(
+        new CustomEvent("legend-zorder-change", {
+          detail: { zOrderMapping: zOrderMap },
+          bubbles: true,
+        })
+      );
+    }
   }
 
   private handleDragEnd() {

@@ -22,6 +22,8 @@ export class CanvasRenderer {
   private cachedScaleSig: string | null = null;
   private cachedPointsRef: PlotDataPoint[] | null = null;
   private styleSignature: string | null = null;
+  private zOrderMapping: Record<string, number> = {};
+  private selectedFeature: string = "";
   private groupsCache: Array<{
     isCircle: boolean;
     path?: Path2D;
@@ -31,6 +33,7 @@ export class CanvasRenderer {
     opacity: number;
     basePointSize: number; // radius-like size before zoom adjustment
     indices: Uint32Array;
+    zOrder: number; // z-order for sorting groups
   }> | null = null;
 
   constructor(
@@ -51,6 +54,21 @@ export class CanvasRenderer {
     if (this.styleSignature !== signature) {
       this.styleSignature = signature;
       this.groupsCache = null;
+    }
+  }
+
+  setZOrderMapping(zOrderMapping: Record<string, number>) {
+    const hasChanged = JSON.stringify(this.zOrderMapping) !== JSON.stringify(zOrderMapping);
+    if (hasChanged) {
+      this.zOrderMapping = { ...zOrderMapping };
+      this.groupsCache = null; // Force re-grouping with new z-order
+    }
+  }
+
+  setSelectedFeature(feature: string) {
+    if (this.selectedFeature !== feature) {
+      this.selectedFeature = feature;
+      this.groupsCache = null; // Force re-grouping with new feature
     }
   }
 
@@ -124,7 +142,7 @@ export class CanvasRenderer {
     // Build or reuse style groups cache
     if (!this.groupsCache) {
       // Batch points by style and shape, store indices
-      const tempGroups = new Map<string, { meta: any; idx: number[] }>();
+      const tempGroups = new Map<string, { meta: any; idx: number[]; zOrders: number[] }>();
       for (let i = 0; i < pointsData.length; i++) {
         const point = pointsData[i];
         const opacity = this.style.getOpacity(point);
@@ -139,6 +157,19 @@ export class CanvasRenderer {
         const pathString = isCircle ? null : d3.symbol().type(shape).size(area)()!;
         const shapeKey = isCircle ? "circle" : `path:${pathString}`;
         const key = `${color}_${size}_${strokeColor}_${strokeWidth}_${opacity}_${shapeKey}`;
+
+        // Get z-order for this point's feature value
+        let pointZOrder = Number.MAX_SAFE_INTEGER; // Default to very high number (drawn last)
+        if (point.featureValues && this.selectedFeature) {
+          const featureValue = point.featureValues[this.selectedFeature];
+          if (featureValue !== undefined && featureValue !== null) {
+            const valueKey = String(featureValue);
+            pointZOrder = this.zOrderMapping[valueKey] ?? Number.MAX_SAFE_INTEGER;
+          } else if (featureValue === null) {
+            pointZOrder = this.zOrderMapping["null"] ?? Number.MAX_SAFE_INTEGER;
+          }
+        }
+
         let entry = tempGroups.get(key);
         if (!entry) {
           entry = {
@@ -152,10 +183,12 @@ export class CanvasRenderer {
               basePointSize: size,
             },
             idx: [],
+            zOrders: [],
           };
           tempGroups.set(key, entry);
         }
         entry.idx.push(i);
+        entry.zOrders.push(pointZOrder);
       }
       this.groupsCache = Array.from(tempGroups.values()).map((g) => ({
         isCircle: g.meta.isCircle,
@@ -166,13 +199,17 @@ export class CanvasRenderer {
         opacity: g.meta.opacity,
         basePointSize: g.meta.basePointSize,
         indices: Uint32Array.from(g.idx),
+        zOrder: Math.max(...g.zOrders), // Use maximum z-order for the group (drawn later = on top)
       }));
     }
 
     const exp = this.getSizeScaleExponent();
     const invKExp = 1 / Math.pow(transform.k, exp);
 
-    for (const group of this.groupsCache) {
+    // Sort groups by z-order (higher z-order = drawn later = appears on top)
+    const sortedGroups = [...this.groupsCache].sort((a, b) => b.zOrder - a.zOrder);
+
+    for (const group of sortedGroups) {
       if (group.indices.length === 0) continue;
       const pointSize = Math.max(0.5, group.basePointSize / Math.pow(transform.k, exp));
       ctx.globalAlpha = group.opacity;

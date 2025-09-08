@@ -203,14 +203,27 @@ export class LegendDataProcessor {
     otherCount: number,
     isolationMode: boolean,
     featureData: LegendFeatureData,
-    includeOthers: boolean
+    includeOthers: boolean,
+    existingLegendItems: LegendItem[] = []
   ): LegendItem[] {
-    // Create legend items with z-order
+    // Create a map of existing z-orders for preservation
+    const existingZOrderMap = new Map<string | null, number>();
+    existingLegendItems.forEach((item) => {
+      if (item.value !== "Other" || item.extractedFromOther) {
+        existingZOrderMap.set(item.value, item.zOrder);
+      }
+    });
+
+    // Create legend items with preserved z-order when possible
     const items: LegendItem[] = topItems.map(([value, count], index) => {
       const valueIndex =
         value !== null
           ? featureData.values.indexOf(value)
           : featureData.values.findIndex((v) => v === null);
+
+      // Try to preserve existing z-order, otherwise use sequential
+      const preservedZOrder = existingZOrderMap.get(value);
+      const zOrder = preservedZOrder !== undefined ? preservedZOrder : index;
 
       return {
         value,
@@ -224,19 +237,23 @@ export class LegendDataProcessor {
             : DEFAULT_STYLES.null.shape,
         count,
         isVisible: true,
-        zOrder: index,
+        zOrder,
       };
     });
 
     // Add "Other" if needed, enabled, and if we're not in isolation mode
     if (otherCount > 0 && includeOthers && !isolationMode) {
+      // Try to preserve existing z-order for "Other", otherwise use next available
+      const existingOtherItem = existingLegendItems.find(item => item.value === "Other");
+      const otherZOrder = existingOtherItem ? existingOtherItem.zOrder : items.length;
+
       items.push({
         value: "Other",
         color: DEFAULT_STYLES.other.color,
         shape: DEFAULT_STYLES.other.shape,
         count: otherCount,
         isVisible: true,
-        zOrder: items.length,
+        zOrder: otherZOrder,
       });
     }
 
@@ -250,7 +267,8 @@ export class LegendDataProcessor {
     items: LegendItem[],
     frequencyMap: Map<string | null, number>,
     topItems: Array<[string | null, number]>,
-    featureData: LegendFeatureData
+    featureData: LegendFeatureData,
+    existingLegendItems: LegendItem[] = []
   ): void {
     // Find null entry
     const nullEntry = Array.from(frequencyMap.entries()).find(
@@ -260,6 +278,11 @@ export class LegendDataProcessor {
     // Add null if not already included in top items
     if (nullEntry && !topItems.some(([value]) => value === null)) {
       const valueIndex = featureData.values.findIndex((v) => v === null);
+
+      // Try to preserve existing z-order for null entry
+      const existingNullItem = existingLegendItems.find(item => item.value === null);
+      const nullZOrder = existingNullItem ? existingNullItem.zOrder : items.length;
+
       items.push({
         value: null,
         color:
@@ -272,7 +295,7 @@ export class LegendDataProcessor {
             : DEFAULT_STYLES.null.shape,
         count: nullEntry[1],
         isVisible: true,
-        zOrder: items.length,
+        zOrder: nullZOrder,
       });
     }
   }
@@ -311,7 +334,7 @@ export class LegendDataProcessor {
           itemsToAdd.push({
             ...extractedItem,
             count: itemFrequency[1],
-            zOrder: items.length + itemsToAdd.length,
+            zOrder: extractedItem.zOrder, // Preserve existing z-order
           });
         }
       }
@@ -375,11 +398,12 @@ export class LegendDataProcessor {
       otherCount,
       isolationMode,
       featureData,
-      includeOthers
+      includeOthers,
+      existingLegendItems
     );
 
     // Add null entry if needed
-    this.addNullEntry(items, frequencyMap, topItems, featureData);
+    this.addNullEntry(items, frequencyMap, topItems, featureData, existingLegendItems);
 
     // Add extracted items
     this.addExtractedItems(items, frequencyMap, existingLegendItems);
