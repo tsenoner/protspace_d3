@@ -22,6 +22,41 @@ export interface StyleConfig {
 }
 
 export function createStyleGetters(data: VisualizationData | null, styleConfig: StyleConfig) {
+  // Normalize values: null and empty-string map to simple string keys
+  const normalizeToKey = (value: unknown): string => {
+    if (value === null) return "null";
+    if (typeof value === "string" && value.trim() === "") return "";
+    return String(value);
+  };
+
+  // Precompute fast lookup structures
+  const selectedIdsSet = new Set(styleConfig.selectedProteinIds);
+  const highlightedIdsSet = new Set(styleConfig.highlightedProteinIds);
+  const hiddenKeysSet = new Set(styleConfig.hiddenFeatureValues.map((v) => normalizeToKey(v)));
+  const otherValuesSet = new Set(styleConfig.otherFeatureValues);
+
+  // Precompute value -> color and value -> shape for the selected feature
+  const feature = data && styleConfig.selectedFeature
+    ? data.features[styleConfig.selectedFeature]
+    : undefined;
+  const valueToColor = new Map<string, string>();
+  const valueToShape = new Map<string, d3.SymbolType>();
+  let nullishConfiguredColor: string | null = null;
+
+  if (feature && Array.isArray(feature.values)) {
+    for (let i = 0; i < feature.values.length; i++) {
+      const v = feature.values[i];
+      const k = normalizeToKey(v);
+      const color = feature.colors?.[i];
+      if (color) valueToColor.set(k, color);
+      if (styleConfig.useShapes && feature.shapes && feature.shapes[i]) {
+        valueToShape.set(k, getSymbolType(feature.shapes[i]));
+      }
+      if ((v === null || (typeof v === "string" && v.trim() === "")) && color) {
+        nullishConfiguredColor = color;
+      }
+    }
+  }
   const isNullishDisplay = (value: unknown): boolean => {
     return value === null || (typeof value === "string" && value.trim() === "");
   };
@@ -43,8 +78,8 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
   const allHidden = computeAllHidden();
 
   const getPointSize = (point: PlotDataPoint): number => {
-    if (styleConfig.selectedProteinIds.includes(point.id)) return styleConfig.sizes.selected;
-    if (styleConfig.highlightedProteinIds.includes(point.id)) return styleConfig.sizes.highlighted;
+    if (selectedIdsSet.has(point.id)) return styleConfig.sizes.selected;
+    if (highlightedIdsSet.has(point.id)) return styleConfig.sizes.highlighted;
     return styleConfig.sizes.base;
   };
 
@@ -52,86 +87,45 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     if (styleConfig.useShapes === false) return d3.symbolCircle;
     if (!data || !styleConfig.selectedFeature) return d3.symbolCircle;
     const featureValue = point.featureValues[styleConfig.selectedFeature];
-    // Treat all values that fall into the synthetic "Other" bucket as identical
-    if (
-      featureValue !== null &&
-      styleConfig.otherFeatureValues.includes(featureValue)
-    ) {
-      return d3.symbolCircle;
-    }
+    if (featureValue !== null && otherValuesSet.has(featureValue)) return d3.symbolCircle;
     if (isNullishDisplay(featureValue)) return d3.symbolCircle;
-    const feature = data.features[styleConfig.selectedFeature];
-    if (!feature || !feature.shapes) return d3.symbolCircle;
-    const valueIndex = feature.values.indexOf(featureValue);
-    if (valueIndex === -1) return d3.symbolCircle;
-    const shapeName = feature.shapes[valueIndex];
-    return getSymbolType(shapeName);
+    const k = normalizeToKey(featureValue);
+    return valueToShape.get(k) ?? d3.symbolCircle;
   };
 
   const getColor = (point: PlotDataPoint): string => {
     if (!data || !styleConfig.selectedFeature) return "#888888";
     const featureValue = point.featureValues[styleConfig.selectedFeature];
-    const feature = data.features[styleConfig.selectedFeature];
-    if (!feature) return "#888888";
-    // All values categorized as "Other" share the same neutral color
-    if (featureValue !== null && styleConfig.otherFeatureValues.includes(featureValue)) return "#888888";
-    // For null/empty-string display category, try to use configured color if present
-    if (isNullishDisplay(featureValue)) {
-      const idxNullish = feature.values.findIndex(
-        (v) => v === null || (typeof v === "string" && v.trim() === "")
-      );
-      if (idxNullish !== -1 && feature.colors[idxNullish]) {
-        return feature.colors[idxNullish];
-      }
-      return "#888888";
-    }
-    const idx = feature.values.indexOf(featureValue);
-    return feature.colors[idx] || "#888888";
+    if (featureValue !== null && otherValuesSet.has(featureValue)) return "#888888";
+    if (isNullishDisplay(featureValue)) return nullishConfiguredColor ?? "#888888";
+    const k = normalizeToKey(featureValue);
+    return valueToColor.get(k) ?? "#888888";
   };
 
   const getOpacity = (point: PlotDataPoint): number => {
     const featureValue = point.featureValues[styleConfig.selectedFeature];
     if (!allHidden) {
-      if (isNullishDisplay(featureValue)) {
-        if (
-          styleConfig.hiddenFeatureValues.includes("null") ||
-          styleConfig.hiddenFeatureValues.includes("")
-        ) {
-          return 0;
-        }
-      } else if (
-        featureValue !== null &&
-        styleConfig.hiddenFeatureValues.includes(featureValue)
-      ) {
-        return 0;
-      }
+      const key = normalizeToKey(featureValue);
+      if (hiddenKeysSet.has(key)) return 0;
     }
-    if (
-      styleConfig.highlightedProteinIds.includes(point.id) ||
-      styleConfig.selectedProteinIds.includes(point.id)
-    ) {
+    if (highlightedIdsSet.has(point.id) || selectedIdsSet.has(point.id)) {
       return styleConfig.opacities.selected;
     }
-    if (
-      styleConfig.selectedProteinIds.length > 0 &&
-      !styleConfig.selectedProteinIds.includes(point.id)
-    ) {
+    if (selectedIdsSet.size > 0 && !selectedIdsSet.has(point.id)) {
       return styleConfig.opacities.faded;
     }
     return styleConfig.opacities.base;
   };
 
   const getStrokeColor = (point: PlotDataPoint): string => {
-    if (styleConfig.selectedProteinIds.includes(point.id))
-      return "var(--protspace-selection-color, #FF5500)";
-    if (styleConfig.highlightedProteinIds.includes(point.id))
-      return "var(--protspace-highlight-color, #00A3E0)";
+    if (selectedIdsSet.has(point.id)) return "var(--protspace-selection-color, #FF5500)";
+    if (highlightedIdsSet.has(point.id)) return "var(--protspace-highlight-color, #00A3E0)";
     return "var(--protspace-default-stroke, #333333)";
   };
 
   const getStrokeWidth = (point: PlotDataPoint): number => {
-    if (styleConfig.selectedProteinIds.includes(point.id)) return 3;
-    if (styleConfig.highlightedProteinIds.includes(point.id)) return 2;
+    if (selectedIdsSet.has(point.id)) return 3;
+    if (highlightedIdsSet.has(point.id)) return 2;
     return 1;
   };
 

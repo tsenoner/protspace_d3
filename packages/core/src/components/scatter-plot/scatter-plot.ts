@@ -57,6 +57,7 @@ export class ProtspaceScatterplot extends LitElement {
   private _zoomRafId: number | null = null;
   private _styleSig: string | null = null;
   private _zOrderMapping: Record<string, number> = {};
+  private _styleGettersCache: ReturnType<typeof createStyleGetters> | null = null;
 
   // Computed properties
   private get _scales() {
@@ -147,6 +148,36 @@ export class ProtspaceScatterplot extends LitElement {
     }
     if (changedProperties.has("selectionMode")) {
       this._updateSelectionMode();
+    }
+    // Refresh cached style getters when any relevant input changes
+    if (
+      changedProperties.has('data') ||
+      changedProperties.has('selectedFeature') ||
+      changedProperties.has('hiddenFeatureValues') ||
+      changedProperties.has('otherFeatureValues') ||
+      changedProperties.has('selectedProteinIds') ||
+      changedProperties.has('highlightedProteinIds') ||
+      changedProperties.has('config') ||
+      changedProperties.has('useShapes')
+    ) {
+      this._styleGettersCache = createStyleGetters(this.data, {
+        selectedProteinIds: this.selectedProteinIds,
+        highlightedProteinIds: this.highlightedProteinIds,
+        selectedFeature: this.selectedFeature,
+        hiddenFeatureValues: this.hiddenFeatureValues,
+        otherFeatureValues: this.otherFeatureValues,
+        useShapes: this.useShapes,
+        sizes: {
+          base: this._mergedConfig.pointSize,
+          highlighted: this._mergedConfig.highlightedPointSize,
+          selected: this._mergedConfig.selectedPointSize,
+        },
+        opacities: {
+          base: this._mergedConfig.baseOpacity,
+          selected: this._mergedConfig.selectedOpacity,
+          faded: this._mergedConfig.fadedOpacity,
+        },
+      });
     }
     this._renderPlot();
   }
@@ -471,24 +502,27 @@ export class ProtspaceScatterplot extends LitElement {
   }
 
   private _getStyleGetters() {
-    return createStyleGetters(this.data, {
-      selectedProteinIds: this.selectedProteinIds,
-      highlightedProteinIds: this.highlightedProteinIds,
-      selectedFeature: this.selectedFeature,
-      hiddenFeatureValues: this.hiddenFeatureValues,
-      otherFeatureValues: this.otherFeatureValues,
-      useShapes: this.useShapes,
-      sizes: {
-        base: this._mergedConfig.pointSize,
-        highlighted: this._mergedConfig.highlightedPointSize,
-        selected: this._mergedConfig.selectedPointSize,
-      },
-      opacities: {
-        base: this._mergedConfig.baseOpacity,
-        selected: this._mergedConfig.selectedOpacity,
-        faded: this._mergedConfig.fadedOpacity,
-      },
-    });
+    if (!this._styleGettersCache) {
+      this._styleGettersCache = createStyleGetters(this.data, {
+        selectedProteinIds: this.selectedProteinIds,
+        highlightedProteinIds: this.highlightedProteinIds,
+        selectedFeature: this.selectedFeature,
+        hiddenFeatureValues: this.hiddenFeatureValues,
+        otherFeatureValues: this.otherFeatureValues,
+        useShapes: this.useShapes,
+        sizes: {
+          base: this._mergedConfig.pointSize,
+          highlighted: this._mergedConfig.highlightedPointSize,
+          selected: this._mergedConfig.selectedPointSize,
+        },
+        opacities: {
+          base: this._mergedConfig.baseOpacity,
+          selected: this._mergedConfig.selectedOpacity,
+          faded: this._mergedConfig.fadedOpacity,
+        },
+      });
+    }
+    return this._styleGettersCache;
   }
 
   private _getLocalPointerPosition(event: MouseEvent): { x: number; y: number } {
