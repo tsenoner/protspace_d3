@@ -121,6 +121,8 @@ export class ProtspaceScatterplot extends LitElement {
       this._updateStyleSignature();
       this._canvasRenderer?.invalidateStyleCache();
       this._canvasRenderer?.setStyleSignature(this._styleSig);
+      // Rebuild spatial index when config changes may affect scales (e.g., width/height/margins)
+      this._buildQuadtree();
     }
     if (
       changedProperties.has('selectedFeature') ||
@@ -268,6 +270,8 @@ export class ProtspaceScatterplot extends LitElement {
     }
     
     this._mergedConfig = { ...this._mergedConfig, width, height };
+    // Scales depend on width/height; rebuild spatial index to keep hit-testing accurate after resize
+    this._buildQuadtree();
     this._renderPlot();
   }
 
