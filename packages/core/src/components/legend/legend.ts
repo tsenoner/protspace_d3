@@ -553,6 +553,11 @@ export class ProtspaceLegend extends LitElement {
 
     if (!this.draggedItem || this.draggedItem === item.value) return;
 
+    // Provide move hint to the browser
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "move";
+    }
+
     // Use a debounced approach to prevent too many re-renders
     if (this.dragTimeout) {
       clearTimeout(this.dragTimeout);
@@ -600,6 +605,8 @@ export class ProtspaceLegend extends LitElement {
       }
     }
 
+    // Final reordering is handled by the drag over logic
+
     this.handleDragEnd();
   }
 
@@ -646,6 +653,7 @@ export class ProtspaceLegend extends LitElement {
     this._dispatchZOrderChange();
     this.requestUpdate();
   }
+
 
   private _dispatchZOrderChange(): void {
     const zOrderMap: Record<string, number> = {};
@@ -945,6 +953,7 @@ export class ProtspaceLegend extends LitElement {
 
     return classes.join(" ");
   }
+
 
   private _renderDragHandle() {
     return html`
