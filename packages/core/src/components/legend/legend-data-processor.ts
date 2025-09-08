@@ -225,15 +225,33 @@ export class LegendDataProcessor {
       const preservedZOrder = existingZOrderMap.get(value);
       const zOrder = preservedZOrder !== undefined ? preservedZOrder : index;
 
+      // Use the same logic as scatter plot for finding configured null colors
+      let itemColor: string;
+      if (value === null) {
+        // For null values, use the same logic as scatter plot
+        let nullishConfiguredColor: string | null = null;
+        if (Array.isArray(featureData.values)) {
+          for (let i = 0; i < featureData.values.length; i++) {
+            const v = featureData.values[i];
+            if ((v === null || (typeof v === "string" && v.trim() === "")) && featureData.colors?.[i]) {
+              nullishConfiguredColor = featureData.colors[i];
+              break;
+            }
+          }
+        }
+        itemColor = nullishConfiguredColor || DEFAULT_STYLES.null.color;
+      } else {
+        itemColor = valueIndex !== -1
+          ? featureData.colors?.[valueIndex] || DEFAULT_STYLES.null.color
+          : DEFAULT_STYLES.null.color;
+      }
+
       return {
         value,
-        color:
-          valueIndex !== -1
-            ? featureData.colors[valueIndex]
-            : DEFAULT_STYLES.null.color,
+        color: itemColor,
         shape:
           valueIndex !== -1
-            ? featureData.shapes[valueIndex]
+            ? featureData.shapes?.[valueIndex] || DEFAULT_STYLES.null.shape
             : DEFAULT_STYLES.null.shape,
         count,
         isVisible: true,
@@ -283,15 +301,24 @@ export class LegendDataProcessor {
       const existingNullItem = existingLegendItems.find(item => item.value === null);
       const nullZOrder = existingNullItem ? existingNullItem.zOrder : items.length;
 
+      // Use the same logic as scatter plot for finding configured null colors
+      let nullishConfiguredColor: string | null = null;
+      if (Array.isArray(featureData.values)) {
+        for (let i = 0; i < featureData.values.length; i++) {
+          const v = featureData.values[i];
+          if ((v === null || (typeof v === "string" && v.trim() === "")) && featureData.colors?.[i]) {
+            nullishConfiguredColor = featureData.colors[i];
+            break;
+          }
+        }
+      }
+
       items.push({
         value: null,
-        color:
-          valueIndex !== -1
-            ? featureData.colors[valueIndex]
-            : DEFAULT_STYLES.null.color,
+        color: nullishConfiguredColor || DEFAULT_STYLES.null.color,
         shape:
           valueIndex !== -1
-            ? featureData.shapes[valueIndex]
+            ? featureData.shapes?.[valueIndex] || DEFAULT_STYLES.null.shape
             : DEFAULT_STYLES.null.shape,
         count: nullEntry[1],
         isVisible: true,
