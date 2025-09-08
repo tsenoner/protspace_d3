@@ -1,5 +1,6 @@
 import { parquetReadObjects } from "hyparquet";
 import { Rows } from "./types";
+import { assertValidParquetMagic, validateMergedBundleRows } from "./validation";
 
 const BUNDLE_DELIMITER = new TextEncoder().encode("---PARQUET_DELIMITER---");
 
@@ -56,6 +57,11 @@ export async function extractRowsFromParquetBundle(
     .subarray(delimiterPositions[1] + BUNDLE_DELIMITER.length)
     .slice().buffer;
 
+  // Validate parquet magic for each part before parsing
+  assertValidParquetMagic(part1);
+  assertValidParquetMagic(part2);
+  assertValidParquetMagic(part3);
+
   const [selectedFeaturesData, projectionsMetadataData, projectionsData] =
     await Promise.all([
       parquetReadObjects({ file: part1 }),
@@ -64,6 +70,9 @@ export async function extractRowsFromParquetBundle(
     ]);
 
   const mergedRows = mergeProjectionsWithFeatures(projectionsData, selectedFeaturesData);
+
+  // Validate merged rows for expected bundle shape
+  validateMergedBundleRows(mergedRows);
 
   if (!disableInspection) {
     createInspectionFiles(part1, part2, part3, selectedFeaturesData, projectionsMetadataData, projectionsData);
