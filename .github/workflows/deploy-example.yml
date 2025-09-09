@@ -58,8 +58,7 @@ jobs:
 
       - name: Build scatterplot example
         run: |
-          cd examples/scatterplot-vite
-          pnpm run build
+          pnpm turbo run build --filter=@protspace/example-scatterplot
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
