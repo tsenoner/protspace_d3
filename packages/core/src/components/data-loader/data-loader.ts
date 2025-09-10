@@ -6,6 +6,7 @@ import { dataLoaderStyles } from "./data-loader.styles";
 import { readFileOptimized } from "./utils/file-io";
 import { isParquetBundle, extractRowsFromParquetBundle } from "./utils/bundle";
 import { convertParquetToVisualizationDataOptimized } from "./utils/conversion";
+import { assertWithinFileSizeLimit, assertValidParquetMagic, validateRowsBasic } from "./utils/validation";
 
 /**
  * Parquet Data Loader Web Component
@@ -254,6 +255,9 @@ export class DataLoader extends LitElement {
     try {
       this.progress = 10;
 
+      // Early size validation
+      assertWithinFileSizeLimit(file.size);
+
       // Optimize ArrayBuffer reading for large files
       const arrayBuffer = await readFileOptimized(file);
 
@@ -262,6 +266,8 @@ export class DataLoader extends LitElement {
       // Check if this is a parquetbundle file
       if (file.name.endsWith(".parquetbundle") || isParquetBundle(arrayBuffer)) {
         const extractedData = await extractRowsFromParquetBundle(arrayBuffer, { disableInspection });
+        // Basic dataset sanity validation after parse
+        validateRowsBasic(extractedData);
         this.progress = 70;
         const visualizationData = await convertParquetToVisualizationDataOptimized(extractedData);
         this.progress = 100;
@@ -269,7 +275,10 @@ export class DataLoader extends LitElement {
       } else {
         // Regular parquet file
         this.progress = 40;
+        // Validate parquet magic before parsing
+        assertValidParquetMagic(arrayBuffer);
         const table = await parquetReadObjects({ file: arrayBuffer });
+        validateRowsBasic(table);
         this.progress = 70;
         const visualizationData = await convertParquetToVisualizationDataOptimized(table);
         this.progress = 100;

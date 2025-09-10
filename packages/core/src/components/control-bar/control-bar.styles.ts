@@ -20,24 +20,35 @@ export const controlBarStyles = css`
     background: var(--up-surface);
     border-bottom: 1px solid var(--up-border);
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    /* Allow items to wrap to avoid overflow on narrow widths */
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
   }
 
   .left-controls {
     display: flex;
     align-items: center;
     gap: 1rem;
+    /* Let inner controls wrap when space is tight */
+    flex-wrap: wrap;
+    min-width: 0;
   }
 
   .right-controls {
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    /* Let action buttons wrap when space is tight */
+    flex-wrap: wrap;
+    min-width: 0;
   }
 
   .control-group {
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    flex-wrap: wrap;
+    min-width: 0;
   }
 
   label {
@@ -53,6 +64,7 @@ export const controlBarStyles = css`
     background: var(--up-surface);
     font-size: 0.875rem;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    max-width: 100%;
   }
 
   select:focus {
@@ -167,6 +179,31 @@ export const controlBarStyles = css`
     width: 1rem;
     height: 1rem;
     margin-left: 0.25rem;
+  }
+
+  /* Responsive layout: stack controls on small screens */
+  @media (max-width: 640px) {
+    .control-bar {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.5rem;
+    }
+
+    .left-controls,
+    .right-controls {
+      width: 100%;
+      justify-content: flex-start;
+      gap: 0.5rem;
+    }
+
+    .control-group {
+      width: 100%;
+    }
+
+    /* Make selects expand to available width inside a row */
+    .control-group select {
+      width: 100%;
+    }
   }
 
   /* Dark mode support */

@@ -122,10 +122,19 @@ export const legendStyles = css`
     background: var(--legend-drag-bg);
     transform: scale(1.02);
     box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.15);
+    border: 2px solid #7c3aed !important;
+    border-radius: 0.5rem;
   }
 
   .legend-item.selected {
     box-shadow: 0 0 0 2px var(--legend-selected-ring);
+  }
+
+  /* Drag-and-drop visual hints */
+  .legend-item.dragging {
+    opacity: 0.8;
+    z-index: 1000;
+    position: relative;
   }
 
   .legend-item.extracted {

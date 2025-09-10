@@ -10,6 +10,8 @@ export const dataLoaderStyles = css`
     background: #f6f8fb;
     cursor: pointer;
     transition: all 0.3s ease;
+    box-sizing: border-box;
+    width: 100%;
   }
 
   :host(:hover) {
@@ -34,6 +36,8 @@ export const dataLoaderStyles = css`
     flex-direction: column;
     align-items: center;
     gap: 1rem;
+    width: 100%;
+    box-sizing: border-box;
   }
 
   .icon {
@@ -45,13 +49,17 @@ export const dataLoaderStyles = css`
   .message {
     font-size: 1.1rem;
     color: #4a5568;
-    max-width: 400px;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   .file-info {
     font-size: 0.9rem;
     color: #718096;
     margin-top: 0.5rem;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   .progress {
@@ -74,12 +82,35 @@ export const dataLoaderStyles = css`
     color: #c53030;
     font-size: 0.9rem;
     margin-top: 0.5rem;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   .hidden-input {
     position: absolute;
     opacity: 0;
     pointer-events: none;
+  }
+
+  /* Responsive tweaks for small screens */
+  @media (max-width: 640px) {
+    :host {
+      padding: 0.75rem;
+    }
+
+    .drop-zone {
+      padding: 1.25rem;
+      gap: 0.75rem;
+    }
+
+    .icon {
+      width: 40px;
+      height: 40px;
+    }
+
+    .message {
+      font-size: 1rem;
+    }
   }
 `;
 

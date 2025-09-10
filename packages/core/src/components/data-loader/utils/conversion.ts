@@ -1,11 +1,10 @@
 import type { Feature, VisualizationData } from "@protspace/utils";
+import { validateRowsBasic } from "./validation";
 import { findColumn } from "./bundle";
 import type { Rows } from "./types";
 
 export function convertParquetToVisualizationData(rows: Rows): VisualizationData {
-  if (!rows || rows.length === 0) {
-    throw new Error("No data rows found in parquet file");
-  }
+  validateRowsBasic(rows);
 
   const columnNames = Object.keys(rows[0]);
   const hasProjectionName = columnNames.includes("projection_name");
@@ -18,9 +17,7 @@ export function convertParquetToVisualizationData(rows: Rows): VisualizationData
 }
 
 export function convertParquetToVisualizationDataOptimized(rows: Rows): Promise<VisualizationData> {
-  if (!rows || rows.length === 0) {
-    throw new Error("No data rows found in parquet file");
-  }
+  validateRowsBasic(rows);
   const dataSize = rows.length;
   if (dataSize < 10000) {
     return Promise.resolve(convertParquetToVisualizationData(rows));

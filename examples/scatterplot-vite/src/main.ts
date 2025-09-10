@@ -131,7 +131,14 @@ if (dataLoader) {
             if (firstFeature) {
               const featureValues = newData.protein_ids.map((_, index) => {
                 const featureIdx = newData.feature_data[firstFeature][index];
-                return newData.features[firstFeature].values[featureIdx];
+                // Handle out-of-bounds indices the same way as DataProcessor
+                return featureIdx !== undefined &&
+                       featureIdx !== null &&
+                       Array.isArray(newData.features[firstFeature].values) &&
+                       featureIdx >= 0 &&
+                       featureIdx < newData.features[firstFeature].values.length
+                  ? newData.features[firstFeature].values[featureIdx] || null
+                  : null;
               });
               legendElement.featureValues = featureValues;
               legendElement.proteinIds = newData.protein_ids;
@@ -670,7 +677,14 @@ Promise.all([
           // Extract feature values for current data
           const featureValues = currentData.protein_ids.map((_, index) => {
             const featureIdx = currentData.feature_data[currentFeature][index];
-            return currentData.features[currentFeature].values[featureIdx];
+            // Handle out-of-bounds indices the same way as DataProcessor
+            return featureIdx !== undefined &&
+                   featureIdx !== null &&
+                   Array.isArray(currentData.features[currentFeature].values) &&
+                   featureIdx >= 0 &&
+                   featureIdx < currentData.features[currentFeature].values.length
+              ? currentData.features[currentFeature].values[featureIdx] || null
+              : null;
           });
 
           legendElement.featureValues = featureValues;

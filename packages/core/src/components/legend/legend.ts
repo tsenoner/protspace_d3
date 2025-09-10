@@ -217,7 +217,14 @@ export class ProtspaceLegend extends LitElement {
     const featureValues = currentData.protein_ids.map(
       (_: string, index: number) => {
         const featureIdx = currentData.feature_data[selectedFeature][index];
-        return currentData.features[selectedFeature].values[featureIdx];
+        // Handle out-of-bounds indices the same way as DataProcessor
+        return featureIdx !== undefined &&
+               featureIdx !== null &&
+               Array.isArray(currentData.features[selectedFeature].values) &&
+               featureIdx >= 0 &&
+               featureIdx < currentData.features[selectedFeature].values.length
+          ? currentData.features[selectedFeature].values[featureIdx] || null
+          : null;
       }
     );
 
@@ -348,6 +355,9 @@ export class ProtspaceLegend extends LitElement {
     // Set items state
     this.legendItems = legendItems;
     this.otherItems = otherItems;
+
+    // Dispatch z-order change to update scatterplot rendering order
+    this._dispatchZOrderChange();
 
     // Update scatterplot with current Other bucket value list for consistent coloring
     if (this._scatterplotElement && "otherFeatureValues" in this._scatterplotElement) {
@@ -550,6 +560,11 @@ export class ProtspaceLegend extends LitElement {
 
     if (!this.draggedItem || this.draggedItem === item.value) return;
 
+    // Provide move hint to the browser
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "move";
+    }
+
     // Use a debounced approach to prevent too many re-renders
     if (this.dragTimeout) {
       clearTimeout(this.dragTimeout);
@@ -596,6 +611,8 @@ export class ProtspaceLegend extends LitElement {
         );
       }
     }
+
+    // Final reordering is handled by the drag over logic
 
     this.handleDragEnd();
   }
@@ -644,6 +661,7 @@ export class ProtspaceLegend extends LitElement {
     this.requestUpdate();
   }
 
+
   private _dispatchZOrderChange(): void {
     const zOrderMap: Record<string, number> = {};
     this.legendItems.forEach((legendItem) => {
@@ -652,12 +670,23 @@ export class ProtspaceLegend extends LitElement {
       }
     });
 
-    this.dispatchEvent(
-      new CustomEvent("legend-zorder-change", {
-        detail: { zOrderMapping: zOrderMap },
-        bubbles: true,
-      })
-    );
+    // Dispatch event directly to scatterplot element if available
+    if (this._scatterplotElement) {
+      this._scatterplotElement.dispatchEvent(
+        new CustomEvent("legend-zorder-change", {
+          detail: { zOrderMapping: zOrderMap },
+          bubbles: false,
+        })
+      );
+    } else {
+      // Fallback to bubbling event
+      this.dispatchEvent(
+        new CustomEvent("legend-zorder-change", {
+          detail: { zOrderMapping: zOrderMap },
+          bubbles: true,
+        })
+      );
+    }
   }
 
   private handleDragEnd() {
@@ -931,6 +960,7 @@ export class ProtspaceLegend extends LitElement {
 
     return classes.join(" ");
   }
+
 
   private _renderDragHandle() {
     return html`
