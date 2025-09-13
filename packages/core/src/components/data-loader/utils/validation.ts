@@ -103,6 +103,19 @@ export function validateRowsBasic(
 export function validateMergedBundleRows(rows: Rows): void {
   validateRowsBasic(rows);
   const columnNames = Object.keys(rows[0]);
+  const numericLikeColumns = columnNames.filter((name) => /^[+-]?\d+(?:\.\d+)?$/.test(name));
+  if (numericLikeColumns.length > 0) {
+    const sampleList = sanitizeForMessage(numericLikeColumns.slice(0, 5).join(", "));
+    throw new Error(
+      `Invalid bundle: numeric-looking column names detected (${sampleList}). Expected named columns like 'projection_name', 'x', 'y'`
+    );
+  }
+  // Guard: empty column names are not allowed
+  for (const name of columnNames) {
+    if (name.trim().length === 0) {
+      throw new Error("Invalid bundle: empty column name found");
+    }
+  }
   const hasX = columnNames.includes("x");
   const hasY = columnNames.includes("y");
   const hasProjectionName = columnNames.includes("projection_name");
