@@ -52,6 +52,7 @@ export class ProtspaceScatterplot extends LitElement {
   private _svgSelection: d3.Selection<SVGSVGElement, unknown, null, undefined> | null = null;
   private _mainGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
   private _brushGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
+  private _overlayGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
   private _brush: d3.BrushBehavior<unknown> | null = null;
   private _canvasRenderer: CanvasRenderer | null = null;
   private _zoomRafId: number | null = null;
@@ -59,6 +60,7 @@ export class ProtspaceScatterplot extends LitElement {
   private _zOrderMapping: Record<string, number> = {};
   private _styleGettersCache: ReturnType<typeof createStyleGetters> | null = null;
   private _quadtreeRebuildRafId: number | null = null;
+  private _selectionRerenderTimeout: number | null = null;
 
   // Computed properties
   private get _scales() {
@@ -149,7 +151,9 @@ export class ProtspaceScatterplot extends LitElement {
       changedProperties.has('selectedProteinIds') ||
       changedProperties.has('highlightedProteinIds')
     ) {
-      this._canvasRenderer?.invalidateStyleCache();
+      // Fast path: draw selection overlay immediately without full rerender
+      this._updateSelectionOverlays();
+      this._scheduleDeferredSelectionRerender();
     }
     if (changedProperties.has("selectionMode")) {
       this._updateSelectionMode();
@@ -184,7 +188,14 @@ export class ProtspaceScatterplot extends LitElement {
         },
       });
     }
-    this._renderPlot();
+    // Avoid full rerender if only selection/highlight changed; overlay handles immediate feedback
+    const selectionKeys = ['selectedProteinIds', 'highlightedProteinIds'];
+    const changedKeys = Array.from(changedProperties.keys());
+    const onlySelectionChanged = changedKeys.length > 0 && changedKeys.every(k => selectionKeys.includes(k));
+    if (!onlySelectionChanged) {
+      this._renderPlot();
+      this._updateSelectionOverlays();
+    }
   }
 
   firstUpdated() {
@@ -259,6 +270,11 @@ export class ProtspaceScatterplot extends LitElement {
       .append("g")
       .attr("class", "brush-container");
 
+    // Create overlay group (above brush) for transient drawings like selections
+    this._overlayGroup = this._svgSelection
+      .append("g")
+      .attr("class", "overlay-container");
+
     this._zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent(this._mergedConfig.zoomExtent)
       .on("zoom", (event) => {
@@ -269,6 +285,9 @@ export class ProtspaceScatterplot extends LitElement {
         if (this._brushGroup) {
           this._brushGroup.attr("transform", event.transform);
         }
+        if (this._overlayGroup) {
+          this._overlayGroup.attr("transform", event.transform);
+        }
         // Smooth canvas rendering during zoom using requestAnimationFrame
         if (this.useCanvas && this._canvas) {
           if (this._zoomRafId !== null) {
@@ -277,6 +296,7 @@ export class ProtspaceScatterplot extends LitElement {
           this._zoomRafId = requestAnimationFrame(() => {
             this._zoomRafId = null;
             this._renderCanvas();
+            this._updateSelectionOverlays();
           });
         }
       });
@@ -326,6 +346,7 @@ export class ProtspaceScatterplot extends LitElement {
     // Scales depend on width/height; rebuild spatial index to keep hit-testing accurate after resize
     this._scheduleQuadtreeRebuild();
     this._renderPlot();
+    this._updateSelectionOverlays();
   }
 
   // HiDPI setup and quality moved to CanvasRenderer
@@ -478,6 +499,54 @@ export class ProtspaceScatterplot extends LitElement {
         .duration(config.transitionDuration)
         .attr("opacity", (d) => this._getOpacity(d));
     }
+  }
+
+  /**
+   * Draw selection overlays on the SVG layer to avoid full canvas rerenders on selection changes.
+   */
+  private _updateSelectionOverlays() {
+    if (!this._overlayGroup || !this._scales) return;
+
+    const selectedSet = new Set(this.selectedProteinIds || []);
+    const selectedPoints = this._plotData.filter(p => selectedSet.has(p.id));
+
+    const k = this._transform.k || 1;
+    const exp = this._mergedConfig.zoomSizeScaleExponent ?? 1;
+    const baseRadius = Math.sqrt(this._mergedConfig.selectedPointSize) / 3;
+    const r = Math.max(1, baseRadius / Math.pow(k, exp));
+    const strokeW = 2 / k;
+
+    const sel = this._overlayGroup
+      .selectAll<SVGCircleElement, any>(".selected-overlay")
+      .data(selectedPoints, (d: any) => d.id);
+
+    sel.enter()
+      .append("circle")
+      .attr("class", "selected-overlay")
+      .attr("fill", "none")
+      .attr("pointer-events", "none")
+      .merge(sel as any)
+      .attr("cx", (d: any) => this._scales!.x(d.x))
+      .attr("cy", (d: any) => this._scales!.y(d.y))
+      .attr("r", r)
+      .attr("stroke", "#000")
+      .attr("stroke-width", strokeW)
+      .attr("opacity", 0.95);
+
+    sel.exit().remove();
+  }
+
+  private _scheduleDeferredSelectionRerender() {
+    if (this._selectionRerenderTimeout !== null) {
+      clearTimeout(this._selectionRerenderTimeout);
+    }
+    // Debounce a full style recompute + rerender to keep styles consistent after bursty selection
+    this._selectionRerenderTimeout = window.setTimeout(() => {
+      this._selectionRerenderTimeout = null;
+      this._canvasRenderer?.invalidateStyleCache();
+      this._renderPlot();
+      this._updateSelectionOverlays();
+    }, 200);
   }
 
   private _getPointPath(point: PlotDataPoint): string {
