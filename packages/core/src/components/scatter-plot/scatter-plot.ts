@@ -58,6 +58,7 @@ export class ProtspaceScatterplot extends LitElement {
   private _styleSig: string | null = null;
   private _zOrderMapping: Record<string, number> = {};
   private _styleGettersCache: ReturnType<typeof createStyleGetters> | null = null;
+  private _quadtreeRebuildRafId: number | null = null;
 
   // Computed properties
   private get _scales() {
@@ -85,6 +86,10 @@ export class ProtspaceScatterplot extends LitElement {
 
   disconnectedCallback() {
     this.resizeObserver.disconnect();
+    if (this._quadtreeRebuildRafId !== null) {
+      cancelAnimationFrame(this._quadtreeRebuildRafId);
+      this._quadtreeRebuildRafId = null;
+    }
     super.disconnectedCallback();
   }
 
@@ -103,7 +108,7 @@ export class ProtspaceScatterplot extends LitElement {
   updated(changedProperties: Map<string, any>) {
     if (changedProperties.has("data") || changedProperties.has("selectedProjectionIndex") || changedProperties.has('projectionPlane')) {
       this._processData();
-      this._buildQuadtree();
+      this._scheduleQuadtreeRebuild();
       this._canvasRenderer?.invalidatePositionCache();
       this._canvasRenderer?.invalidateStyleCache();
       
@@ -123,14 +128,14 @@ export class ProtspaceScatterplot extends LitElement {
       this._canvasRenderer?.invalidateStyleCache();
       this._canvasRenderer?.setStyleSignature(this._styleSig);
       // Rebuild spatial index when config changes may affect scales (e.g., width/height/margins)
-      this._buildQuadtree();
+      this._scheduleQuadtreeRebuild();
     }
     if (
       changedProperties.has('selectedFeature') ||
       changedProperties.has('hiddenFeatureValues') ||
       changedProperties.has('otherFeatureValues')
     ) {
-      this._buildQuadtree();
+      this._scheduleQuadtreeRebuild();
       this._canvasRenderer?.invalidateStyleCache();
       this._updateStyleSignature();
       this._canvasRenderer?.setStyleSignature(this._styleSig);
@@ -226,6 +231,16 @@ export class ProtspaceScatterplot extends LitElement {
     this._quadtreeIndex.rebuild(visiblePoints);
   }
 
+  private _scheduleQuadtreeRebuild() {
+    if (this._quadtreeRebuildRafId !== null) {
+      cancelAnimationFrame(this._quadtreeRebuildRafId);
+    }
+    this._quadtreeRebuildRafId = requestAnimationFrame(() => {
+      this._quadtreeRebuildRafId = null;
+      this._buildQuadtree();
+    });
+  }
+
   private _initializeInteractions() {
     if (!this._svg) return;
     
@@ -309,7 +324,7 @@ export class ProtspaceScatterplot extends LitElement {
     
     this._mergedConfig = { ...this._mergedConfig, width, height };
     // Scales depend on width/height; rebuild spatial index to keep hit-testing accurate after resize
-    this._buildQuadtree();
+    this._scheduleQuadtreeRebuild();
     this._renderPlot();
   }
 
