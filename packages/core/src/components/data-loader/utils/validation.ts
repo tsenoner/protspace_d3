@@ -10,6 +10,19 @@ const MAX_COLUMNS_DEFAULT = 200;
 const MAX_TOTAL_CELLS_DEFAULT = 10_000_000;
 const MAX_CELL_STRING_LENGTH_DEFAULT = 1024;
 
+function sanitizeForMessage(input: unknown, maxLength = 64): string {
+  const stringified = String(input ?? "");
+  const withoutControls = stringified.replace(/[\u0000-\u001F\u007F-\u009F]/g, "");
+  const singleLine = withoutControls.replace(/[\r\n]+/g, " ").trim();
+  if (singleLine.length === 0) {
+    return "<unknown>";
+  }
+  if (singleLine.length > maxLength) {
+    return singleLine.slice(0, maxLength) + "…";
+  }
+  return singleLine;
+}
+
 export function assertValidParquetMagic(buffer: ArrayBuffer): void {
   const u8 = new Uint8Array(buffer);
   if (u8.length < 12) {
@@ -74,12 +87,13 @@ export function validateRowsBasic(
     const row = rows[i] as Record<string, unknown>;
     for (const key of columnNames) {
       const val = row[key];
+      const safeKey = sanitizeForMessage(key);
       if (typeof val === "string") {
         if (val.length > maxCellStringLength) {
-          throw new Error(`Cell string too long in column '${key}'`);
+          throw new Error(`Cell string too long in column '${safeKey}'`);
         }
         if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(val)) {
-          throw new Error(`Control characters detected in column '${key}'`);
+          throw new Error(`Control characters detected in column '${safeKey}'`);
         }
       }
     }
