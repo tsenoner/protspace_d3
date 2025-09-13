@@ -1,7 +1,11 @@
 import { LitElement, html } from "lit";
 import { customElement, property, state, query } from "lit/decorators.js";
 import * as d3 from "d3";
-import type { VisualizationData, PlotDataPoint, ScatterplotConfig } from "@protspace/utils";
+import type {
+  VisualizationData,
+  PlotDataPoint,
+  ScatterplotConfig,
+} from "@protspace/utils";
 import { DataProcessor } from "@protspace/utils";
 import { scatterplotStyles } from "./scatter-plot.styles";
 import { DEFAULT_CONFIG } from "./config";
@@ -22,7 +26,7 @@ export class ProtspaceScatterplot extends LitElement {
   // Properties
   @property({ type: Object }) data: VisualizationData | null = null;
   @property({ type: Number }) selectedProjectionIndex = 0;
-  @property({ type: String }) projectionPlane: 'xy' | 'xz' | 'yz' = 'xy';
+  @property({ type: String }) projectionPlane: "xy" | "xz" | "yz" = "xy";
   @property({ type: String }) selectedFeature = "family";
   @property({ type: Array }) highlightedProteinIds: string[] = [];
   @property({ type: Array }) selectedProteinIds: string[] = [];
@@ -36,10 +40,15 @@ export class ProtspaceScatterplot extends LitElement {
 
   // State
   @state() private _plotData: PlotDataPoint[] = [];
-  @state() private _tooltipData: { x: number; y: number; protein: PlotDataPoint } | null = null;
+  @state() private _tooltipData: {
+    x: number;
+    y: number;
+    protein: PlotDataPoint;
+  } | null = null;
   @state() private _mergedConfig = DEFAULT_CONFIG;
   @state() private _transform = d3.zoomIdentity;
-  
+  @state() private _splitHistory: string[][] = [];
+  @state() private _splitMode = false;
 
   // Queries
   @query("canvas") private _canvas?: HTMLCanvasElement;
@@ -49,9 +58,24 @@ export class ProtspaceScatterplot extends LitElement {
   private _quadtreeIndex: QuadtreeIndex = new QuadtreeIndex();
   private resizeObserver: ResizeObserver;
   private _zoom: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null;
-  private _svgSelection: d3.Selection<SVGSVGElement, unknown, null, undefined> | null = null;
-  private _mainGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
-  private _brushGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
+  private _svgSelection: d3.Selection<
+    SVGSVGElement,
+    unknown,
+    null,
+    undefined
+  > | null = null;
+  private _mainGroup: d3.Selection<
+    SVGGElement,
+    unknown,
+    null,
+    undefined
+  > | null = null;
+  private _brushGroup: d3.Selection<
+    SVGGElement,
+    unknown,
+    null,
+    undefined
+  > | null = null;
   private _brush: d3.BrushBehavior<unknown> | null = null;
   private _canvasRenderer: CanvasRenderer | null = null;
   private _zoomRafId: number | null = null;
@@ -84,19 +108,25 @@ export class ProtspaceScatterplot extends LitElement {
   }
 
   updated(changedProperties: Map<string, any>) {
-    if (changedProperties.has("data") || changedProperties.has("selectedProjectionIndex") || changedProperties.has('projectionPlane')) {
+    if (
+      changedProperties.has("data") ||
+      changedProperties.has("selectedProjectionIndex") ||
+      changedProperties.has("projectionPlane")
+    ) {
       this._processData();
       this._buildQuadtree();
       this._canvasRenderer?.invalidatePositionCache();
       this._canvasRenderer?.invalidateStyleCache();
-      
+
       // Dispatch data-change event for auto-sync with control bar and other components
       if (changedProperties.has("data") && this.data) {
-        this.dispatchEvent(new CustomEvent("data-change", {
-          detail: { data: this.data },
-          bubbles: true,
-          composed: true,
-        }));
+        this.dispatchEvent(
+          new CustomEvent("data-change", {
+            detail: { data: this.data },
+            bubbles: true,
+            composed: true,
+          })
+        );
       }
     }
     if (changedProperties.has("config")) {
@@ -107,9 +137,9 @@ export class ProtspaceScatterplot extends LitElement {
       this._canvasRenderer?.setStyleSignature(this._styleSig);
     }
     if (
-      changedProperties.has('selectedFeature') ||
-      changedProperties.has('hiddenFeatureValues') ||
-      changedProperties.has('otherFeatureValues')
+      changedProperties.has("selectedFeature") ||
+      changedProperties.has("hiddenFeatureValues") ||
+      changedProperties.has("otherFeatureValues")
     ) {
       this._buildQuadtree();
       this._canvasRenderer?.invalidateStyleCache();
@@ -118,6 +148,9 @@ export class ProtspaceScatterplot extends LitElement {
     }
     if (changedProperties.has("selectionMode")) {
       this._updateSelectionMode();
+    }
+    if (changedProperties.has("selectedProteinIds")) {
+      this._canvasRenderer?.invalidateStyleCache();
     }
     this._renderPlot();
   }
@@ -151,8 +184,8 @@ export class ProtspaceScatterplot extends LitElement {
     this._plotData = DataProcessor.processVisualizationData(
       dataToUse,
       this.selectedProjectionIndex,
-      false,
-      undefined,
+      this._splitMode,
+      this._splitHistory,
       this.projectionPlane
     );
   }
@@ -166,23 +199,24 @@ export class ProtspaceScatterplot extends LitElement {
 
   private _initializeInteractions() {
     if (!this._svg) return;
-    
+
     this._svgSelection = d3.select(this._svg);
-    
+
     // Clear existing content
     this._svgSelection.selectAll("*").remove();
-    
+
     // Create main container group
     this._mainGroup = this._svgSelection
       .append("g")
       .attr("class", "scatter-plot-container");
-    
+
     // Create brush group
     this._brushGroup = this._svgSelection
       .append("g")
       .attr("class", "brush-container");
 
-    this._zoom = d3.zoom<SVGSVGElement, unknown>()
+    this._zoom = d3
+      .zoom<SVGSVGElement, unknown>()
       .scaleExtent(this._mergedConfig.zoomExtent)
       .on("zoom", (event) => {
         this._transform = event.transform;
@@ -214,7 +248,7 @@ export class ProtspaceScatterplot extends LitElement {
   private _updateSizeAndRender() {
     const width = this.clientWidth || 800;
     const height = this.clientHeight || 600;
-    
+
     if (this._canvas) {
       if (!this._canvasRenderer) {
         this._canvasRenderer = new CanvasRenderer(
@@ -237,12 +271,12 @@ export class ProtspaceScatterplot extends LitElement {
       this._canvasRenderer.setupHighDPICanvas(width, height);
       this._canvasRenderer.invalidatePositionCache();
     }
-    
+
     if (this._svg) {
       this._svg.setAttribute("width", width.toString());
       this._svg.setAttribute("height", height.toString());
     }
-    
+
     this._mergedConfig = { ...this._mergedConfig, width, height };
     this._renderPlot();
   }
@@ -298,8 +332,10 @@ export class ProtspaceScatterplot extends LitElement {
     ];
     const selectedIds: string[] = [];
 
-    this._plotData.forEach((d) => {
-      if (this._getOpacity(d) === 0) return;
+    // Use visible points only for better performance
+    const visiblePoints = this._plotData.filter((d) => this._getOpacity(d) > 0);
+
+    visiblePoints.forEach((d) => {
       const pointX = this._scales!.x(d.x);
       const pointY = this._scales!.y(d.y);
 
@@ -309,8 +345,22 @@ export class ProtspaceScatterplot extends LitElement {
     });
 
     if (selectedIds.length > 0) {
-      this.selectedProteinIds = [...selectedIds];
-      this._dispatchProteinSelection(selectedIds, true);
+      // Batch the updates for better performance
+      requestAnimationFrame(() => {
+        this.selectedProteinIds = [...selectedIds];
+        
+        // Dispatch brush selection event instead of individual protein-click events
+        this.dispatchEvent(new CustomEvent("brush-selection", {
+          detail: { 
+            proteinIds: selectedIds,
+            isMultiple: true 
+          },
+          bubbles: true,
+          composed: true,
+        }));
+        
+        this.requestUpdate(); // Force re-render for highlighting
+      });
     }
 
     // Clear brush selection
@@ -353,8 +403,10 @@ export class ProtspaceScatterplot extends LitElement {
 
     const dataSize = this._plotData.length;
     const config = this._mergedConfig;
-    const useSimpleShapes = dataSize > config.maxPointsForComplexShapes || config.useSimpleShapes;
-    const enableTransitions = config.enableTransitions && dataSize < config.largeDatasetThreshold;
+    const useSimpleShapes =
+      dataSize > config.maxPointsForComplexShapes || config.useSimpleShapes;
+    const enableTransitions =
+      config.enableTransitions && dataSize < config.largeDatasetThreshold;
 
     // Clear any existing points
     this._mainGroup.selectAll(".protein-point").remove();
@@ -381,7 +433,10 @@ export class ProtspaceScatterplot extends LitElement {
     } else {
       enterPoints
         .attr("d", (d) => this._getPointPath(d))
-        .attr("transform", (d) => `translate(${this._scales!.x(d.x)}, ${this._scales!.y(d.y)})`);
+        .attr(
+          "transform",
+          (d) => `translate(${this._scales!.x(d.x)}, ${this._scales!.y(d.y)})`
+        );
     }
 
     enterPoints
@@ -456,7 +511,10 @@ export class ProtspaceScatterplot extends LitElement {
     });
   }
 
-  private _getLocalPointerPosition(event: MouseEvent): { x: number; y: number } {
+  private _getLocalPointerPosition(event: MouseEvent): {
+    x: number;
+    y: number;
+  } {
     const rect = this.getBoundingClientRect();
     return {
       x: event.clientX - rect.left,
@@ -468,43 +526,55 @@ export class ProtspaceScatterplot extends LitElement {
     const { x, y } = this._getLocalPointerPosition(event);
     this._tooltipData = { x, y, protein: point };
 
-    this.dispatchEvent(new CustomEvent("protein-hover", {
-      detail: { proteinId: point.id, point },
-      bubbles: true,
-    }));
+    this.dispatchEvent(
+      new CustomEvent("protein-hover", {
+        detail: { proteinId: point.id, point },
+        bubbles: true,
+      })
+    );
   }
 
   private _handleMouseOut(_event: MouseEvent, _point: PlotDataPoint) {
     this._tooltipData = null;
-    this.dispatchEvent(new CustomEvent("protein-hover", {
-      detail: { proteinId: null },
-      bubbles: true,
-    }));
+    this.dispatchEvent(
+      new CustomEvent("protein-hover", {
+        detail: { proteinId: null },
+        bubbles: true,
+      })
+    );
   }
 
   private _handleClick(event: MouseEvent, point: PlotDataPoint) {
-    this.dispatchEvent(new CustomEvent("protein-click", {
-      detail: {
-        proteinId: point.id,
-        point,
-        modifierKeys: { ctrl: event.ctrlKey, shift: event.shiftKey, alt: event.altKey },
-      },
-      bubbles: true,
-    }));
+    this.dispatchEvent(
+      new CustomEvent("protein-click", {
+        detail: {
+          proteinId: point.id,
+          point,
+          modifierKeys: {
+            ctrl: event.ctrlKey,
+            shift: event.shiftKey,
+            alt: event.altKey,
+          },
+        },
+        bubbles: true,
+      })
+    );
   }
 
   private _dispatchProteinSelection(proteinIds: string[], isMultiple: boolean) {
-    proteinIds.forEach(id => {
-      const point = this._plotData.find(p => p.id === id);
+    proteinIds.forEach((id) => {
+      const point = this._plotData.find((p) => p.id === id);
       if (point) {
-        this.dispatchEvent(new CustomEvent("protein-click", {
-          detail: {
-            proteinId: id,
-            point,
-            modifierKeys: { ctrl: isMultiple, shift: isMultiple, alt: false },
-          },
-          bubbles: true,
-        }));
+        this.dispatchEvent(
+          new CustomEvent("protein-click", {
+            detail: {
+              proteinId: id,
+              point,
+              modifierKeys: { ctrl: isMultiple, shift: isMultiple, alt: false },
+            },
+            bubbles: true,
+          })
+        );
       }
     });
   }
@@ -529,14 +599,18 @@ export class ProtspaceScatterplot extends LitElement {
     if (!this._scales) return;
 
     const [mouseX, mouseY] = d3.pointer(event);
-    
+
     // Transform mouse coordinates to data space
     const dataX = (mouseX - this._transform.x) / this._transform.k;
     const dataY = (mouseY - this._transform.y) / this._transform.k;
 
     // Find nearest point using spatial index
     const searchRadius = 15 / this._transform.k; // Search radius adjusted for zoom
-    const nearestPoint = this._quadtreeIndex.findNearest(dataX, dataY, searchRadius);
+    const nearestPoint = this._quadtreeIndex.findNearest(
+      dataX,
+      dataY,
+      searchRadius
+    );
 
     if (nearestPoint) {
       // Calculate actual distance to verify it's within the point
@@ -546,7 +620,10 @@ export class ProtspaceScatterplot extends LitElement {
         Math.pow(dataX - pointX, 2) + Math.pow(dataY - pointY, 2)
       );
       const exp = this._mergedConfig.zoomSizeScaleExponent ?? 1;
-      const pointRadius = (Math.sqrt(this._getPointSize(nearestPoint)) / 3) / Math.pow(this._transform.k, exp);
+      const pointRadius =
+        Math.sqrt(this._getPointSize(nearestPoint)) /
+        3 /
+        Math.pow(this._transform.k, exp);
 
       if (distance <= pointRadius) {
         this._handleMouseOver(event, nearestPoint);
@@ -567,14 +644,18 @@ export class ProtspaceScatterplot extends LitElement {
     if (!this._scales) return;
 
     const [mouseX, mouseY] = d3.pointer(event);
-    
+
     // Transform mouse coordinates to data space
     const dataX = (mouseX - this._transform.x) / this._transform.k;
     const dataY = (mouseY - this._transform.y) / this._transform.k;
 
     // Find nearest point using spatial index
     const searchRadius = 15 / this._transform.k;
-    const nearestPoint = this._quadtreeIndex.findNearest(dataX, dataY, searchRadius);
+    const nearestPoint = this._quadtreeIndex.findNearest(
+      dataX,
+      dataY,
+      searchRadius
+    );
 
     if (nearestPoint) {
       // Calculate actual distance to verify it's within the point
@@ -584,10 +665,17 @@ export class ProtspaceScatterplot extends LitElement {
         Math.pow(dataX - pointX, 2) + Math.pow(dataY - pointY, 2)
       );
       const exp = this._mergedConfig.zoomSizeScaleExponent ?? 1;
-      const pointRadius = (Math.sqrt(this._getPointSize(nearestPoint)) / 3) / Math.pow(this._transform.k, exp);
+      const pointRadius =
+        Math.sqrt(this._getPointSize(nearestPoint)) /
+        3 /
+        Math.pow(this._transform.k, exp);
 
       if (distance <= pointRadius) {
-        this._handleClick(event, nearestPoint);
+        // Batch updates for better performance
+        requestAnimationFrame(() => {
+          this._handleClick(event, nearestPoint);
+          this.requestUpdate(); // Force re-render for highlighting
+        });
       }
     }
   }
@@ -604,7 +692,7 @@ export class ProtspaceScatterplot extends LitElement {
   // Public API Methods (these were missing in the original but are required by main.ts)
   configurePerformance(dataSize: number, mode: string = "auto") {
     const config = { ...this._mergedConfig };
-    
+
     if (mode === "fast" || dataSize > config.fastRenderingThreshold) {
       this.useCanvas = true;
       this.enableVirtualization = true;
@@ -618,12 +706,180 @@ export class ProtspaceScatterplot extends LitElement {
       config.enableTransitions = false; // Canvas doesn't use transitions
       config.useSimpleShapes = false;
     }
-    
+
     this._mergedConfig = config;
     this.requestUpdate();
   }
 
+  splitDataBySelection() {
+    if (this.selectedProteinIds.length === 0) {
+      console.warn("No proteins selected for splitting");
+      return;
+    }
+
+    const originalSelectionCount = this.selectedProteinIds.length;
+
+    // Validate that selected IDs exist in current plot data
+    const currentIds = new Set(this._plotData.map((p) => p.id));
+    const validSelectedIds = this.selectedProteinIds.filter((id) =>
+      currentIds.has(id)
+    );
+
+    if (validSelectedIds.length === 0) {
+      console.warn("No valid proteins selected for splitting");
+      return;
+    }
+
+    this._splitHistory.push([...validSelectedIds]);
+    this._splitMode = true;
+    this.selectedProteinIds = [];
+
+    // Process data and update rendering
+    this._processData();
+    this._buildQuadtree();
+    
+    // Ensure canvas renderer is completely refreshed
+    if (this._canvasRenderer) {
+      this._canvasRenderer.invalidatePositionCache();
+      this._canvasRenderer.invalidateStyleCache();
+      this._updateStyleSignature();
+      this._canvasRenderer.setStyleSignature(this._styleSig);
+    }
+    
+    // Force immediate component update
+    this.requestUpdate();
+    
+    // Render after all updates are complete
+    this.updateComplete.then(() => {
+      this._renderPlot();
+    });
+
+    this.dispatchEvent(
+      new CustomEvent("data-split", {
+        detail: {
+          splitHistory: this._splitHistory,
+          splitMode: this._splitMode,
+          dataSize: this._plotData.length,
+        },
+        bubbles: true,
+        composed: true,
+      })
+    );
+
+    // Dispatch data-change event to update legend and other auto-sync components
+    this.dispatchEvent(
+      new CustomEvent("data-change", {
+        detail: { 
+          data: this.getCurrentData(),
+          isFiltered: true,
+          splitMode: true 
+        },
+        bubbles: true,
+        composed: true,
+      })
+    );
+
+    // Auto-disable selection mode if only 1 point left
+    if (this._plotData.length <= 1) {
+      this.selectionMode = false;
+      this.dispatchEvent(new CustomEvent("auto-disable-selection", {
+        detail: { reason: "insufficient-data", dataSize: this._plotData.length },
+        bubbles: true,
+        composed: true,
+      }));
+    }
+  }
+
+  resetSplit() {
+    this._splitHistory = [];
+    this._splitMode = false;
+    this.selectedProteinIds = [];
+
+    // Process data and update rendering
+    this._processData();
+    this._buildQuadtree();
+    
+    // Ensure canvas renderer is completely refreshed
+    if (this._canvasRenderer) {
+      this._canvasRenderer.invalidatePositionCache();
+      this._canvasRenderer.invalidateStyleCache();
+      this._updateStyleSignature();
+      this._canvasRenderer.setStyleSignature(this._styleSig);
+    }
+    
+    // Force immediate component update
+    this.requestUpdate();
+    
+    // Render after all updates are complete
+    this.updateComplete.then(() => {
+      this._renderPlot();
+    });
+
+    this.dispatchEvent(
+      new CustomEvent("data-split-reset", {
+        detail: {
+          splitHistory: this._splitHistory,
+          splitMode: this._splitMode,
+          dataSize: this._plotData.length,
+        },
+        bubbles: true,
+        composed: true,
+      })
+    );
+
+    // Dispatch data-change event to update legend back to full data
+    this.dispatchEvent(
+      new CustomEvent("data-change", {
+        detail: { 
+          data: this.getCurrentData(),
+          isFiltered: false,
+          splitMode: false 
+        },
+        bubbles: true,
+        composed: true,
+      })
+    );
+
+  }
+
+  getSplitHistory(): string[][] {
+    return [...this._splitHistory];
+  }
+
+  isSplitMode(): boolean {
+    return this._splitMode;
+  }
+
   getCurrentData(): VisualizationData | null {
+    if (!this.data) return null;
+    
+    // If we're in split mode, return filtered data based on current plot data
+    if (this._splitMode && this._plotData.length > 0) {
+      const currentProteinIds = this._plotData.map(point => point.id);
+      const currentProteinIdsSet = new Set(currentProteinIds);
+      
+      // Filter feature data to match current protein IDs
+      const filteredFeatureData: { [key: string]: number[] } = {};
+      
+      for (const [featureName, featureValues] of Object.entries(this.data.feature_data)) {
+        filteredFeatureData[featureName] = [];
+        
+        // Map original indices to current indices
+        this.data.protein_ids.forEach((proteinId, originalIndex) => {
+          if (currentProteinIdsSet.has(proteinId)) {
+            filteredFeatureData[featureName].push(featureValues[originalIndex]);
+          }
+        });
+      }
+      
+      return {
+        ...this.data,
+        protein_ids: currentProteinIds,
+        feature_data: filteredFeatureData,
+        projections: this.data.projections // Keep original projections
+      };
+    }
+    
     return this.data;
   }
 
@@ -638,32 +894,62 @@ export class ProtspaceScatterplot extends LitElement {
 
   render() {
     const config = this._mergedConfig;
-    
+
     return html`
       <div class="container">
         <!-- Canvas for high-performance rendering (always visible for better performance) -->
-        <canvas 
-          style="position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1;">
+        <canvas
+          style="position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1;"
+        >
         </canvas>
-        
+
         <!-- SVG overlay for interactions and UI elements -->
         <svg
           width="100%"
           height="100%"
           viewBox="0 0 ${config.width} ${config.height}"
-          style="position: absolute; top: 0; left: 0; max-width: ${config.width}px; max-height: ${config.height}px; z-index: 2; background: transparent;">
-        </svg>
-        
-        ${this._tooltipData ? html`
-          <div class="tooltip" style="left: ${this._tooltipData.x + 10}px; top: ${this._tooltipData.y - 60}px; z-index: 10;">
-            <div class="tooltip-protein-id">${this._tooltipData.protein.id}</div>
-            <div class="tooltip-feature">${this.selectedFeature}: ${this._tooltipData.protein.featureValues[this.selectedFeature] || "N\\A"}</div>
-          </div>
-        ` : ""}
-        ${this.selectionMode ? html`
-          <div class="mode-indicator" style="z-index: 10;">Selection Mode</div>
-        ` : ""}
-        
+          style="position: absolute; top: 0; left: 0; max-width: ${config.width}px; max-height: ${config.height}px; z-index: 2; background: transparent;"
+        ></svg>
+
+        ${this._tooltipData
+          ? html`
+              <div
+                class="tooltip"
+                style="left: ${this._tooltipData.x + 10}px; top: ${this
+                  ._tooltipData.y - 60}px; z-index: 10;"
+              >
+                <div class="tooltip-protein-id">
+                  ${this._tooltipData.protein.id}
+                </div>
+                <div class="tooltip-feature">
+                  ${this.selectedFeature}:
+                  ${this._tooltipData.protein.featureValues[
+                    this.selectedFeature
+                  ] || "N\\A"}
+                </div>
+              </div>
+            `
+          : ""}
+        ${this.selectionMode
+          ? html`
+              <div class="mode-indicator" style="z-index: 10; display: flex; flex-direction: column; gap: 4px;">
+                <div>Selection Mode</div>
+                ${this.selectedProteinIds.length > 0
+                  ? html`<div style="font-size: 11px; opacity: 0.8;">${this.selectedProteinIds.length} selected</div>`
+                  : ""}
+              </div>
+            `
+          : ""}
+        ${this._splitMode
+          ? html`
+              <div
+                class="split-indicator"
+                style="z-index: 10; bottom: 10px; right: 10px; position: absolute; background: rgba(59, 130, 246, 0.9); color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;"
+              >
+                ${this._plotData.length} points
+              </div>
+            `
+          : ""}
       </div>
     `;
   }

@@ -10,18 +10,27 @@ import type {
 @customElement("protspace-control-bar")
 export class ProtspaceControlBar extends LitElement {
   @property({ type: Array }) projections: string[] = [];
-  @state() private projectionsMeta: Array<{ name: string; metadata?: { dimension?: 2 | 3 } }> = [];
+  @state() private projectionsMeta: Array<{
+    name: string;
+    metadata?: { dimension?: 2 | 3 };
+  }> = [];
   @property({ type: Array }) features: string[] = [];
   @property({ type: String, attribute: "selected-projection" })
   selectedProjection: string = "";
   @property({ type: String, attribute: "selected-feature" })
   selectedFeature: string = "";
   @property({ type: String, attribute: "projection-plane" })
-  projectionPlane: 'xy' | 'xz' | 'yz' = 'xy';
+  projectionPlane: "xy" | "xz" | "yz" = "xy";
   @property({ type: Boolean, attribute: "selection-mode" })
   selectionMode: boolean = false;
   @property({ type: Number, attribute: "selected-proteins-count" })
   selectedProteinsCount: number = 0;
+  @property({ type: Boolean, attribute: "split-mode" })
+  splitMode: boolean = false;
+  @property({ type: Array, attribute: "split-history" })
+  splitHistory: string[][] = [];
+
+  @state() private _selectionDisabled: boolean = false;
 
   // Auto-sync properties (optional, can be derived from events)
   @property({ type: String, attribute: "scatterplot-selector" })
@@ -32,15 +41,27 @@ export class ProtspaceControlBar extends LitElement {
   @state() private showExportMenu: boolean = false;
   @state() private showFilterMenu: boolean = false;
   @state() private featureValuesMap: Record<string, (string | null)[]> = {};
-  @state() private filterConfig: Record<string, { enabled: boolean; values: (string | null)[] }> = {};
-  @state() private lastAppliedFilterConfig: Record<string, { enabled: boolean; values: (string | null)[] }> = {};
+  @state() private filterConfig: Record<
+    string,
+    { enabled: boolean; values: (string | null)[] }
+  > = {};
+  @state() private lastAppliedFilterConfig: Record<
+    string,
+    { enabled: boolean; values: (string | null)[] }
+  > = {};
   @state() private openValueMenus: Record<string, boolean> = {};
   private _scatterplotElement: ScatterplotElementLike | null = null;
 
   // Stable listeners for proper add/remove
   private _onDocumentClick = (event: Event) => this.handleDocumentClick(event);
   private _onDataChange = (event: Event) => this._handleDataChange(event);
-  private _onProteinClick = (event: Event) => this._handleProteinSelection(event);
+  private _onProteinClick = (event: Event) =>
+    this._handleProteinSelection(event);
+  private _onDataSplit = (event: Event) => this._handleDataSplit(event);
+  private _onDataSplitReset = (event: Event) =>
+    this._handleDataSplitReset(event);
+  private _onAutoDisableSelection = (event: Event) =>
+    this._handleAutoDisableSelection(event);
 
   static styles = controlBarStyles;
 
@@ -60,10 +81,14 @@ export class ProtspaceControlBar extends LitElement {
         this.selectedProjection = target.value;
 
         // If projection is 3D, keep current plane; otherwise, reset to XY
-        const meta = this.projectionsMeta.find(p => p.name === this.selectedProjection);
+        const meta = this.projectionsMeta.find(
+          (p) => p.name === this.selectedProjection
+        );
         const is3D = meta?.metadata?.dimension === 3;
-        const nextPlane: 'xy' | 'xz' | 'yz' = is3D ? this.projectionPlane : 'xy';
-        if ('projectionPlane' in this._scatterplotElement) {
+        const nextPlane: "xy" | "xz" | "yz" = is3D
+          ? this.projectionPlane
+          : "xy";
+        if ("projectionPlane" in this._scatterplotElement) {
           (this._scatterplotElement as any).projectionPlane = nextPlane;
         }
         this.projectionPlane = nextPlane;
@@ -80,12 +105,16 @@ export class ProtspaceControlBar extends LitElement {
 
   private handlePlaneChange(event: Event) {
     const target = event.target as HTMLSelectElement;
-    const plane = target.value as 'xy' | 'xz' | 'yz';
-    if (this.autoSync && this._scatterplotElement && 'projectionPlane' in this._scatterplotElement) {
+    const plane = target.value as "xy" | "xz" | "yz";
+    if (
+      this.autoSync &&
+      this._scatterplotElement &&
+      "projectionPlane" in this._scatterplotElement
+    ) {
       (this._scatterplotElement as any).projectionPlane = plane;
       this.projectionPlane = plane;
     }
-    const customEvent = new CustomEvent('projection-plane-change', {
+    const customEvent = new CustomEvent("projection-plane-change", {
       detail: { plane },
       bubbles: true,
       composed: true,
@@ -117,7 +146,11 @@ export class ProtspaceControlBar extends LitElement {
     this.selectionMode = newSelectionMode;
 
     // If auto-sync is enabled, update the scatterplot BEFORE notifying listeners
-    if (this.autoSync && this._scatterplotElement && "selectionMode" in this._scatterplotElement) {
+    if (
+      this.autoSync &&
+      this._scatterplotElement &&
+      "selectionMode" in this._scatterplotElement
+    ) {
       (this._scatterplotElement as any).selectionMode = newSelectionMode;
     }
 
@@ -129,7 +162,6 @@ export class ProtspaceControlBar extends LitElement {
     });
     this.dispatchEvent(customEvent);
   }
-
 
   private handleClearSelections() {
     const customEvent = new CustomEvent("clear-selections", {
@@ -148,6 +180,38 @@ export class ProtspaceControlBar extends LitElement {
     }
   }
 
+  private handleSplitData() {
+    const customEvent = new CustomEvent("split-data", {
+      detail: {},
+      bubbles: true,
+      composed: true,
+    });
+    this.dispatchEvent(customEvent);
+
+    if (this.autoSync && this._scatterplotElement) {
+      if ("splitDataBySelection" in this._scatterplotElement) {
+        (this._scatterplotElement as any).splitDataBySelection();
+      }
+    }
+  }
+
+  private handleResetSplit() {
+    const customEvent = new CustomEvent("reset-split", {
+      detail: {},
+      bubbles: true,
+      composed: true,
+    });
+    this.dispatchEvent(customEvent);
+
+    if (this.autoSync && this._scatterplotElement) {
+      if ("resetSplit" in this._scatterplotElement) {
+        (this._scatterplotElement as any).resetSplit();
+        this.splitMode = false;
+        this.splitHistory = [];
+      }
+    }
+  }
+
   private handleExport(type: "json" | "ids" | "png" | "pdf") {
     const customEvent = new CustomEvent("export", {
       detail: { type },
@@ -161,8 +225,6 @@ export class ProtspaceControlBar extends LitElement {
   private toggleExportMenu() {
     this.showExportMenu = !this.showExportMenu;
   }
-
-  
 
   render() {
     return html`
@@ -185,18 +247,26 @@ export class ProtspaceControlBar extends LitElement {
           </div>
 
           ${(() => {
-            const meta = this.projectionsMeta.find(p => p.name === this.selectedProjection);
+            const meta = this.projectionsMeta.find(
+              (p) => p.name === this.selectedProjection
+            );
             const is3D = meta?.metadata?.dimension === 3;
-            return is3D ? html`
-              <div class="control-group">
-                <label for="plane-select">Plane:</label>
-                <select id="plane-select" .value=${this.projectionPlane} @change=${this.handlePlaneChange}>
-                  <option value="xy">XY</option>
-                  <option value="xz">XZ</option>
-                  <option value="yz">YZ</option>
-                </select>
-              </div>
-            ` : null;
+            return is3D
+              ? html`
+                  <div class="control-group">
+                    <label for="plane-select">Plane:</label>
+                    <select
+                      id="plane-select"
+                      .value=${this.projectionPlane}
+                      @change=${this.handlePlaneChange}
+                    >
+                      <option value="xy">XY</option>
+                      <option value="xz">XZ</option>
+                      <option value="yz">YZ</option>
+                    </select>
+                  </div>
+                `
+              : null;
           })()}
 
           <!-- Feature selection -->
@@ -219,8 +289,9 @@ export class ProtspaceControlBar extends LitElement {
           <!-- Selection mode toggle -->
           <button
             class=${this.selectionMode ? "active" : ""}
+            ?disabled=${this._selectionDisabled}
             @click=${this.handleToggleSelectionMode}
-            title="Select proteins by clicking or dragging to enclose multiple points"
+            title=${this._selectionDisabled ? "Selection disabled: Insufficient data points" : "Select proteins by clicking or dragging to enclose multiple points"}
           >
             <svg class="icon" viewBox="0 0 24 24">
               <rect
@@ -258,69 +329,217 @@ export class ProtspaceControlBar extends LitElement {
             Clear
           </button>
 
+          <!-- Split data button -->
+          <button
+            ?disabled=${this.selectedProteinsCount === 0}
+            @click=${this.handleSplitData}
+            title="Split data to show only selected proteins"
+          >
+            <svg class="icon" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
+            </svg>
+            Split
+          </button>
+
+          <!-- Reset split button -->
+          ${this.splitMode
+            ? html`
+                <button
+                  @click=${this.handleResetSplit}
+                  title="Reset to original dataset"
+                  class="active"
+                >
+                  <svg class="icon" viewBox="0 0 24 24">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0V9a8.002 8.002 0 0115.356 2m-15.356-2L4 4m15.356 6l2.5-2.5"
+                    />
+                  </svg>
+                  Reset
+                </button>
+              `
+            : ""}
+
           <!-- Filter dropdown -->
           <div class="export-container">
-            <button class=${this.showFilterMenu ? "active" : ""} @click=${this.toggleFilterMenu} title="Filter Options">
+            <button
+              class=${this.showFilterMenu ? "active" : ""}
+              @click=${this.toggleFilterMenu}
+              title="Filter Options"
+            >
               <svg class="icon" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3 5h18M6 12h12M10 19h4" />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M3 5h18M6 12h12M10 19h4"
+                />
               </svg>
               Filter
               <svg class="chevron-down" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M19 9l-7 7-7-7"
+                />
               </svg>
             </button>
 
             ${this.showFilterMenu
               ? html`
-                  <div class="export-menu" style="width: 22rem; max-height: 22rem; overflow: auto;">
-                    <div style="padding: 0.5rem 0.75rem; font-weight: 600; color: var(--up-muted);"></div>
+                  <div
+                    class="export-menu"
+                    style="width: 22rem; max-height: 22rem; overflow: auto;"
+                  >
+                    <div
+                      style="padding: 0.5rem 0.75rem; font-weight: 600; color: var(--up-muted);"
+                    ></div>
                     <ul>
                       ${this.features.map((feature) => {
-                        const cfg = this.filterConfig[feature] || { enabled: false, values: [] };
+                        const cfg = this.filterConfig[feature] || {
+                          enabled: false,
+                          values: [],
+                        };
                         const values = this.featureValuesMap[feature] || [];
-                        return html`
-                          <li style="padding: 0.25rem 0.75rem; display:flex; align-items:center; gap:0.5rem; position: relative;">
-                            <input type="checkbox" .checked=${cfg.enabled} @change=${(e: Event) => {
+                        return html` <li
+                          style="padding: 0.25rem 0.75rem; display:flex; align-items:center; gap:0.5rem; position: relative;"
+                        >
+                          <input
+                            type="checkbox"
+                            .checked=${cfg.enabled}
+                            @change=${(e: Event) => {
                               const target = e.target as HTMLInputElement;
                               this.handleFilterToggle(feature, target.checked);
-                            }} />
-                            <div class="filter-label" style="flex: 1; min-width: 7rem;">${feature}</div>
-                            <button ?disabled=${!cfg.enabled} @click=${() => this.toggleValueMenu(feature)} style="padding: 0.25rem 0.5rem; border: 1px solid var(--up-border); border-radius: 0.25rem;">
-                              ${cfg.values && cfg.values.length > 0 ? `${cfg.values.length} selected` : 'Select values'}
-                              <svg class="chevron-down" viewBox="0 0 24 24" style="vertical-align: middle;">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </button>
-                            ${this.openValueMenus[feature] && cfg.enabled ? html`
-                              <div class="export-menu" style="position:absolute; right:0; top: 2rem; width: 16rem; max-height: 14rem; overflow:auto;">
-                                <div style="display:flex; justify-content: space-between; gap: 0.5rem; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--up-border);">
-                                  <button @click=${() => this.selectAllValues(feature)} style="padding: 0.25rem 0.5rem; border: 1px solid var(--up-border); border-radius: 0.25rem;">Select all</button>
-                                  <button @click=${() => this.clearAllValues(feature)} style="padding: 0.25rem 0.5rem; border: 1px solid var(--up-border); border-radius: 0.25rem;">None</button>
+                            }}
+                          />
+                          <div
+                            class="filter-label"
+                            style="flex: 1; min-width: 7rem;"
+                          >
+                            ${feature}
+                          </div>
+                          <button
+                            ?disabled=${!cfg.enabled}
+                            @click=${() => this.toggleValueMenu(feature)}
+                            style="padding: 0.25rem 0.5rem; border: 1px solid var(--up-border); border-radius: 0.25rem;"
+                          >
+                            ${cfg.values && cfg.values.length > 0
+                              ? `${cfg.values.length} selected`
+                              : "Select values"}
+                            <svg
+                              class="chevron-down"
+                              viewBox="0 0 24 24"
+                              style="vertical-align: middle;"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M19 9l-7 7-7-7"
+                              />
+                            </svg>
+                          </button>
+                          ${this.openValueMenus[feature] && cfg.enabled
+                            ? html`
+                                <div
+                                  class="export-menu"
+                                  style="position:absolute; right:0; top: 2rem; width: 16rem; max-height: 14rem; overflow:auto;"
+                                >
+                                  <div
+                                    style="display:flex; justify-content: space-between; gap: 0.5rem; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--up-border);"
+                                  >
+                                    <button
+                                      @click=${() =>
+                                        this.selectAllValues(feature)}
+                                      style="padding: 0.25rem 0.5rem; border: 1px solid var(--up-border); border-radius: 0.25rem;"
+                                    >
+                                      Select all
+                                    </button>
+                                    <button
+                                      @click=${() =>
+                                        this.clearAllValues(feature)}
+                                      style="padding: 0.25rem 0.5rem; border: 1px solid var(--up-border); border-radius: 0.25rem;"
+                                    >
+                                      None
+                                    </button>
+                                  </div>
+                                  <div style="padding: 0.25rem 0.25rem;">
+                                    <label
+                                      style="display:flex; align-items:center; gap: 0.5rem; padding: 0.25rem 0.5rem;"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        .checked=${(cfg.values || []).includes(
+                                          null
+                                        )}
+                                        @change=${(e: Event) =>
+                                          this.handleValueToggle(
+                                            feature,
+                                            null,
+                                            (e.target as HTMLInputElement)
+                                              .checked
+                                          )}
+                                      />
+                                      <span>N/A</span>
+                                    </label>
+                                    ${Array.from(
+                                      new Set(values.filter((v) => v !== null))
+                                    ).map(
+                                      (v) => html`
+                                        <label
+                                          style="display:flex; align-items:center; gap: 0.5rem; padding: 0.25rem 0.5rem;"
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            .checked=${(
+                                              cfg.values || []
+                                            ).includes(String(v))}
+                                            @change=${(e: Event) =>
+                                              this.handleValueToggle(
+                                                feature,
+                                                String(v),
+                                                (e.target as HTMLInputElement)
+                                                  .checked
+                                              )}
+                                          />
+                                          <span>${String(v)}</span>
+                                        </label>
+                                      `
+                                    )}
+                                  </div>
+                                  <div
+                                    style="padding: 0.5rem 0.75rem; border-top: 1px solid var(--up-border); text-align: right;"
+                                  >
+                                    <button
+                                      @click=${() =>
+                                        this.toggleValueMenu(feature)}
+                                      style="padding: 0.25rem 0.5rem; border: 1px solid var(--up-border); border-radius: 0.25rem;"
+                                    >
+                                      Done
+                                    </button>
+                                  </div>
                                 </div>
-                                <div style="padding: 0.25rem 0.25rem;">
-                                  <label style="display:flex; align-items:center; gap: 0.5rem; padding: 0.25rem 0.5rem;">
-                                    <input type="checkbox" .checked=${(cfg.values || []).includes(null)} @change=${(e: Event) => this.handleValueToggle(feature, null, (e.target as HTMLInputElement).checked)} />
-                                    <span>N/A</span>
-                                  </label>
-                                  ${Array.from(new Set(values.filter(v => v !== null)))
-                                    .map(v => html`
-                                      <label style="display:flex; align-items:center; gap: 0.5rem; padding: 0.25rem 0.5rem;">
-                                        <input type="checkbox" .checked=${(cfg.values || []).includes(String(v))} @change=${(e: Event) => this.handleValueToggle(feature, String(v), (e.target as HTMLInputElement).checked)} />
-                                        <span>${String(v)}</span>
-                                      </label>
-                                    `)}
-                                </div>
-                                <div style="padding: 0.5rem 0.75rem; border-top: 1px solid var(--up-border); text-align: right;">
-                                  <button @click=${() => this.toggleValueMenu(feature)} style="padding: 0.25rem 0.5rem; border: 1px solid var(--up-border); border-radius: 0.25rem;">Done</button>
-                                </div>
-                              </div>
-                            ` : ''}
-                          </li>`;
+                              `
+                            : ""}
+                        </li>`;
                       })}
                     </ul>
-                    <div style="display:flex; gap:8px; justify-content:flex-end; padding: 0.5rem 0.75rem;">
-                      <button @click=${() => { this.showFilterMenu = false; }}>Cancel</button>
-                      <button @click=${this.applyFilters} class="active">Apply</button>
+                    <div
+                      style="display:flex; gap:8px; justify-content:flex-end; padding: 0.5rem 0.75rem;"
+                    >
+                      <button
+                        @click=${() => {
+                          this.showFilterMenu = false;
+                        }}
+                      >
+                        Cancel
+                      </button>
+                      <button @click=${this.applyFilters} class="active">
+                        Apply
+                      </button>
                     </div>
                   </div>
                 `
@@ -404,6 +623,18 @@ export class ProtspaceControlBar extends LitElement {
         "protein-click",
         this._onProteinClick
       );
+      this._scatterplotElement.removeEventListener(
+        "data-split",
+        this._onDataSplit
+      );
+      this._scatterplotElement.removeEventListener(
+        "data-split-reset",
+        this._onDataSplitReset
+      );
+      this._scatterplotElement.removeEventListener(
+        "auto-disable-selection",
+        this._onAutoDisableSelection
+      );
     }
   }
 
@@ -423,7 +654,6 @@ export class ProtspaceControlBar extends LitElement {
       ) as ScatterplotElementLike | null;
 
       if (this._scatterplotElement) {
-
         // Listen for data changes
         this._scatterplotElement.addEventListener(
           "data-change",
@@ -434,6 +664,22 @@ export class ProtspaceControlBar extends LitElement {
         this._scatterplotElement.addEventListener(
           "protein-click",
           this._onProteinClick
+        );
+
+        // Listen for data split events
+        this._scatterplotElement.addEventListener(
+          "data-split",
+          this._onDataSplit
+        );
+
+        this._scatterplotElement.addEventListener(
+          "data-split-reset",
+          this._onDataSplitReset
+        );
+
+        this._scatterplotElement.addEventListener(
+          "auto-disable-selection",
+          this._onAutoDisableSelection
         );
 
         // Initial sync after a short delay to ensure scatterplot is ready
@@ -480,8 +726,6 @@ export class ProtspaceControlBar extends LitElement {
     this.requestUpdate();
   }
 
-  
-
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private _handleProteinSelection(_event: Event) {
     // Update selected proteins count when proteins are selected/deselected
@@ -490,9 +734,76 @@ export class ProtspaceControlBar extends LitElement {
       "selectedProteinIds" in this._scatterplotElement
     ) {
       const selectedIds =
-        (this._scatterplotElement as ScatterplotElementLike).selectedProteinIds || [];
+        (this._scatterplotElement as ScatterplotElementLike)
+          .selectedProteinIds || [];
       this.selectedProteinsCount = selectedIds.length;
       this.requestUpdate();
+    }
+  }
+
+  private _handleDataSplit(event: Event) {
+    const customEvent = event as CustomEvent;
+    const { splitHistory, splitMode } = customEvent.detail;
+    this.splitHistory = splitHistory;
+    this.splitMode = splitMode;
+    this.selectedProteinsCount = 0;
+    this.requestUpdate();
+  }
+
+  private _handleDataSplitReset(event: Event) {
+    const customEvent = event as CustomEvent;
+    const { splitHistory, splitMode } = customEvent.detail;
+    this.splitHistory = splitHistory;
+    this.splitMode = splitMode;
+    this.selectedProteinsCount = 0;
+    
+    // Re-enable selection when split is reset (back to full data)
+    this._selectionDisabled = false;
+    
+    this.requestUpdate();
+  }
+
+  private _handleAutoDisableSelection(event: Event) {
+    const customEvent = event as CustomEvent;
+    const { reason, dataSize } = customEvent.detail;
+    this.selectionMode = false;
+    
+    // Disable the selection mode toggle when insufficient data
+    if (reason === "insufficient-data" && dataSize <= 1) {
+      this._selectionDisabled = true;
+    }
+    
+    this.requestUpdate();
+    
+    // Show a brief notification
+    if (reason === "insufficient-data") {
+      const notification = document.createElement("div");
+      notification.style.cssText = `
+        position: fixed; top: 20px; right: 20px; z-index: 10000;
+        background: rgba(255, 193, 7, 0.9); color: #856404; padding: 12px 16px;
+        border-radius: 6px; font-size: 14px; max-width: 300px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        animation: slideIn 0.3s ease;
+      `;
+      notification.innerHTML = `Selection mode disabled: Only ${dataSize} point${dataSize !== 1 ? 's' : ''} remaining`;
+      
+      const style = document.createElement("style");
+      style.textContent = `
+        @keyframes slideIn {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+      `;
+      document.head.appendChild(style);
+      document.body.appendChild(notification);
+      
+      setTimeout(() => {
+        notification.style.animation = "slideIn 0.3s ease reverse";
+        setTimeout(() => {
+          notification.remove();
+          style.remove();
+        }, 300);
+      }, 3000);
     }
   }
 
@@ -509,11 +820,12 @@ export class ProtspaceControlBar extends LitElement {
     ) {
       this.selectedProjection = this.projections[0] || "";
     }
-    if (!this.selectedFeature || !this.features.includes(this.selectedFeature)) {
+    if (
+      !this.selectedFeature ||
+      !this.features.includes(this.selectedFeature)
+    ) {
       this.selectedFeature = this.features[0] || "";
     }
-
-
   }
 
   private _syncWithScatterplot() {
@@ -528,10 +840,9 @@ export class ProtspaceControlBar extends LitElement {
       }
 
       if (data) {
-
         // Extract projections and features
         this._updateOptionsFromData(data);
-        
+
         // Build feature values map for filter UI
         try {
           const features = (data as any).features || {};
@@ -570,7 +881,9 @@ export class ProtspaceControlBar extends LitElement {
         }
 
         if ("selectedProjectionIndex" in scatterplot) {
-          const projIndex = scatterplot.selectedProjectionIndex as number | undefined;
+          const projIndex = scatterplot.selectedProjectionIndex as
+            | number
+            | undefined;
           if (
             typeof projIndex === "number" &&
             projIndex >= 0 &&
@@ -590,6 +903,20 @@ export class ProtspaceControlBar extends LitElement {
           ).length;
         }
 
+        if (
+          "isSplitMode" in scatterplot &&
+          typeof scatterplot.isSplitMode === "function"
+        ) {
+          this.splitMode = scatterplot.isSplitMode();
+        }
+
+        if (
+          "getSplitHistory" in scatterplot &&
+          typeof scatterplot.getSplitHistory === "function"
+        ) {
+          this.splitHistory = scatterplot.getSplitHistory();
+        }
+
         // Set defaults if not already set
         if (!this.selectedProjection && this.projections.length > 0) {
           this.selectedProjection = this.projections[0];
@@ -597,8 +924,6 @@ export class ProtspaceControlBar extends LitElement {
         if (!this.selectedFeature && this.features.length > 0) {
           this.selectedFeature = this.features[0];
         }
-
-        
 
         this.requestUpdate();
       }
@@ -610,7 +935,10 @@ export class ProtspaceControlBar extends LitElement {
     this.showFilterMenu = opening;
     if (opening) {
       // Restore last applied configuration if available
-      if (this.lastAppliedFilterConfig && Object.keys(this.lastAppliedFilterConfig).length > 0) {
+      if (
+        this.lastAppliedFilterConfig &&
+        Object.keys(this.lastAppliedFilterConfig).length > 0
+      ) {
         const merged: typeof this.filterConfig = { ...this.filterConfig };
         for (const key of Object.keys(this.lastAppliedFilterConfig)) {
           const prev = merged[key] || { enabled: false, values: [] };
@@ -624,36 +952,71 @@ export class ProtspaceControlBar extends LitElement {
   }
 
   private handleFilterToggle(feature: string, enabled: boolean) {
-    const current = this.filterConfig[feature] || { enabled: false, values: [] };
-    this.filterConfig = { ...this.filterConfig, [feature]: { ...current, enabled } };
-    if (!enabled) this.openValueMenus = { ...this.openValueMenus, [feature]: false };
+    const current = this.filterConfig[feature] || {
+      enabled: false,
+      values: [],
+    };
+    this.filterConfig = {
+      ...this.filterConfig,
+      [feature]: { ...current, enabled },
+    };
+    if (!enabled)
+      this.openValueMenus = { ...this.openValueMenus, [feature]: false };
   }
 
   private toggleValueMenu(feature: string) {
-    this.openValueMenus = { ...this.openValueMenus, [feature]: !this.openValueMenus[feature] };
+    this.openValueMenus = {
+      ...this.openValueMenus,
+      [feature]: !this.openValueMenus[feature],
+    };
   }
 
-  private handleValueToggle(feature: string, value: string | null, checked: boolean) {
-    const current = this.filterConfig[feature] || { enabled: false, values: [] };
+  private handleValueToggle(
+    feature: string,
+    value: string | null,
+    checked: boolean
+  ) {
+    const current = this.filterConfig[feature] || {
+      enabled: false,
+      values: [],
+    };
     const next = new Set(current.values || []);
     if (checked) next.add(value);
     else next.delete(value);
-    this.filterConfig = { ...this.filterConfig, [feature]: { ...current, values: Array.from(next) } };
+    this.filterConfig = {
+      ...this.filterConfig,
+      [feature]: { ...current, values: Array.from(next) },
+    };
   }
 
   private selectAllValues(feature: string) {
     const all = this.featureValuesMap[feature] || [];
-    const current = this.filterConfig[feature] || { enabled: false, values: [] };
-    this.filterConfig = { ...this.filterConfig, [feature]: { ...current, values: Array.from(new Set(all)) } };
+    const current = this.filterConfig[feature] || {
+      enabled: false,
+      values: [],
+    };
+    this.filterConfig = {
+      ...this.filterConfig,
+      [feature]: { ...current, values: Array.from(new Set(all)) },
+    };
   }
 
   private clearAllValues(feature: string) {
-    const current = this.filterConfig[feature] || { enabled: false, values: [] };
-    this.filterConfig = { ...this.filterConfig, [feature]: { ...current, values: [] } };
+    const current = this.filterConfig[feature] || {
+      enabled: false,
+      values: [],
+    };
+    this.filterConfig = {
+      ...this.filterConfig,
+      [feature]: { ...current, values: [] },
+    };
   }
 
   private applyFilters() {
-    if (!this._scatterplotElement || !("getCurrentData" in this._scatterplotElement)) {
+    if (
+      !this._scatterplotElement ||
+      !("getCurrentData" in this._scatterplotElement)
+    ) {
       return;
     }
     const sp = this._scatterplotElement as any;
@@ -662,8 +1025,14 @@ export class ProtspaceControlBar extends LitElement {
 
     // Collect active filters
     const activeFilters = Object.entries(this.filterConfig)
-      .filter(([, cfg]) => cfg.enabled && Array.isArray(cfg.values) && cfg.values.length > 0)
-      .map(([feature, cfg]) => ({ feature, values: cfg.values as (string | null)[] }));
+      .filter(
+        ([, cfg]) =>
+          cfg.enabled && Array.isArray(cfg.values) && cfg.values.length > 0
+      )
+      .map(([feature, cfg]) => ({
+        feature,
+        values: cfg.values as (string | null)[],
+      }));
 
     if (activeFilters.length === 0) {
       this.showFilterMenu = false;
@@ -671,18 +1040,29 @@ export class ProtspaceControlBar extends LitElement {
     }
 
     // Compute membership for each protein
-    const numProteins: number = Array.isArray(data.protein_ids) ? data.protein_ids.length : 0;
+    const numProteins: number = Array.isArray(data.protein_ids)
+      ? data.protein_ids.length
+      : 0;
     const indices: number[] = new Array(numProteins);
 
     for (let i = 0; i < numProteins; i++) {
       let isMatch = true;
       for (const { feature, values } of activeFilters) {
-        const featureIdxArr: number[] | undefined = data.feature_data?.[feature];
-        const valuesArr: (string | null)[] | undefined = data.features?.[feature]?.values;
-        if (!featureIdxArr || !valuesArr) { isMatch = false; break; }
+        const featureIdxArr: number[] | undefined =
+          data.feature_data?.[feature];
+        const valuesArr: (string | null)[] | undefined =
+          data.features?.[feature]?.values;
+        if (!featureIdxArr || !valuesArr) {
+          isMatch = false;
+          break;
+        }
         const vi = featureIdxArr[i];
-        const v = (vi != null && vi >= 0 && vi < valuesArr.length) ? valuesArr[vi] : null;
-        if (!values.some((allowed) => allowed === v)) { isMatch = false; break; }
+        const v =
+          vi != null && vi >= 0 && vi < valuesArr.length ? valuesArr[vi] : null;
+        if (!values.some((allowed) => allowed === v)) {
+          isMatch = false;
+          break;
+        }
       }
       // 0 => Filtered Proteins, 1 => Other Proteins
       indices[i] = isMatch ? 0 : 1;
@@ -698,29 +1078,45 @@ export class ProtspaceControlBar extends LitElement {
     };
     const newFeatureData = { ...data.feature_data, [customName]: indices };
 
-    const newData = { ...data, features: newFeatures, feature_data: newFeatureData };
+    const newData = {
+      ...data,
+      features: newFeatures,
+      feature_data: newFeatureData,
+    };
 
-    this.lastAppliedFilterConfig = JSON.parse(JSON.stringify(this.filterConfig));
+    this.lastAppliedFilterConfig = JSON.parse(
+      JSON.stringify(this.filterConfig)
+    );
 
     // Apply to scatterplot and select the Custom feature
     sp.data = newData;
     if ("selectedFeature" in sp) sp.selectedFeature = customName;
     this.features = Object.keys(newData.features || {});
     this.selectedFeature = customName;
-    this.featureValuesMap = { ...this.featureValuesMap, [customName]: newFeatures[customName].values as unknown as (string | null)[] };
+    this.featureValuesMap = {
+      ...this.featureValuesMap,
+      [customName]: newFeatures[customName].values as unknown as (
+        | string
+        | null
+      )[],
+    };
     this.updateComplete.then(() => {
-      const featureSelect = this.renderRoot?.querySelector('#feature-select') as HTMLSelectElement | null;
+      const featureSelect = this.renderRoot?.querySelector(
+        "#feature-select"
+      ) as HTMLSelectElement | null;
       if (featureSelect && featureSelect.value !== customName) {
         featureSelect.value = customName;
       }
     });
 
     // Let listeners know the feature changed to Custom
-    this.dispatchEvent(new CustomEvent("feature-change", {
-      detail: { feature: customName },
-      bubbles: true,
-      composed: true,
-    }));
+    this.dispatchEvent(
+      new CustomEvent("feature-change", {
+        detail: { feature: customName },
+        bubbles: true,
+        composed: true,
+      })
+    );
 
     this.showFilterMenu = false;
   }

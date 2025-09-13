@@ -106,16 +106,16 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
         return 0;
       }
     }
-    if (
-      styleConfig.highlightedProteinIds.includes(point.id) ||
-      styleConfig.selectedProteinIds.includes(point.id)
-    ) {
+    
+    const isSelected = styleConfig.selectedProteinIds.includes(point.id);
+    const isHighlighted = styleConfig.highlightedProteinIds.includes(point.id);
+    const hasSelection = styleConfig.selectedProteinIds.length > 0;
+    
+    
+    if (isSelected || isHighlighted) {
       return styleConfig.opacities.selected;
     }
-    if (
-      styleConfig.selectedProteinIds.length > 0 &&
-      !styleConfig.selectedProteinIds.includes(point.id)
-    ) {
+    if (hasSelection && !isSelected) {
       return styleConfig.opacities.faded;
     }
     return styleConfig.opacities.base;
