@@ -246,7 +246,7 @@ export class CanvasRenderer {
         ctx.fill();
         if (group.strokeWidth > 0) {
           ctx.save();
-          ctx.globalAlpha = 0.35 * group.opacity;
+          ctx.globalAlpha = group.strokeWidth > 2 ? group.opacity : 0.35 * group.opacity;
           ctx.stroke();
           ctx.restore();
         }
@@ -264,7 +264,7 @@ export class CanvasRenderer {
         ctx.fill(combinedPath);
         if (group.strokeWidth > 0) {
           ctx.save();
-          ctx.globalAlpha = 0.35 * group.opacity;
+          ctx.globalAlpha = group.strokeWidth > 2 ? group.opacity : 0.35 * group.opacity;
           ctx.stroke(combinedPath);
           ctx.restore();
         }

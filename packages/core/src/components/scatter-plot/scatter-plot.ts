@@ -39,6 +39,8 @@ export class ProtspaceScatterplot extends LitElement {
   @state() private _tooltipData: { x: number; y: number; protein: PlotDataPoint } | null = null;
   @state() private _mergedConfig = DEFAULT_CONFIG;
   @state() private _transform = d3.zoomIdentity;
+  @state() private _splitHistory: string[][] = [];
+  @state() private _splitMode = false;
   
 
   // Queries
@@ -229,8 +231,8 @@ export class ProtspaceScatterplot extends LitElement {
     this._plotData = DataProcessor.processVisualizationData(
       dataToUse,
       this.selectedProjectionIndex,
-      false,
-      undefined,
+      this._splitMode,
+      this._splitHistory,
       this.projectionPlane
     );
   }
@@ -411,8 +413,22 @@ export class ProtspaceScatterplot extends LitElement {
     });
 
     if (selectedIds.length > 0) {
-      this.selectedProteinIds = [...selectedIds];
-      this._dispatchProteinSelection(selectedIds, true);
+      // Batch the updates for better performance
+      requestAnimationFrame(() => {
+        this.selectedProteinIds = [...selectedIds];
+        
+        // Dispatch brush selection event instead of individual protein-click events
+        this.dispatchEvent(new CustomEvent("brush-selection", {
+          detail: { 
+            proteinIds: selectedIds,
+            isMultiple: true 
+          },
+          bubbles: true,
+          composed: true,
+        }));
+        
+        this.requestUpdate(); // Force re-render for highlighting
+      });
     }
 
     // Clear brush selection
@@ -814,7 +830,20 @@ export class ProtspaceScatterplot extends LitElement {
           </div>
         ` : ""}
         ${this.selectionMode ? html`
-          <div class="mode-indicator" style="z-index: 10;">Selection Mode</div>
+          <div class="mode-indicator" style="z-index: 10; display: flex; flex-direction: column; gap: 4px;">
+            <div>Selection Mode</div>
+            ${this.selectedProteinIds.length > 0
+              ? html`<div style="font-size: 11px; opacity: 0.8;">${this.selectedProteinIds.length} selected</div>`
+              : ""}
+          </div>
+        ` : ""}
+        ${this._splitMode ? html`
+          <div
+            class="split-indicator"
+            style="z-index: 10; bottom: 10px; right: 10px; position: absolute; background: rgba(59, 130, 246, 0.9); color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;"
+          >
+            ${this._plotData.length} points
+          </div>
         ` : ""}
         
       </div>
@@ -831,6 +860,172 @@ export class ProtspaceScatterplot extends LitElement {
       `sh:${this.useShapes ? 1 : 0}`,
     ];
     this._styleSig = parts.join("|");
+  }
+
+  splitDataBySelection() {
+    if (!this.data || this.selectedProteinIds.length === 0) {
+      return;
+    }
+
+    // Validate selected IDs against current plot data
+    const currentProteinIds = new Set(this._plotData.map(point => point.id));
+    const validSelectedIds = this.selectedProteinIds.filter(id => currentProteinIds.has(id));
+    
+    if (validSelectedIds.length === 0) {
+      return;
+    }
+
+    // Add valid selection to split history
+    this._splitHistory.push(validSelectedIds);
+    this._splitMode = true;
+    this.selectedProteinIds = [];
+
+    // Process data and update rendering
+    this._processData();
+    this._buildQuadtree();
+    
+    // Ensure canvas renderer is completely refreshed
+    if (this._canvasRenderer) {
+      this._canvasRenderer.invalidatePositionCache();
+      this._canvasRenderer.invalidateStyleCache();
+      this._updateStyleSignature();
+      this._canvasRenderer.setStyleSignature(this._styleSig);
+    }
+    
+    // Force immediate component update
+    this.requestUpdate();
+    
+    // Render after all updates are complete
+    this.updateComplete.then(() => {
+      this._renderPlot();
+    });
+
+    this.dispatchEvent(
+      new CustomEvent("data-split", {
+        detail: { 
+          splitHistory: this._splitHistory,
+          splitMode: this._splitMode,
+          dataSize: this._plotData.length,
+        },
+        bubbles: true,
+        composed: true,
+      })
+    );
+
+    // Dispatch data-change event to update legend and other auto-sync components
+    this.dispatchEvent(
+      new CustomEvent("data-change", {
+        detail: { 
+          data: this.getCurrentData(),
+          isFiltered: true,
+          splitMode: true 
+        },
+        bubbles: true,
+        composed: true,
+      })
+    );
+
+    // Auto-disable selection mode if only 1 point left
+    if (this._plotData.length <= 1) {
+      this.selectionMode = false;
+      this.dispatchEvent(new CustomEvent("auto-disable-selection", {
+        detail: { reason: "insufficient-data", dataSize: this._plotData.length },
+        bubbles: true,
+        composed: true,
+      }));
+    }
+  }
+
+  resetSplit() {
+    this._splitHistory = [];
+    this._splitMode = false;
+    this.selectedProteinIds = [];
+
+    // Process data and update rendering
+    this._processData();
+    this._buildQuadtree();
+    
+    // Ensure canvas renderer is completely refreshed
+    if (this._canvasRenderer) {
+      this._canvasRenderer.invalidatePositionCache();
+      this._canvasRenderer.invalidateStyleCache();
+      this._updateStyleSignature();
+      this._canvasRenderer.setStyleSignature(this._styleSig);
+    }
+    
+    // Force immediate component update
+    this.requestUpdate();
+    
+    // Render after all updates are complete
+    this.updateComplete.then(() => {
+      this._renderPlot();
+    });
+
+    this.dispatchEvent(
+      new CustomEvent("data-split-reset", {
+        detail: {
+          splitHistory: this._splitHistory,
+          splitMode: this._splitMode,
+          dataSize: this._plotData.length,
+        },
+        bubbles: true,
+        composed: true,
+      })
+    );
+
+    // Dispatch data-change event to update legend back to full data
+    this.dispatchEvent(
+      new CustomEvent("data-change", {
+        detail: { 
+          data: this.getCurrentData(),
+          isFiltered: false,
+          splitMode: false 
+        },
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
+  getSplitHistory(): string[][] {
+    return [...this._splitHistory];
+  }
+
+  isSplitMode(): boolean {
+    return this._splitMode;
+  }
+
+  getCurrentData(): VisualizationData | null {
+    if (!this.data) return null;
+    
+    // If we're in split mode, return filtered data based on current plot data
+    if (this._splitMode && this._plotData.length > 0) {
+      const currentProteinIds = this._plotData.map(point => point.id);
+      const currentProteinIdsSet = new Set(currentProteinIds);
+      
+      // Filter feature data to match current protein IDs
+      const filteredFeatureData: { [key: string]: number[] } = {};
+      
+      for (const [featureName, featureValues] of Object.entries(this.data.feature_data)) {
+        filteredFeatureData[featureName] = [];
+        
+        // Map original indices to current indices
+        this.data.protein_ids.forEach((proteinId, originalIndex) => {
+          if (currentProteinIdsSet.has(proteinId)) {
+            filteredFeatureData[featureName].push(featureValues[originalIndex]);
+          }
+        });
+      }
+      
+      return {
+        ...this.data,
+        protein_ids: currentProteinIds,
+        feature_data: filteredFeatureData,
+        projections: this.data.projections // Keep original projections
+      };
+    }
+    
+    return this.data;
   }
 }
 

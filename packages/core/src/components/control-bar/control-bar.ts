@@ -22,6 +22,12 @@ export class ProtspaceControlBar extends LitElement {
   selectionMode: boolean = false;
   @property({ type: Number, attribute: "selected-proteins-count" })
   selectedProteinsCount: number = 0;
+  @property({ type: Boolean, attribute: "split-mode" })
+  splitMode: boolean = false;
+  @property({ type: Array, attribute: "split-history" })
+  splitHistory: string[][] = [];
+
+  @state() private _selectionDisabled: boolean = false;
 
   // Auto-sync properties (optional, can be derived from events)
   @property({ type: String, attribute: "scatterplot-selector" })
@@ -41,6 +47,9 @@ export class ProtspaceControlBar extends LitElement {
   private _onDocumentClick = (event: Event) => this.handleDocumentClick(event);
   private _onDataChange = (event: Event) => this._handleDataChange(event);
   private _onProteinClick = (event: Event) => this._handleProteinSelection(event);
+  private _onDataSplit = (event: Event) => this._handleDataSplit(event);
+  private _onDataSplitReset = (event: Event) => this._handleDataSplitReset(event);
+  private _onAutoDisableSelection = (event: Event) => this._handleAutoDisableSelection(event);
 
   static styles = controlBarStyles;
 
@@ -148,6 +157,38 @@ export class ProtspaceControlBar extends LitElement {
     }
   }
 
+  private handleSplitData() {
+    const customEvent = new CustomEvent("split-data", {
+      detail: {},
+      bubbles: true,
+      composed: true,
+    });
+    this.dispatchEvent(customEvent);
+
+    if (this.autoSync && this._scatterplotElement) {
+      if ("splitDataBySelection" in this._scatterplotElement) {
+        (this._scatterplotElement as any).splitDataBySelection();
+      }
+    }
+  }
+
+  private handleResetSplit() {
+    const customEvent = new CustomEvent("reset-split", {
+      detail: {},
+      bubbles: true,
+      composed: true,
+    });
+    this.dispatchEvent(customEvent);
+
+    if (this.autoSync && this._scatterplotElement) {
+      if ("resetSplit" in this._scatterplotElement) {
+        (this._scatterplotElement as any).resetSplit();
+        this.splitMode = false;
+        this.splitHistory = [];
+      }
+    }
+  }
+
   private handleExport(type: "json" | "ids" | "png" | "pdf") {
     const customEvent = new CustomEvent("export", {
       detail: { type },
@@ -219,8 +260,9 @@ export class ProtspaceControlBar extends LitElement {
           <!-- Selection mode toggle -->
           <button
             class=${this.selectionMode ? "active" : ""}
+            ?disabled=${this._selectionDisabled}
             @click=${this.handleToggleSelectionMode}
-            title="Select proteins by clicking or dragging to enclose multiple points"
+            title=${this._selectionDisabled ? "Selection disabled: Insufficient data points" : "Select proteins by clicking or dragging to enclose multiple points"}
           >
             <svg class="icon" viewBox="0 0 24 24">
               <rect
@@ -257,6 +299,42 @@ export class ProtspaceControlBar extends LitElement {
             </svg>
             Clear
           </button>
+
+          <!-- Split data button -->
+          <button
+            ?disabled=${this.selectedProteinsCount === 0}
+            @click=${this.handleSplitData}
+            title="Split data to show only selected proteins"
+          >
+            <svg class="icon" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
+            </svg>
+            Split
+          </button>
+
+          <!-- Reset split button -->
+          ${this.splitMode
+            ? html`
+                <button
+                  @click=${this.handleResetSplit}
+                  title="Reset to original dataset"
+                  class="active"
+                >
+                  <svg class="icon" viewBox="0 0 24 24">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0V9a8.002 8.002 0 0115.356 2m-15.356-2L4 4m15.356 6l2.5-2.5"
+                    />
+                  </svg>
+                  Reset
+                </button>
+              `
+            : ""}
 
           <!-- Filter dropdown -->
           <div class="export-container">
@@ -404,6 +482,18 @@ export class ProtspaceControlBar extends LitElement {
         "protein-click",
         this._onProteinClick
       );
+      this._scatterplotElement.removeEventListener(
+        "data-split",
+        this._onDataSplit
+      );
+      this._scatterplotElement.removeEventListener(
+        "data-split-reset",
+        this._onDataSplitReset
+      );
+      this._scatterplotElement.removeEventListener(
+        "auto-disable-selection",
+        this._onAutoDisableSelection
+      );
     }
   }
 
@@ -434,6 +524,22 @@ export class ProtspaceControlBar extends LitElement {
         this._scatterplotElement.addEventListener(
           "protein-click",
           this._onProteinClick
+        );
+
+        // Listen for data split events
+        this._scatterplotElement.addEventListener(
+          "data-split",
+          this._onDataSplit
+        );
+
+        this._scatterplotElement.addEventListener(
+          "data-split-reset",
+          this._onDataSplitReset
+        );
+
+        this._scatterplotElement.addEventListener(
+          "auto-disable-selection",
+          this._onAutoDisableSelection
         );
 
         // Initial sync after a short delay to ensure scatterplot is ready
@@ -493,6 +599,72 @@ export class ProtspaceControlBar extends LitElement {
         (this._scatterplotElement as ScatterplotElementLike).selectedProteinIds || [];
       this.selectedProteinsCount = selectedIds.length;
       this.requestUpdate();
+    }
+  }
+
+  private _handleDataSplit(event: Event) {
+    const customEvent = event as CustomEvent;
+    const { splitHistory, splitMode } = customEvent.detail;
+    this.splitHistory = splitHistory;
+    this.splitMode = splitMode;
+    this.selectedProteinsCount = 0;
+    this.requestUpdate();
+  }
+
+  private _handleDataSplitReset(event: Event) {
+    const customEvent = event as CustomEvent;
+    const { splitHistory, splitMode } = customEvent.detail;
+    this.splitHistory = splitHistory;
+    this.splitMode = splitMode;
+    this.selectedProteinsCount = 0;
+    
+    // Re-enable selection when split is reset (back to full data)
+    this._selectionDisabled = false;
+    
+    this.requestUpdate();
+  }
+
+  private _handleAutoDisableSelection(event: Event) {
+    const customEvent = event as CustomEvent;
+    const { reason, dataSize } = customEvent.detail;
+    this.selectionMode = false;
+    
+    // Disable the selection mode toggle when insufficient data
+    if (reason === "insufficient-data" && dataSize <= 1) {
+      this._selectionDisabled = true;
+    }
+    
+    this.requestUpdate();
+    
+    // Show a brief notification
+    if (reason === "insufficient-data") {
+      const notification = document.createElement("div");
+      notification.style.cssText = `
+        position: fixed; top: 20px; right: 20px; z-index: 10000;
+        background: rgba(255, 193, 7, 0.9); color: #856404; padding: 12px 16px;
+        border-radius: 6px; font-size: 14px; max-width: 300px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        animation: slideIn 0.3s ease;
+      `;
+      notification.innerHTML = `Selection mode disabled: Only ${dataSize} point${dataSize !== 1 ? 's' : ''} remaining`;
+      
+      const style = document.createElement("style");
+      style.textContent = `
+        @keyframes slideIn {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+      `;
+      document.head.appendChild(style);
+      document.body.appendChild(notification);
+      
+      setTimeout(() => {
+        notification.style.animation = "slideIn 0.3s ease reverse";
+        setTimeout(() => {
+          notification.remove();
+          style.remove();
+        }, 300);
+      }, 3000);
     }
   }
 
@@ -588,6 +760,20 @@ export class ProtspaceControlBar extends LitElement {
           this.selectedProteinsCount = (
             (scatterplot.selectedProteinIds as unknown[]) || []
           ).length;
+        }
+
+        if (
+          "isSplitMode" in scatterplot &&
+          typeof scatterplot.isSplitMode === "function"
+        ) {
+          this.splitMode = scatterplot.isSplitMode();
+        }
+
+        if (
+          "getSplitHistory" in scatterplot &&
+          typeof scatterplot.getSplitHistory === "function"
+        ) {
+          this.splitHistory = scatterplot.getSplitHistory();
         }
 
         // Set defaults if not already set

@@ -109,10 +109,15 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
       const key = normalizeToKey(featureValue);
       if (hiddenKeysSet.has(key)) return 0;
     }
-    if (highlightedIdsSet.has(point.id) || selectedIdsSet.has(point.id)) {
+
+    const isSelected = styleConfig.selectedProteinIds.includes(point.id);
+    const isHighlighted = styleConfig.highlightedProteinIds.includes(point.id);
+    const hasSelection = styleConfig.selectedProteinIds.length > 0;
+
+    if (isSelected || isHighlighted) {
       return styleConfig.opacities.selected;
     }
-    if (selectedIdsSet.size > 0 && !selectedIdsSet.has(point.id)) {
+    if (hasSelection && !isSelected) {
       return styleConfig.opacities.faded;
     }
     return styleConfig.opacities.base;
