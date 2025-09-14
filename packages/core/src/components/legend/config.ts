@@ -1,4 +1,5 @@
 import * as d3 from "d3";
+import { NEUTRAL_VALUE_COLOR } from "../scatter-plot/config";
 
 /**
  * Legend configuration constants
@@ -21,11 +22,11 @@ export const SHAPE_MAPPING = {
 // Default styles for special cases
 export const DEFAULT_STYLES = {
   other: {
-    color: "#888888",
+    color: NEUTRAL_VALUE_COLOR,
     shape: "circle",
   },
   null: {
-    color: "#888888",
+    color: NEUTRAL_VALUE_COLOR,
     shape: "circle",
   },
 } as const;
@@ -56,7 +57,7 @@ export const LEGEND_STYLES = {
   colors: {
     defaultStroke: "#394150",
     selectedStroke: "#00A3E0",
-    fallback: "#888888",
+    fallback: NEUTRAL_VALUE_COLOR,
   },
   outlineShapes: new Set(["plus", "asterisk", "cross", "times"]),
 } as const;

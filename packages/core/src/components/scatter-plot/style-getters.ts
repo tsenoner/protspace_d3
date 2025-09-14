@@ -1,4 +1,5 @@
 import * as d3 from "d3";
+import { NEUTRAL_VALUE_COLOR } from "./config";
 import type { PlotDataPoint, VisualizationData } from "@protspace/utils";
 import { getSymbolType } from "@protspace/utils";
 
@@ -94,12 +95,12 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
   };
 
   const getColor = (point: PlotDataPoint): string => {
-    if (!data || !styleConfig.selectedFeature) return "#888888";
+    if (!data || !styleConfig.selectedFeature) return NEUTRAL_VALUE_COLOR;
     const featureValue = point.featureValues[styleConfig.selectedFeature];
-    if (featureValue !== null && otherValuesSet.has(featureValue)) return "#888888";
-    if (isNullishDisplay(featureValue)) return nullishConfiguredColor ?? "#888888";
+    if (featureValue !== null && otherValuesSet.has(featureValue)) return NEUTRAL_VALUE_COLOR;
+    if (isNullishDisplay(featureValue)) return nullishConfiguredColor ?? NEUTRAL_VALUE_COLOR;
     const k = normalizeToKey(featureValue);
-    return valueToColor.get(k) ?? "#888888";
+    return valueToColor.get(k) ?? NEUTRAL_VALUE_COLOR;
   };
 
   const getOpacity = (point: PlotDataPoint): number => {
