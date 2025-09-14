@@ -660,7 +660,7 @@ Promise.all([
       legendElement.autoHide = true; // Automatically hide values in scatterplot
     }, 100);
 
-    // Update legend function - simplified since legend can auto-sync
+    // Update legend function - force sync even with auto-sync enabled
     const updateLegend = () => {
       const currentFeature = plotElement.selectedFeature;
       const currentData = plotElement.getCurrentData();
@@ -669,8 +669,11 @@ Promise.all([
         currentData &&
         currentData.features[currentFeature]
       ) {
-        // Only update if not using auto-sync
-        if (!legendElement.autoSync) {
+        // Force legend sync by calling the private method
+        if (legendElement.autoSync && '_syncWithScatterplot' in legendElement) {
+          (legendElement as any)._syncWithScatterplot();
+        } else if (!legendElement.autoSync) {
+          // Manual update for non-auto-sync mode
           legendElement.data = { features: currentData.features };
           legendElement.selectedFeature = currentFeature;
 

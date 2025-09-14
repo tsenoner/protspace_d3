@@ -157,6 +157,13 @@ export class ProtspaceScatterplot extends LitElement {
       this._updateSelectionOverlays();
       this._scheduleDeferredSelectionRerender();
     }
+     // Ensure selection/highlight changes immediately reflect in canvas styles
+     if (
+      changedProperties.has('selectedProteinIds') ||
+      changedProperties.has('highlightedProteinIds')
+    ) {
+      this._canvasRenderer?.invalidateStyleCache();
+    }
     if (changedProperties.has("selectionMode")) {
       this._updateSelectionMode();
     }
@@ -662,22 +669,6 @@ export class ProtspaceScatterplot extends LitElement {
     }));
   }
 
-  private _dispatchProteinSelection(proteinIds: string[], isMultiple: boolean) {
-    proteinIds.forEach(id => {
-      const point = this._plotData.find(p => p.id === id);
-      if (point) {
-        this.dispatchEvent(new CustomEvent("protein-click", {
-          detail: {
-            proteinId: id,
-            point,
-            modifierKeys: { ctrl: isMultiple, shift: isMultiple, alt: false },
-          },
-          bubbles: true,
-        }));
-      }
-    });
-  }
-
   /**
    * Setup event handling for canvas-based rendering
    */
@@ -790,10 +781,6 @@ export class ProtspaceScatterplot extends LitElement {
     
     this._mergedConfig = config;
     this.requestUpdate();
-  }
-
-  getCurrentData(): VisualizationData | null {
-    return this.data;
   }
 
   resetZoom() {
