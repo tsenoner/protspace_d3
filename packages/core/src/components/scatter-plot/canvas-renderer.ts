@@ -10,6 +10,23 @@ export interface CanvasStyleGetters {
   getShape: (point: PlotDataPoint) => d3.SymbolType;
 }
 
+function shallowCompareRecords(a: Record<string, number>, b: Record<string, number>): boolean {
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  
+  if (keysA.length !== keysB.length) {
+    return false;
+  }
+  
+  for (const key of keysA) {
+    if (a[key] !== b[key]) {
+      return false;
+    }
+  }
+  
+  return true;
+}
+
 export class CanvasRenderer {
   private canvas: HTMLCanvasElement;
   private getScales: () => { x: d3.ScaleLinear<number, number>; y: d3.ScaleLinear<number, number> } | null;
@@ -58,7 +75,7 @@ export class CanvasRenderer {
   }
 
   setZOrderMapping(zOrderMapping: Record<string, number>) {
-    const hasChanged = JSON.stringify(this.zOrderMapping) !== JSON.stringify(zOrderMapping);
+    const hasChanged = !shallowCompareRecords(this.zOrderMapping, zOrderMapping);
     if (hasChanged) {
       this.zOrderMapping = { ...zOrderMapping };
       this.groupsCache = null; // Force re-grouping with new z-order
