@@ -179,10 +179,10 @@ export class CanvasRenderer {
         let pointZOrder = Number.MAX_SAFE_INTEGER; // Default to very high number (drawn last)
         if (point.featureValues && this.selectedFeature) {
           const featureValue = point.featureValues[this.selectedFeature];
-          if (featureValue !== undefined && featureValue !== null) {
+          if (featureValue != null) {
             const valueKey = String(featureValue);
             pointZOrder = this.zOrderMapping[valueKey] ?? Number.MAX_SAFE_INTEGER;
-          } else if (featureValue === null) {
+          } else {
             pointZOrder = this.zOrderMapping["null"] ?? Number.MAX_SAFE_INTEGER;
           }
         }
