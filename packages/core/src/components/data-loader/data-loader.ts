@@ -6,6 +6,7 @@ import { dataLoaderStyles } from "./data-loader.styles";
 import { readFileOptimized } from "./utils/file-io";
 import { isParquetBundle, extractRowsFromParquetBundle } from "./utils/bundle";
 import { convertParquetToVisualizationDataOptimized } from "./utils/conversion";
+import { assertWithinFileSizeLimit, assertValidParquetMagic, validateRowsBasic } from "./utils/validation";
 
 /**
  * Parquet Data Loader Web Component
@@ -44,6 +45,9 @@ export class DataLoader extends LitElement {
 
   @state()
   private progress = 0;
+
+  private totalSteps = 0;
+  private completedSteps = 0;
 
   @state()
   private error: string | null = null;
@@ -211,7 +215,10 @@ export class DataLoader extends LitElement {
     this.error = null;
 
     try {
-      this.progress = 10;
+      // Steps: fetch -> read ArrayBuffer -> parse parquet -> convert to visualization
+      this.beginProgress(4);
+
+      // 1) Fetch
       const response = await fetch(url);
 
       if (!response.ok) {
@@ -219,17 +226,19 @@ export class DataLoader extends LitElement {
           `Failed to fetch: ${response.status} ${response.statusText}`
         );
       }
+      this.completeStep();
 
-      this.progress = 30;
+      // 2) Read ArrayBuffer
       const arrayBuffer = await response.arrayBuffer();
+      this.completeStep();
 
-      this.progress = 60;
+      // 3) Parse parquet
       const table = await parquetReadObjects({ file: arrayBuffer });
+      this.completeStep();
 
-      this.progress = 80;
+      // 4) Convert
       const visualizationData = await convertParquetToVisualizationDataOptimized(table);
-
-      this.progress = 100;
+      this.completeStep();
       this.dispatchDataLoaded(visualizationData);
     } catch (error) {
       this.error =
@@ -252,27 +261,39 @@ export class DataLoader extends LitElement {
     const disableInspection = file.size > 50 * 1024 * 1024; // 50MB threshold
 
     try {
-      this.progress = 10;
+      // Plan initial steps common to both branches: validate size, read ArrayBuffer
+      this.beginProgress(2);
 
-      // Optimize ArrayBuffer reading for large files
+      // 1) Early size validation
+      assertWithinFileSizeLimit(file.size);
+      this.completeStep();
+
+      // 2) Optimize ArrayBuffer reading for large files
       const arrayBuffer = await readFileOptimized(file);
+      this.completeStep();
 
-      this.progress = 30;
-
-      // Check if this is a parquetbundle file
+      // Branch-specific steps
       if (file.name.endsWith(".parquetbundle") || isParquetBundle(arrayBuffer)) {
+        // For bundles: extract -> validate -> convert
+        this.addSteps(3);
         const extractedData = await extractRowsFromParquetBundle(arrayBuffer, { disableInspection });
-        this.progress = 70;
+        this.completeStep();
+        validateRowsBasic(extractedData);
+        this.completeStep();
         const visualizationData = await convertParquetToVisualizationDataOptimized(extractedData);
-        this.progress = 100;
+        this.completeStep();
         this.dispatchDataLoaded(visualizationData);
       } else {
-        // Regular parquet file
-        this.progress = 40;
+        // For regular parquet: validate magic -> parse -> validate rows -> convert
+        this.addSteps(4);
+        assertValidParquetMagic(arrayBuffer);
+        this.completeStep();
         const table = await parquetReadObjects({ file: arrayBuffer });
-        this.progress = 70;
+        this.completeStep();
+        validateRowsBasic(table);
+        this.completeStep();
         const visualizationData = await convertParquetToVisualizationDataOptimized(table);
-        this.progress = 100;
+        this.completeStep();
         this.dispatchDataLoaded(visualizationData);
       }
 
@@ -294,6 +315,27 @@ export class DataLoader extends LitElement {
       this.removeAttribute("loading");
       this.progress = 0;
     }
+  }
+
+  private beginProgress(totalSteps: number) {
+    this.totalSteps = totalSteps;
+    this.completedSteps = 0;
+    this.updateProgress();
+  }
+
+  private addSteps(additionalSteps: number) {
+    this.totalSteps += additionalSteps;
+    this.updateProgress();
+  }
+
+  private completeStep() {
+    this.completedSteps += 1;
+    this.updateProgress();
+  }
+
+  private updateProgress() {
+    const ratio = this.totalSteps > 0 ? this.completedSteps / this.totalSteps : 0;
+    this.progress = Math.round(ratio * 100);
   }
 
   private dispatchDataLoaded(data: VisualizationData) {
