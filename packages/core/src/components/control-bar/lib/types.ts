@@ -2,6 +2,8 @@
  * Control bar-related type definitions
  */
 
+import type { VisualizationData } from "@protspace/utils";
+
 export interface ControlBarState {
   projections: string[];
   features: string[];
@@ -11,10 +13,10 @@ export interface ControlBarState {
   selectedProteinsCount: number;
 }
 
-export interface ProtspaceData {
-  projections?: Array<{ name: string; metadata?: { dimension?: 2 | 3 } }>;
-  features?: Record<string, unknown>;
-}
+// VisualizationData with extended projections metadata
+export type ProtspaceData = Omit<VisualizationData, 'projections'> & {
+  projections: Array<{ name: string; metadata?: { dimension?: 2 | 3 } }>;
+};
 
 export interface DataChangeDetail {
   data: ProtspaceData;
@@ -28,7 +30,7 @@ export interface ScatterplotElementLike extends Element {
   selectedProteinIds?: unknown[];
 
   // Data access
-  getCurrentData?: () => ProtspaceData | undefined;
+  getCurrentData?: () => VisualizationData | null;
 
   // Split functionality
   isSplitMode?: () => boolean;
