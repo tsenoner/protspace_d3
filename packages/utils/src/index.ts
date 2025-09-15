@@ -4,4 +4,5 @@ export * from "./visualization/data-processor";
 export * from "./visualization/color-scheme";
 export * from "./visualization/scales";
 export * from "./visualization/export-utils";
+export * from "./visualization/notification-utils";
 export * from "./structure/structure-service";

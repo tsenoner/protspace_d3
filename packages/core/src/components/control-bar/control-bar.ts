@@ -126,8 +126,11 @@ export class ProtspaceControlBar extends LitElement {
     this.selectionMode = newSelectionMode;
 
     // If auto-sync is enabled, update the scatterplot BEFORE notifying listeners
-    if (this.autoSync && this._scatterplotElement && "selectionMode" in this._scatterplotElement) {
-      (this._scatterplotElement as any).selectionMode = newSelectionMode;
+    if (this.autoSync && this._scatterplotElement) {
+      const scatterplot = this._scatterplotElement as ScatterplotElementLike;
+      if (scatterplot.selectionMode !== undefined) {
+        scatterplot.selectionMode = newSelectionMode;
+      }
     }
 
     // Now dispatch the event with the updated state so listeners read the correct value
@@ -166,9 +169,8 @@ export class ProtspaceControlBar extends LitElement {
     this.dispatchEvent(customEvent);
 
     if (this.autoSync && this._scatterplotElement) {
-      if ("splitDataBySelection" in this._scatterplotElement) {
-        (this._scatterplotElement as any).splitDataBySelection();
-      }
+      const scatterplot = this._scatterplotElement as ScatterplotElementLike;
+      scatterplot.splitDataBySelection?.();
     }
   }
 
@@ -181,11 +183,10 @@ export class ProtspaceControlBar extends LitElement {
     this.dispatchEvent(customEvent);
 
     if (this.autoSync && this._scatterplotElement) {
-      if ("resetSplit" in this._scatterplotElement) {
-        (this._scatterplotElement as any).resetSplit();
-        this.splitMode = false;
-        this.splitHistory = [];
-      }
+      const scatterplot = this._scatterplotElement as ScatterplotElementLike;
+      scatterplot.resetSplit?.();
+      this.splitMode = false;
+      this.splitHistory = [];
     }
   }
 
@@ -627,6 +628,8 @@ export class ProtspaceControlBar extends LitElement {
   private _handleAutoDisableSelection(event: Event) {
     const customEvent = event as CustomEvent;
     const { reason, dataSize } = customEvent.detail;
+    
+    // Handle the business logic
     this.selectionMode = false;
     
     // Disable the selection mode toggle when insufficient data
@@ -636,36 +639,22 @@ export class ProtspaceControlBar extends LitElement {
     
     this.requestUpdate();
     
-    // Show a brief notification
-    if (reason === "insufficient-data") {
-      const notification = document.createElement("div");
-      notification.style.cssText = `
-        position: fixed; top: 20px; right: 20px; z-index: 10000;
-        background: rgba(255, 193, 7, 0.9); color: #856404; padding: 12px 16px;
-        border-radius: 6px; font-size: 14px; max-width: 300px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        animation: slideIn 0.3s ease;
-      `;
-      notification.innerHTML = `Selection mode disabled: Only ${dataSize} point${dataSize !== 1 ? 's' : ''} remaining`;
+    // Dispatch a separate notification event for the UI layer to handle
+    // This separates business logic from presentation concerns
+    const message = reason === 'insufficient-data' 
+      ? `Selection mode disabled: Only ${dataSize} point${dataSize !== 1 ? 's' : ''} remaining`
+      : 'Selection mode disabled';
       
-      const style = document.createElement("style");
-      style.textContent = `
-        @keyframes slideIn {
-          from { transform: translateX(100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-      `;
-      document.head.appendChild(style);
-      document.body.appendChild(notification);
-      
-      setTimeout(() => {
-        notification.style.animation = "slideIn 0.3s ease reverse";
-        setTimeout(() => {
-          notification.remove();
-          style.remove();
-        }, 300);
-      }, 3000);
-    }
+    this.dispatchEvent(new CustomEvent('selection-disabled-notification', {
+      detail: { 
+        reason, 
+        dataSize, 
+        message,
+        type: 'warning' 
+      },
+      bubbles: true,
+      composed: true
+    }));
   }
 
   private _updateOptionsFromData(data: ProtspaceData) {
@@ -695,9 +684,7 @@ export class ProtspaceControlBar extends LitElement {
     ) {
       const scatterplot = this._scatterplotElement as ScatterplotElementLike;
       let data: ProtspaceData | undefined;
-      if (typeof scatterplot.getCurrentData === "function") {
-        data = scatterplot.getCurrentData();
-      }
+      data = scatterplot.getCurrentData?.();
 
       if (data) {
 
@@ -723,14 +710,9 @@ export class ProtspaceControlBar extends LitElement {
         }
 
         // Sync current values from scatterplot
-        if (
-          "selectedFeature" in scatterplot &&
-          typeof scatterplot.selectedFeature !== "undefined"
-        ) {
+        if (scatterplot.selectedFeature !== undefined) {
           // Only use the scatterplot's selected feature if it's still available
-          const scatterplotFeature = scatterplot.selectedFeature as
-            | string
-            | undefined;
+          const scatterplotFeature = scatterplot.selectedFeature;
           if (
             scatterplotFeature &&
             this.features.includes(scatterplotFeature)
@@ -762,19 +744,8 @@ export class ProtspaceControlBar extends LitElement {
           ).length;
         }
 
-        if (
-          "isSplitMode" in scatterplot &&
-          typeof scatterplot.isSplitMode === "function"
-        ) {
-          this.splitMode = scatterplot.isSplitMode();
-        }
-
-        if (
-          "getSplitHistory" in scatterplot &&
-          typeof scatterplot.getSplitHistory === "function"
-        ) {
-          this.splitHistory = scatterplot.getSplitHistory();
-        }
+        this.splitMode = scatterplot.isSplitMode?.() ?? false;
+        this.splitHistory = scatterplot.getSplitHistory?.() ?? [];
 
         // Set defaults if not already set
         if (!this.selectedProjection && this.projections.length > 0) {
