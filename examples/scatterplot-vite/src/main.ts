@@ -7,7 +7,7 @@ import type {
   ProtspaceControlBar,
   DataLoader,
 } from "@protspace/core";
-import { createExporter } from "@protspace/utils";
+import { createExporter, showNotification } from "@protspace/utils";
 
 const sampleData: VisualizationData = {
   projections: [
@@ -669,9 +669,9 @@ Promise.all([
         currentData &&
         currentData.features[currentFeature]
       ) {
-        // Force legend sync by calling the private method
-        if (legendElement.autoSync && '_syncWithScatterplot' in legendElement) {
-          (legendElement as any)._syncWithScatterplot();
+        // Force legend sync using the public interface
+        if (legendElement.autoSync && 'forceSync' in legendElement) {
+          legendElement.forceSync();
         } else if (!legendElement.autoSync) {
           // Manual update for non-auto-sync mode
           legendElement.data = { features: currentData.features };
@@ -911,6 +911,20 @@ Promise.all([
     controlBar.addEventListener("clear-selections", () => {
       selectedProteins = [];
       updateSelectedProteinDisplay(null);
+    });
+
+    // Handle notification events from control bar
+    // This separates business logic from presentation concerns
+    controlBar.addEventListener("selection-disabled-notification", (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { message, type } = customEvent.detail;
+      
+      // Use the notification utility to show the message
+      // Applications can replace this with their own notification system
+      showNotification(message, { 
+        type: type || 'warning',
+        duration: 3000 
+      });
     });
 
     // Data Loader Event Handlers

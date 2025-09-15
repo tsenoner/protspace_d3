@@ -904,7 +904,7 @@ export class ProtspaceScatterplot extends LitElement {
       new CustomEvent("data-change", {
         detail: { 
           data: this.getCurrentData(),
-          isFiltered: true,
+          isSplitData: true,
           splitMode: true 
         },
         bubbles: true,

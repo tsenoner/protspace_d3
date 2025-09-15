@@ -334,6 +334,14 @@ export class ProtspaceLegend extends LitElement {
     }
   }
 
+  /**
+   * Public method to force synchronization with the scatterplot
+   * Useful when you need to ensure the legend is up-to-date after state changes
+   */
+  public forceSync() {
+    this._syncWithScatterplot();
+  }
+
   private updateLegendItems() {
     if (
       !this.featureData ||
