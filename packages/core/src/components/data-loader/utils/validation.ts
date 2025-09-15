@@ -1,4 +1,5 @@
 import type { Rows } from "./types";
+import { sanitizeForMessage } from "@protspace/utils";
 
 // Parquet magic bytes 'PAR1'
 const PARQUET_MAGIC = new Uint8Array([0x50, 0x41, 0x52, 0x31]);
@@ -9,19 +10,6 @@ const MAX_ROWS_DEFAULT = 2_000_000;
 const MAX_COLUMNS_DEFAULT = 200;
 const MAX_TOTAL_CELLS_DEFAULT = 10_000_000;
 const MAX_CELL_STRING_LENGTH_DEFAULT = 1024;
-
-function sanitizeForMessage(input: unknown, maxLength = 64): string {
-  const stringified = String(input ?? "");
-  const withoutControls = stringified.replace(/[\u0000-\u001F\u007F-\u009F]/g, "");
-  const singleLine = withoutControls.replace(/[\r\n]+/g, " ").trim();
-  if (singleLine.length === 0) {
-    return "<unknown>";
-  }
-  if (singleLine.length > maxLength) {
-    return singleLine.slice(0, maxLength) + "…";
-  }
-  return singleLine;
-}
 
 export function assertValidParquetMagic(buffer: ArrayBuffer): void {
   const u8 = new Uint8Array(buffer);

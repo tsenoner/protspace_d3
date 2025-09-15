@@ -5,3 +5,4 @@ export * from "./visualization/color-scheme";
 export * from "./visualization/scales";
 export * from "./visualization/export-utils";
 export * from "./structure/structure-service";
+export * from "./message";
