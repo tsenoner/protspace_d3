@@ -216,7 +216,7 @@ export class CanvasRenderer {
         opacity: g.meta.opacity,
         basePointSize: g.meta.basePointSize,
         indices: Uint32Array.from(g.idx),
-        zOrder: Math.max(...g.zOrders), // Use maximum z-order for the group (drawn later = on top)
+        zOrder: g.zOrders.reduce((max, z) => Math.max(max, z), -Infinity), // Use maximum z-order for the group (drawn later = on top)
       }));
     }
 
@@ -274,5 +274,4 @@ export class CanvasRenderer {
     ctx.restore();
   }
 }
-
 

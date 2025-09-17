@@ -30,5 +30,11 @@ export interface ScatterplotElementLike extends Element {
   // Data access
   getCurrentData?: () => ProtspaceData | undefined;
 
+  // Split functionality
+  isSplitMode?: () => boolean;
+  getSplitHistory?: () => string[][];
+  splitDataBySelection?: () => void;
+  resetSplit?: () => void;
+
   // Event emitting is through DOM, so we rely on add/removeEventListener from Element
 }

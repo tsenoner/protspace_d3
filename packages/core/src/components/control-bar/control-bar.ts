@@ -22,6 +22,12 @@ export class ProtspaceControlBar extends LitElement {
   selectionMode: boolean = false;
   @property({ type: Number, attribute: "selected-proteins-count" })
   selectedProteinsCount: number = 0;
+  @property({ type: Boolean, attribute: "split-mode" })
+  splitMode: boolean = false;
+  @property({ type: Array, attribute: "split-history" })
+  splitHistory: string[][] = [];
+
+  @state() private _selectionDisabled: boolean = false;
 
   // Auto-sync properties (optional, can be derived from events)
   @property({ type: String, attribute: "scatterplot-selector" })
@@ -41,6 +47,9 @@ export class ProtspaceControlBar extends LitElement {
   private _onDocumentClick = (event: Event) => this.handleDocumentClick(event);
   private _onDataChange = (event: Event) => this._handleDataChange(event);
   private _onProteinClick = (event: Event) => this._handleProteinSelection(event);
+  private _onDataSplit = (event: Event) => this._handleDataSplit(event);
+  private _onDataSplitReset = (event: Event) => this._handleDataSplitReset(event);
+  private _onAutoDisableSelection = (event: Event) => this._handleAutoDisableSelection(event);
 
   static styles = controlBarStyles;
 
@@ -117,8 +126,11 @@ export class ProtspaceControlBar extends LitElement {
     this.selectionMode = newSelectionMode;
 
     // If auto-sync is enabled, update the scatterplot BEFORE notifying listeners
-    if (this.autoSync && this._scatterplotElement && "selectionMode" in this._scatterplotElement) {
-      (this._scatterplotElement as any).selectionMode = newSelectionMode;
+    if (this.autoSync && this._scatterplotElement) {
+      const scatterplot = this._scatterplotElement as ScatterplotElementLike;
+      if (scatterplot.selectionMode !== undefined) {
+        scatterplot.selectionMode = newSelectionMode;
+      }
     }
 
     // Now dispatch the event with the updated state so listeners read the correct value
@@ -145,6 +157,36 @@ export class ProtspaceControlBar extends LitElement {
         (this._scatterplotElement as any).selectedProteinIds = [];
         this.selectedProteinsCount = 0;
       }
+    }
+  }
+
+  private handleSplitData() {
+    const customEvent = new CustomEvent("split-data", {
+      detail: {},
+      bubbles: true,
+      composed: true,
+    });
+    this.dispatchEvent(customEvent);
+
+    if (this.autoSync && this._scatterplotElement) {
+      const scatterplot = this._scatterplotElement as ScatterplotElementLike;
+      scatterplot.splitDataBySelection?.();
+    }
+  }
+
+  private handleResetSplit() {
+    const customEvent = new CustomEvent("reset-split", {
+      detail: {},
+      bubbles: true,
+      composed: true,
+    });
+    this.dispatchEvent(customEvent);
+
+    if (this.autoSync && this._scatterplotElement) {
+      const scatterplot = this._scatterplotElement as ScatterplotElementLike;
+      scatterplot.resetSplit?.();
+      this.splitMode = false;
+      this.splitHistory = [];
     }
   }
 
@@ -219,8 +261,9 @@ export class ProtspaceControlBar extends LitElement {
           <!-- Selection mode toggle -->
           <button
             class=${this.selectionMode ? "active" : ""}
+            ?disabled=${this._selectionDisabled}
             @click=${this.handleToggleSelectionMode}
-            title="Select proteins by clicking or dragging to enclose multiple points"
+            title=${this._selectionDisabled ? "Selection disabled: Insufficient data points" : "Select proteins by clicking or dragging to enclose multiple points"}
           >
             <svg class="icon" viewBox="0 0 24 24">
               <rect
@@ -257,6 +300,42 @@ export class ProtspaceControlBar extends LitElement {
             </svg>
             Clear
           </button>
+
+          <!-- Split data button -->
+          <button
+            ?disabled=${this.selectedProteinsCount === 0}
+            @click=${this.handleSplitData}
+            title="Split data to show only selected proteins"
+          >
+            <svg class="icon" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
+            </svg>
+            Split
+          </button>
+
+          <!-- Reset split button -->
+          ${this.splitMode
+            ? html`
+                <button
+                  @click=${this.handleResetSplit}
+                  title="Reset to original dataset"
+                  class="active"
+                >
+                  <svg class="icon" viewBox="0 0 24 24">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0V9a8.002 8.002 0 0115.356 2m-15.356-2L4 4m15.356 6l2.5-2.5"
+                    />
+                  </svg>
+                  Reset
+                </button>
+              `
+            : ""}
 
           <!-- Filter dropdown -->
           <div class="export-container">
@@ -404,6 +483,18 @@ export class ProtspaceControlBar extends LitElement {
         "protein-click",
         this._onProteinClick
       );
+      this._scatterplotElement.removeEventListener(
+        "data-split",
+        this._onDataSplit
+      );
+      this._scatterplotElement.removeEventListener(
+        "data-split-reset",
+        this._onDataSplitReset
+      );
+      this._scatterplotElement.removeEventListener(
+        "auto-disable-selection",
+        this._onAutoDisableSelection
+      );
     }
   }
 
@@ -434,6 +525,22 @@ export class ProtspaceControlBar extends LitElement {
         this._scatterplotElement.addEventListener(
           "protein-click",
           this._onProteinClick
+        );
+
+        // Listen for data split events
+        this._scatterplotElement.addEventListener(
+          "data-split",
+          this._onDataSplit
+        );
+
+        this._scatterplotElement.addEventListener(
+          "data-split-reset",
+          this._onDataSplitReset
+        );
+
+        this._scatterplotElement.addEventListener(
+          "auto-disable-selection",
+          this._onAutoDisableSelection
         );
 
         // Initial sync after a short delay to ensure scatterplot is ready
@@ -496,6 +603,60 @@ export class ProtspaceControlBar extends LitElement {
     }
   }
 
+  private _handleDataSplit(event: Event) {
+    const customEvent = event as CustomEvent;
+    const { splitHistory, splitMode } = customEvent.detail;
+    this.splitHistory = splitHistory;
+    this.splitMode = splitMode;
+    this.selectedProteinsCount = 0;
+    this.requestUpdate();
+  }
+
+  private _handleDataSplitReset(event: Event) {
+    const customEvent = event as CustomEvent;
+    const { splitHistory, splitMode } = customEvent.detail;
+    this.splitHistory = splitHistory;
+    this.splitMode = splitMode;
+    this.selectedProteinsCount = 0;
+    
+    // Re-enable selection when split is reset (back to full data)
+    this._selectionDisabled = false;
+    
+    this.requestUpdate();
+  }
+
+  private _handleAutoDisableSelection(event: Event) {
+    const customEvent = event as CustomEvent;
+    const { reason, dataSize } = customEvent.detail;
+    
+    // Handle the business logic
+    this.selectionMode = false;
+    
+    // Disable the selection mode toggle when insufficient data
+    if (reason === "insufficient-data" && dataSize <= 1) {
+      this._selectionDisabled = true;
+    }
+    
+    this.requestUpdate();
+    
+    // Dispatch a separate notification event for the UI layer to handle
+    // This separates business logic from presentation concerns
+    const message = reason === 'insufficient-data' 
+      ? `Selection mode disabled: Only ${dataSize} point${dataSize !== 1 ? 's' : ''} remaining`
+      : 'Selection mode disabled';
+      
+    this.dispatchEvent(new CustomEvent('selection-disabled-notification', {
+      detail: { 
+        reason, 
+        dataSize, 
+        message,
+        type: 'warning' 
+      },
+      bubbles: true,
+      composed: true
+    }));
+  }
+
   private _updateOptionsFromData(data: ProtspaceData) {
     // Update projections and features
     this.projectionsMeta = (data.projections as any) || [];
@@ -523,9 +684,7 @@ export class ProtspaceControlBar extends LitElement {
     ) {
       const scatterplot = this._scatterplotElement as ScatterplotElementLike;
       let data: ProtspaceData | undefined;
-      if (typeof scatterplot.getCurrentData === "function") {
-        data = scatterplot.getCurrentData();
-      }
+      data = scatterplot.getCurrentData?.();
 
       if (data) {
 
@@ -551,14 +710,9 @@ export class ProtspaceControlBar extends LitElement {
         }
 
         // Sync current values from scatterplot
-        if (
-          "selectedFeature" in scatterplot &&
-          typeof scatterplot.selectedFeature !== "undefined"
-        ) {
+        if (scatterplot.selectedFeature !== undefined) {
           // Only use the scatterplot's selected feature if it's still available
-          const scatterplotFeature = scatterplot.selectedFeature as
-            | string
-            | undefined;
+          const scatterplotFeature = scatterplot.selectedFeature;
           if (
             scatterplotFeature &&
             this.features.includes(scatterplotFeature)
@@ -589,6 +743,9 @@ export class ProtspaceControlBar extends LitElement {
             (scatterplot.selectedProteinIds as unknown[]) || []
           ).length;
         }
+
+        this.splitMode = scatterplot.isSplitMode?.() ?? false;
+        this.splitHistory = scatterplot.getSplitHistory?.() ?? [];
 
         // Set defaults if not already set
         if (!this.selectedProjection && this.projections.length > 0) {
