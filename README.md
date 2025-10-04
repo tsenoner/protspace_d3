@@ -85,14 +85,14 @@ Add the components, import the library, and wire the loader to the plot.
   </html>
 ```
 
-### Components at a glance
+### 📃 Components at a glance
 
 - `protspace-data-loader`: Loads `.parquetbundle` and emits `data-loaded`
 - `protspace-scatterplot`: High-performance 2D plot driven by `data`
 - `protspace-legend`: Filter, isolate, re‑order categories; auto-sync with plot
 - `protspace-control-bar`: Switch projection/plane/feature; toggle selection; export
 
-## Styling
+## 🎨 Styling
 
 Customize via CSS variables on the elements, for example:
 
@@ -103,7 +103,7 @@ protspace-scatterplot {
 }
 ```
 
-## Development (optional)
+## ⌨️ Development (optional)
 
 ```bash
 pnpm dev          # run the example
@@ -112,6 +112,14 @@ pnpm build:core   # build only @protspace/core
 pnpm test         # run tests
 ```
 
-## License
+## 🤝 Contributing
+
+We welcome issues, ideas, and pull requests! For full guidelines and best practices, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+- 🐛 Report bugs and request features via Issues
+- 🔧 Fork the repo, create a branch, and open a PR
+- ✅ Run checks locally: `pnpm build`
+
+## ⚖️ License
 
 See [LICENSE](LICENSE).
