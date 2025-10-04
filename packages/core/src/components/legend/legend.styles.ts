@@ -243,7 +243,9 @@ export const legendStyles = css`
     }
   }
 
-  /* Modal styles */
+  /* ----------------------------- Modal styles -------------------------------------- */
+
+
   .modal-overlay {
     position: fixed;
     top: 0;
@@ -259,14 +261,104 @@ export const legendStyles = css`
 
   .modal-content {
     background: var(--legend-bg);
-    padding: 1.5rem;
+    padding: 1.3rem 1.5rem;
+     display: flex;
     border-radius: 0.5rem;
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
       0 10px 10px -5px rgba(0, 0, 0, 0.04);
-    max-width: 24rem;
+     width: 25rem;
+    height: 28rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+  }
+
+  .modal-content > div {
     width: 100%;
-    max-height: 80vh;
-    overflow: auto;
+
+  }
+
+  .other-items-list {
+    box-sizing: border-box;
+    display: flex;
+    border: 1px solid var(--legend-border);
+    border-radius: 0.375rem;
+    margin-bottom: 19px;
+
+    overflow-y: auto;
+    padding: 14px;
+    flex-direction: column;
+    flex-grow: 1;
+    row-gap: 16px;
+    scrollbar-width: thin;
+  }
+
+    .other-items-list-item {
+    display: flex;
+    flex-direction: column;
+  }
+  .other-items-list-item-label {
+    color: #0b0f19;
+    margin-bottom: 10px;
+  }
+
+  .other-items-list-item-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 9px 20px;
+
+    border-radius: 5px;
+    box-shadow: inset 0px 0px 2px 0px #0000003d;
+    border: unset;
+  }
+  .other-items-list-item-input:focus-visible {
+    border: unset;
+    outline: unset;
+  }
+
+  .other-items-list-label {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 5px 21px;
+    justify-content: space-between;
+    box-shadow: 0px 0px 3px 1px #0000002b;
+    border-radius: 4px;
+  }
+  .other-items-list-label-input {
+  }
+  .other-items-list-item-sorting {
+    padding: 10px 0 0 11px;
+    display: flex;
+    flex-direction: column;
+  }
+  .other-items-list-item-sorting-title {
+    margin-bottom: 17px;
+  }
+  .other-items-list-item-sorting-container {
+    display: flex;
+    flex-direction: column;
+    row-gap: 15px;
+  }
+  .other-items-list-item-sorting-container-item {
+    display: flex;
+    flex-direction: column;
+    padding: 6px 6px 6px 20px;
+    row-gap: 7px;
+  }
+
+  .other-items-list-item-sorting-container-item-name {
+  }
+  .other-items-list-item-sorting-container-item-container {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    column-gap: 21px;
+  }
+  .other-items-list-item-sorting-container-item-container-label {
+  }
+  .other-items-list-item-sorting-container-item-container-input {
   }
 
   @media (prefers-color-scheme: dark) {
@@ -286,6 +378,7 @@ export const legendStyles = css`
     font-size: 1.125rem;
     font-weight: 500;
     color: var(--legend-text-color);
+    margin: 0;
   }
 
   @media (prefers-color-scheme: dark) {
@@ -299,10 +392,14 @@ export const legendStyles = css`
     border: none;
     color: var(--legend-text-secondary);
     cursor: pointer;
-    padding: 0.25rem;
+    padding: 0.4rem 0.5rem;
     border-radius: 0.25rem;
     transition: color 0.2s ease;
   }
+    .close-button:hover {
+    color: var(--protspace-viewer-text);
+    background: rgba(0, 0, 0, 0.04);
+}
 
   .close-button:hover {
     color: var(--legend-text-color);
@@ -320,7 +417,8 @@ export const legendStyles = css`
   .modal-description {
     font-size: 0.875rem;
     color: var(--legend-text-secondary);
-    margin-bottom: 1rem;
+    margin-bottom: 1.3rem;
+    padding-left: 2rem;
   }
 
   @media (prefers-color-scheme: dark) {
@@ -333,7 +431,6 @@ export const legendStyles = css`
     border: 1px solid var(--legend-border);
     border-radius: 0.375rem;
     margin-bottom: 1rem;
-    max-height: 15rem;
     overflow-y: auto;
   }
 

@@ -1128,9 +1128,9 @@ export class ProtspaceLegend extends LitElement {
 
           <div class="modal-description">Legend display options</div>
 
-          <div class="other-items-list" style="display:flex;flex-direction:column;gap:10px;">
-            <div>
-              <label for="max-visible-input" class="other-item-name" style="display:block;margin-bottom:6px;">Max legend items</label>
+          <div class="other-items-list">
+            <div class="other-items-list-item">
+              <label for="max-visible-input" class="other-items-list-item-label" >Max legend items</label>
               <input
                 id="max-visible-input"
                 type="number"
@@ -1138,12 +1138,13 @@ export class ProtspaceLegend extends LitElement {
                 .value=${String(this.settingsMaxVisibleValues)}
                 placeholder=${String(LEGEND_DEFAULTS.maxVisibleValues)}
                 @input=${onInputChange}
-                style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;"
+                 class="other-items-list-item-input"
               />
             </div>
-            <div>
-              <label for="shape-size-input" class="other-item-name" style="display:block;margin-bottom:6px;">Shape size</label>
+            <div class="other-items-list-item">
+              <label for="shape-size-input" class="other-items-list-item-label">Shape size</label>
               <input
+              class="other-items-list-item-input"
                 id="shape-size-input"
                 type="number"
                 min="6"
@@ -1157,26 +1158,27 @@ export class ProtspaceLegend extends LitElement {
                     this.settingsShapeSize = parsed;
                   }
                 }}
-                style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;"
+                
               />
             </div>
-            <label style="display:flex;align-items:center;gap:8px;">
-              <input type="checkbox" .checked=${this.settingsIncludeOthers} @change=${onToggleIncludeOthers} />
+            <label  class="other-items-list-label">
+              <input class="other-items-list-label-input" type="checkbox" .checked=${this.settingsIncludeOthers} @change=${onToggleIncludeOthers} />
               Show "Other" category
             </label>
-            <label style="display:flex;align-items:center;gap:8px;">
-              <input type="checkbox" .checked=${this.settingsIncludeShapes} @change=${(e: Event) => { const t = e.target as HTMLInputElement; this.settingsIncludeShapes = t.checked; }} />
+            <label class="other-items-list-label">
+              <input class="other-items-list-label-input" type="checkbox" .checked=${this.settingsIncludeShapes} @change=${(e: Event) => { const t = e.target as HTMLInputElement; this.settingsIncludeShapes = t.checked; }} />
               Include shapes
             </label>
-            <div style="margin-top:12px;">
-              <div class="other-item-name" style="margin-bottom:6px;">Sorting</div>
-              <div style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow:auto;">
+            <div class="other-items-list-item-sorting" >
+              <div class="other-items-list-item-sorting-title">Sorting</div>
+              <div class="other-items-list-item-sorting-container">
                 ${featureNames.map((fname) => html`
-                  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid #eee;border-radius:6px;padding:6px 8px;">
-                    <span style="font-size:12px;opacity:0.8;">${fname}</span>
-                    <span>
-                      <label style="margin-right:8px;">
-                        <input
+                  <div class="other-items-list-item-sorting-container-item">
+                    <span class="other-items-list-item-sorting-container-item-name">${fname}</span>
+                    <span class="other-items-list-item-sorting-container-item-container">
+                      <label class="other-items-list-item-sorting-container-item-container-label" >
+                        <input 
+                        class="other-items-list-item-sorting-container-item-container-input"
                           type="radio"
                           name=${`sort-${fname}`}
                           .checked=${this.settingsFeatureSortModes[fname] === "size"}
@@ -1198,7 +1200,7 @@ export class ProtspaceLegend extends LitElement {
             </div>
           </div>
 
-          <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;">
+          <div class="modal-footer">
             <button class="modal-close-button" @click=${onClose}>Cancel</button>
             <button class="extract-button" @click=${onSave}>Save</button>
           </div>
