@@ -26,7 +26,7 @@ export const structureViewerStyles = css`
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.75rem 1rem;
+    padding: 0.4rem 0.4rem 0.4rem 1.2rem;
     background: var(--protspace-viewer-header-bg);
     border-bottom: 1px solid var(--protspace-viewer-border);
   }
@@ -50,7 +50,7 @@ export const structureViewerStyles = css`
     font-size: 1.25rem;
     color: var(--protspace-viewer-text-muted);
     cursor: pointer;
-    padding: 0.25rem;
+    padding: 0.7rem 1rem;
     line-height: 1;
     border-radius: 0.25rem;
     transition: color 0.2s;
