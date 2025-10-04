@@ -181,6 +181,38 @@ export const controlBarStyles = css`
     margin-left: 0.25rem;
   }
 
+
+ .control-group select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background: url('data:image/svg+xml;utf8,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"%3E%3Cpath d="M6 9L12 15L18 9" stroke="%23000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/%3E%3C/svg%3E');
+    background-repeat: no-repeat;
+    background-position: right 4px center;
+    width: max-content;
+    padding: 6px 30px 6px 9px;
+  }
+  .control-group select option {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
   /* Responsive layout: stack controls on small screens */
   @media (max-width: 640px) {
     .control-bar {
