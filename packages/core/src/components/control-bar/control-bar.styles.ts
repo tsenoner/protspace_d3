@@ -108,9 +108,8 @@ export const controlBarStyles = css`
     align-items: center;
     justify-content: center;
     column-gap: 5px;
-    border-width: 1px;
     padding: 0.3rem 0.45rem 0.3rem 0.5rem;
-    border-color: rgba(13, 235, 255, 0.66);
+    border: 1px solid var(--up-border);
     border-radius: 5px;
     outline-style: unset;
     outline-width: unset;
@@ -125,10 +124,7 @@ export const controlBarStyles = css`
     font-weight: 400;
   }
   @media (prefers-color-scheme: dark) {
-    .right-controls .export-container > button {
-      color: #ffffff; /* crisp white in dark mode */
-      font-weight: 400;
-    }
+   
   }
 
   /* High-contrast labels inside filter panel */
@@ -137,10 +133,7 @@ export const controlBarStyles = css`
     font-weight: 400;
   }
   @media (prefers-color-scheme: dark) {
-    .export-menu .filter-label {
-      color: #ffffff;
-      font-weight: 400;
-    }
+    
   }
 
   button.active:hover {
@@ -177,9 +170,8 @@ ease;;
     align-items: center;
     justify-content: center;
     column-gap: 5px;
-    border-width: 1px;
     padding: 0.3rem 0.45rem 0.3rem 0.5rem;
-    border-color: #0debffa8;
+    border: 1px solid var(--up-border);
     border-radius: 5px;
     outline: unset;
     outline-color: #39393900;
@@ -250,7 +242,7 @@ ease;;
 
 .filter-menu-list-item > button{
   display: flex;
-  border: 1px solid #10bcaabf;
+  border: 1px solid var(--up-border);
   border-radius: 4px;
   padding: 0.3rem 0.4rem 0.3rem 0.7rem;
   align-self: flex-start;
@@ -284,10 +276,12 @@ ease;;
 }
 
 .filter-menu-list-item-options-selection > button{
-    border: 1px solid #6ac4bf7a;
+    border: 1px solid var(--up-border);
     padding: 0.25rem 0.7rem;
     border-radius: 4px;
-    box-shadow: inset -1px -1px 3px 0px #40968c78;
+    box-shadow: inset -1px -1px 3px 0px #7d918e78;
+    transition: 0.3s;
+
 }
 
 .filter-menu-list-item-options-selection > button:last-child{
@@ -310,6 +304,10 @@ ease;;
     align-items: flex-start;
     justify-content: center;
     row-gap: 8px;
+    max-height: 10rem;
+    overflow-y: scroll;
+    scrollbar-width: thin;
+    scrollbar-color: #e4e4e4 #ffffff;
 
 }
 
@@ -520,39 +518,7 @@ ease;;
 
   /* Dark mode support */
   @media (prefers-color-scheme: dark) {
-    .control-bar {
-      background: #1f2937;
-      border-color: #374151;
-    }
-
-    label {
-      color: #d1d5db;
-    }
-
-    select {
-      background: #374151;
-      border-color: #4b5563;
-      color: #f9fafb;
-    }
-
-    button {
-      background: #374151;
-      border-color: #4b5563;
-      color: #d1d5db;
-    }
-
-    button:hover {
-      background: #4b5563;
-    }
-
-    .export-menu {
-      background: #374151;
-      border-color: #4b5563;
-    }
-
-    .export-menu button:hover {
-      background: #4b5563;
-    }
+    
   }
 `;
 

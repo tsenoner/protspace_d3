@@ -165,12 +165,6 @@ export const structureViewerStyles = css`
 
   /* Dark mode support */
   @media (prefers-color-scheme: dark) {
-    :host {
-      --protspace-viewer-bg: #1f2937;
-      --protspace-viewer-border: #374151;
-      --protspace-viewer-header-bg: #111827;
-      --protspace-viewer-text: #f9fafb;
-      --protspace-viewer-text-muted: #9ca3af;
-    }
+  
   }
 `;

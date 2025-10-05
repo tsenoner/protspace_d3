@@ -36,12 +36,6 @@ export const legendStyles = css`
     user-select: none;
   }
 
-  @media (prefers-color-scheme: dark) {
-    :host {
-      background: var(--legend-bg-dark);
-      border-color: var(--legend-border-dark);
-    }
-  }
 
   .legend-header {
     display: flex;
@@ -56,11 +50,6 @@ export const legendStyles = css`
     color: var(--legend-text-color);
   }
 
-  @media (prefers-color-scheme: dark) {
-    .legend-title {
-      color: var(--legend-text-color-dark);
-    }
-  }
 
   .customize-button {
     background: none;
@@ -76,14 +65,7 @@ export const legendStyles = css`
     color: var(--legend-text-color);
   }
 
-  @media (prefers-color-scheme: dark) {
-    .customize-button {
-      color: var(--legend-text-secondary-dark);
-    }
-    .customize-button:hover {
-      color: var(--legend-text-color-dark);
-    }
-  }
+
 
   .legend-items {
     display: flex;
@@ -141,23 +123,7 @@ export const legendStyles = css`
     border-left: 4px solid var(--legend-extracted-border);
   }
 
-  @media (prefers-color-scheme: dark) {
-    .legend-item {
-      background: var(--legend-hover-bg-dark);
-    }
-    .legend-item:hover {
-      background: var(--legend-hover-bg-dark);
-    }
-    .legend-item:active {
-      background: var(--legend-active-bg-dark);
-    }
-    .legend-item.hidden {
-      background: var(--legend-hidden-bg-dark);
-    }
-    .legend-item.dragging {
-      background: var(--legend-drag-bg-dark);
-    }
-  }
+
 
   .legend-item-content {
     display: flex;
@@ -178,11 +144,6 @@ export const legendStyles = css`
     cursor: grabbing;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .drag-handle {
-      color: var(--legend-text-secondary-dark);
-    }
-  }
 
   .legend-symbol {
     display: flex;
@@ -197,7 +158,7 @@ export const legendStyles = css`
 
   @media (prefers-color-scheme: dark) {
     .legend-text {
-      color: var(--legend-text-color-dark);
+      
     }
   }
 
@@ -224,12 +185,7 @@ export const legendStyles = css`
     font-weight: 500;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .legend-count {
-      color: var(--legend-text-secondary-dark);
-    }
-  }
-
+ 
   .legend-empty {
     text-align: center;
     color: var(--legend-text-secondary);
@@ -237,11 +193,7 @@ export const legendStyles = css`
     padding: 1rem 0;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .legend-empty {
-      color: var(--legend-text-secondary-dark);
-    }
-  }
+ 
 
   /* ----------------------------- Modal styles -------------------------------------- */
 
@@ -361,11 +313,6 @@ export const legendStyles = css`
   .other-items-list-item-sorting-container-item-container-input {
   }
 
-  @media (prefers-color-scheme: dark) {
-    .modal-content {
-      background: var(--legend-bg-dark);
-    }
-  }
 
   .modal-header {
     display: flex;
@@ -383,7 +330,7 @@ export const legendStyles = css`
 
   @media (prefers-color-scheme: dark) {
     .modal-title {
-      color: var(--legend-text-color-dark);
+      
     }
   }
 
@@ -407,10 +354,10 @@ export const legendStyles = css`
 
   @media (prefers-color-scheme: dark) {
     .close-button {
-      color: var(--legend-text-secondary-dark);
+      
     }
     .close-button:hover {
-      color: var(--legend-text-color-dark);
+      
     }
   }
 
@@ -422,9 +369,7 @@ export const legendStyles = css`
   }
 
   @media (prefers-color-scheme: dark) {
-    .modal-description {
-      color: var(--legend-text-secondary-dark);
-    }
+    
   }
 
   .other-items-list {
@@ -436,7 +381,7 @@ export const legendStyles = css`
 
   @media (prefers-color-scheme: dark) {
     .other-items-list {
-      border-color: var(--legend-border-dark);
+   
     }
   }
 
@@ -459,10 +404,10 @@ export const legendStyles = css`
 
   @media (prefers-color-scheme: dark) {
     .other-item {
-      border-color: var(--legend-border-dark);
+ 
     }
     .other-item:hover {
-      background: var(--legend-hover-bg-dark);
+     
     }
   }
 
@@ -481,14 +426,7 @@ export const legendStyles = css`
     color: var(--legend-text-secondary);
   }
 
-  @media (prefers-color-scheme: dark) {
-    .other-item-name {
-      color: var(--legend-text-color-dark);
-    }
-    .other-item-count {
-      color: var(--legend-text-secondary-dark);
-    }
-  }
+ 
 
   .extract-button {
     background: none;
@@ -526,15 +464,6 @@ export const legendStyles = css`
     background: var(--legend-hidden-bg);
   }
 
-  @media (prefers-color-scheme: dark) {
-    .modal-close-button {
-      background: var(--legend-hover-bg-dark);
-      color: var(--legend-text-color-dark);
-    }
-    .modal-close-button:hover {
-      background: var(--legend-hidden-bg-dark);
-    }
-  }
 `;
 
 
