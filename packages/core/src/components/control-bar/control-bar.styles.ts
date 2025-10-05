@@ -102,6 +102,21 @@ export const controlBarStyles = css`
     border-color: var(--up-primary);
         box-shadow: inset 1px 1px 3px 0px #d8d8d8 !important;
     fill: #fff;
+
+    display: flex
+;
+    align-items: center;
+    justify-content: center;
+    column-gap: 5px;
+    border-width: 1px;
+    padding: 0.3rem 0.45rem 0.3rem 0.5rem;
+    border-color: rgba(13, 235, 255, 0.66);
+    border-radius: 5px;
+    outline-style: unset;
+    outline-width: unset;
+    outline-color: rgba(57, 57, 57, 0);
+    box-shadow: rgb(216, 216, 216) -1px -1px 3px 0px inset;
+    transition: 0.3s;
   }
 
   /* Make Filter button text more visible even when not active */
