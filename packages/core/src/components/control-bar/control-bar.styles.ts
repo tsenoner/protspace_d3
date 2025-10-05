@@ -73,7 +73,7 @@ export const controlBarStyles = css`
     box-shadow: 0 0 0 2px rgba(0, 114, 181, 0.15);
   }
 
-  button {
+  .right-controls-button {
     display: flex;
     align-items: center;
     gap: 0.25rem;
@@ -98,8 +98,10 @@ export const controlBarStyles = css`
 
   button.active {
     background: var(--up-primary);
-    color: #ffffff;
+    color: #ffffff !important;
     border-color: var(--up-primary);
+        box-shadow: inset 1px 1px 3px 0px #d8d8d8 !important;
+    fill: #fff;
   }
 
   /* Make Filter button text more visible even when not active */
@@ -138,42 +140,305 @@ export const controlBarStyles = css`
     stroke-width: 1.5;
   }
 
+  .export-container,
+  .filter-container{
+    display: flex;
+    position:relative;
+    align-items: center;
+    gap: 0.25rem;
+    border: unset;
+    border-radius: 0.25rem;
+    background: var(--up-surface);
+    color: var(--up-muted);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.15s 
+ease;;
+  
+  }
+.export-container > button,
+  .filter-container > button{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    column-gap: 5px;
+    border-width: 1px;
+    padding: 0.3rem 0.45rem 0.3rem 0.5rem;
+    border-color: #0debffa8;
+    border-radius: 5px;
+    outline: unset;
+    outline-color: #39393900;
+    box-shadow: inset -1px -1px 3px 0px #d8d8d8;
+    transition: 0.3s;
+    
+    }
   .export-container {
     position: relative;
   }
 
-  .export-menu {
+  .filter-menu {
+   
     position: absolute;
     right: 0;
-    top: 100%;
-    margin-top: 0.25rem;
-    width: 10rem;
+    top: calc(100% + 5px);
+    width: max-content;
     background: var(--up-surface);
     border: 1px solid var(--up-border);
     border-radius: 0.25rem;
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+    display: flex;
     z-index: 50;
+    flex-direction: column;
+    row-gap: 20px;
+    padding:6px 10px 14px;;
   }
 
-  .export-menu ul {
+ .filter-menu-list {
     list-style: none;
     margin: 0;
-    padding: 0.25rem 0;
-  }
-
-  .export-menu button {
+    display: flex;
+    padding: 0.45rem 0.25rem 0.25rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    cursor: auto;
+    row-gap: 17px;
     width: 100%;
-    text-align: left;
-    padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 0;
-    background: none;
-    font-size: 0.875rem;
   }
 
-  .export-menu button:hover {
+  .filter-menu-list-item{
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    row-gap: 7px;
+    width: 100%;
+    position: relative;
+
+
+  }
+
+   .filter-menu-list-item> label,
+    .filter-menu-list-item input{
+      cursor: pointer;
+    
+    }
+.filter-menu-list-item> label{
+  color: #0b0f19;
+    font-weight: 400;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%;
+    column-gap: 8px;
+}
+
+.filter-menu-list-item > button{
+  display: flex;
+  border: 1px solid #10bcaabf;
+  border-radius: 4px;
+  padding: 0.3rem 0.4rem 0.3rem 0.7rem;
+  align-self: flex-start;
+    margin-left: 18px;
+}
+
+
+
+.filter-menu-list-item-options{
+    position: absolute;
+    right: 0;
+    top: calc(100% - 28px);
+    width: max-content;
+    background: var(--up-surface);
+    border: 1px solid var(--up-border);
+    border-radius: 0.25rem;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+    display: flex;
+    z-index: 50;
+    flex-direction: column;
+    row-gap: 14px;
+    padding: 9px 10px 14px;;
+}
+
+.filter-menu-list-item-options-selection{
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    column-gap: 11px;
+}
+
+.filter-menu-list-item-options-selection > button{
+    border: 1px solid #6ac4bf7a;
+    padding: 0.25rem 0.7rem;
+    border-radius: 4px;
+    box-shadow: inset -1px -1px 3px 0px #40968c78;
+}
+
+.filter-menu-list-item-options-selection > button:last-child{
+    background-color: #e42121;
+    box-shadow: inset -1px -1px 3px 0px #f6f6f6a8;
+    border-color: #d06868;
+    color: #fff;
+    font-weight: 900;
+}
+    .filter-menu-list-item-options-selection > button:last-child:hover{
+     background-color: #c20909ff;
+    box-shadow: inset -1px -1px 3px 0px #f6f6f6a8;
+    border-color: #d06868;
+    color: #fff;
+    font-weight: 900
+    }
+.filter-menu-list-item-options-inputs{
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    row-gap: 8px;
+
+}
+
+.filter-menu-list-item-options-inputs > label{
+    display: flex;
+    flex-direction: row-reverse;
+    width: 100%;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0px 1px 2px 0px #3323c41a;
+    padding: 0.3rem 0.3rem 0.3rem 0.5rem;
+    box-sizing: border-box;
+    transition: 0.3s;
+}
+
+.filter-menu-list-item-options-inputs > label:hover{
+    box-shadow: 0px 1px 2px 0px #3323c498;
+}
+.filter-menu-list-item-options-done{
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+
+.filter-menu-list-item-options-done > button{
+  
+    border: 1px solid #6ac4bf7a;
+    padding: 0.35rem 1.2rem 0.42rem;
+    border-radius: 4px;
+    box-shadow: inset -1px -1px 3px 0px #40968c78;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    transition: 0.3s;
+}
+
+.filter-menu-list-item-options-done > button:hover{
+
+    background-color: #3af864 !important;
+    color: #fff;
+    
+}
+
+.filter-menu-buttons {
+    width: 100%;
+    border: none;
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-direction: row;
+    column-gap: 9px;
+  }
+
+  .filter-menu-buttons > button{
+    border: 1px solid #bebebe;
+    padding: 0.3rem 1.3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: 0.3s;
+  }
+  .filter-menu-buttons > button.active:hover{
+    background-color: #3ff2ff !important; 
+    color: #000 !important;
+  }
+
+
+
+  .filter-menu button:hover {
     background: #f6f8fb;
   }
+
+
+
+
+
+  .export-menu{
+    position: absolute;
+    right: 0;
+    top: calc(100% + 5px);
+    width: max-content;
+    background: var(--up-surface);
+    border: 1px solid var(--up-border);
+    border-radius: 0.25rem;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+    display: flex;
+    z-index: 50;
+    flex-direction: column;
+    row-gap: 20px;
+    padding: 10px 10px 14px;
+  
+  }
+
+
+.export-menu-list{
+      margin: 0;
+    list-style: none;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    row-gap: 10px;
+  
+  }
+.export-menu-list-item{
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+
+}
+.export-menu-list-item-button{
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    border: 1px solid #3afcf3;
+    border-radius: 5px;
+    padding: 0.35rem 0.9rem;
+    cursor: pointer;
+    box-shadow: inset -1px -1px 2px -1px #969696c9;
+
+}
+
+.export-menu-list-item-button:hover{
+
+    border: 1px solid #3afcf3;
+        background-color: #58e9f3;
+    box-shadow: inset -1px -1px 2px -1px #e9e9e9c9;
+    color: #fff;
+
+
+}
+
+
+
+
+
+
+
 
   .chevron-down {
     width: 1rem;
