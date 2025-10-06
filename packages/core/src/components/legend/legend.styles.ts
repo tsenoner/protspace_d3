@@ -30,8 +30,7 @@ export const legendStyles = css`
     background: var(--legend-bg);
     border: 1px solid var(--legend-border);
     border-radius: var(--legend-border-radius);
-    padding: var(--legend-padding) !important;
-    max-width: 320px;
+    padding:5px 2px 2px 2px;
     box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.06);
     user-select: none;
   }
@@ -46,6 +45,7 @@ export const legendStyles = css`
     flex-direction: column;
     width: 100%;
     height: 100%;
+    padding-bottom: 8px;
 }
 
   
@@ -55,7 +55,7 @@ export const legendStyles = css`
     flex-direction: row;
     width: 100%;
     align-items: center;
-    padding-left: 11px;
+    padding: 3px 6px 0px 1.2rem;
     margin-bottom: 0.75rem;
     box-sizing: border-box;
   }
@@ -90,6 +90,11 @@ export const legendStyles = css`
     flex-direction: column;
     gap: var(--legend-item-gap);
     width: 100%;
+    max-height: 12rem;
+    overflow-y: scroll;
+    scrollbar-width: thin;
+    padding: 5px 6px 4px 9px;
+    box-sizing: border-box;
   }
 
   .legend-item {
