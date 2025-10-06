@@ -37,17 +37,34 @@ export const legendStyles = css`
   }
 
 
+
+.legend-container{
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+}
+
+  
   .legend-header {
     display: flex;
     justify-content: space-between;
+    flex-direction: row;
+    width: 100%;
     align-items: center;
+    padding-left: 11px;
     margin-bottom: 0.75rem;
+    box-sizing: border-box;
   }
 
   .legend-title {
     font-weight: 500;
     font-size: 1rem;
     color: var(--legend-text-color);
+    margin: 0;
   }
 
 
@@ -56,13 +73,14 @@ export const legendStyles = css`
     border: none;
     color: var(--legend-text-secondary);
     cursor: pointer;
-    padding: 0.25rem;
-    border-radius: 0.25rem;
-    transition: color 0.2s ease;
+   padding: 0.3rem 0.5rem;
+    border-radius: 4px;
+    transition: color 0.15s ease, background-color 0.4s ease;
   }
 
   .customize-button:hover {
-    color: var(--legend-text-color);
+    color: #ffffffff;
+    background-color: #979595ff;
   }
 
 
@@ -71,6 +89,7 @@ export const legendStyles = css`
     display: flex;
     flex-direction: column;
     gap: var(--legend-item-gap);
+    width: 100%;
   }
 
   .legend-item {
@@ -84,6 +103,8 @@ export const legendStyles = css`
     background: var(--legend-hover-bg);
     box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     position: relative;
+    width: 100%;
+    box-sizing: border-box;
   }
 
   .legend-item:hover {
@@ -128,7 +149,9 @@ export const legendStyles = css`
   .legend-item-content {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 7px ;
+    width: 100%;
+    box-sizing: border-box;
   }
 
   .drag-handle {
@@ -154,6 +177,8 @@ export const legendStyles = css`
   .legend-text {
     font-size: 0.875rem;
     color: var(--legend-text-color);
+    width: 100%;
+    overflow-wrap: anywhere;
   }
 
   @media (prefers-color-scheme: dark) {
@@ -183,6 +208,11 @@ export const legendStyles = css`
     font-size: 0.875rem;
     color: var(--legend-text-secondary);
     font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 0 0 0 9px;
   }
 
  

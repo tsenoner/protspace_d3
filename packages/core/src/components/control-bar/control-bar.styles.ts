@@ -308,6 +308,7 @@ ease;;
     overflow-y: scroll;
     scrollbar-width: thin;
     scrollbar-color: #e4e4e4 #ffffff;
+    padding: 10px 5px;
 
 }
 
