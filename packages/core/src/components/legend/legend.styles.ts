@@ -26,13 +26,23 @@ export const legendStyles = css`
     --legend-selected-ring: #00a3e0; /* UniProt lighter azure */
     --legend-extracted-border: #10b981;
 
-    display: block;
-    background: var(--legend-bg);
+   
+    
+    
+    display: flex;
+    user-select: none;   
+    flex-direction: column;
+    width: 100%;
+    max-width: 400px;
     border: 1px solid var(--legend-border);
+    background: var(--legend-bg);
     border-radius: var(--legend-border-radius);
-    padding:5px 2px 2px 2px;
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-    user-select: none;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    box-sizing: border-box;
+    padding: 5px 2px 9px 2px;
+    flex-shrink: 1;
+    flex-grow: 1;
+    height: calc(50% - 1rem);
   }
 
 
@@ -41,11 +51,12 @@ export const legendStyles = css`
 
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     flex-direction: column;
     width: 100%;
     height: 100%;
     padding-bottom: 8px;
+    flex-shrink: 1;
 }
 
   
@@ -56,7 +67,7 @@ export const legendStyles = css`
     width: 100%;
     align-items: center;
     padding: 3px 6px 0px 1.2rem;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.25rem;
     box-sizing: border-box;
   }
 
@@ -90,18 +101,21 @@ export const legendStyles = css`
     flex-direction: column;
     gap: var(--legend-item-gap);
     width: 100%;
-    max-height: 12rem;
+   max-height: calc(100vh - 10rem);
     overflow-y: scroll;
     scrollbar-width: thin;
     padding: 5px 6px 4px 9px;
     box-sizing: border-box;
+    flex-grow: 1;
+    flex-shrink: 1;
+
   }
 
   .legend-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: var(--legend-item-padding);
+    padding: 6px 10px 6px 2px;
     border-radius: 0.5rem;
     cursor: pointer;
     transition: all 0.2s ease;

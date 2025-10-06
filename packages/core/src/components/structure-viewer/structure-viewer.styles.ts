@@ -3,7 +3,7 @@ import { css } from "lit";
 export const structureViewerStyles = css`
   :host {
     --protspace-viewer-width: 100%;
-    --protspace-viewer-height: 400px;
+    --protspace-viewer-height: 16rem;
     --protspace-viewer-bg: #ffffff;
     --protspace-viewer-border: #d9e2ec;
     --protspace-viewer-border-radius: 6px;
@@ -13,13 +13,20 @@ export const structureViewerStyles = css`
     --protspace-viewer-error: #c53030;
     --protspace-viewer-loading: #00a3e0;
 
-    display: block;
-    width: var(--protspace-viewer-width);
+  
+   
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    box-sizing: border-box;
+    position: relative;
     background: var(--protspace-viewer-bg);
     border: 1px solid var(--protspace-viewer-border);
     border-radius: var(--protspace-viewer-border-radius);
-    overflow: hidden;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+    flex-shrink: 0;
+    flex-grow: 0;
+    
+    
   }
 
   .header {
@@ -50,7 +57,7 @@ export const structureViewerStyles = css`
     font-size: 1.25rem;
     color: var(--protspace-viewer-text-muted);
     cursor: pointer;
-    padding: 0.7rem 1rem;
+    padding: 0.5rem 0.7rem;
     line-height: 1;
     border-radius: 0.25rem;
     transition: color 0.2s;
@@ -143,7 +150,7 @@ export const structureViewerStyles = css`
   }
 
   .tips {
-    padding: 0.5rem 1rem;
+    padding: 0.2rem 1rem;
     background: #f6f8fb;
     border-top: 1px solid var(--protspace-viewer-border);
     font-size: 0.75rem;

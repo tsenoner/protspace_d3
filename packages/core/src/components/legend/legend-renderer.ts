@@ -16,7 +16,7 @@ export class LegendRenderer {
     size = LEGEND_DEFAULTS.symbolSize,
     isSelected = false
   ): TemplateResult {
-    const halfSize = size / 2;
+    const halfSize = size / 1;
 
     // Safely handle null or undefined shape
     const shapeKey = (
