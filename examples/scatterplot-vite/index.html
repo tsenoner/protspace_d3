@@ -28,7 +28,7 @@
     .visualization-container {
       display: grid;
       grid-template-columns: 3fr 1fr;
-      grid-template-rows: calc(100vh - 92px) auto;
+      grid-template-rows: calc(100vh - 92px);
       gap: 1rem;
       align-items: flex-start;
     }
@@ -55,9 +55,8 @@
       box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     }
 
-    /* protspace-legend {}
 
-    protspace-structure-viewer {} */
+
 
     protspace-structure-viewer .close-button {
       background: #ef4444 !important;
@@ -110,11 +109,24 @@
     @media (max-width: 1024px) {
       .visualization-container {
         grid-template-columns: 1fr;
+        grid-template-rows: calc(24rem) 35rem;
       }
 
       .right-panel {
         order: -1;
+        flex-direction: row;
       }
+
+      protspace-legend {
+        height: calc(100%);
+      }
+
+      protspace-structure-viewer {
+
+        height: max-content;
+
+      }
+
     }
   </style>
 </head>
