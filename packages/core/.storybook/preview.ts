@@ -1,23 +1,14 @@
-// packages/core/.storybook/preview.ts
+import type { Preview } from '@storybook/web-components-vite'
 
-// Default export for Storybook preview configuration
-export default {
+const preview: Preview = {
   parameters: {
     controls: {
       matchers: {
-        color: /(background|color)$/i,
-        date: /Date$/i,
+       color: /(background|color)$/i,
+       date: /Date$/i,
       },
     },
   },
 };
 
-// If you need to export parameters separately for some reason (e.g. for type inference in stories)
-// export const parameters = {
-//   controls: {
-//     matchers: {
-//       color: /(background|color)$/i,
-//       date: /Date$/i,
-//     },
-//   },
-// }; 
+export default preview;
