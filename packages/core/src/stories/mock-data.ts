@@ -322,29 +322,33 @@ export function generateManyFeaturesData(): VisualizationData {
 }
 
 /**
- * Generate data with overlapping clusters to demonstrate z-order
+ * Generate data with perfectly overlapping points to demonstrate z-order
+ * Creates the SAME set of points three times, each assigned to a different family.
+ * This creates perfect overlap to clearly show which layer is on top.
  */
 export function generateOverlappingData(): VisualizationData {
-  const proteinCount = 150;
   const families = ["Kinase", "Protease", "Receptor"];
-
-  // Define three overlapping cluster centers
-  const clusterCenters: [number, number][] = [
-    [0.0, 0.0], // Kinase - center
-    [0.15, 0.15], // Protease - slightly offset
-    [-0.15, 0.15], // Receptor - slightly offset other direction
-  ];
+  const pointsPerFamily = 50;
 
   const protein_ids: string[] = [];
   const projectionData: [number, number][] = [];
   const familyData: number[] = [];
 
-  // Create 50 points per cluster with tight clustering (lots of overlap)
-  for (let familyIdx = 0; familyIdx < families.length; familyIdx++) {
-    for (let i = 0; i < 50; i++) {
-      protein_ids.push(`PROT${String(protein_ids.length).padStart(5, "0")}`);
-      // Very tight clustering for maximum overlap
-      projectionData.push(clusteredPoint(clusterCenters[familyIdx], 0.4));
+  // Generate ONE set of base points - these will be reused for all families
+  const basePoints: [number, number][] = [];
+  for (let i = 0; i < pointsPerFamily; i++) {
+    const point = randomPoint(-0.5, 0.5);
+    basePoints.push(point);
+  }
+
+  // Now assign each base point to ALL three families
+  // This means point 0 appears 3 times (once per family), point 1 appears 3 times, etc.
+  for (let i = 0; i < pointsPerFamily; i++) {
+    const point = basePoints[i];
+    for (let familyIdx = 0; familyIdx < families.length; familyIdx++) {
+      protein_ids.push(`${families[familyIdx]}_${String(i).padStart(3, "0")}`);
+      // Use the EXACT same coordinates (not a copy, the actual same point)
+      projectionData.push(point);
       familyData.push(familyIdx);
     }
   }

@@ -201,17 +201,20 @@ export const DragToReorder: Story = {
           <strong>🎨 Z-order demonstration:</strong>
           <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
             <li>
-              <strong>Notice:</strong> Three clusters (Kinase, Protease,
-              Receptor) intentionally overlap in the center
+              <strong>Perfect overlap:</strong> The same 50 points are plotted
+              THREE times (Kinase, Protease, Receptor)
             </li>
             <li>
-              <strong>Drag legend items</strong> to reorder them - watch which
-              color appears on top!
+              <strong>All points stack exactly on top of each other</strong> -
+              only the top layer is visible
             </li>
-            <li><strong>Top of legend</strong> = drawn first (bottom layer)</li>
             <li>
-              <strong>Bottom of legend</strong> = drawn last (top layer, appears
-              on top)
+              <strong>Drag legend items</strong> to change z-order - watch the
+              entire plot change color!
+            </li>
+            <li>
+              <strong>Rule:</strong> Top of legend = bottom layer (drawn first),
+              Bottom of legend = top layer (drawn last, visible)
             </li>
           </ul>
         </div>

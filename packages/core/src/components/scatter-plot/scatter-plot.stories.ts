@@ -11,7 +11,7 @@ import {
   generateMediumData,
   generateLargeData,
   generateDataWithNulls,
-} from "../../mock-data";
+} from "../../stories/mock-data";
 
 const meta: Meta = {
   title: "Components/Scatterplot",
@@ -99,7 +99,9 @@ export const MediumDataset: Story = {
         .useCanvas=${args.useCanvas}
       ></protspace-scatterplot>
     </div>
-    <div style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px;">
+    <div
+      style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px;"
+    >
       <strong>Dataset info:</strong> ${args.data.protein_ids.length} proteins,
       ${args.data.projections.length} projections,
       ${Object.keys(args.data.features).length} features
@@ -126,7 +128,9 @@ export const LargeDataset: Story = {
         .useCanvas=${args.useCanvas}
       ></protspace-scatterplot>
     </div>
-    <div style="margin-top: 1rem; padding: 1rem; background: #fff3cd; border-radius: 4px; border-left: 4px solid #ffc107;">
+    <div
+      style="margin-top: 1rem; padding: 1rem; background: #fff3cd; border-radius: 4px; border-left: 4px solid #ffc107;"
+    >
       <strong>⚡ Performance mode:</strong> Automatically uses canvas rendering
       for optimal performance with ${args.data.protein_ids.length} proteins
     </div>
@@ -148,7 +152,9 @@ export const MultipleProjections: Story = {
       ${args.data.projections.map(
         (proj, idx) => html`
           <div>
-            <h3 style="margin: 0 0 0.5rem 0; text-align: center;">${proj.name}</h3>
+            <h3 style="margin: 0 0 0.5rem 0; text-align: center;">
+              ${proj.name}
+            </h3>
             <div style="width: 100%; height: 400px; border: 1px solid #ccc;">
               <protspace-scatterplot
                 .data=${args.data}
@@ -158,10 +164,12 @@ export const MultipleProjections: Story = {
               ></protspace-scatterplot>
             </div>
           </div>
-        `
+        `,
       )}
     </div>
-    <div style="margin-top: 1rem; padding: 1rem; background: #e7f3ff; border-radius: 4px;">
+    <div
+      style="margin-top: 1rem; padding: 1rem; background: #e7f3ff; border-radius: 4px;"
+    >
       <strong>💡 Tip:</strong> Different projection methods reveal different
       aspects of the data structure. UMAP preserves local structure, t-SNE
       emphasizes clusters, and PCA shows global variance.
@@ -194,7 +202,7 @@ export const FeatureComparison: Story = {
               ></protspace-scatterplot>
             </div>
           </div>
-        `
+        `,
       )}
     </div>
   `,
@@ -221,7 +229,9 @@ export const WithShapes: Story = {
         .useCanvas=${args.useCanvas}
       ></protspace-scatterplot>
     </div>
-    <div style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px;">
+    <div
+      style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px;"
+    >
       <strong>Shapes enabled:</strong> Each feature value uses a different shape
       (circle, square, triangle, diamond, star) in addition to color
     </div>
@@ -252,7 +262,9 @@ export const SelectionMode: Story = {
         }}
       ></protspace-scatterplot>
     </div>
-    <div style="margin-top: 1rem; padding: 1rem; background: #d1ecf1; border-radius: 4px; border-left: 4px solid #0c5460;">
+    <div
+      style="margin-top: 1rem; padding: 1rem; background: #d1ecf1; border-radius: 4px; border-left: 4px solid #0c5460;"
+    >
       <strong>Selection mode enabled:</strong> Click and drag to select multiple
       points. Check the Actions panel to see selection events.
     </div>
@@ -286,7 +298,9 @@ export const InteractiveTooltips: Story = {
         }}
       ></protspace-scatterplot>
     </div>
-    <div style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px;">
+    <div
+      style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px;"
+    >
       <strong>💡 Try this:</strong> Hover over points to see tooltips. Click
       points to select them. Check the Actions panel to see hover and click
       events.
@@ -313,7 +327,9 @@ export const ZoomAndPan: Story = {
         .useCanvas=${args.useCanvas}
       ></protspace-scatterplot>
     </div>
-    <div style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px;">
+    <div
+      style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px;"
+    >
       <strong>🖱️ Controls:</strong>
       <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
         <li>Scroll to zoom in/out</li>
@@ -343,7 +359,9 @@ export const WithNullValues: Story = {
         .useCanvas=${args.useCanvas}
       ></protspace-scatterplot>
     </div>
-    <div style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px;">
+    <div
+      style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px;"
+    >
       <strong>Null handling:</strong> Points with null/missing values are shown
       in a neutral gray color and labeled as "N/A" in tooltips
     </div>
@@ -373,7 +391,9 @@ export const RenderingComparison: Story = {
             .useCanvas=${true}
           ></protspace-scatterplot>
         </div>
-        <div style="margin-top: 0.5rem; padding: 0.5rem; background: #d4edda; border-radius: 4px; font-size: 0.875rem;">
+        <div
+          style="margin-top: 0.5rem; padding: 0.5rem; background: #d4edda; border-radius: 4px; font-size: 0.875rem;"
+        >
           ✓ Recommended for &gt;100 points<br />
           ✓ Better performance<br />
           ✓ Smooth zooming
@@ -389,7 +409,9 @@ export const RenderingComparison: Story = {
             .useCanvas=${false}
           ></protspace-scatterplot>
         </div>
-        <div style="margin-top: 0.5rem; padding: 0.5rem; background: #fff3cd; border-radius: 4px; font-size: 0.875rem;">
+        <div
+          style="margin-top: 0.5rem; padding: 0.5rem; background: #fff3cd; border-radius: 4px; font-size: 0.875rem;"
+        >
           ⚠ Only for small datasets<br />
           ⚠ May lag with many points<br />
           ✓ Vector graphics quality
@@ -427,7 +449,9 @@ export const CustomConfiguration: Story = {
         .config=${args.config}
       ></protspace-scatterplot>
     </div>
-    <div style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px;">
+    <div
+      style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px;"
+    >
       <strong>Custom configuration:</strong> Larger points (120px base) with
       adjusted opacity for better visibility
     </div>

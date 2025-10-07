@@ -11,7 +11,7 @@ import {
   generateMediumData,
   generateManyFeaturesData,
   generateDataWithNulls,
-} from "../../mock-data";
+} from "../../stories/mock-data";
 
 const meta: Meta = {
   title: "Components/Legend",
@@ -32,7 +32,8 @@ const meta: Meta = {
     },
     maxVisibleValues: {
       control: { type: "number", min: 3, max: 20 },
-      description: "Maximum number of values to show before grouping into 'Other'",
+      description:
+        "Maximum number of values to show before grouping into 'Other'",
     },
     includeOthers: {
       control: "boolean",
@@ -67,14 +68,16 @@ export const Basic: Story = {
       (_, i) =>
         MINIMAL_DATA.features.family.values[
           MINIMAL_DATA.feature_data.family[i]
-        ]
+        ],
     ),
     proteinIds: MINIMAL_DATA.protein_ids,
     autoSync: false,
     autoHide: false,
   },
   render: (args) => html`
-    <div style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;">
+    <div
+      style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;"
+    >
       <protspace-legend
         .data=${args.data}
         .selectedFeature=${args.selectedFeature}
@@ -100,7 +103,7 @@ export const MediumDataset: Story = {
     featureValues: (() => {
       const data = generateMediumData();
       return data.protein_ids.map(
-        (_, i) => data.features.family.values[data.feature_data.family[i]]
+        (_, i) => data.features.family.values[data.feature_data.family[i]],
       );
     })(),
     proteinIds: generateMediumData().protein_ids,
@@ -108,7 +111,9 @@ export const MediumDataset: Story = {
     autoHide: false,
   },
   render: (args) => html`
-    <div style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;">
+    <div
+      style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;"
+    >
       <protspace-legend
         .data=${args.data}
         .selectedFeature=${args.selectedFeature}
@@ -118,7 +123,9 @@ export const MediumDataset: Story = {
         .autoHide=${args.autoHide}
       ></protspace-legend>
     </div>
-    <div style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px; max-width: 300px;">
+    <div
+      style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px; max-width: 300px;"
+    >
       <strong>Dataset:</strong> 100 proteins across 5 families<br />
       <strong>Counts:</strong> Each legend item shows the number of proteins
     </div>
@@ -138,7 +145,7 @@ export const Interactive: Story = {
     featureValues: (() => {
       const data = generateMediumData();
       return data.protein_ids.map(
-        (_, i) => data.features.family.values[data.feature_data.family[i]]
+        (_, i) => data.features.family.values[data.feature_data.family[i]],
       );
     })(),
     proteinIds: generateMediumData().protein_ids,
@@ -146,7 +153,9 @@ export const Interactive: Story = {
     autoHide: false,
   },
   render: (args) => html`
-    <div style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;">
+    <div
+      style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;"
+    >
       <protspace-legend
         .data=${args.data}
         .selectedFeature=${args.selectedFeature}
@@ -159,7 +168,9 @@ export const Interactive: Story = {
         }}
       ></protspace-legend>
     </div>
-    <div style="margin-top: 1rem; padding: 1rem; background: #d1ecf1; border-radius: 4px; max-width: 300px; border-left: 4px solid #0c5460;">
+    <div
+      style="margin-top: 1rem; padding: 1rem; background: #d1ecf1; border-radius: 4px; max-width: 300px; border-left: 4px solid #0c5460;"
+    >
       <strong>💡 Try this:</strong>
       <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
         <li>Click items to hide/show them</li>
@@ -184,7 +195,7 @@ export const DragAndDrop: Story = {
     featureValues: (() => {
       const data = generateMediumData();
       return data.protein_ids.map(
-        (_, i) => data.features.family.values[data.feature_data.family[i]]
+        (_, i) => data.features.family.values[data.feature_data.family[i]],
       );
     })(),
     proteinIds: generateMediumData().protein_ids,
@@ -192,7 +203,9 @@ export const DragAndDrop: Story = {
     autoHide: false,
   },
   render: (args) => html`
-    <div style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;">
+    <div
+      style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;"
+    >
       <protspace-legend
         .data=${args.data}
         .selectedFeature=${args.selectedFeature}
@@ -205,7 +218,9 @@ export const DragAndDrop: Story = {
         }}
       ></protspace-legend>
     </div>
-    <div style="margin-top: 1rem; padding: 1rem; background: #d1ecf1; border-radius: 4px; max-width: 300px; border-left: 4px solid #0c5460;">
+    <div
+      style="margin-top: 1rem; padding: 1rem; background: #d1ecf1; border-radius: 4px; max-width: 300px; border-left: 4px solid #0c5460;"
+    >
       <strong>🎨 Z-order control:</strong><br />
       Drag items to reorder them. This changes the drawing order in the
       scatterplot, controlling which points appear on top.
@@ -226,7 +241,7 @@ export const WithOtherCategory: Story = {
     featureValues: (() => {
       const data = generateManyFeaturesData();
       return data.protein_ids.map(
-        (_, i) => data.features.family.values[data.feature_data.family[i]]
+        (_, i) => data.features.family.values[data.feature_data.family[i]],
       );
     })(),
     proteinIds: generateManyFeaturesData().protein_ids,
@@ -236,7 +251,9 @@ export const WithOtherCategory: Story = {
     autoHide: false,
   },
   render: (args) => html`
-    <div style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;">
+    <div
+      style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;"
+    >
       <protspace-legend
         .data=${args.data}
         .selectedFeature=${args.selectedFeature}
@@ -248,7 +265,9 @@ export const WithOtherCategory: Story = {
         .autoHide=${args.autoHide}
       ></protspace-legend>
     </div>
-    <div style="margin-top: 1rem; padding: 1rem; background: #fff3cd; border-radius: 4px; max-width: 300px; border-left: 4px solid #ffc107;">
+    <div
+      style="margin-top: 1rem; padding: 1rem; background: #fff3cd; border-radius: 4px; max-width: 300px; border-left: 4px solid #ffc107;"
+    >
       <strong>📦 "Other" category:</strong><br />
       Less common values (below top ${args.maxVisibleValues}) are grouped into
       an "Other" category. Click "(view)" to extract individual items.
@@ -269,7 +288,7 @@ export const ExtractFromOther: Story = {
     featureValues: (() => {
       const data = generateManyFeaturesData();
       return data.protein_ids.map(
-        (_, i) => data.features.family.values[data.feature_data.family[i]]
+        (_, i) => data.features.family.values[data.feature_data.family[i]],
       );
     })(),
     proteinIds: generateManyFeaturesData().protein_ids,
@@ -279,7 +298,9 @@ export const ExtractFromOther: Story = {
     autoHide: false,
   },
   render: (args) => html`
-    <div style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;">
+    <div
+      style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;"
+    >
       <protspace-legend
         .data=${args.data}
         .selectedFeature=${args.selectedFeature}
@@ -296,7 +317,9 @@ export const ExtractFromOther: Story = {
         }}
       ></protspace-legend>
     </div>
-    <div style="margin-top: 1rem; padding: 1rem; background: #d1ecf1; border-radius: 4px; max-width: 300px; border-left: 4px solid #0c5460;">
+    <div
+      style="margin-top: 1rem; padding: 1rem; background: #d1ecf1; border-radius: 4px; max-width: 300px; border-left: 4px solid #0c5460;"
+    >
       <strong>💡 Try this:</strong><br />
       Click "(view)" next to "Other" to see all grouped items. Extract
       interesting values to show them individually in the legend.
@@ -317,7 +340,7 @@ export const WithShapes: Story = {
     featureValues: (() => {
       const data = generateMediumData();
       return data.protein_ids.map(
-        (_, i) => data.features.family.values[data.feature_data.family[i]]
+        (_, i) => data.features.family.values[data.feature_data.family[i]],
       );
     })(),
     proteinIds: generateMediumData().protein_ids,
@@ -326,7 +349,9 @@ export const WithShapes: Story = {
     autoHide: false,
   },
   render: (args) => html`
-    <div style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;">
+    <div
+      style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;"
+    >
       <protspace-legend
         .data=${args.data}
         .selectedFeature=${args.selectedFeature}
@@ -337,7 +362,9 @@ export const WithShapes: Story = {
         .autoHide=${args.autoHide}
       ></protspace-legend>
     </div>
-    <div style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px; max-width: 300px;">
+    <div
+      style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px; max-width: 300px;"
+    >
       <strong>Shapes enabled:</strong> Each value displays with both color and
       shape (circle, square, triangle, diamond, star)
     </div>
@@ -357,7 +384,7 @@ export const ColorOnly: Story = {
     featureValues: (() => {
       const data = generateMediumData();
       return data.protein_ids.map(
-        (_, i) => data.features.family.values[data.feature_data.family[i]]
+        (_, i) => data.features.family.values[data.feature_data.family[i]],
       );
     })(),
     proteinIds: generateMediumData().protein_ids,
@@ -366,7 +393,9 @@ export const ColorOnly: Story = {
     autoHide: false,
   },
   render: (args) => html`
-    <div style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;">
+    <div
+      style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;"
+    >
       <protspace-legend
         .data=${args.data}
         .selectedFeature=${args.selectedFeature}
@@ -377,7 +406,9 @@ export const ColorOnly: Story = {
         .autoHide=${args.autoHide}
       ></protspace-legend>
     </div>
-    <div style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px; max-width: 300px;">
+    <div
+      style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px; max-width: 300px;"
+    >
       <strong>Color only mode:</strong> All values use circles, differentiated
       only by color
     </div>
@@ -397,7 +428,7 @@ export const SettingsDialog: Story = {
     featureValues: (() => {
       const data = generateManyFeaturesData();
       return data.protein_ids.map(
-        (_, i) => data.features.family.values[data.feature_data.family[i]]
+        (_, i) => data.features.family.values[data.feature_data.family[i]],
       );
     })(),
     proteinIds: generateManyFeaturesData().protein_ids,
@@ -408,7 +439,9 @@ export const SettingsDialog: Story = {
     autoHide: false,
   },
   render: (args) => html`
-    <div style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;">
+    <div
+      style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;"
+    >
       <protspace-legend
         .data=${args.data}
         .selectedFeature=${args.selectedFeature}
@@ -421,7 +454,9 @@ export const SettingsDialog: Story = {
         .autoHide=${args.autoHide}
       ></protspace-legend>
     </div>
-    <div style="margin-top: 1rem; padding: 1rem; background: #d1ecf1; border-radius: 4px; max-width: 300px; border-left: 4px solid #0c5460;">
+    <div
+      style="margin-top: 1rem; padding: 1rem; background: #d1ecf1; border-radius: 4px; max-width: 300px; border-left: 4px solid #0c5460;"
+    >
       <strong>⚙️ Settings:</strong><br />
       Click the gear icon to customize:
       <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
@@ -457,7 +492,9 @@ export const WithNullValues: Story = {
     autoHide: false,
   },
   render: (args) => html`
-    <div style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;">
+    <div
+      style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;"
+    >
       <protspace-legend
         .data=${args.data}
         .selectedFeature=${args.selectedFeature}
@@ -467,7 +504,9 @@ export const WithNullValues: Story = {
         .autoHide=${args.autoHide}
       ></protspace-legend>
     </div>
-    <div style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px; max-width: 300px;">
+    <div
+      style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px; max-width: 300px;"
+    >
       <strong>Null handling:</strong> Missing/null values are displayed as "N/A"
       in the legend with a neutral gray color
     </div>
@@ -487,17 +526,24 @@ export const MultipleFeatures: Story = {
   render: (args) => {
     const data = generateMediumData();
     return html`
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+      <div
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;"
+      >
         ${Object.keys(args.data.features).map((feature) => {
           const featureValues = data.protein_ids.map(
-            (_, i) => data.features[feature].values[data.feature_data[feature][i]]
+            (_, i) =>
+              data.features[feature].values[data.feature_data[feature][i]],
           );
           return html`
             <div>
-              <h3 style="margin: 0 0 0.5rem 0; text-align: center; font-size: 1rem;">
+              <h3
+                style="margin: 0 0 0.5rem 0; text-align: center; font-size: 1rem;"
+              >
                 ${feature}
               </h3>
-              <div style="border: 1px solid #ccc; border-radius: 8px; overflow: hidden;">
+              <div
+                style="border: 1px solid #ccc; border-radius: 8px; overflow: hidden;"
+              >
                 <protspace-legend
                   .data=${args.data}
                   .selectedFeature=${feature}
@@ -528,7 +574,7 @@ export const Compact: Story = {
     featureValues: (() => {
       const data = generateMediumData();
       return data.protein_ids.map(
-        (_, i) => data.features.family.values[data.feature_data.family[i]]
+        (_, i) => data.features.family.values[data.feature_data.family[i]],
       );
     })(),
     proteinIds: generateMediumData().protein_ids,
@@ -539,7 +585,9 @@ export const Compact: Story = {
     autoHide: false,
   },
   render: (args) => html`
-    <div style="width: 200px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;">
+    <div
+      style="width: 200px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;"
+    >
       <protspace-legend
         .data=${args.data}
         .selectedFeature=${args.selectedFeature}
@@ -552,9 +600,11 @@ export const Compact: Story = {
         .autoHide=${args.autoHide}
       ></protspace-legend>
     </div>
-    <div style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px; max-width: 200px;">
-      <strong>Compact mode:</strong> Smaller width (200px) with reduced max items
-      and smaller shape size
+    <div
+      style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px; max-width: 200px;"
+    >
+      <strong>Compact mode:</strong> Smaller width (200px) with reduced max
+      items and smaller shape size
     </div>
   `,
 };
@@ -572,7 +622,9 @@ export const EmptyState: Story = {
     autoHide: false,
   },
   render: (args) => html`
-    <div style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;">
+    <div
+      style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;"
+    >
       <protspace-legend
         .data=${args.data}
         .selectedFeature=${args.selectedFeature}
