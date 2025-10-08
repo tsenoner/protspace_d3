@@ -64,7 +64,7 @@ protspace/
 
 ### Prerequisites
 
-- **Node.js** 18+ 
+- **Node.js** 18+
 - **pnpm** 9+ (recommended) or npm
 - **Git**
 
@@ -99,9 +99,7 @@ The main web components package built with [Lit](https://lit.dev/):
 
 ```html
 <!-- Vanilla JavaScript usage -->
-<protspace-scatterplot 
-  data="path/to/data.arrow"
-  theme="scientific">
+<protspace-scatterplot data="path/to/data.arrow" theme="scientific">
 </protspace-scatterplot>
 ```
 
@@ -110,7 +108,7 @@ The main web components package built with [Lit](https://lit.dev/):
 Shared utilities for data processing and visualization:
 
 - **Arrow parsing** - Efficient loading of protein data
-- **Math utilities** - Clustering, PCA, UMAP implementations  
+- **Math utilities** - Clustering, PCA, UMAP implementations
 - **Visualization helpers** - Color schemes, scales, layouts
 
 #### `@protspace/react`
@@ -118,17 +116,13 @@ Shared utilities for data processing and visualization:
 React wrappers and hooks for seamless React integration:
 
 ```tsx
-import { ScatterplotWrapper, useProtspaceData } from '@protspace/react';
+import { ScatterplotWrapper, useProtspaceData } from "@protspace/react";
 
 function MyComponent() {
   const { data, selectPoint } = useProtspaceData(proteinData);
-  
+
   return (
-    <ScatterplotWrapper 
-      data={data} 
-      onPointSelect={selectPoint}
-      theme="dark"
-    />
+    <ScatterplotWrapper data={data} onPointSelect={selectPoint} theme="dark" />
   );
 }
 ```
@@ -176,13 +170,13 @@ turbo dev --filter=@protspace/core
 
 2. **Make changes** to components in `packages/core/src/components/`
 
-4. **Test your changes**:
+3. **Test your changes**:
 
    ```bash
    pnpm test
    ```
 
-5. **Build for production**:
+4. **Build for production**:
 
    ```bash
    pnpm build
@@ -215,13 +209,13 @@ ProtSpace uses Apache Arrow for efficient data loading:
 
 ```typescript
 interface DataPoint {
-  x: number;              // X coordinate
-  y: number;              // Y coordinate  
-  category?: string;      // Protein family/category
-  color?: string;         // Custom color
-  size?: number;          // Point size
-  label?: string;         // Display label
-  metadata?: object;      // Additional data
+  x: number; // X coordinate
+  y: number; // Y coordinate
+  category?: string; // Protein family/category
+  color?: string; // Custom color
+  size?: number; // Point size
+  label?: string; // Display label
+  metadata?: object; // Additional data
 }
 ```
 
@@ -254,10 +248,10 @@ turbo test --filter=@protspace/core
 ## 📚 Documentation
 
 - **Components**: See `docs/components/` for detailed component APIs
-- **Examples**: 
-    - `examples/scatterplot-vite/`: Scatterplot demo using Vite. Run with `pnpm dev:example:scatterplot-vite`.
-    - **🚀 Auto-Deploy to GitHub Pages**: The scatterplot example automatically deploys to GitHub Pages on push to main branch via GitHub Actions. Enable GitHub Pages in repository settings (source: GitHub Actions), then push changes to deploy. The workflow builds all workspace dependencies and deploys the example with sample protein data for immediate testing. Use `./scripts/deploy-example.sh` for local builds.
-    - Check `examples/` for other usage examples (as they are added).
+- **Examples**:
+  - `examples/scatterplot-vite/`: Scatterplot demo using Vite. Run with `pnpm dev:example:scatterplot-vite`.
+  - **🚀 Auto-Deploy to GitHub Pages**: The scatterplot example automatically deploys to GitHub Pages on push to main branch via GitHub Actions. Enable GitHub Pages in repository settings (source: GitHub Actions), then push changes to deploy. The workflow builds all workspace dependencies and deploys the example with sample protein data for immediate testing. Use `./scripts/deploy-example.sh` for local builds.
+  - Check `examples/` for other usage examples (as they are added).
 - **Migration Guide**: `docs/migration-guide.md` for migrating from existing implementations
 
 ## 🚢 Publishing
@@ -348,16 +342,17 @@ When you make a change to a package that you intend to be part of a release, you
 
 1. After making your code changes, run the following command:
 
-    ```bash
-    pnpm changeset add
-    ```
+   ```bash
+   pnpm changeset add
+   ```
 
 2. Changesets will then prompt you to:
-    - Select which packages have been changed (use spacebar to select, enter to confirm).
-    - Specify the semver bump type (patch, minor, major) for each selected package.
-    - Write a summary of the changes. This summary will be included in the changelogs.
 
-    This process will create a new markdown file in the `.changeset` directory at the root of the project.
+   - Select which packages have been changed (use spacebar to select, enter to confirm).
+   - Specify the semver bump type (patch, minor, major) for each selected package.
+   - Write a summary of the changes. This summary will be included in the changelogs.
+
+   This process will create a new markdown file in the `.changeset` directory at the root of the project.
 
 3. Commit this generated markdown file along with your code changes.
 
@@ -367,23 +362,23 @@ When it's time to release:
 
 1. **Versioning**: The release process will consume all changeset files to determine the new versions for the packages.
 
-    ```bash
-    pnpm changeset version
-    # or npx changeset version
-    ```
+   ```bash
+   pnpm changeset version
+   # or npx changeset version
+   ```
 
-    This command updates the `package.json` versions of the changed packages and updates their changelog files (e.g., `CHANGELOG.md`).
+   This command updates the `package.json` versions of the changed packages and updates their changelog files (e.g., `CHANGELOG.md`).
 
 2. **Publishing**: After versions are bumped and changelogs are updated, you can publish the packages.
 
-    ```bash
-    pnpm changeset publish
-    # or npx changeset publish
-    ```
+   ```bash
+   pnpm changeset publish
+   # or npx changeset publish
+   ```
 
-    This will publish the packages that have been updated in the `version` step to the configured NPM registry.
+   This will publish the packages that have been updated in the `version` step to the configured NPM registry.
 
-    (Typically, these `version` and `publish` steps are part of an automated CI/CD release pipeline after merging changes to a main branch.)
+   (Typically, these `version` and `publish` steps are part of an automated CI/CD release pipeline after merging changes to a main branch.)
 
 ### Important Notes
 
