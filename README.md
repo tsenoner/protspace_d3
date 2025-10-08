@@ -84,20 +84,6 @@ pnpm install
 pnpm dev  # starts local demo at http://localhost:5173
 ```
 
-## 📝 Citation
-
-```bibtex
-@article{SENONER2025168940,
-  title = {ProtSpace: A Tool for Visualizing Protein Space},
-  journal = {Journal of Molecular Biology},
-  pages = {168940},
-  year = {2025},
-  issn = {0022-2836},
-  doi = {https://doi.org/10.1016/j.jmb.2025.168940},
-  author = {Tobias Senoner and Tobias Olenyi and Michael Heinzinger and Anton Spannagl and George Bouras and Burkhard Rost and Ivan Koludarov}
-}
-```
-
 ## ⚖️ License
 
 Apache License 2.0 - see [LICENSE](LICENSE)
