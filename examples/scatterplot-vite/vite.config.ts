@@ -5,7 +5,7 @@ import { htmlEntries } from './vite.entries';
 // https://vitejs.dev/config/
 export default defineConfig({
   // Set base path for GitHub Pages deployment
-  base: process.env.NODE_ENV === 'production' ? '/protspace_d3/' : '/',
+  base: process.env.NODE_ENV === 'production' ? '/protspace_web/' : '/',
   resolve: {
     alias: aliases,
   },
