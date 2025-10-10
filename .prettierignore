@@ -10,3 +10,4 @@
 **/*.h5
 **/*.ipynb
 **/examples/scatterplot-vite/dist/**
+**/*lock.yaml
