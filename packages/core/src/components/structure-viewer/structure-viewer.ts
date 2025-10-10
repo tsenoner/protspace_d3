@@ -46,8 +46,8 @@ export class ProtspaceStructureViewer extends LitElement {
         this._cleanup();
       }
     }
-    if (changedProperties.has("height")) {
-      this.style.setProperty("14rem", this.height);
+    if (changedProperties.has('height')) {
+      this.style.setProperty('14rem', this.height);
     }
   }
 

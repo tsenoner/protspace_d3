@@ -13,8 +13,6 @@ export const structureViewerStyles = css`
     --protspace-viewer-error: #c53030;
     --protspace-viewer-loading: #00a3e0;
 
-  
-   
     width: 100%;
     max-width: 400px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
@@ -25,8 +23,6 @@ export const structureViewerStyles = css`
     border-radius: var(--protspace-viewer-border-radius);
     flex-shrink: 0;
     flex-grow: 0;
-    
-    
   }
 
   .header {
@@ -172,6 +168,5 @@ export const structureViewerStyles = css`
 
   /* Dark mode support */
   @media (prefers-color-scheme: dark) {
-  
   }
 `;

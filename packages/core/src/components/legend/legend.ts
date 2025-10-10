@@ -1072,7 +1072,9 @@ export class ProtspaceLegend extends LitElement {
 
           <div class="other-items-list">
             <div class="other-items-list-item">
-              <label for="max-visible-input" class="other-items-list-item-label" >Max legend items</label>
+              <label for="max-visible-input" class="other-items-list-item-label"
+                >Max legend items</label
+              >
               <input
                 id="max-visible-input"
                 type="number"
@@ -1080,13 +1082,13 @@ export class ProtspaceLegend extends LitElement {
                 .value=${String(this.settingsMaxVisibleValues)}
                 placeholder=${String(LEGEND_DEFAULTS.maxVisibleValues)}
                 @input=${onInputChange}
-                 class="other-items-list-item-input"
+                class="other-items-list-item-input"
               />
             </div>
             <div class="other-items-list-item">
               <label for="shape-size-input" class="other-items-list-item-label">Shape size</label>
               <input
-              class="other-items-list-item-input"
+                class="other-items-list-item-input"
                 id="shape-size-input"
                 type="number"
                 min="6"
@@ -1100,44 +1102,72 @@ export class ProtspaceLegend extends LitElement {
                     this.settingsShapeSize = parsed;
                   }
                 }}
-                
               />
             </div>
-            <label  class="other-items-list-label">
-              <input class="other-items-list-label-input" type="checkbox" .checked=${this.settingsIncludeOthers} @change=${onToggleIncludeOthers} />
+            <label class="other-items-list-label">
+              <input
+                class="other-items-list-label-input"
+                type="checkbox"
+                .checked=${this.settingsIncludeOthers}
+                @change=${onToggleIncludeOthers}
+              />
               Show "Other" category
             </label>
             <label class="other-items-list-label">
-              <input class="other-items-list-label-input" type="checkbox" .checked=${this.settingsIncludeShapes} @change=${(e: Event) => { const t = e.target as HTMLInputElement; this.settingsIncludeShapes = t.checked; }} />
+              <input
+                class="other-items-list-label-input"
+                type="checkbox"
+                .checked=${this.settingsIncludeShapes}
+                @change=${(e: Event) => {
+                  const t = e.target as HTMLInputElement;
+                  this.settingsIncludeShapes = t.checked;
+                }}
+              />
               Include shapes
             </label>
-            <div class="other-items-list-item-sorting" >
+            <div class="other-items-list-item-sorting">
               <div class="other-items-list-item-sorting-title">Sorting</div>
               <div class="other-items-list-item-sorting-container">
-                ${featureNames.map((fname) => html`
-                  <div class="other-items-list-item-sorting-container-item">
-                    <span class="other-items-list-item-sorting-container-item-name">${fname}</span>
-                    <span class="other-items-list-item-sorting-container-item-container">
-                      <label class="other-items-list-item-sorting-container-item-container-label" >
-                        <input 
-                        class="other-items-list-item-sorting-container-item-container-input"
-                          type="radio"
-                          name=${`sort-${fname}`}
-                          .checked=${this.settingsFeatureSortModes[fname] === "size"}
-                          @change=${() => { this.settingsFeatureSortModes = { ...this.settingsFeatureSortModes, [fname]: "size" }; }}
-                        /> by feature size
-                      </label>
-                      <label>
-                        <input
-                          type="radio"
-                          name=${`sort-${fname}`}
-                          .checked=${this.settingsFeatureSortModes[fname] === "alpha"}
-                          @change=${() => { this.settingsFeatureSortModes = { ...this.settingsFeatureSortModes, [fname]: "alpha" }; }}
-                        /> by number
-                      </label>
-                    </span>
-                  </div>
-                `)}
+                ${featureNames.map(
+                  (fname) => html`
+                    <div class="other-items-list-item-sorting-container-item">
+                      <span class="other-items-list-item-sorting-container-item-name"
+                        >${fname}</span
+                      >
+                      <span class="other-items-list-item-sorting-container-item-container">
+                        <label class="other-items-list-item-sorting-container-item-container-label">
+                          <input
+                            class="other-items-list-item-sorting-container-item-container-input"
+                            type="radio"
+                            name=${`sort-${fname}`}
+                            .checked=${this.settingsFeatureSortModes[fname] === 'size'}
+                            @change=${() => {
+                              this.settingsFeatureSortModes = {
+                                ...this.settingsFeatureSortModes,
+                                [fname]: 'size',
+                              };
+                            }}
+                          />
+                          by feature size
+                        </label>
+                        <label>
+                          <input
+                            type="radio"
+                            name=${`sort-${fname}`}
+                            .checked=${this.settingsFeatureSortModes[fname] === 'alpha'}
+                            @change=${() => {
+                              this.settingsFeatureSortModes = {
+                                ...this.settingsFeatureSortModes,
+                                [fname]: 'alpha',
+                              };
+                            }}
+                          />
+                          by number
+                        </label>
+                      </span>
+                    </div>
+                  `
+                )}
               </div>
             </div>
           </div>

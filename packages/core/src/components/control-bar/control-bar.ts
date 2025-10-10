@@ -261,7 +261,7 @@ export class ProtspaceControlBar extends LitElement {
         <div class="right-controls">
           <!-- Selection mode toggle -->
           <button
-            class=${this.selectionMode ? "right-controls-button active" : "right-controls-button"}
+            class=${this.selectionMode ? 'right-controls-button active' : 'right-controls-button'}
             ?disabled=${this._selectionDisabled}
             @click=${this.handleToggleSelectionMode}
             title=${this._selectionDisabled
@@ -290,7 +290,7 @@ export class ProtspaceControlBar extends LitElement {
 
           <!-- Clear selections button -->
           <button
-              class="right-controls-button"
+            class="right-controls-button"
             ?disabled=${this.selectedProteinsCount === 0}
             @click=${this.handleClearSelections}
             title="Clear all selected proteins"
@@ -303,7 +303,7 @@ export class ProtspaceControlBar extends LitElement {
 
           <!-- Split data button -->
           <button
-          class="right-controls-button"
+            class="right-controls-button"
             ?disabled=${this.selectedProteinsCount === 0}
             @click=${this.handleSplitData}
             title="Split data to show only selected proteins"
@@ -340,7 +340,11 @@ export class ProtspaceControlBar extends LitElement {
 
           <!-- Filter dropdown -->
           <div class="filter-container">
-            <button class=${this.showFilterMenu ? "active" : ""} @click=${this.toggleFilterMenu} title="Filter Options">
+            <button
+              class=${this.showFilterMenu ? 'active' : ''}
+              @click=${this.toggleFilterMenu}
+              title="Filter Options"
+            >
               <svg class="icon" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 5h18M6 12h12M10 19h4" />
               </svg>
@@ -352,57 +356,107 @@ export class ProtspaceControlBar extends LitElement {
 
             ${this.showFilterMenu
               ? html`
-                  <div class="filter-menu" >
-                    <ul class="filter-menu-list" >
+                  <div class="filter-menu">
+                    <ul class="filter-menu-list">
                       ${this.features.map((feature) => {
                         const cfg = this.filterConfig[feature] || {
                           enabled: false,
                           values: [],
                         };
                         const values = this.featureValuesMap[feature] || [];
-                        return html`
-                          <li class="filter-menu-list-item">
-                            <label>${feature}
-                              <input type="checkbox" .checked=${cfg.enabled} @change=${(e: Event) => {
+                        return html` <li class="filter-menu-list-item">
+                          <label
+                            >${feature}
+                            <input
+                              type="checkbox"
+                              .checked=${cfg.enabled}
+                              @change=${(e: Event) => {
                                 const target = e.target as HTMLInputElement;
                                 this.handleFilterToggle(feature, target.checked);
-                              }} />
-                            </label>
-                            <button ?disabled=${!cfg.enabled} @click=${() => this.toggleValueMenu(feature)} >
-                              ${cfg.values && cfg.values.length > 0 ? `${cfg.values.length} selected` : 'Select values'}
-                              <svg class="chevron-down" viewBox="0 0 24 24" style="vertical-align: middle;">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </button>
-                            ${this.openValueMenus[feature] && cfg.enabled ? html`
-                              <div class="filter-menu-list-item-options">
-                                <div class="filter-menu-list-item-options-selection">
-                                  <button @click=${() => this.selectAllValues(feature)} >Select all</button>
-                                  <button @click=${() => this.clearAllValues(feature)} >None</button>
-                                </div>
-                                <div class="filter-menu-list-item-options-inputs">
-                                  <label >
-                                    <input type="checkbox" .checked=${(cfg.values || []).includes(null)} @change=${(e: Event) => this.handleValueToggle(feature, null, (e.target as HTMLInputElement).checked)} />
-                                    <span>N/A</span>
-                                  </label>
-                                  ${Array.from(new Set(values.filter(v => v !== null)))
-                                    .map(v => html`
-                                      <label>
-                                        <input type="checkbox" .checked=${(cfg.values || []).includes(String(v))} @change=${(e: Event) => this.handleValueToggle(feature, String(v), (e.target as HTMLInputElement).checked)} />
-                                        <span>${String(v)}</span>
-                                      </label>
-                                    `)}
-                                </div>
-                                <div class="filter-menu-list-item-options-done" >
-                                  <button @click=${() => this.toggleValueMenu(feature)}>Done</button>
+                              }}
+                            />
+                          </label>
+                          <button
+                            ?disabled=${!cfg.enabled}
+                            @click=${() => this.toggleValueMenu(feature)}
+                          >
+                            ${cfg.values && cfg.values.length > 0
+                              ? `${cfg.values.length} selected`
+                              : 'Select values'}
+                            <svg
+                              class="chevron-down"
+                              viewBox="0 0 24 24"
+                              style="vertical-align: middle;"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M19 9l-7 7-7-7"
+                              />
+                            </svg>
+                          </button>
+                          ${this.openValueMenus[feature] && cfg.enabled
+                            ? html`
+                                <div class="filter-menu-list-item-options">
+                                  <div class="filter-menu-list-item-options-selection">
+                                    <button @click=${() => this.selectAllValues(feature)}>
+                                      Select all
+                                    </button>
+                                    <button @click=${() => this.clearAllValues(feature)}>
+                                      None
+                                    </button>
+                                  </div>
+                                  <div class="filter-menu-list-item-options-inputs">
+                                    <label>
+                                      <input
+                                        type="checkbox"
+                                        .checked=${(cfg.values || []).includes(null)}
+                                        @change=${(e: Event) =>
+                                          this.handleValueToggle(
+                                            feature,
+                                            null,
+                                            (e.target as HTMLInputElement).checked
+                                          )}
+                                      />
+                                      <span>N/A</span>
+                                    </label>
+                                    ${Array.from(new Set(values.filter((v) => v !== null))).map(
+                                      (v) => html`
+                                        <label>
+                                          <input
+                                            type="checkbox"
+                                            .checked=${(cfg.values || []).includes(String(v))}
+                                            @change=${(e: Event) =>
+                                              this.handleValueToggle(
+                                                feature,
+                                                String(v),
+                                                (e.target as HTMLInputElement).checked
+                                              )}
+                                          />
+                                          <span>${String(v)}</span>
+                                        </label>
+                                      `
+                                    )}
+                                  </div>
+                                  <div class="filter-menu-list-item-options-done">
+                                    <button @click=${() => this.toggleValueMenu(feature)}>
+                                      Done
+                                    </button>
+                                  </div>
                                 </div>
                               `
                             : ''}
                         </li>`;
                       })}
                     </ul>
-                    <div class="filter-menu-buttons" >
-                      <button @click=${() => { this.showFilterMenu = false; }}>Cancel</button>
+                    <div class="filter-menu-buttons">
+                      <button
+                        @click=${() => {
+                          this.showFilterMenu = false;
+                        }}
+                      >
+                        Cancel
+                      </button>
                       <button @click=${this.applyFilters} class="active">Apply</button>
                     </div>
                   </div>
@@ -413,11 +467,10 @@ export class ProtspaceControlBar extends LitElement {
           <!-- Export dropdown -->
           <div class="export-container">
             <button
-            
-            @click=${this.toggleExportMenu}
-            class=${this.showExportMenu ? "active" : ""}
-            
-            title="Export Options">
+              @click=${this.toggleExportMenu}
+              class=${this.showExportMenu ? 'active' : ''}
+              title="Export Options"
+            >
               <svg class="icon" viewBox="0 0 24 24">
                 <path
                   stroke-linecap="round"
@@ -436,22 +489,34 @@ export class ProtspaceControlBar extends LitElement {
                   <div class="export-menu">
                     <ul class="export-menu-list">
                       <li class="export-menu-list-item">
-                        <button class="export-menu-list-item-button" @click=${() => this.handleExport("json")}>
+                        <button
+                          class="export-menu-list-item-button"
+                          @click=${() => this.handleExport('json')}
+                        >
                           Export JSON
                         </button>
                       </li>
                       <li class="export-menu-list-item">
-                        <button class="export-menu-list-item-button" @click=${() => this.handleExport("ids")}>
+                        <button
+                          class="export-menu-list-item-button"
+                          @click=${() => this.handleExport('ids')}
+                        >
                           Export Protein IDs
                         </button>
                       </li>
                       <li class="export-menu-list-item">
-                        <button class="export-menu-list-item-button" @click=${() => this.handleExport("png")}>
+                        <button
+                          class="export-menu-list-item-button"
+                          @click=${() => this.handleExport('png')}
+                        >
                           Export PNG
                         </button>
                       </li>
                       <li class="export-menu-list-item">
-                        <button class="export-menu-list-item-button" @click=${() => this.handleExport("pdf")}>
+                        <button
+                          class="export-menu-list-item-button"
+                          @click=${() => this.handleExport('pdf')}
+                        >
                           Export PDF
                         </button>
                       </li>
