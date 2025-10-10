@@ -40,28 +40,25 @@ Use the web components in any HTML page or JavaScript framework:
 <html>
   <head>
     <script type="module">
-      import "@protspace/core";
+      import '@protspace/core';
     </script>
   </head>
   <body>
     <protspace-data-loader id="loader" allow-drop></protspace-data-loader>
     <protspace-scatterplot id="plot"></protspace-scatterplot>
-    <protspace-legend
-      auto-sync
-      scatterplot-selector="protspace-scatterplot"
-    ></protspace-legend>
+    <protspace-legend auto-sync scatterplot-selector="protspace-scatterplot"></protspace-legend>
     <protspace-control-bar
       auto-sync
       scatterplot-selector="protspace-scatterplot"
     ></protspace-control-bar>
 
     <script type="module">
-      const loader = document.getElementById("loader");
-      const plot = document.getElementById("plot");
-      loader.addEventListener("data-loaded", (e) => {
+      const loader = document.getElementById('loader');
+      const plot = document.getElementById('plot');
+      loader.addEventListener('data-loaded', (e) => {
         plot.data = e.detail.data;
         plot.selectedProjectionIndex = 0;
-        plot.selectedFeature = Object.keys(e.detail.data.features)[0] || "";
+        plot.selectedFeature = Object.keys(e.detail.data.features)[0] || '';
       });
     </script>
   </body>
@@ -83,6 +80,18 @@ cd protspace_web
 pnpm install
 pnpm dev  # starts local demo at http://localhost:5173
 ```
+
+## 🧹 Code Style (Prettier + ESLint)
+
+- **Prettier (formatting)**
+  - Format all files: `pnpm run format`
+  - Check without writing: `pnpm run format:check`
+
+- **ESLint (code quality)**
+  - Lint all packages: `pnpm run lint`
+  - Auto-fix safe issues: `pnpm run lint:fix`
+
+Prettier handles formatting and ESLint focuses on correctness and best practices. The ESLint config integrates `eslint-config-prettier` to avoid conflicts with Prettier's formatting.
 
 ## ⚖️ License
 
