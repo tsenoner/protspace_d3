@@ -76,7 +76,7 @@ export const controlBarStyles = css`
     box-shadow: 0 0 0 2px rgba(0, 114, 181, 0.15);
   }
 
-  button {
+  .right-controls-button {
     display: flex;
     align-items: center;
     gap: 0.25rem;
@@ -101,8 +101,23 @@ export const controlBarStyles = css`
 
   button.active {
     background: var(--up-primary);
-    color: #ffffff;
+    color: #ffffff !important;
     border-color: var(--up-primary);
+    box-shadow: inset 1px 1px 3px 0px #d8d8d8 !important;
+    fill: #fff;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    column-gap: 5px;
+    padding: 0.3rem 0.45rem 0.3rem 0.5rem;
+    border: 1px solid var(--up-border);
+    border-radius: 5px;
+    outline-style: unset;
+    outline-width: unset;
+    outline-color: rgba(57, 57, 57, 0);
+    box-shadow: rgb(216, 216, 216) -1px -1px 3px 0px inset;
+    transition: 0.3s;
   }
 
   /* Make Filter button text more visible even when not active */
@@ -111,10 +126,6 @@ export const controlBarStyles = css`
     font-weight: 400;
   }
   @media (prefers-color-scheme: dark) {
-    .right-controls .export-container > button {
-      color: #ffffff; /* crisp white in dark mode */
-      font-weight: 400;
-    }
   }
 
   /* High-contrast labels inside filter panel */
@@ -123,10 +134,6 @@ export const controlBarStyles = css`
     font-weight: 400;
   }
   @media (prefers-color-scheme: dark) {
-    .export-menu .filter-label {
-      color: #ffffff;
-      font-weight: 400;
-    }
   }
 
   button.active:hover {
@@ -141,47 +148,300 @@ export const controlBarStyles = css`
     stroke-width: 1.5;
   }
 
+  .export-container,
+  .filter-container {
+    display: flex;
+    position: relative;
+    align-items: center;
+    gap: 0.25rem;
+    border: unset;
+    border-radius: 0.25rem;
+    background: var(--up-surface);
+    color: var(--up-muted);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .export-container > button,
+  .filter-container > button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    column-gap: 5px;
+    padding: 0.3rem 0.45rem 0.3rem 0.5rem;
+    border: 1px solid var(--up-border);
+    border-radius: 5px;
+    outline: unset;
+    outline-color: #39393900;
+    box-shadow: inset -1px -1px 3px 0px #d8d8d8;
+    transition: 0.3s;
+  }
   .export-container {
     position: relative;
+  }
+
+  .filter-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 5px);
+    width: max-content;
+    background: var(--up-surface);
+    border: 1px solid var(--up-border);
+    border-radius: 0.25rem;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+    display: flex;
+    z-index: 50;
+    flex-direction: column;
+    row-gap: 20px;
+    padding: 6px 10px 14px;
+  }
+
+  .filter-menu-list {
+    list-style: none;
+    margin: 0;
+    display: flex;
+    padding: 0.45rem 0.25rem 0.25rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    cursor: auto;
+    row-gap: 17px;
+    width: 100%;
+  }
+
+  .filter-menu-list-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    row-gap: 7px;
+    width: 100%;
+    position: relative;
+  }
+
+  .filter-menu-list-item > label,
+  .filter-menu-list-item input {
+    cursor: pointer;
+  }
+  .filter-menu-list-item > label {
+    color: #0b0f19;
+    font-weight: 400;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%;
+    column-gap: 8px;
+  }
+
+  .filter-menu-list-item > button {
+    display: flex;
+    border: 1px solid var(--up-border);
+    border-radius: 4px;
+    padding: 0.3rem 0.4rem 0.3rem 0.7rem;
+    align-self: flex-start;
+    margin-left: 18px;
+  }
+
+  .filter-menu-list-item-options {
+    position: absolute;
+    right: 0;
+    top: calc(100% - 28px);
+    width: max-content;
+    background: var(--up-surface);
+    border: 1px solid var(--up-border);
+    border-radius: 0.25rem;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+    display: flex;
+    z-index: 50;
+    flex-direction: column;
+    row-gap: 14px;
+    padding: 9px 10px 14px;
+  }
+
+  .filter-menu-list-item-options-selection {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    column-gap: 11px;
+  }
+
+  .filter-menu-list-item-options-selection > button {
+    border: 1px solid var(--up-border);
+    padding: 0.25rem 0.7rem;
+    border-radius: 4px;
+    box-shadow: inset -1px -1px 3px 0px #7d918e78;
+    transition: 0.3s;
+  }
+
+  .filter-menu-list-item-options-selection > button:last-child {
+    background-color: #e42121;
+    box-shadow: inset -1px -1px 3px 0px #f6f6f6a8;
+    border-color: #d06868;
+    color: #fff;
+    font-weight: 900;
+  }
+  .filter-menu-list-item-options-selection > button:last-child:hover {
+    background-color: #c20909ff;
+    box-shadow: inset -1px -1px 3px 0px #f6f6f6a8;
+    border-color: #d06868;
+    color: #fff;
+    font-weight: 900;
+  }
+  .filter-menu-list-item-options-inputs {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    row-gap: 8px;
+    max-height: 10rem;
+    overflow-y: scroll;
+    scrollbar-width: thin;
+    scrollbar-color: #e4e4e4 #ffffff;
+    padding: 10px 5px;
+  }
+
+  .filter-menu-list-item-options-inputs > label {
+    display: flex;
+    flex-direction: row-reverse;
+    width: 100%;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0px 1px 2px 0px #3323c41a;
+    padding: 0.3rem 0.3rem 0.3rem 0.5rem;
+    box-sizing: border-box;
+    transition: 0.3s;
+  }
+
+  .filter-menu-list-item-options-inputs > label:hover {
+    box-shadow: 0px 1px 2px 0px #3323c498;
+  }
+  .filter-menu-list-item-options-done {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+  }
+
+  .filter-menu-list-item-options-done > button {
+    border: 1px solid #6ac4bf7a;
+    padding: 0.35rem 1.2rem 0.42rem;
+    border-radius: 4px;
+    box-shadow: inset -1px -1px 3px 0px #40968c78;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    transition: 0.3s;
+  }
+
+  .filter-menu-list-item-options-done > button:hover {
+    background-color: #3af864 !important;
+    color: #fff;
+  }
+
+  .filter-menu-buttons {
+    width: 100%;
+    border: none;
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-direction: row;
+    column-gap: 9px;
+  }
+
+  .filter-menu-buttons > button {
+    border: 1px solid #bebebe;
+    padding: 0.3rem 1.3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: 0.3s;
+  }
+  .filter-menu-buttons > button.active:hover {
+    background-color: #3ff2ff !important;
+    color: #000 !important;
+  }
+
+  .filter-menu button:hover {
+    background: #f6f8fb;
   }
 
   .export-menu {
     position: absolute;
     right: 0;
-    top: 100%;
-    margin-top: 0.25rem;
-    width: 10rem;
+    top: calc(100% + 5px);
+    width: max-content;
     background: var(--up-surface);
     border: 1px solid var(--up-border);
     border-radius: 0.25rem;
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+    display: flex;
     z-index: 50;
+    flex-direction: column;
+    row-gap: 20px;
+    padding: 10px 10px 14px;
   }
 
-  .export-menu ul {
-    list-style: none;
+  .export-menu-list {
     margin: 0;
-    padding: 0.25rem 0;
+    list-style: none;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    row-gap: 10px;
   }
-
-  .export-menu button {
+  .export-menu-list-item {
     width: 100%;
-    text-align: left;
-    padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 0;
-    background: none;
-    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+  }
+  .export-menu-list-item-button {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    border: 1px solid #3afcf3;
+    border-radius: 5px;
+    padding: 0.35rem 0.9rem;
+    cursor: pointer;
+    box-shadow: inset -1px -1px 2px -1px #969696c9;
   }
 
-  .export-menu button:hover {
-    background: #f6f8fb;
+  .export-menu-list-item-button:hover {
+    border: 1px solid #3afcf3;
+    background-color: #58e9f3;
+    box-shadow: inset -1px -1px 2px -1px #e9e9e9c9;
+    color: #fff;
   }
 
   .chevron-down {
     width: 1rem;
     height: 1rem;
     margin-left: 0.25rem;
+  }
+
+  .control-group select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background: url('data:image/svg+xml;utf8,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"%3E%3Cpath d="M6 9L12 15L18 9" stroke="%23000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/%3E%3C/svg%3E');
+    background-color: #fff;
+    background-repeat: no-repeat;
+    background-position: right 4px center;
+    width: max-content;
+    padding: 6px 30px 6px 9px;
+  }
+  .control-group select option {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #fff;
   }
 
   /* Responsive layout: stack controls on small screens */
@@ -211,38 +471,5 @@ export const controlBarStyles = css`
 
   /* Dark mode support */
   @media (prefers-color-scheme: dark) {
-    .control-bar {
-      background: #1f2937;
-      border-color: #374151;
-    }
-
-    label {
-      color: #d1d5db;
-    }
-
-    select {
-      background: #374151;
-      border-color: #4b5563;
-      color: #f9fafb;
-    }
-
-    button {
-      background: #374151;
-      border-color: #4b5563;
-      color: #d1d5db;
-    }
-
-    button:hover {
-      background: #4b5563;
-    }
-
-    .export-menu {
-      background: #374151;
-      border-color: #4b5563;
-    }
-
-    .export-menu button:hover {
-      background: #4b5563;
-    }
   }
 `;

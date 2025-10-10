@@ -261,7 +261,7 @@ export class ProtspaceControlBar extends LitElement {
         <div class="right-controls">
           <!-- Selection mode toggle -->
           <button
-            class=${this.selectionMode ? 'active' : ''}
+            class=${this.selectionMode ? 'right-controls-button active' : 'right-controls-button'}
             ?disabled=${this._selectionDisabled}
             @click=${this.handleToggleSelectionMode}
             title=${this._selectionDisabled
@@ -290,6 +290,7 @@ export class ProtspaceControlBar extends LitElement {
 
           <!-- Clear selections button -->
           <button
+            class="right-controls-button"
             ?disabled=${this.selectedProteinsCount === 0}
             @click=${this.handleClearSelections}
             title="Clear all selected proteins"
@@ -302,6 +303,7 @@ export class ProtspaceControlBar extends LitElement {
 
           <!-- Split data button -->
           <button
+            class="right-controls-button"
             ?disabled=${this.selectedProteinsCount === 0}
             @click=${this.handleSplitData}
             title="Split data to show only selected proteins"
@@ -337,7 +339,7 @@ export class ProtspaceControlBar extends LitElement {
             : ''}
 
           <!-- Filter dropdown -->
-          <div class="export-container">
+          <div class="filter-container">
             <button
               class=${this.showFilterMenu ? 'active' : ''}
               @click=${this.toggleFilterMenu}
@@ -354,35 +356,29 @@ export class ProtspaceControlBar extends LitElement {
 
             ${this.showFilterMenu
               ? html`
-                  <div class="export-menu" style="width: 22rem; max-height: 22rem; overflow: auto;">
-                    <div
-                      style="padding: 0.5rem 0.75rem; font-weight: 600; color: var(--up-muted);"
-                    ></div>
-                    <ul>
+                  <div class="filter-menu">
+                    <ul class="filter-menu-list">
                       ${this.features.map((feature) => {
                         const cfg = this.filterConfig[feature] || {
                           enabled: false,
                           values: [],
                         };
                         const values = this.featureValuesMap[feature] || [];
-                        return html` <li
-                          style="padding: 0.25rem 0.75rem; display:flex; align-items:center; gap:0.5rem; position: relative;"
-                        >
-                          <input
-                            type="checkbox"
-                            .checked=${cfg.enabled}
-                            @change=${(e: Event) => {
-                              const target = e.target as HTMLInputElement;
-                              this.handleFilterToggle(feature, target.checked);
-                            }}
-                          />
-                          <div class="filter-label" style="flex: 1; min-width: 7rem;">
-                            ${feature}
-                          </div>
+                        return html` <li class="filter-menu-list-item">
+                          <label
+                            >${feature}
+                            <input
+                              type="checkbox"
+                              .checked=${cfg.enabled}
+                              @change=${(e: Event) => {
+                                const target = e.target as HTMLInputElement;
+                                this.handleFilterToggle(feature, target.checked);
+                              }}
+                            />
+                          </label>
                           <button
                             ?disabled=${!cfg.enabled}
                             @click=${() => this.toggleValueMenu(feature)}
-                            style="padding: 0.25rem 0.5rem; border: 1px solid var(--up-border); border-radius: 0.25rem;"
                           >
                             ${cfg.values && cfg.values.length > 0
                               ? `${cfg.values.length} selected`
@@ -401,30 +397,17 @@ export class ProtspaceControlBar extends LitElement {
                           </button>
                           ${this.openValueMenus[feature] && cfg.enabled
                             ? html`
-                                <div
-                                  class="export-menu"
-                                  style="position:absolute; right:0; top: 2rem; width: 16rem; max-height: 14rem; overflow:auto;"
-                                >
-                                  <div
-                                    style="display:flex; justify-content: space-between; gap: 0.5rem; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--up-border);"
-                                  >
-                                    <button
-                                      @click=${() => this.selectAllValues(feature)}
-                                      style="padding: 0.25rem 0.5rem; border: 1px solid var(--up-border); border-radius: 0.25rem;"
-                                    >
+                                <div class="filter-menu-list-item-options">
+                                  <div class="filter-menu-list-item-options-selection">
+                                    <button @click=${() => this.selectAllValues(feature)}>
                                       Select all
                                     </button>
-                                    <button
-                                      @click=${() => this.clearAllValues(feature)}
-                                      style="padding: 0.25rem 0.5rem; border: 1px solid var(--up-border); border-radius: 0.25rem;"
-                                    >
+                                    <button @click=${() => this.clearAllValues(feature)}>
                                       None
                                     </button>
                                   </div>
-                                  <div style="padding: 0.25rem 0.25rem;">
-                                    <label
-                                      style="display:flex; align-items:center; gap: 0.5rem; padding: 0.25rem 0.5rem;"
-                                    >
+                                  <div class="filter-menu-list-item-options-inputs">
+                                    <label>
                                       <input
                                         type="checkbox"
                                         .checked=${(cfg.values || []).includes(null)}
@@ -439,9 +422,7 @@ export class ProtspaceControlBar extends LitElement {
                                     </label>
                                     ${Array.from(new Set(values.filter((v) => v !== null))).map(
                                       (v) => html`
-                                        <label
-                                          style="display:flex; align-items:center; gap: 0.5rem; padding: 0.25rem 0.5rem;"
-                                        >
+                                        <label>
                                           <input
                                             type="checkbox"
                                             .checked=${(cfg.values || []).includes(String(v))}
@@ -457,13 +438,8 @@ export class ProtspaceControlBar extends LitElement {
                                       `
                                     )}
                                   </div>
-                                  <div
-                                    style="padding: 0.5rem 0.75rem; border-top: 1px solid var(--up-border); text-align: right;"
-                                  >
-                                    <button
-                                      @click=${() => this.toggleValueMenu(feature)}
-                                      style="padding: 0.25rem 0.5rem; border: 1px solid var(--up-border); border-radius: 0.25rem;"
-                                    >
+                                  <div class="filter-menu-list-item-options-done">
+                                    <button @click=${() => this.toggleValueMenu(feature)}>
                                       Done
                                     </button>
                                   </div>
@@ -473,9 +449,7 @@ export class ProtspaceControlBar extends LitElement {
                         </li>`;
                       })}
                     </ul>
-                    <div
-                      style="display:flex; gap:8px; justify-content:flex-end; padding: 0.5rem 0.75rem;"
-                    >
+                    <div class="filter-menu-buttons">
                       <button
                         @click=${() => {
                           this.showFilterMenu = false;
@@ -492,7 +466,11 @@ export class ProtspaceControlBar extends LitElement {
 
           <!-- Export dropdown -->
           <div class="export-container">
-            <button @click=${this.toggleExportMenu} title="Export Options">
+            <button
+              @click=${this.toggleExportMenu}
+              class=${this.showExportMenu ? 'active' : ''}
+              title="Export Options"
+            >
               <svg class="icon" viewBox="0 0 24 24">
                 <path
                   stroke-linecap="round"
@@ -509,18 +487,38 @@ export class ProtspaceControlBar extends LitElement {
             ${this.showExportMenu
               ? html`
                   <div class="export-menu">
-                    <ul>
-                      <li>
-                        <button @click=${() => this.handleExport('json')}>Export JSON</button>
+                    <ul class="export-menu-list">
+                      <li class="export-menu-list-item">
+                        <button
+                          class="export-menu-list-item-button"
+                          @click=${() => this.handleExport('json')}
+                        >
+                          Export JSON
+                        </button>
                       </li>
-                      <li>
-                        <button @click=${() => this.handleExport('ids')}>Export Protein IDs</button>
+                      <li class="export-menu-list-item">
+                        <button
+                          class="export-menu-list-item-button"
+                          @click=${() => this.handleExport('ids')}
+                        >
+                          Export Protein IDs
+                        </button>
                       </li>
-                      <li>
-                        <button @click=${() => this.handleExport('png')}>Export PNG</button>
+                      <li class="export-menu-list-item">
+                        <button
+                          class="export-menu-list-item-button"
+                          @click=${() => this.handleExport('png')}
+                        >
+                          Export PNG
+                        </button>
                       </li>
-                      <li>
-                        <button @click=${() => this.handleExport('pdf')}>Export PDF</button>
+                      <li class="export-menu-list-item">
+                        <button
+                          class="export-menu-list-item-button"
+                          @click=${() => this.handleExport('pdf')}
+                        >
+                          Export PDF
+                        </button>
                       </li>
                     </ul>
                   </div>

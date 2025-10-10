@@ -26,40 +26,49 @@ export const legendStyles = css`
     --legend-selected-ring: #00a3e0; /* UniProt lighter azure */
     --legend-extracted-border: #10b981;
 
-    display: block;
-    background: var(--legend-bg);
-    border: 1px solid var(--legend-border);
-    border-radius: var(--legend-border-radius);
-    padding: var(--legend-padding) !important;
-    max-width: 320px;
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    display: flex;
     user-select: none;
+    flex-direction: column;
+    width: 100%;
+    max-width: 400px;
+    border: 1px solid var(--legend-border);
+    background: var(--legend-bg);
+    border-radius: var(--legend-border-radius);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    box-sizing: border-box;
+    padding: 5px 2px 9px 2px;
+    flex-shrink: 1;
+    flex-grow: 1;
+    height: calc(50% - 1rem);
   }
 
-  @media (prefers-color-scheme: dark) {
-    :host {
-      background: var(--legend-bg-dark);
-      border-color: var(--legend-border-dark);
-    }
+  .legend-container {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    padding-bottom: 8px;
+    flex-shrink: 1;
   }
 
   .legend-header {
     display: flex;
     justify-content: space-between;
+    flex-direction: row;
+    width: 100%;
     align-items: center;
-    margin-bottom: 0.75rem;
+    padding: 3px 6px 0px 1.2rem;
+    margin-bottom: 0.25rem;
+    box-sizing: border-box;
   }
 
   .legend-title {
     font-weight: 500;
     font-size: 1rem;
     color: var(--legend-text-color);
-  }
-
-  @media (prefers-color-scheme: dark) {
-    .legend-title {
-      color: var(--legend-text-color-dark);
-    }
+    margin: 0;
   }
 
   .customize-button {
@@ -67,41 +76,45 @@ export const legendStyles = css`
     border: none;
     color: var(--legend-text-secondary);
     cursor: pointer;
-    padding: 0.25rem;
-    border-radius: 0.25rem;
-    transition: color 0.2s ease;
+    padding: 0.3rem 0.5rem;
+    border-radius: 4px;
+    transition:
+      color 0.15s ease,
+      background-color 0.4s ease;
   }
 
   .customize-button:hover {
-    color: var(--legend-text-color);
-  }
-
-  @media (prefers-color-scheme: dark) {
-    .customize-button {
-      color: var(--legend-text-secondary-dark);
-    }
-    .customize-button:hover {
-      color: var(--legend-text-color-dark);
-    }
+    color: #ffffffff;
+    background-color: #979595ff;
   }
 
   .legend-items {
     display: flex;
     flex-direction: column;
     gap: var(--legend-item-gap);
+    width: 100%;
+    max-height: calc(100vh - 10rem);
+    overflow-y: scroll;
+    scrollbar-width: thin;
+    padding: 5px 6px 4px 9px;
+    box-sizing: border-box;
+    flex-grow: 1;
+    flex-shrink: 1;
   }
 
   .legend-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: var(--legend-item-padding);
+    padding: 6px 10px 6px 2px;
     border-radius: 0.5rem;
     cursor: pointer;
     transition: all 0.2s ease;
     background: var(--legend-hover-bg);
     box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     position: relative;
+    width: 100%;
+    box-sizing: border-box;
   }
 
   .legend-item:hover {
@@ -141,28 +154,12 @@ export const legendStyles = css`
     border-left: 4px solid var(--legend-extracted-border);
   }
 
-  @media (prefers-color-scheme: dark) {
-    .legend-item {
-      background: var(--legend-hover-bg-dark);
-    }
-    .legend-item:hover {
-      background: var(--legend-hover-bg-dark);
-    }
-    .legend-item:active {
-      background: var(--legend-active-bg-dark);
-    }
-    .legend-item.hidden {
-      background: var(--legend-hidden-bg-dark);
-    }
-    .legend-item.dragging {
-      background: var(--legend-drag-bg-dark);
-    }
-  }
-
   .legend-item-content {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 7px;
+    width: 100%;
+    box-sizing: border-box;
   }
 
   .drag-handle {
@@ -178,12 +175,6 @@ export const legendStyles = css`
     cursor: grabbing;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .drag-handle {
-      color: var(--legend-text-secondary-dark);
-    }
-  }
-
   .legend-symbol {
     display: flex;
     align-items: center;
@@ -193,11 +184,12 @@ export const legendStyles = css`
   .legend-text {
     font-size: 0.875rem;
     color: var(--legend-text-color);
+    width: 100%;
+    overflow-wrap: anywhere;
   }
 
   @media (prefers-color-scheme: dark) {
     .legend-text {
-      color: var(--legend-text-color-dark);
     }
   }
 
@@ -222,12 +214,11 @@ export const legendStyles = css`
     font-size: 0.875rem;
     color: var(--legend-text-secondary);
     font-weight: 500;
-  }
-
-  @media (prefers-color-scheme: dark) {
-    .legend-count {
-      color: var(--legend-text-secondary-dark);
-    }
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 0 0 0 9px;
   }
 
   .legend-empty {
@@ -237,13 +228,8 @@ export const legendStyles = css`
     padding: 1rem 0;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .legend-empty {
-      color: var(--legend-text-secondary-dark);
-    }
-  }
+  /* ----------------------------- Modal styles -------------------------------------- */
 
-  /* Modal styles */
   .modal-overlay {
     position: fixed;
     top: 0;
@@ -259,21 +245,104 @@ export const legendStyles = css`
 
   .modal-content {
     background: var(--legend-bg);
-    padding: 1.5rem;
+    padding: 1.3rem 1.5rem;
+    display: flex;
     border-radius: 0.5rem;
     box-shadow:
       0 20px 25px -5px rgba(0, 0, 0, 0.1),
       0 10px 10px -5px rgba(0, 0, 0, 0.04);
-    max-width: 24rem;
-    width: 100%;
-    max-height: 80vh;
-    overflow: auto;
+    width: 25rem;
+    height: 28rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .modal-content {
-      background: var(--legend-bg-dark);
-    }
+  .modal-content > div {
+    width: 100%;
+  }
+
+  .other-items-list {
+    box-sizing: border-box;
+    display: flex;
+    border: 1px solid var(--legend-border);
+    border-radius: 0.375rem;
+    margin-bottom: 19px;
+
+    overflow-y: auto;
+    padding: 14px;
+    flex-direction: column;
+    flex-grow: 1;
+    row-gap: 16px;
+    scrollbar-width: thin;
+  }
+
+  .other-items-list-item {
+    display: flex;
+    flex-direction: column;
+  }
+  .other-items-list-item-label {
+    color: #0b0f19;
+    margin-bottom: 10px;
+  }
+
+  .other-items-list-item-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 9px 20px;
+
+    border-radius: 5px;
+    box-shadow: inset 0px 0px 2px 0px #0000003d;
+    border: unset;
+  }
+  .other-items-list-item-input:focus-visible {
+    border: unset;
+    outline: unset;
+  }
+
+  .other-items-list-label {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 5px 21px;
+    justify-content: space-between;
+    box-shadow: 0px 0px 3px 1px #0000002b;
+    border-radius: 4px;
+  }
+  .other-items-list-label-input {
+  }
+  .other-items-list-item-sorting {
+    padding: 10px 0 0 11px;
+    display: flex;
+    flex-direction: column;
+  }
+  .other-items-list-item-sorting-title {
+    margin-bottom: 17px;
+  }
+  .other-items-list-item-sorting-container {
+    display: flex;
+    flex-direction: column;
+    row-gap: 15px;
+  }
+  .other-items-list-item-sorting-container-item {
+    display: flex;
+    flex-direction: column;
+    padding: 6px 6px 6px 20px;
+    row-gap: 7px;
+  }
+
+  .other-items-list-item-sorting-container-item-name {
+  }
+  .other-items-list-item-sorting-container-item-container {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    column-gap: 21px;
+  }
+  .other-items-list-item-sorting-container-item-container-label {
+  }
+  .other-items-list-item-sorting-container-item-container-input {
   }
 
   .modal-header {
@@ -287,11 +356,11 @@ export const legendStyles = css`
     font-size: 1.125rem;
     font-weight: 500;
     color: var(--legend-text-color);
+    margin: 0;
   }
 
   @media (prefers-color-scheme: dark) {
     .modal-title {
-      color: var(--legend-text-color-dark);
     }
   }
 
@@ -300,9 +369,13 @@ export const legendStyles = css`
     border: none;
     color: var(--legend-text-secondary);
     cursor: pointer;
-    padding: 0.25rem;
+    padding: 0.4rem 0.5rem;
     border-radius: 0.25rem;
     transition: color 0.2s ease;
+  }
+  .close-button:hover {
+    color: var(--protspace-viewer-text);
+    background: rgba(0, 0, 0, 0.04);
   }
 
   .close-button:hover {
@@ -311,36 +384,30 @@ export const legendStyles = css`
 
   @media (prefers-color-scheme: dark) {
     .close-button {
-      color: var(--legend-text-secondary-dark);
     }
     .close-button:hover {
-      color: var(--legend-text-color-dark);
     }
   }
 
   .modal-description {
     font-size: 0.875rem;
     color: var(--legend-text-secondary);
-    margin-bottom: 1rem;
+    margin-bottom: 1.3rem;
+    padding-left: 2rem;
   }
 
   @media (prefers-color-scheme: dark) {
-    .modal-description {
-      color: var(--legend-text-secondary-dark);
-    }
   }
 
   .other-items-list {
     border: 1px solid var(--legend-border);
     border-radius: 0.375rem;
     margin-bottom: 1rem;
-    max-height: 15rem;
     overflow-y: auto;
   }
 
   @media (prefers-color-scheme: dark) {
     .other-items-list {
-      border-color: var(--legend-border-dark);
     }
   }
 
@@ -363,10 +430,8 @@ export const legendStyles = css`
 
   @media (prefers-color-scheme: dark) {
     .other-item {
-      border-color: var(--legend-border-dark);
     }
     .other-item:hover {
-      background: var(--legend-hover-bg-dark);
     }
   }
 
@@ -383,15 +448,6 @@ export const legendStyles = css`
   .other-item-count {
     font-size: 0.75rem;
     color: var(--legend-text-secondary);
-  }
-
-  @media (prefers-color-scheme: dark) {
-    .other-item-name {
-      color: var(--legend-text-color-dark);
-    }
-    .other-item-count {
-      color: var(--legend-text-secondary-dark);
-    }
   }
 
   .extract-button {
@@ -428,15 +484,5 @@ export const legendStyles = css`
 
   .modal-close-button:hover {
     background: var(--legend-hidden-bg);
-  }
-
-  @media (prefers-color-scheme: dark) {
-    .modal-close-button {
-      background: var(--legend-hover-bg-dark);
-      color: var(--legend-text-color-dark);
-    }
-    .modal-close-button:hover {
-      background: var(--legend-hidden-bg-dark);
-    }
   }
 `;
