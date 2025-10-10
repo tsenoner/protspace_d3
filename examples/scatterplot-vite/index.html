@@ -138,31 +138,59 @@
         color: #666;
         font-size: 0.9rem;
         margin-bottom: 2rem;
-      ">
-    <strong>Try it:</strong> Drag & drop an .parquetbundle file.<br />
-    <em>Test files available:</em> <code>data.parquetbundle</code> (5181 proteins) in this directory.
-  </p>
+      "
+    >
+      <strong>Auto-loading:</strong> <code>data.parquetbundle</code> (5181
+      proteins) will load automatically.<br />
+      <em>Alternative:</em> Drag & drop any .parquetbundle file onto the data
+      loader below.
+    </p>
 
-  <div class="container">
-    <!-- Data Loader -->
-    <protspace-data-loader id="myDataLoader" allow-drop="true" style="margin-bottom: 1rem"></protspace-data-loader>
+    <div class="container">
+      <!-- Data Loader -->
+      <protspace-data-loader
+        id="myDataLoader"
+        allow-drop="true"
+        style="margin-bottom: 1rem"
+      ></protspace-data-loader>
 
-    <!-- Control Bar -->
-    <protspace-control-bar id="myControlBar" selected-projection="UMAP" selected-feature="family" selection-mode="false"
-      isolation-mode="false" selected-proteins-count="0" auto-sync="true"
-      scatterplot-selector="#myPlot"></protspace-control-bar>
+      <!-- Control Bar -->
+      <protspace-control-bar
+        id="myControlBar"
+        selected-projection="UMAP"
+        selected-feature="family"
+        selection-mode="false"
+        isolation-mode="false"
+        selected-proteins-count="0"
+        auto-sync="true"
+        scatterplot-selector="#myPlot"
+      ></protspace-control-bar>
 
-    <!-- Visualization -->
-    <div class="visualization-container">
-      <protspace-scatterplot id="myPlot"></protspace-scatterplot>
+      <!-- Visualization -->
+      <div class="visualization-container">
+        <protspace-scatterplot id="myPlot"></protspace-scatterplot>
 
-      <div class="right-panel">
-        <protspace-legend id="myLegend" auto-sync="true" auto-hide="true"
-          scatterplot-selector="#myPlot"></protspace-legend>
-        <protspace-structure-viewer id="myStructureViewer" title="AlphaFold2 Structure" height="340px"
-          show-header="true" show-close-button="true" show-tips="true" auto-sync="true" auto-show="true"
-          scatterplot-selector="#myPlot" style="display: none">
-        </protspace-structure-viewer>
+        <div class="right-panel">
+          <protspace-legend
+            id="myLegend"
+            auto-sync="true"
+            auto-hide="true"
+            scatterplot-selector="#myPlot"
+          ></protspace-legend>
+          <protspace-structure-viewer
+            id="myStructureViewer"
+            title="AlphaFold2 Structure"
+            height="340px"
+            show-header="true"
+            show-close-button="true"
+            show-tips="true"
+            auto-sync="true"
+            auto-show="true"
+            scatterplot-selector="#myPlot"
+            style="display: none"
+          >
+          </protspace-structure-viewer>
+        </div>
       </div>
     </div>
   </div>

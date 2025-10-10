@@ -9,54 +9,6 @@ import type {
 } from '@protspace/core';
 import { createExporter, showNotification } from '@protspace/utils';
 
-const sampleData: VisualizationData = {
-  projections: [
-    {
-      name: 'UMAP',
-      data: [
-        [0.5, 0.5],
-        [0.2, 0.3],
-        [0.8, 0.7],
-        [-0.1, -0.2],
-        [-0.5, 0.1],
-        [0.6, -0.4],
-        [-0.3, 0.6],
-        [0.1, 0.8],
-        [-0.7, -0.7],
-        [0.0, 0.0],
-      ] as [number, number][],
-    },
-  ],
-  protein_ids: [
-    'P00533',
-    'P04637',
-    'P53350',
-    'Q14790',
-    'P42345',
-    'P28482',
-    'Q9Y261',
-    'P15056',
-    'O14965',
-    'P50613',
-  ],
-  features: {
-    family: {
-      values: ['Kinase', 'Protease', 'Receptor', 'Other'],
-      colors: ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3'],
-      shapes: ['circle', 'square', 'triangle', 'diamond'],
-    },
-    size_category: {
-      values: ['small', 'medium', 'large'],
-      colors: ['#ff7f00', '#ffff33', '#a65628'],
-      shapes: ['circle', 'circle', 'circle'],
-    },
-  },
-  feature_data: {
-    family: [0, 1, 0, 2, 1, 0, 2, 3, 3, 0],
-    size_category: [0, 1, 2, 1, 0, 2, 1, 0, 1, 2],
-  },
-};
-
 // Set up data loader event listeners immediately
 const dataLoader = document.getElementById('myDataLoader') as DataLoader | null;
 
@@ -240,7 +192,7 @@ Promise.all([
         loadingOverlay.id = 'progressive-loading';
         loadingOverlay.style.cssText = `
           position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-          background: linear-gradient(135deg, rgba(0,0,0,0.9), rgba(20,20,40,0.9)); 
+          background: linear-gradient(135deg, rgba(0,0,0,0.9), rgba(20,20,40,0.9));
           color: white; z-index: 9999;
           display: flex; flex-direction: column; align-items: center; justify-content: center;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -573,8 +525,46 @@ Promise.all([
       }
     };
 
-    // Initialize components with sample data
-    loadNewData(sampleData);
+    // Load data from the parquet bundle file
+    const loadDataFromFile = async () => {
+      try {
+        console.log('🔄 Loading data from data.parquetbundle...');
+
+        // First, try to fetch the file directly to check if it exists
+        const response = await fetch('./data.parquetbundle');
+        if (!response.ok) {
+          throw new Error(`File not found: ${response.status} ${response.statusText}`);
+        }
+
+        // Get the file as ArrayBuffer and create a File object for the data loader
+        const arrayBuffer = await response.arrayBuffer();
+        const file = new File([arrayBuffer], 'data.parquetbundle', {
+          type: 'application/octet-stream',
+        });
+
+        console.log(`📁 File loaded: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+
+        // Use loadFromFile instead of loadFromUrl for better error handling
+        await dataLoader.loadFromFile(file);
+      } catch (error) {
+        console.error('❌ Failed to load data from file:', error);
+        console.log('💡 Make sure data.parquetbundle exists in the public directory');
+        console.log(
+          '🎯 Alternative: You can drag and drop the data.parquetbundle file onto the data loader component'
+        );
+
+        // Show user-friendly error message with instructions
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.warn(`Auto-load failed: ${errorMessage}`);
+        console.log(
+          '📋 The data loader is ready for drag-and-drop. Simply drag the data.parquetbundle file onto the component.'
+        );
+      }
+    };
+
+    // Try to load data from file, but don't fail if it doesn't work
+    // The user can still drag and drop the file manually
+    loadDataFromFile();
 
     // Initialize control bar - auto-sync handles most initialization
     // The control bar will automatically sync with the scatterplot
@@ -903,7 +893,7 @@ Promise.all([
     });
 
     console.log('ProtSpace components loaded and connected!');
-    console.log('Available proteins:', sampleData.protein_ids);
+    console.log('Data will be loaded from data.parquetbundle file');
     console.log('Use the control bar to change features and toggle selection modes!');
   } else {
     console.error('Could not find one or more required elements.');
