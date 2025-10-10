@@ -1,1 +1,1 @@
-export { DataLoader } from "./data-loader.js";
+export { DataLoader } from './data-loader.js';

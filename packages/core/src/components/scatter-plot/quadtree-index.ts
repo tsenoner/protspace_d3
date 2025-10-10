@@ -1,11 +1,19 @@
-import * as d3 from "d3";
-import type { PlotDataPoint } from "@protspace/utils";
+import * as d3 from 'd3';
+import type { PlotDataPoint } from '@protspace/utils';
 
 export class QuadtreeIndex {
   private qt: d3.Quadtree<PlotDataPoint> | null = null;
-  private scales: { x: d3.ScaleLinear<number, number>; y: d3.ScaleLinear<number, number> } | null = null;
+  private scales: {
+    x: d3.ScaleLinear<number, number>;
+    y: d3.ScaleLinear<number, number>;
+  } | null = null;
 
-  setScales(scales: { x: d3.ScaleLinear<number, number>; y: d3.ScaleLinear<number, number> } | null) {
+  setScales(
+    scales: {
+      x: d3.ScaleLinear<number, number>;
+      y: d3.ScaleLinear<number, number>;
+    } | null
+  ) {
     this.scales = scales;
   }
 
@@ -16,8 +24,8 @@ export class QuadtreeIndex {
     }
     this.qt = d3
       .quadtree<PlotDataPoint>()
-      .x(d => this.scales!.x(d.x))
-      .y(d => this.scales!.y(d.y))
+      .x((d) => this.scales!.x(d.x))
+      .y((d) => this.scales!.y(d.y))
       .addAll(plotData);
   }
 
@@ -26,5 +34,3 @@ export class QuadtreeIndex {
     return this.qt.find(screenX, screenY, radius) || undefined;
   }
 }
-
-

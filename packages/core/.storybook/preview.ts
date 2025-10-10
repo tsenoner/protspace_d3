@@ -20,4 +20,4 @@ export default {
 //       date: /Date$/i,
 //     },
 //   },
-// }; 
+// };

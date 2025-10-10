@@ -1,4 +1,4 @@
-import { css } from "lit";
+import { css } from 'lit';
 
 export const scatterplotStyles = css`
   :host {
@@ -151,4 +151,3 @@ export const scatterplotStyles = css`
     gap: 0.25rem;
   }
 `;
-

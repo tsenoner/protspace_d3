@@ -1,41 +1,45 @@
-import * as d3 from "d3";
-import { LitElement, html } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
+import * as d3 from 'd3';
+import { LitElement, html } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 
 // Import types and configuration
-import { LEGEND_DEFAULTS, LEGEND_STYLES, SHAPE_MAPPING, FIRST_NUMBER_SORT_FEATURES } from "./config";
-import { legendStyles } from "./legend.styles";
-import { LegendDataProcessor } from "./legend-data-processor";
+import {
+  LEGEND_DEFAULTS,
+  LEGEND_STYLES,
+  SHAPE_MAPPING,
+  FIRST_NUMBER_SORT_FEATURES,
+} from './config';
+import { legendStyles } from './legend.styles';
+import { LegendDataProcessor } from './legend-data-processor';
 import type {
   LegendDataInput,
   LegendFeatureData,
   LegendItem,
   OtherItem,
   ScatterplotElement,
-} from "./types";
+} from './types';
 
-@customElement("protspace-legend")
+@customElement('protspace-legend')
 export class ProtspaceLegend extends LitElement {
   static styles = legendStyles;
 
-  @property({ type: String }) featureName = "";
+  @property({ type: String }) featureName = '';
   @property({ type: Object }) featureData: LegendFeatureData = {
-    name: "",
+    name: '',
     values: [] as (string | null)[],
     colors: [] as string[],
     shapes: [] as string[],
   };
   @property({ type: Array }) featureValues: (string | null)[] = [];
   @property({ type: Array }) proteinIds: string[] = [];
-  @property({ type: Number }) maxVisibleValues: number =
-    LEGEND_DEFAULTS.maxVisibleValues;
+  @property({ type: Number }) maxVisibleValues: number = LEGEND_DEFAULTS.maxVisibleValues;
   @property({ type: Array }) selectedItems: string[] = [];
   @property({ type: Boolean }) isolationMode = false;
   @property({ type: Array }) splitHistory: string[][] = [];
 
   // Additional properties for wrapper compatibility
   @property({ type: Object }) data: LegendDataInput | null = null;
-  @property({ type: String }) selectedFeature = "";
+  @property({ type: String }) selectedFeature = '';
 
   @state() private legendItems: LegendItem[] = [];
   @state() private otherItems: OtherItem[] = [];
@@ -51,15 +55,15 @@ export class ProtspaceLegend extends LitElement {
   @property({ type: Number }) shapeSize: number = LEGEND_DEFAULTS.symbolSize;
   @state() private settingsShapeSize: number = LEGEND_DEFAULTS.symbolSize;
   @state() private manualOtherValues: string[] = [];
-  @state() private featureSortModes: Record<string, "size" | "alpha"> = {};
-  @state() private settingsFeatureSortModes: Record<string, "size" | "alpha"> = {};
+  @state() private featureSortModes: Record<string, 'size' | 'alpha'> = {};
+  @state() private settingsFeatureSortModes: Record<string, 'size' | 'alpha'> = {};
 
   // Auto-sync properties
-  @property({ type: String, attribute: "scatterplot-selector" })
+  @property({ type: String, attribute: 'scatterplot-selector' })
   scatterplotSelector: string = LEGEND_DEFAULTS.scatterplotSelector;
-  @property({ type: Boolean, attribute: "auto-sync" })
+  @property({ type: Boolean, attribute: 'auto-sync' })
   autoSync: boolean = true;
-  @property({ type: Boolean, attribute: "auto-hide" })
+  @property({ type: Boolean, attribute: 'auto-hide' })
   autoHide: boolean = true; // Automatically hide values in scatterplot
 
   @state() private _hiddenValues: string[] = [];
@@ -67,23 +71,20 @@ export class ProtspaceLegend extends LitElement {
 
   updated(changedProperties: Map<string, unknown>) {
     // If data or selectedFeature changed, update featureData
-    if (
-      changedProperties.has("data") ||
-      changedProperties.has("selectedFeature")
-    ) {
+    if (changedProperties.has('data') || changedProperties.has('selectedFeature')) {
       this._updateFeatureDataFromData();
       this.manualOtherValues = [];
       this._ensureSortModeDefaults();
     }
 
     if (
-      changedProperties.has("data") ||
-      changedProperties.has("selectedFeature") ||
-      changedProperties.has("featureValues") ||
-      changedProperties.has("proteinIds") ||
-      changedProperties.has("maxVisibleValues") ||
-      changedProperties.has("includeOthers") ||
-      changedProperties.has("includeShapes")
+      changedProperties.has('data') ||
+      changedProperties.has('selectedFeature') ||
+      changedProperties.has('featureValues') ||
+      changedProperties.has('proteinIds') ||
+      changedProperties.has('maxVisibleValues') ||
+      changedProperties.has('includeOthers') ||
+      changedProperties.has('includeShapes')
     ) {
       this.updateLegendItems();
     }
@@ -98,7 +99,7 @@ export class ProtspaceLegend extends LitElement {
     feature: string;
     includeShapes: boolean;
     items: Array<{
-      value: string | null | "Other";
+      value: string | null | 'Other';
       color: string;
       shape: string;
       count: number;
@@ -109,7 +110,7 @@ export class ProtspaceLegend extends LitElement {
   } {
     const sorted = [...this.legendItems].sort((a, b) => a.zOrder - b.zOrder);
     return {
-      feature: this.featureData.name || this.featureName || "Legend",
+      feature: this.featureData.name || this.featureName || 'Legend',
       includeShapes: this.includeShapes,
       items: sorted.map((i) => ({ ...i })),
     };
@@ -128,11 +129,11 @@ export class ProtspaceLegend extends LitElement {
 
     if (this._scatterplotElement) {
       this._scatterplotElement.removeEventListener(
-        "data-change",
+        'data-change',
         this._handleDataChange.bind(this)
       );
       this._scatterplotElement.removeEventListener(
-        "feature-change",
+        'feature-change',
         this._handleFeatureChange.bind(this)
       );
     }
@@ -141,23 +142,15 @@ export class ProtspaceLegend extends LitElement {
   private _setupAutoSync() {
     // Find scatterplot element
     setTimeout(() => {
-      this._scatterplotElement = document.querySelector(
-        this.scatterplotSelector
-      );
+      this._scatterplotElement = document.querySelector(this.scatterplotSelector);
       if (this._scatterplotElement) {
         // Listen for data and feature changes
-        this._scatterplotElement.addEventListener(
-          "data-change",
-          this._handleDataChange.bind(this)
-        );
+        this._scatterplotElement.addEventListener('data-change', this._handleDataChange.bind(this));
 
         // Listen for feature changes from control bar
-        const controlBar = document.querySelector("protspace-control-bar");
+        const controlBar = document.querySelector('protspace-control-bar');
         if (controlBar) {
-          controlBar.addEventListener(
-            "feature-change",
-            this._handleFeatureChange.bind(this)
-          );
+          controlBar.addEventListener('feature-change', this._handleFeatureChange.bind(this));
         }
 
         // Initial sync
@@ -177,18 +170,12 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _updateFromScatterplotData(): void {
-    if (
-      !this._scatterplotElement ||
-      !("getCurrentData" in this._scatterplotElement)
-    ) {
+    if (!this._scatterplotElement || !('getCurrentData' in this._scatterplotElement)) {
       return;
     }
 
-    const currentData = (
-      this._scatterplotElement as ScatterplotElement
-    ).getCurrentData();
-    const selectedFeature = (this._scatterplotElement as ScatterplotElement)
-      .selectedFeature;
+    const currentData = (this._scatterplotElement as ScatterplotElement).getCurrentData();
+    const selectedFeature = (this._scatterplotElement as ScatterplotElement).selectedFeature;
 
     if (!currentData || !selectedFeature) {
       return;
@@ -209,24 +196,19 @@ export class ProtspaceLegend extends LitElement {
     };
   }
 
-  private _updateFeatureValues(
-    currentData: any,
-    selectedFeature: string
-  ): void {
+  private _updateFeatureValues(currentData: any, selectedFeature: string): void {
     // Extract feature values for current data
-    const featureValues = currentData.protein_ids.map(
-      (_: string, index: number) => {
-        const featureIdx = currentData.feature_data[selectedFeature][index];
-        // Handle out-of-bounds indices the same way as DataProcessor
-        return featureIdx !== undefined &&
-               featureIdx !== null &&
-               Array.isArray(currentData.features[selectedFeature].values) &&
-               featureIdx >= 0 &&
-               featureIdx < currentData.features[selectedFeature].values.length
-          ? currentData.features[selectedFeature].values[featureIdx] || null
-          : null;
-      }
-    );
+    const featureValues = currentData.protein_ids.map((_: string, index: number) => {
+      const featureIdx = currentData.feature_data[selectedFeature][index];
+      // Handle out-of-bounds indices the same way as DataProcessor
+      return featureIdx !== undefined &&
+        featureIdx !== null &&
+        Array.isArray(currentData.features[selectedFeature].values) &&
+        featureIdx >= 0 &&
+        featureIdx < currentData.features[selectedFeature].values.length
+        ? currentData.features[selectedFeature].values[featureIdx] || null
+        : null;
+    });
 
     this.featureValues = featureValues;
   }
@@ -235,11 +217,11 @@ export class ProtspaceLegend extends LitElement {
     const expanded: string[] = [];
 
     for (const value of hiddenValues) {
-      if (value === "Other") {
+      if (value === 'Other') {
         // Expand the synthetic Other bucket to its actual values
         for (const otherItem of this.otherItems) {
           if (otherItem.value === null) {
-            expanded.push("null");
+            expanded.push('null');
           } else {
             expanded.push(otherItem.value);
           }
@@ -265,7 +247,7 @@ export class ProtspaceLegend extends LitElement {
     if (
       this.autoHide &&
       this._scatterplotElement &&
-      "hiddenFeatureValues" in this._scatterplotElement
+      'hiddenFeatureValues' in this._scatterplotElement
     ) {
       (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [];
     }
@@ -292,28 +274,24 @@ export class ProtspaceLegend extends LitElement {
   private _ensureSortModeDefaults() {
     const featureNames = this.data?.features ? Object.keys(this.data.features) : [];
     if (featureNames.length === 0) return;
-    const updated: Record<string, "size" | "alpha"> = { ...this.featureSortModes };
+    const updated: Record<string, 'size' | 'alpha'> = {
+      ...this.featureSortModes,
+    };
     for (const fname of featureNames) {
       if (!(fname in updated)) {
-        updated[fname] = FIRST_NUMBER_SORT_FEATURES.has(fname) ? "alpha" : "size";
+        updated[fname] = FIRST_NUMBER_SORT_FEATURES.has(fname) ? 'alpha' : 'size';
       }
     }
     this.featureSortModes = updated;
   }
 
   private _syncWithScatterplot() {
-    if (
-      !this._scatterplotElement ||
-      !("getCurrentData" in this._scatterplotElement)
-    ) {
+    if (!this._scatterplotElement || !('getCurrentData' in this._scatterplotElement)) {
       return;
     }
 
-    const currentData = (
-      this._scatterplotElement as ScatterplotElement
-    ).getCurrentData();
-    const selectedFeature = (this._scatterplotElement as ScatterplotElement)
-      .selectedFeature;
+    const currentData = (this._scatterplotElement as ScatterplotElement).getCurrentData();
+    const selectedFeature = (this._scatterplotElement as ScatterplotElement).selectedFeature;
 
     if (!currentData || !selectedFeature) {
       return;
@@ -324,21 +302,35 @@ export class ProtspaceLegend extends LitElement {
     this._updateFeatureData(currentData, selectedFeature);
     this._updateFeatureValues(currentData, selectedFeature);
     this.proteinIds = currentData.protein_ids;
+
+    // Sync split state from scatterplot
+    if ('isSplitMode' in this._scatterplotElement) {
+      this.isolationMode = (this._scatterplotElement as any).isSplitMode();
+    }
+    if ('getSplitHistory' in this._scatterplotElement) {
+      this.splitHistory = (this._scatterplotElement as any).getSplitHistory();
+    }
+  }
+
+  /**
+   * Public method to force synchronization with the scatterplot
+   * Useful when you need to ensure the legend is up-to-date after state changes
+   */
+  public forceSync() {
+    this._syncWithScatterplot();
   }
 
   private updateLegendItems() {
-    if (
-      !this.featureData ||
-      !this.featureValues ||
-      this.featureValues.length === 0
-    ) {
+    if (!this.featureData || !this.featureValues || this.featureValues.length === 0) {
       this.legendItems = [];
       return;
     }
 
     // Use the data processor to handle all legend item processing
-    const sortMode = this.featureSortModes[this.selectedFeature] ?? (FIRST_NUMBER_SORT_FEATURES.has(this.selectedFeature) ? "alpha" : "size");
-    const sortAlphabetically = sortMode === "alpha";
+    const sortMode =
+      this.featureSortModes[this.selectedFeature] ??
+      (FIRST_NUMBER_SORT_FEATURES.has(this.selectedFeature) ? 'alpha' : 'size');
+    const sortAlphabetically = sortMode === 'alpha';
     const { legendItems, otherItems } = LegendDataProcessor.processLegendItems(
       this.featureData,
       this.featureValues,
@@ -360,16 +352,16 @@ export class ProtspaceLegend extends LitElement {
     this._dispatchZOrderChange();
 
     // Update scatterplot with current Other bucket value list for consistent coloring
-    if (this._scatterplotElement && "otherFeatureValues" in this._scatterplotElement) {
+    if (this._scatterplotElement && 'otherFeatureValues' in this._scatterplotElement) {
       (this._scatterplotElement as ScatterplotElement).otherFeatureValues = this.includeOthers
         ? this._computeOtherConcreteValues()
         : [];
     }
 
     // Update scatterplot to toggle shapes usage
-      if (this._scatterplotElement && "useShapes" in this._scatterplotElement) {
-        (this._scatterplotElement as any).useShapes = this.includeShapes;
-      }
+    if (this._scatterplotElement && 'useShapes' in this._scatterplotElement) {
+      (this._scatterplotElement as any).useShapes = this.includeShapes;
+    }
   }
 
   // Symbol rendering function using D3 symbols for consistency with scatterplot
@@ -382,9 +374,7 @@ export class ProtspaceLegend extends LitElement {
     const halfSize = size / 2;
 
     // Safely handle null or undefined shape
-    const shapeKey = (
-      shape || "circle"
-    ).toLowerCase() as keyof typeof SHAPE_MAPPING;
+    const shapeKey = (shape || 'circle').toLowerCase() as keyof typeof SHAPE_MAPPING;
 
     // Get the D3 symbol type (default to circle if not found)
     const symbolType = SHAPE_MAPPING[shapeKey] || d3.symbolCircle;
@@ -416,11 +406,9 @@ export class ProtspaceLegend extends LitElement {
         <g transform="translate(${halfSize}, ${halfSize})">
           <path
             d="${path}"
-            fill="${isOutlineOnly ? "none" : validColor}"
+            fill="${isOutlineOnly ? 'none' : validColor}"
             stroke="${isOutlineOnly ? validColor : strokeColor}"
-            stroke-width="${isOutlineOnly
-              ? LEGEND_STYLES.strokeWidth.outline
-              : strokeWidth}"
+            stroke-width="${isOutlineOnly ? LEGEND_STYLES.strokeWidth.outline : strokeWidth}"
           />
         </g>
       </svg>
@@ -428,7 +416,7 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private handleItemClick(value: string | null) {
-    const valueKey = value === null ? "null" : value;
+    const valueKey = value === null ? 'null' : value;
 
     // Compute proposed hidden values
     const proposedHiddenValues = this._hiddenValues.includes(valueKey)
@@ -438,9 +426,7 @@ export class ProtspaceLegend extends LitElement {
     // Compute visibility after the toggle
     const proposedLegendItems = this.legendItems.map((item) => ({
       ...item,
-      isVisible: !proposedHiddenValues.includes(
-        item.value === null ? "null" : item.value!
-      ),
+      isVisible: !proposedHiddenValues.includes(item.value === null ? 'null' : item.value!),
     }));
 
     // If no items would remain visible, reset to show everything
@@ -460,22 +446,21 @@ export class ProtspaceLegend extends LitElement {
     if (
       this.autoHide &&
       this._scatterplotElement &&
-      "hiddenFeatureValues" in this._scatterplotElement
+      'hiddenFeatureValues' in this._scatterplotElement
     ) {
       const expandedHidden = this._expandHiddenValues(this._hiddenValues);
-      (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [
-        ...expandedHidden,
-      ];
+      (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [...expandedHidden];
       // Also provide the list of concrete values that are in the Other bucket
-      if ("otherFeatureValues" in this._scatterplotElement) {
-        (this._scatterplotElement as ScatterplotElement).otherFeatureValues = this._computeOtherConcreteValues();
+      if ('otherFeatureValues' in this._scatterplotElement) {
+        (this._scatterplotElement as ScatterplotElement).otherFeatureValues =
+          this._computeOtherConcreteValues();
       }
     }
 
     // Dispatch event for external listeners
     this.dispatchEvent(
-      new CustomEvent("legend-item-click", {
-        detail: { value, action: "toggle" },
+      new CustomEvent('legend-item-click', {
+        detail: { value, action: 'toggle' },
         bubbles: true,
         composed: true,
       })
@@ -492,8 +477,7 @@ export class ProtspaceLegend extends LitElement {
 
     // Check if it's the only visible item
     const visibleItems = this.legendItems.filter((item) => item.isVisible);
-    const isOnlyVisible =
-      visibleItems.length === 1 && visibleItems[0].value === value;
+    const isOnlyVisible = visibleItems.length === 1 && visibleItems[0].value === value;
 
     // Case 1: It's the only visible item - show all
     if (isOnlyVisible) {
@@ -513,7 +497,7 @@ export class ProtspaceLegend extends LitElement {
     // Update hidden values to reflect current visibility state
     const newHiddenValues = this.legendItems
       .filter((item) => !item.isVisible)
-      .map((item) => (item.value === null ? "null" : item.value!));
+      .map((item) => (item.value === null ? 'null' : item.value!));
 
     this._hiddenValues = newHiddenValues;
 
@@ -521,21 +505,20 @@ export class ProtspaceLegend extends LitElement {
     if (
       this.autoHide &&
       this._scatterplotElement &&
-      "hiddenFeatureValues" in this._scatterplotElement
+      'hiddenFeatureValues' in this._scatterplotElement
     ) {
       const expandedHidden = this._expandHiddenValues(this._hiddenValues);
-      (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [
-        ...expandedHidden,
-      ];
-      if ("otherFeatureValues" in this._scatterplotElement) {
-        (this._scatterplotElement as ScatterplotElement).otherFeatureValues = this._computeOtherConcreteValues();
+      (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [...expandedHidden];
+      if ('otherFeatureValues' in this._scatterplotElement) {
+        (this._scatterplotElement as ScatterplotElement).otherFeatureValues =
+          this._computeOtherConcreteValues();
       }
     }
 
     // Dispatch "isolate" action for double click
     this.dispatchEvent(
-      new CustomEvent("legend-item-click", {
-        detail: { value, action: "isolate" },
+      new CustomEvent('legend-item-click', {
+        detail: { value, action: 'isolate' },
         bubbles: true,
         composed: true,
       })
@@ -562,7 +545,7 @@ export class ProtspaceLegend extends LitElement {
 
     // Provide move hint to the browser
     if (event.dataTransfer) {
-      event.dataTransfer.dropEffect = "move";
+      event.dataTransfer.dropEffect = 'move';
     }
 
     // Use a debounced approach to prevent too many re-renders
@@ -580,10 +563,8 @@ export class ProtspaceLegend extends LitElement {
     event.preventDefault();
 
     // Only handle special case when dropping onto "Other"
-    if (targetItem.value === "Other" && this.draggedItem) {
-      const draggedItem = this.legendItems.find(
-        (i) => i.value === this.draggedItem
-      );
+    if (targetItem.value === 'Other' && this.draggedItem) {
+      const draggedItem = this.legendItems.find((i) => i.value === this.draggedItem);
 
       if (!draggedItem) {
         this.handleDragEnd();
@@ -593,7 +574,7 @@ export class ProtspaceLegend extends LitElement {
       // If the item was previously extracted, use the original merge flow
       if (draggedItem.extractedFromOther && draggedItem.value) {
         this._mergeExtractedBackToOther(draggedItem.value);
-      } else if (draggedItem.value && draggedItem.value !== "Other") {
+      } else if (draggedItem.value && draggedItem.value !== 'Other') {
         // Manually move any non-null, non-Other value into Other
         if (!this.manualOtherValues.includes(draggedItem.value)) {
           this.manualOtherValues = [...this.manualOtherValues, draggedItem.value];
@@ -603,8 +584,8 @@ export class ProtspaceLegend extends LitElement {
 
         // Notify parent with "merge-into-other" action
         this.dispatchEvent(
-          new CustomEvent("legend-item-click", {
-            detail: { value: draggedItem.value, action: "merge-into-other" },
+          new CustomEvent('legend-item-click', {
+            detail: { value: draggedItem.value, action: 'merge-into-other' },
             bubbles: true,
             composed: true,
           })
@@ -624,8 +605,8 @@ export class ProtspaceLegend extends LitElement {
     this.updateLegendItems();
 
     this.dispatchEvent(
-      new CustomEvent("legend-item-click", {
-        detail: { value, action: "merge-into-other" },
+      new CustomEvent('legend-item-click', {
+        detail: { value, action: 'merge-into-other' },
         bubbles: true,
         composed: true,
       })
@@ -636,12 +617,8 @@ export class ProtspaceLegend extends LitElement {
 
   private _performDragReorder(targetItem: LegendItem): void {
     // Find the indices
-    const draggedIdx = this.legendItems.findIndex(
-      (i) => i.value === this.draggedItem
-    );
-    const targetIdx = this.legendItems.findIndex(
-      (i) => i.value === targetItem.value
-    );
+    const draggedIdx = this.legendItems.findIndex((i) => i.value === this.draggedItem);
+    const targetIdx = this.legendItems.findIndex((i) => i.value === targetItem.value);
 
     if (draggedIdx === -1 || targetIdx === -1) return;
 
@@ -661,11 +638,10 @@ export class ProtspaceLegend extends LitElement {
     this.requestUpdate();
   }
 
-
   private _dispatchZOrderChange(): void {
     const zOrderMap: Record<string, number> = {};
     this.legendItems.forEach((legendItem) => {
-      if (legendItem.value !== null && legendItem.value !== "Other") {
+      if (legendItem.value !== null && legendItem.value !== 'Other') {
         zOrderMap[legendItem.value] = legendItem.zOrder;
       }
     });
@@ -673,7 +649,7 @@ export class ProtspaceLegend extends LitElement {
     // Dispatch event directly to scatterplot element if available
     if (this._scatterplotElement) {
       this._scatterplotElement.dispatchEvent(
-        new CustomEvent("legend-zorder-change", {
+        new CustomEvent('legend-zorder-change', {
           detail: { zOrderMapping: zOrderMap },
           bubbles: false,
         })
@@ -681,7 +657,7 @@ export class ProtspaceLegend extends LitElement {
     } else {
       // Fallback to bubbling event
       this.dispatchEvent(
-        new CustomEvent("legend-zorder-change", {
+        new CustomEvent('legend-zorder-change', {
           detail: { zOrderMapping: zOrderMap },
           bubbles: true,
         })
@@ -716,8 +692,8 @@ export class ProtspaceLegend extends LitElement {
     // Create a new legend item
     const newItem: LegendItem = {
       value,
-      color: valueIndex !== -1 ? this.featureData.colors[valueIndex] : "#888",
-      shape: valueIndex !== -1 ? this.featureData.shapes[valueIndex] : "circle",
+      color: valueIndex !== -1 ? this.featureData.colors[valueIndex] : '#888',
+      shape: valueIndex !== -1 ? this.featureData.shapes[valueIndex] : 'circle',
       count: itemToExtract.count,
       isVisible: true,
       zOrder: this.legendItems.length,
@@ -735,8 +711,8 @@ export class ProtspaceLegend extends LitElement {
 
     // Notify parent with "extract" action
     this.dispatchEvent(
-      new CustomEvent("legend-item-click", {
-        detail: { value, action: "extract" },
+      new CustomEvent('legend-item-click', {
+        detail: { value, action: 'extract' },
         bubbles: true,
       })
     );
@@ -750,7 +726,7 @@ export class ProtspaceLegend extends LitElement {
   private _computeOtherConcreteValues(): string[] {
     const values: string[] = [];
     for (const item of this.otherItems) {
-      if (item.value === null) values.push("null");
+      if (item.value === null) values.push('null');
       else values.push(item.value);
     }
     return values;
@@ -766,7 +742,7 @@ export class ProtspaceLegend extends LitElement {
 
     // Keep event for backward compatibility
     this.dispatchEvent(
-      new CustomEvent("legend-customize", {
+      new CustomEvent('legend-customize', {
         bubbles: true,
       })
     );
@@ -780,17 +756,8 @@ export class ProtspaceLegend extends LitElement {
         <div class="modal-content" @click=${(e: Event) => e.stopPropagation()}>
           <div class="modal-header">
             <h3 class="modal-title">Extract from 'Other' category</h3>
-            <button
-              class="close-button"
-              @click=${() => (this.showOtherDialog = false)}
-            >
-              <svg
-                width="24"
-                height="24"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
+            <button class="close-button" @click=${() => (this.showOtherDialog = false)}>
+              <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
                   stroke-linecap="round"
                   stroke-linejoin="round"
@@ -802,8 +769,8 @@ export class ProtspaceLegend extends LitElement {
           </div>
 
           <div class="modal-description">
-            Select items to extract from the 'Other' category. Extracted items
-            will appear individually in the legend.
+            Select items to extract from the 'Other' category. Extracted items will appear
+            individually in the legend.
           </div>
 
           <div class="other-items-list">
@@ -812,8 +779,9 @@ export class ProtspaceLegend extends LitElement {
                 <div class="other-item">
                   <div class="other-item-info">
                     <span class="other-item-name">
-                      ${item.value === null || (typeof item.value === "string" && item.value.trim() === "")
-                        ? "N\\A"
+                      ${item.value === null ||
+                      (typeof item.value === 'string' && item.value.trim() === '')
+                        ? 'N\\A'
                         : item.value}
                     </span>
                     <span class="other-item-count">(${item.count})</span>
@@ -834,10 +802,7 @@ export class ProtspaceLegend extends LitElement {
           </div>
 
           <div class="modal-footer">
-            <button
-              class="modal-close-button"
-              @click=${() => (this.showOtherDialog = false)}
-            >
+            <button class="modal-close-button" @click=${() => (this.showOtherDialog = false)}>
               Close
             </button>
           </div>
@@ -850,16 +815,14 @@ export class ProtspaceLegend extends LitElement {
     // This would need to be implemented with a library like html2canvas
     // For now, dispatch an event that the parent can handle
     this.dispatchEvent(
-      new CustomEvent("legend-download", {
+      new CustomEvent('legend-download', {
         bubbles: true,
       })
     );
   }
 
   render() {
-    const sortedLegendItems = [...this.legendItems].sort(
-      (a, b) => a.zOrder - b.zOrder
-    );
+    const sortedLegendItems = [...this.legendItems].sort((a, b) => a.zOrder - b.zOrder);
 
     return html`
       <div class="legend-container">
@@ -872,17 +835,9 @@ export class ProtspaceLegend extends LitElement {
   private _renderHeader() {
     return html`
       <div class="legend-header">
-        <h3 class="legend-title">
-          ${this.featureData.name || this.featureName || "Legend"}
-        </h3>
+        <h3 class="legend-title">${this.featureData.name || this.featureName || 'Legend'}</h3>
         <button class="customize-button" @click=${this.handleCustomize}>
-          <svg
-            width="20"
-            height="20"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
+          <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
               stroke-linecap="round"
               stroke-linejoin="round"
@@ -929,8 +884,7 @@ export class ProtspaceLegend extends LitElement {
         @dragend=${() => this.handleDragEnd()}
       >
         <div class="legend-item-content">
-          ${this._renderDragHandle()}
-          ${this._renderItemSymbol(item, isItemSelected)}
+          ${this._renderDragHandle()} ${this._renderItemSymbol(item, isItemSelected)}
           ${this._renderItemText(item)} ${this._renderItemActions(item)}
         </div>
         <span class="legend-count">${item.count}</span>
@@ -941,26 +895,22 @@ export class ProtspaceLegend extends LitElement {
   private _isItemSelected(item: LegendItem): boolean {
     return (
       (item.value === null &&
-        this.selectedItems.includes("null") &&
+        this.selectedItems.includes('null') &&
         this.selectedItems.length > 0) ||
-      (item.value !== null &&
-        item.value !== "Other" &&
-        this.selectedItems.includes(item.value))
+      (item.value !== null && item.value !== 'Other' && this.selectedItems.includes(item.value))
     );
   }
 
   private _getItemClasses(item: LegendItem, isItemSelected: boolean): string {
-    const classes = ["legend-item"];
+    const classes = ['legend-item'];
 
-    if (!item.isVisible) classes.push("hidden");
-    if (this.draggedItem === item.value && item.value !== null)
-      classes.push("dragging");
-    if (isItemSelected) classes.push("selected");
-    if (item.extractedFromOther) classes.push("extracted");
+    if (!item.isVisible) classes.push('hidden');
+    if (this.draggedItem === item.value && item.value !== null) classes.push('dragging');
+    if (isItemSelected) classes.push('selected');
+    if (item.extractedFromOther) classes.push('extracted');
 
-    return classes.join(" ");
+    return classes.join(' ');
   }
-
 
   private _renderDragHandle() {
     return html`
@@ -987,10 +937,10 @@ export class ProtspaceLegend extends LitElement {
   private _renderItemSymbol(item: LegendItem, isItemSelected: boolean) {
     return html`
       <div class="mr-2">
-        ${item.value === "Other"
-          ? this.renderSymbol("circle", "#888")
+        ${item.value === 'Other'
+          ? this.renderSymbol('circle', '#888')
           : this.renderSymbol(
-              this.includeShapes ? item.shape : "circle",
+              this.includeShapes ? item.shape : 'circle',
               item.color,
               16,
               isItemSelected
@@ -1000,16 +950,14 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _renderItemText(item: LegendItem) {
-    const isEmptyString =
-      typeof item.value === "string" && item.value.trim() === "";
-    const displayText =
-      item.value === null || isEmptyString ? "N\\A" : item.value;
+    const isEmptyString = typeof item.value === 'string' && item.value.trim() === '';
+    const displayText = item.value === null || isEmptyString ? 'N\\A' : item.value;
 
     return html` <span class="legend-text">${displayText}</span> `;
   }
 
   private _renderItemActions(item: LegendItem) {
-    if (item.value !== "Other") {
+    if (item.value !== 'Other') {
       return html``;
     }
 
@@ -1059,7 +1007,7 @@ export class ProtspaceLegend extends LitElement {
       if (
         this.autoHide &&
         this._scatterplotElement &&
-        "hiddenFeatureValues" in this._scatterplotElement
+        'hiddenFeatureValues' in this._scatterplotElement
       ) {
         (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [];
       }
@@ -1067,9 +1015,12 @@ export class ProtspaceLegend extends LitElement {
       this.requestUpdate();
 
       // Update scatterplot point sizes to match shape size (approximate mapping)
-      if (this._scatterplotElement && "config" in this._scatterplotElement) {
+      if (this._scatterplotElement && 'config' in this._scatterplotElement) {
         // d3.symbol size is area; approximate by multiplying pixel size by the same multiplier used in legend
-        const baseSize = Math.max(10, Math.round(this.shapeSize * LEGEND_DEFAULTS.symbolSizeMultiplier));
+        const baseSize = Math.max(
+          10,
+          Math.round(this.shapeSize * LEGEND_DEFAULTS.symbolSizeMultiplier)
+        );
         const highlightedSize = Math.round(baseSize * 1.5);
         const selectedSize = Math.round(baseSize * 1.875);
         // @ts-ignore config is a public prop on the scatterplot element
@@ -1091,9 +1042,11 @@ export class ProtspaceLegend extends LitElement {
     // Build list of features and initialize temp settings map
     const featureNames = this.data?.features ? Object.keys(this.data.features) : [];
     if (featureNames.length && Object.keys(this.settingsFeatureSortModes).length === 0) {
-      const initial: Record<string, "size" | "alpha"> = {};
+      const initial: Record<string, 'size' | 'alpha'> = {};
       for (const fname of featureNames) {
-        initial[fname] = this.featureSortModes[fname] ?? (FIRST_NUMBER_SORT_FEATURES.has(fname) ? "alpha" : "size");
+        initial[fname] =
+          this.featureSortModes[fname] ??
+          (FIRST_NUMBER_SORT_FEATURES.has(fname) ? 'alpha' : 'size');
       }
       this.settingsFeatureSortModes = initial;
     }
@@ -1105,16 +1058,23 @@ export class ProtspaceLegend extends LitElement {
             <h3 class="modal-title">Legend settings</h3>
             <button class="close-button" @click=${onClose}>
               <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </div>
 
           <div class="modal-description">Legend display options</div>
 
-          <div class="other-items-list" style="display:flex;flex-direction:column;gap:10px;">
-            <div>
-              <label for="max-visible-input" class="other-item-name" style="display:block;margin-bottom:6px;">Max legend items</label>
+          <div class="other-items-list">
+            <div class="other-items-list-item">
+              <label for="max-visible-input" class="other-items-list-item-label"
+                >Max legend items</label
+              >
               <input
                 id="max-visible-input"
                 type="number"
@@ -1122,12 +1082,13 @@ export class ProtspaceLegend extends LitElement {
                 .value=${String(this.settingsMaxVisibleValues)}
                 placeholder=${String(LEGEND_DEFAULTS.maxVisibleValues)}
                 @input=${onInputChange}
-                style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;"
+                class="other-items-list-item-input"
               />
             </div>
-            <div>
-              <label for="shape-size-input" class="other-item-name" style="display:block;margin-bottom:6px;">Shape size</label>
+            <div class="other-items-list-item">
+              <label for="shape-size-input" class="other-items-list-item-label">Shape size</label>
               <input
+                class="other-items-list-item-input"
                 id="shape-size-input"
                 type="number"
                 min="6"
@@ -1141,48 +1102,77 @@ export class ProtspaceLegend extends LitElement {
                     this.settingsShapeSize = parsed;
                   }
                 }}
-                style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;"
               />
             </div>
-            <label style="display:flex;align-items:center;gap:8px;">
-              <input type="checkbox" .checked=${this.settingsIncludeOthers} @change=${onToggleIncludeOthers} />
+            <label class="other-items-list-label">
+              <input
+                class="other-items-list-label-input"
+                type="checkbox"
+                .checked=${this.settingsIncludeOthers}
+                @change=${onToggleIncludeOthers}
+              />
               Show "Other" category
             </label>
-            <label style="display:flex;align-items:center;gap:8px;">
-              <input type="checkbox" .checked=${this.settingsIncludeShapes} @change=${(e: Event) => { const t = e.target as HTMLInputElement; this.settingsIncludeShapes = t.checked; }} />
+            <label class="other-items-list-label">
+              <input
+                class="other-items-list-label-input"
+                type="checkbox"
+                .checked=${this.settingsIncludeShapes}
+                @change=${(e: Event) => {
+                  const t = e.target as HTMLInputElement;
+                  this.settingsIncludeShapes = t.checked;
+                }}
+              />
               Include shapes
             </label>
-            <div style="margin-top:12px;">
-              <div class="other-item-name" style="margin-bottom:6px;">Sorting</div>
-              <div style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow:auto;">
-                ${featureNames.map((fname) => html`
-                  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid #eee;border-radius:6px;padding:6px 8px;">
-                    <span style="font-size:12px;opacity:0.8;">${fname}</span>
-                    <span>
-                      <label style="margin-right:8px;">
-                        <input
-                          type="radio"
-                          name=${`sort-${fname}`}
-                          .checked=${this.settingsFeatureSortModes[fname] === "size"}
-                          @change=${() => { this.settingsFeatureSortModes = { ...this.settingsFeatureSortModes, [fname]: "size" }; }}
-                        /> by feature size
-                      </label>
-                      <label>
-                        <input
-                          type="radio"
-                          name=${`sort-${fname}`}
-                          .checked=${this.settingsFeatureSortModes[fname] === "alpha"}
-                          @change=${() => { this.settingsFeatureSortModes = { ...this.settingsFeatureSortModes, [fname]: "alpha" }; }}
-                        /> by number
-                      </label>
-                    </span>
-                  </div>
-                `)}
+            <div class="other-items-list-item-sorting">
+              <div class="other-items-list-item-sorting-title">Sorting</div>
+              <div class="other-items-list-item-sorting-container">
+                ${featureNames.map(
+                  (fname) => html`
+                    <div class="other-items-list-item-sorting-container-item">
+                      <span class="other-items-list-item-sorting-container-item-name"
+                        >${fname}</span
+                      >
+                      <span class="other-items-list-item-sorting-container-item-container">
+                        <label class="other-items-list-item-sorting-container-item-container-label">
+                          <input
+                            class="other-items-list-item-sorting-container-item-container-input"
+                            type="radio"
+                            name=${`sort-${fname}`}
+                            .checked=${this.settingsFeatureSortModes[fname] === 'size'}
+                            @change=${() => {
+                              this.settingsFeatureSortModes = {
+                                ...this.settingsFeatureSortModes,
+                                [fname]: 'size',
+                              };
+                            }}
+                          />
+                          by feature size
+                        </label>
+                        <label>
+                          <input
+                            type="radio"
+                            name=${`sort-${fname}`}
+                            .checked=${this.settingsFeatureSortModes[fname] === 'alpha'}
+                            @change=${() => {
+                              this.settingsFeatureSortModes = {
+                                ...this.settingsFeatureSortModes,
+                                [fname]: 'alpha',
+                              };
+                            }}
+                          />
+                          by number
+                        </label>
+                      </span>
+                    </div>
+                  `
+                )}
               </div>
             </div>
           </div>
 
-          <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;">
+          <div class="modal-footer">
             <button class="modal-close-button" @click=${onClose}>Cancel</button>
             <button class="extract-button" @click=${onSave}>Save</button>
           </div>
@@ -1194,6 +1184,6 @@ export class ProtspaceLegend extends LitElement {
 
 declare global {
   interface HTMLElementTagNameMap {
-    "protspace-legend": ProtspaceLegend;
+    'protspace-legend': ProtspaceLegend;
   }
 }

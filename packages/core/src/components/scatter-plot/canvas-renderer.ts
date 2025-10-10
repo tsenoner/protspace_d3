@@ -1,5 +1,5 @@
-import * as d3 from "d3";
-import type { PlotDataPoint } from "@protspace/utils";
+import * as d3 from 'd3';
+import type { PlotDataPoint } from '@protspace/utils';
 
 export interface CanvasStyleGetters {
   getColor: (point: PlotDataPoint) => string;
@@ -13,23 +13,26 @@ export interface CanvasStyleGetters {
 function shallowCompareRecords(a: Record<string, number>, b: Record<string, number>): boolean {
   const keysA = Object.keys(a);
   const keysB = Object.keys(b);
-  
+
   if (keysA.length !== keysB.length) {
     return false;
   }
-  
+
   for (const key of keysA) {
     if (a[key] !== b[key]) {
       return false;
     }
   }
-  
+
   return true;
 }
 
 export class CanvasRenderer {
   private canvas: HTMLCanvasElement;
-  private getScales: () => { x: d3.ScaleLinear<number, number>; y: d3.ScaleLinear<number, number> } | null;
+  private getScales: () => {
+    x: d3.ScaleLinear<number, number>;
+    y: d3.ScaleLinear<number, number>;
+  } | null;
   private getTransform: () => d3.ZoomTransform;
   private style: CanvasStyleGetters;
   private getSizeScaleExponent: () => number = () => 1;
@@ -40,7 +43,7 @@ export class CanvasRenderer {
   private cachedPointsRef: PlotDataPoint[] | null = null;
   private styleSignature: string | null = null;
   private zOrderMapping: Record<string, number> = {};
-  private selectedFeature: string = "";
+  private selectedFeature: string = '';
   private groupsCache: Array<{
     isCircle: boolean;
     path?: Path2D;
@@ -55,7 +58,10 @@ export class CanvasRenderer {
 
   constructor(
     canvas: HTMLCanvasElement,
-    getScales: () => { x: d3.ScaleLinear<number, number>; y: d3.ScaleLinear<number, number> } | null,
+    getScales: () => {
+      x: d3.ScaleLinear<number, number>;
+      y: d3.ScaleLinear<number, number>;
+    } | null,
     getTransform: () => d3.ZoomTransform,
     style: CanvasStyleGetters,
     getSizeScaleExponent?: () => number
@@ -107,7 +113,7 @@ export class CanvasRenderer {
     this.canvas.height = height * dpr;
     this.canvas.style.width = `${width}px`;
     this.canvas.style.height = `${height}px`;
-    const ctx = this.canvas.getContext("2d");
+    const ctx = this.canvas.getContext('2d');
     if (ctx) {
       ctx.scale(dpr, dpr);
       this.applyCanvasQualitySettings(ctx);
@@ -116,16 +122,16 @@ export class CanvasRenderer {
 
   applyCanvasQualitySettings(ctx: CanvasRenderingContext2D) {
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
+    ctx.imageSmoothingQuality = 'high';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
   }
 
   render(pointsData: PlotDataPoint[]) {
     const scales = this.getScales();
     if (!scales) return;
 
-    const ctx = this.canvas.getContext("2d");
+    const ctx = this.canvas.getContext('2d');
     if (!ctx) return;
 
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -172,7 +178,7 @@ export class CanvasRenderer {
         const isCircle = shape === d3.symbolCircle;
         const area = Math.pow(size * 3, 2);
         const pathString = isCircle ? null : d3.symbol().type(shape).size(area)()!;
-        const shapeKey = isCircle ? "circle" : `path:${pathString}`;
+        const shapeKey = isCircle ? 'circle' : `path:${pathString}`;
         const key = `${color}_${size}_${strokeColor}_${strokeWidth}_${opacity}_${shapeKey}`;
 
         // Get z-order for this point's feature value
@@ -183,7 +189,7 @@ export class CanvasRenderer {
             const valueKey = String(featureValue);
             pointZOrder = this.zOrderMapping[valueKey] ?? Number.MAX_SAFE_INTEGER;
           } else {
-            pointZOrder = this.zOrderMapping["null"] ?? Number.MAX_SAFE_INTEGER;
+            pointZOrder = this.zOrderMapping['null'] ?? Number.MAX_SAFE_INTEGER;
           }
         }
 
@@ -216,7 +222,7 @@ export class CanvasRenderer {
         opacity: g.meta.opacity,
         basePointSize: g.meta.basePointSize,
         indices: Uint32Array.from(g.idx),
-        zOrder: Math.max(...g.zOrders), // Use maximum z-order for the group (drawn later = on top)
+        zOrder: g.zOrders.reduce((max, z) => Math.max(max, z), -Infinity), // Use maximum z-order for the group (drawn later = on top)
       }));
     }
 
@@ -274,5 +280,3 @@ export class CanvasRenderer {
     ctx.restore();
   }
 }
-
-

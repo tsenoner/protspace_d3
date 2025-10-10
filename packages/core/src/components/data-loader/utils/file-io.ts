@@ -11,7 +11,7 @@ export async function readFileOptimized(file: File): Promise<ArrayBuffer> {
     chunks.push(new Uint8Array(chunkBuffer));
     offset += chunkSize;
     // yield control
-     
+
     await new Promise((r) => setTimeout(r, 0));
   }
   const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
@@ -23,5 +23,3 @@ export async function readFileOptimized(file: File): Promise<ArrayBuffer> {
   }
   return result.buffer;
 }
-
-

@@ -1,1 +1,1 @@
-export * from './scatter-plot'; 
+export * from './scatter-plot';
