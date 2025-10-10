@@ -9,7 +9,6 @@ import type {
 } from '@protspace/core';
 import { createExporter, showNotification } from '@protspace/utils';
 
-
 // Set up data loader event listeners immediately
 const dataLoader = document.getElementById('myDataLoader') as DataLoader | null;
 
@@ -529,18 +528,18 @@ Promise.all([
     // Load data from the parquet bundle file
     const loadDataFromFile = async () => {
       try {
-        console.log("🔄 Loading data from data.parquetbundle...");
+        console.log('🔄 Loading data from data.parquetbundle...');
 
         // First, try to fetch the file directly to check if it exists
-        const response = await fetch("./data.parquetbundle");
+        const response = await fetch('./data.parquetbundle');
         if (!response.ok) {
           throw new Error(`File not found: ${response.status} ${response.statusText}`);
         }
 
         // Get the file as ArrayBuffer and create a File object for the data loader
         const arrayBuffer = await response.arrayBuffer();
-        const file = new File([arrayBuffer], "data.parquetbundle", {
-          type: "application/octet-stream"
+        const file = new File([arrayBuffer], 'data.parquetbundle', {
+          type: 'application/octet-stream',
         });
 
         console.log(`📁 File loaded: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
@@ -548,14 +547,18 @@ Promise.all([
         // Use loadFromFile instead of loadFromUrl for better error handling
         await dataLoader.loadFromFile(file);
       } catch (error) {
-        console.error("❌ Failed to load data from file:", error);
-        console.log("💡 Make sure data.parquetbundle exists in the public directory");
-        console.log("🎯 Alternative: You can drag and drop the data.parquetbundle file onto the data loader component");
+        console.error('❌ Failed to load data from file:', error);
+        console.log('💡 Make sure data.parquetbundle exists in the public directory');
+        console.log(
+          '🎯 Alternative: You can drag and drop the data.parquetbundle file onto the data loader component'
+        );
 
         // Show user-friendly error message with instructions
-        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.warn(`Auto-load failed: ${errorMessage}`);
-        console.log("📋 The data loader is ready for drag-and-drop. Simply drag the data.parquetbundle file onto the component.");
+        console.log(
+          '📋 The data loader is ready for drag-and-drop. Simply drag the data.parquetbundle file onto the component.'
+        );
       }
     };
 
@@ -889,11 +892,9 @@ Promise.all([
       }
     });
 
-    console.log("ProtSpace components loaded and connected!");
-    console.log("Data will be loaded from data.parquetbundle file");
-    console.log(
-      "Use the control bar to change features and toggle selection modes!"
-    );
+    console.log('ProtSpace components loaded and connected!');
+    console.log('Data will be loaded from data.parquetbundle file');
+    console.log('Use the control bar to change features and toggle selection modes!');
   } else {
     console.error('Could not find one or more required elements.');
     console.log('Plot element:', plotElement);
