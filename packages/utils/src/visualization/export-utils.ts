@@ -28,7 +28,7 @@ export interface ExportableElement extends Element {
 
 // Narrow typing for accessing the legend component from this utils package
 type LegendExportItem = {
-  value: string | null | "Other";
+  value: string | null | 'Other';
   color: string;
   shape: string;
   count: number;
@@ -76,17 +76,14 @@ export class ProtSpaceExporter {
   exportJSON(options: ExportOptions = {}): void {
     const data = this.element.getCurrentData();
     if (!data) {
-      console.error("No data available for export");
+      console.error('No data available for export');
       return;
     }
 
     const dataStr = JSON.stringify(data, null, 2);
-    const dataUri = `data:application/json;charset=utf-8,${encodeURIComponent(
-      dataStr
-    )}`;
+    const dataUri = `data:application/json;charset=utf-8,${encodeURIComponent(dataStr)}`;
     const exportName =
-      options.exportName ||
-      (this.isolationMode ? "protspace_data_split" : "protspace_data");
+      options.exportName || (this.isolationMode ? 'protspace_data_split' : 'protspace_data');
 
     this.downloadFile(dataUri, `${exportName}.json`);
   }
@@ -97,7 +94,7 @@ export class ProtSpaceExporter {
   exportProteinIds(_options: ExportOptions = {}): void {
     const data = this.element.getCurrentData();
     if (!data) {
-      console.error("No data available for export");
+      console.error('No data available for export');
       return;
     }
 
@@ -115,10 +112,10 @@ export class ProtSpaceExporter {
       visibleIds = data.protein_ids.filter((_id, i) => {
         const vi = featureIndices[i];
         const value: string | null =
-          typeof vi === "number" && vi >= 0 && vi < featureInfo.values.length
+          typeof vi === 'number' && vi >= 0 && vi < featureInfo.values.length
             ? (featureInfo.values[vi] ?? null)
             : null;
-        const key = value === null ? "null" : String(value);
+        const key = value === null ? 'null' : String(value);
         return !hiddenSet.has(key);
       });
     } else {
@@ -126,11 +123,9 @@ export class ProtSpaceExporter {
       visibleIds = data.protein_ids || [];
     }
 
-    const idsStr = visibleIds.join("\n");
-    const idsUri = `data:text/plain;charset=utf-8,${encodeURIComponent(
-      idsStr
-    )}`;
-    const fileName = "protein_ids.txt";
+    const idsStr = visibleIds.join('\n');
+    const idsUri = `data:text/plain;charset=utf-8,${encodeURIComponent(idsStr)}`;
+    const fileName = 'protein_ids.txt';
 
     this.downloadFile(idsUri, fileName);
   }
@@ -142,7 +137,7 @@ export class ProtSpaceExporter {
     try {
       await this.exportCombinedPNG(options);
     } catch (error) {
-      console.error("PNG export failed:", error);
+      console.error('PNG export failed:', error);
       throw error;
     }
   }
@@ -153,15 +148,15 @@ export class ProtSpaceExporter {
    */
   private async exportCombinedPNG(options: ExportOptions = {}): Promise<void> {
     // Capture scatterplot
-    const scatterplotElement = document.querySelector("protspace-scatterplot");
+    const scatterplotElement = document.querySelector('protspace-scatterplot');
     if (!scatterplotElement) {
-      console.error("Could not find protspace-scatterplot element");
+      console.error('Could not find protspace-scatterplot element');
       return;
     }
 
-    const { default: html2canvas } = await import("html2canvas-pro");
+    const { default: html2canvas } = await import('html2canvas-pro');
     const canvasOptions = {
-      backgroundColor: options.backgroundColor || "#ffffff",
+      backgroundColor: options.backgroundColor || '#ffffff',
       scale: options.scaleForExport ?? 2,
       useCORS: true,
       allowTaint: false,
@@ -172,15 +167,12 @@ export class ProtSpaceExporter {
       scrollY: 0,
     };
 
-    const scatterCanvas = await html2canvas(
-      scatterplotElement as HTMLElement,
-      canvasOptions
-    );
+    const scatterCanvas = await html2canvas(scatterplotElement as HTMLElement, canvasOptions);
 
     // Build legend data – prefer live legend component state for exact parity (includes "Other")
     const currentData = this.element.getCurrentData();
     if (!currentData) {
-      console.error("No data available for legend generation");
+      console.error('No data available for legend generation');
       return;
     }
     const legendExportState = this.readLegendExportState();
@@ -190,22 +182,20 @@ export class ProtSpaceExporter {
       ? legendExportState.items
           .filter((it) => it.isVisible)
           .map((it) => ({
-            value: it.value === null ? "N/A" : String(it.value),
+            value: it.value === null ? 'N/A' : String(it.value),
             color: it.color,
             shape: it.shape,
             count: it.count,
             feature: featureNameFromLegend || this.element.selectedFeature,
           }))
-      : this
-          .computeLegendFromData(
-            currentData,
-            this.element.selectedFeature,
-            options.includeSelection === true ? this.selectedProteins : undefined
-          )
-          .filter((it) => {
-            const key = it.value === "N/A" ? "null" : it.value;
-            return !hiddenSet.has(key);
-          });
+      : this.computeLegendFromData(
+          currentData,
+          this.element.selectedFeature,
+          options.includeSelection === true ? this.selectedProteins : undefined
+        ).filter((it) => {
+          const key = it.value === 'N/A' ? 'null' : it.value;
+          return !hiddenSet.has(key);
+        });
 
     // Compose final image with legend = 1/5 width
     const combinedWidth = Math.round(scatterCanvas.width * 1.1);
@@ -222,16 +212,16 @@ export class ProtSpaceExporter {
     );
 
     // Composite
-    const outCanvas = document.createElement("canvas");
+    const outCanvas = document.createElement('canvas');
     outCanvas.width = combinedWidth;
     outCanvas.height = combinedHeight;
-    const ctx = outCanvas.getContext("2d");
+    const ctx = outCanvas.getContext('2d');
     if (!ctx) {
-      console.error("Could not get 2D context for output canvas");
+      console.error('Could not get 2D context for output canvas');
       return;
     }
     // Fill background
-    ctx.fillStyle = options.backgroundColor || "#ffffff";
+    ctx.fillStyle = options.backgroundColor || '#ffffff';
     ctx.fillRect(0, 0, combinedWidth, combinedHeight);
     // Draw scatterplot left
     ctx.drawImage(scatterCanvas, 0, 0);
@@ -239,10 +229,10 @@ export class ProtSpaceExporter {
     ctx.drawImage(legendCanvas, scatterCanvas.width, 0);
 
     // Download
-    const dataUrl = outCanvas.toDataURL("image/png");
+    const dataUrl = outCanvas.toDataURL('image/png');
     const fileName = options.exportName
       ? `${options.exportName}_combined.png`
-      : "protspace_combined.png";
+      : 'protspace_combined.png';
     this.downloadFile(dataUrl, fileName);
   }
 
@@ -254,8 +244,14 @@ export class ProtSpaceExporter {
     data: ExportableData,
     selectedFeature: string,
     selectedProteinIds?: string[]
-  ): Array<{ value: string; color: string; shape: string; count: number; feature: string }> {
-    const feature = selectedFeature || Object.keys(data.features || {})[0] || "";
+  ): Array<{
+    value: string;
+    color: string;
+    shape: string;
+    count: number;
+    feature: string;
+  }> {
+    const feature = selectedFeature || Object.keys(data.features || {})[0] || '';
     const featureInfo = data.features?.[feature];
     const indices = data.feature_data?.[feature];
     if (!featureInfo || !indices || !Array.isArray(featureInfo.values)) {
@@ -272,7 +268,7 @@ export class ProtSpaceExporter {
       allowedIndexSet = new Set<number>();
       selectedProteinIds.forEach((pid) => {
         const idx = idToIndex.get(pid);
-        if (typeof idx === "number") allowedIndexSet!.add(idx);
+        if (typeof idx === 'number') allowedIndexSet!.add(idx);
       });
     }
 
@@ -280,16 +276,22 @@ export class ProtSpaceExporter {
     for (let i = 0; i < indices.length; i += 1) {
       if (allowedIndexSet && !allowedIndexSet.has(i)) continue;
       const vi = indices[i];
-      if (typeof vi === "number" && vi >= 0 && vi < counts.length) {
+      if (typeof vi === 'number' && vi >= 0 && vi < counts.length) {
         counts[vi] += 1;
       }
     }
 
-    const items: Array<{ value: string; color: string; shape: string; count: number; feature: string }> = [];
+    const items: Array<{
+      value: string;
+      color: string;
+      shape: string;
+      count: number;
+      feature: string;
+    }> = [];
     for (let i = 0; i < featureInfo.values.length; i += 1) {
-      const value = featureInfo.values[i] ?? "N/A";
-      const color = featureInfo.colors?.[i] ?? "#888";
-      const shape = featureInfo.shapes?.[i] ?? "circle";
+      const value = featureInfo.values[i] ?? 'N/A';
+      const color = featureInfo.colors?.[i] ?? '#888';
+      const shape = featureInfo.shapes?.[i] ?? 'circle';
       const count = counts[i] ?? 0;
       items.push({ value: String(value), color, shape, count, feature });
     }
@@ -300,16 +302,22 @@ export class ProtSpaceExporter {
    * Render a legend using Canvas 2D API (no dependency on legend component)
    */
   private renderLegendToCanvas(
-    items: Array<{ value: string; color: string; shape: string; count: number; feature: string }>,
+    items: Array<{
+      value: string;
+      color: string;
+      shape: string;
+      count: number;
+      feature: string;
+    }>,
     width: number,
     height: number,
     options: ExportOptions,
     overrideFeatureName?: string
   ): HTMLCanvasElement {
-    const canvas = document.createElement("canvas");
+    const canvas = document.createElement('canvas');
     canvas.width = Math.max(100, Math.floor(width));
     canvas.height = Math.max(100, Math.floor(height));
-    const ctx = canvas.getContext("2d")!;
+    const ctx = canvas.getContext('2d')!;
 
     // Layout constants (will scale if content would overflow)
     const padding = 16;
@@ -317,7 +325,7 @@ export class ProtSpaceExporter {
     const itemHeight = 44;
     const symbolSize = 18;
     const rightPaddingForCount = 8;
-    const bg = options.backgroundColor || "#ffffff";
+    const bg = options.backgroundColor || '#ffffff';
 
     // Compute required height
     const required = padding + headerHeight + items.length * itemHeight + padding;
@@ -331,21 +339,21 @@ export class ProtSpaceExporter {
     ctx.fillRect(0, 0, canvas.width / scaleX, canvas.height / scaleY);
 
     // Border
-    ctx.strokeStyle = "#e1e5e9";
+    ctx.strokeStyle = '#e1e5e9';
     ctx.lineWidth = 1;
     ctx.strokeRect(0.5, 0.5, canvas.width / scaleX - 1, canvas.height / scaleY - 1);
 
     // Header (slightly larger for better readability in exports)
-    ctx.fillStyle = "#374151";
-    ctx.font = `500 16px Arial, sans-serif`;
-    ctx.textBaseline = "middle";
-    const headerLabel = overrideFeatureName || items[0]?.feature || "Legend";
+    ctx.fillStyle = '#374151';
+    ctx.font = '500 16px Arial, sans-serif';
+    ctx.textBaseline = 'middle';
+    const headerLabel = overrideFeatureName || items[0]?.feature || 'Legend';
     ctx.fillText(`${headerLabel}`, padding, padding + headerHeight / 2);
 
     // Items
     let y = padding + headerHeight;
     const includeShapes =
-      typeof options.includeShapes === "boolean"
+      typeof options.includeShapes === 'boolean'
         ? options.includeShapes
         : this.readUseShapesFromScatterplot();
 
@@ -357,8 +365,8 @@ export class ProtSpaceExporter {
       } else {
         // Draw a simple color swatch (circle) to match no-shape mode
         ctx.save();
-        ctx.fillStyle = it.color || "#888";
-        ctx.strokeStyle = "#333";
+        ctx.fillStyle = it.color || '#888';
+        ctx.strokeStyle = '#333';
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.arc(cx, cy, symbolSize / 2, 0, Math.PI * 2);
@@ -367,17 +375,17 @@ export class ProtSpaceExporter {
         ctx.restore();
       }
 
-      ctx.fillStyle = "#374151";
+      ctx.fillStyle = '#374151';
       // Slightly larger item font for export clarity
-      ctx.font = `14px Arial, sans-serif`;
-      ctx.textBaseline = "middle";
+      ctx.font = '14px Arial, sans-serif';
+      ctx.textBaseline = 'middle';
       ctx.fillText(it.value, padding + symbolSize + 8, cy);
 
       // Count on the right
       const countStr = String(it.count);
       const textWidth = ctx.measureText(countStr).width;
-      ctx.fillStyle = "#6b7280";
-      ctx.fillText(countStr, (canvas.width / scaleX) - rightPaddingForCount - textWidth, cy);
+      ctx.fillStyle = '#6b7280';
+      ctx.fillText(countStr, canvas.width / scaleX - rightPaddingForCount - textWidth, cy);
 
       y += itemHeight;
     }
@@ -391,10 +399,10 @@ export class ProtSpaceExporter {
    * Defaults to false if not available so exported legends match the common default.
    */
   private readUseShapesFromScatterplot(): boolean {
-    const el = document.querySelector("protspace-scatterplot") as
+    const el = document.querySelector('protspace-scatterplot') as
       | (Element & { useShapes?: boolean })
       | null;
-    if (el && typeof (el as any).useShapes === "boolean") {
+    if (el && typeof (el as any).useShapes === 'boolean') {
       return Boolean((el as any).useShapes);
     }
     return false;
@@ -411,6 +419,7 @@ export class ProtSpaceExporter {
         : [];
       return new Set(raw);
     } catch (_e) {
+      console.error('Error reading hidden feature values:', _e);
       return new Set<string>();
     }
   }
@@ -425,10 +434,10 @@ export class ProtSpaceExporter {
   ) {
     const half = size / 2;
     ctx.save();
-    switch ((shape || "circle").toLowerCase()) {
-      case "square": {
-        ctx.fillStyle = color || "#888";
-        ctx.strokeStyle = "#333";
+    switch ((shape || 'circle').toLowerCase()) {
+      case 'square': {
+        ctx.fillStyle = color || '#888';
+        ctx.strokeStyle = '#333';
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.rect(cx - half, cy - half, size, size);
@@ -436,9 +445,9 @@ export class ProtSpaceExporter {
         ctx.stroke();
         break;
       }
-      case "triangle": {
-        ctx.fillStyle = color || "#888";
-        ctx.strokeStyle = "#333";
+      case 'triangle': {
+        ctx.fillStyle = color || '#888';
+        ctx.strokeStyle = '#333';
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(cx, cy - half);
@@ -449,9 +458,9 @@ export class ProtSpaceExporter {
         ctx.stroke();
         break;
       }
-      case "diamond": {
-        ctx.fillStyle = color || "#888";
-        ctx.strokeStyle = "#333";
+      case 'diamond': {
+        ctx.fillStyle = color || '#888';
+        ctx.strokeStyle = '#333';
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(cx, cy - half);
@@ -463,9 +472,9 @@ export class ProtSpaceExporter {
         ctx.stroke();
         break;
       }
-      case "cross":
-      case "plus": {
-        ctx.strokeStyle = color || "#888";
+      case 'cross':
+      case 'plus': {
+        ctx.strokeStyle = color || '#888';
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(cx, cy - half * 0.8);
@@ -476,8 +485,8 @@ export class ProtSpaceExporter {
         break;
       }
       default: {
-        ctx.fillStyle = color || "#888";
-        ctx.strokeStyle = "#333";
+        ctx.fillStyle = color || '#888';
+        ctx.strokeStyle = '#333';
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.arc(cx, cy, half, 0, Math.PI * 2);
@@ -493,16 +502,16 @@ export class ProtSpaceExporter {
    * Read legend export state from the live legend component if available.
    */
   private readLegendExportState(): LegendExportState | null {
-    const legendEl = document.querySelector("protspace-legend") as
+    const legendEl = document.querySelector('protspace-legend') as
       | (Element & { getLegendExportData?: () => LegendExportState })
       | null;
     try {
-      if (legendEl && typeof (legendEl as any).getLegendExportData === "function") {
+      if (legendEl && typeof (legendEl as any).getLegendExportData === 'function') {
         const state = (legendEl as any).getLegendExportData();
         if (state && Array.isArray(state.items)) return state as LegendExportState;
       }
     } catch (_e) {
-      // fall back to compute
+      console.error('Error reading legend export state:', _e);
     }
     return null;
   }
@@ -514,7 +523,7 @@ export class ProtSpaceExporter {
     try {
       await this.exportCombinedPDF(options);
     } catch (error) {
-      console.error("PDF export failed:", error);
+      console.error('PDF export failed:', error);
       throw error;
     }
   }
@@ -524,21 +533,21 @@ export class ProtSpaceExporter {
    */
   private async exportCombinedPDF(options: ExportOptions = {}): Promise<void> {
     // Find scatterplot element
-    const scatterplotElement = document.querySelector("protspace-scatterplot");
+    const scatterplotElement = document.querySelector('protspace-scatterplot');
     if (!scatterplotElement) {
-      console.error("Could not find protspace-scatterplot element");
+      console.error('Could not find protspace-scatterplot element');
       return;
     }
 
     // Import libs
     const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
-      import("jspdf"),
-      import("html2canvas-pro"),
+      import('jspdf'),
+      import('html2canvas-pro'),
     ]);
 
     // Render scatterplot canvas
     const scatterCanvas = await html2canvas(scatterplotElement as HTMLElement, {
-      backgroundColor: options.backgroundColor || "#ffffff",
+      backgroundColor: options.backgroundColor || '#ffffff',
       scale: options.scaleForExport ?? 3,
       useCORS: true,
       allowTaint: false,
@@ -548,7 +557,7 @@ export class ProtSpaceExporter {
       scrollX: 0,
       scrollY: 0,
     });
-    const scatterImg = scatterCanvas.toDataURL("image/png", 1.0);
+    const scatterImg = scatterCanvas.toDataURL('image/png', 1.0);
     const scatterRatio = scatterCanvas.width / scatterCanvas.height;
 
     // Build programmatic legend items and render to canvas (prefer live legend state)
@@ -561,22 +570,20 @@ export class ProtSpaceExporter {
         ? legendExportState.items
             .filter((it) => it.isVisible)
             .map((it) => ({
-              value: it.value === null ? "N/A" : String(it.value),
+              value: it.value === null ? 'N/A' : String(it.value),
               color: it.color,
               shape: it.shape,
               count: it.count,
               feature: featureNameFromLegend || this.element.selectedFeature,
             }))
-        : this
-            .computeLegendFromData(
-              data,
-              this.element.selectedFeature,
-              options.includeSelection === true ? this.selectedProteins : undefined
-            )
-            .filter((it) => {
-              const key = it.value === "N/A" ? "null" : it.value;
-              return !hiddenSet.has(key);
-            })
+        : this.computeLegendFromData(
+            data,
+            this.element.selectedFeature,
+            options.includeSelection === true ? this.selectedProteins : undefined
+          ).filter((it) => {
+            const key = it.value === 'N/A' ? 'null' : it.value;
+            return !hiddenSet.has(key);
+          })
       : [];
     const legendCanvas = this.renderLegendToCanvas(
       legendItems,
@@ -585,17 +592,26 @@ export class ProtSpaceExporter {
       options,
       featureNameFromLegend || this.element.selectedFeature
     );
-    const legendImg = legendCanvas.toDataURL("image/png", 1.0);
+    const legendImg = legendCanvas.toDataURL('image/png', 1.0);
     const legendRatio = legendCanvas.width / legendCanvas.height;
 
     // Prepare PDF
-    const orientation = scatterRatio > 1 ? "landscape" : "portrait";
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pdf: any = new (jsPDF as any)({ orientation, unit: "mm", format: "a4" });
+    const orientation = scatterRatio > 1 ? 'landscape' : 'portrait';
 
-    const exportTitle = options.exportName || "ProtSpace Visualization";
-    const exportDate = new Date().toISOString().replace("T", " ").replace(/\..+$/, "");
-    pdf.setProperties({ title: exportTitle, subject: "ProtSpace export", author: "ProtSpace", creator: "ProtSpace" });
+    const pdf: any = new (jsPDF as any)({
+      orientation,
+      unit: 'mm',
+      format: 'a4',
+    });
+
+    const exportTitle = options.exportName || 'ProtSpace Visualization';
+    const exportDate = new Date().toISOString().replace('T', ' ').replace(/\..+$/, '');
+    pdf.setProperties({
+      title: exportTitle,
+      subject: 'ProtSpace export',
+      author: 'ProtSpace',
+      creator: 'ProtSpace',
+    });
 
     // Layout (single page, side-by-side; legend ~10% width)
     const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -613,8 +629,10 @@ export class ProtSpaceExporter {
     pdf.setFontSize(12);
     pdf.text(exportTitle, contentLeft, margin + 6);
     pdf.setFontSize(9);
-    const origin = (typeof window !== "undefined" && window?.location?.origin) || "";
-    pdf.text(`${exportDate}${origin ? `  •  ${origin}` : ""}`, pdfWidth - margin, margin + 6, { align: "right" });
+    const origin = (typeof window !== 'undefined' && window?.location?.origin) || '';
+    pdf.text(`${exportDate}${origin ? `  •  ${origin}` : ''}`, pdfWidth - margin, margin + 6, {
+      align: 'right',
+    });
 
     // Desired widths
     const legendTargetWidth = (contentWidth - gap) * 0.1; // ~10%
@@ -635,15 +653,19 @@ export class ProtSpaceExporter {
     const y = contentTop + (contentHeight - Math.max(sH, lH)) / 2;
     const xScatter = contentLeft;
     const xLegend = xScatter + sW + gap;
-    pdf.addImage(scatterImg, "PNG", xScatter, y, sW, sH);
-    pdf.addImage(legendImg, "PNG", xLegend, y, lW, lH);
+    pdf.addImage(scatterImg, 'PNG', xScatter, y, sW, sH);
+    pdf.addImage(legendImg, 'PNG', xLegend, y, lW, lH);
 
     // Footer
     pdf.setFontSize(9);
-    pdf.text(`Page 1 of 1`, pdfWidth - margin, pdfHeight - margin, { align: "right" });
+    pdf.text('Page 1 of 1', pdfWidth - margin, pdfHeight - margin, {
+      align: 'right',
+    });
 
-    const dateForFile = new Date().toISOString().replace(/[:T]/g, "-").replace(/\..+$/, "");
-    const fileName = options.exportName ? `${options.exportName}_${dateForFile}.pdf` : `protspace_visualization_${dateForFile}.pdf`;
+    const dateForFile = new Date().toISOString().replace(/[:T]/g, '-').replace(/\..+$/, '');
+    const fileName = options.exportName
+      ? `${options.exportName}_${dateForFile}.pdf`
+      : `protspace_visualization_${dateForFile}.pdf`;
     pdf.save(fileName);
   }
 
@@ -651,7 +673,7 @@ export class ProtSpaceExporter {
    * Download file helper
    */
   private downloadFile(url: string, filename: string): void {
-    const link = document.createElement("a");
+    const link = document.createElement('a');
     link.href = url;
     link.download = filename;
     link.click();

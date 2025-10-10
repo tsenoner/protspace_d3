@@ -1,18 +1,18 @@
-import "@protspace/core"; // Registers all web components
-import type { VisualizationData } from "@protspace/utils";
+import '@protspace/core'; // Registers all web components
+import type { VisualizationData } from '@protspace/utils';
 import type {
   ProtspaceScatterplot,
   ProtspaceLegend,
   ProtspaceStructureViewer,
   ProtspaceControlBar,
   DataLoader,
-} from "@protspace/core";
-import { createExporter, showNotification } from "@protspace/utils";
+} from '@protspace/core';
+import { createExporter, showNotification } from '@protspace/utils';
 
 const sampleData: VisualizationData = {
   projections: [
     {
-      name: "UMAP",
+      name: 'UMAP',
       data: [
         [0.5, 0.5],
         [0.2, 0.3],
@@ -28,27 +28,27 @@ const sampleData: VisualizationData = {
     },
   ],
   protein_ids: [
-    "P00533",
-    "P04637",
-    "P53350",
-    "Q14790",
-    "P42345",
-    "P28482",
-    "Q9Y261",
-    "P15056",
-    "O14965",
-    "P50613",
+    'P00533',
+    'P04637',
+    'P53350',
+    'Q14790',
+    'P42345',
+    'P28482',
+    'Q9Y261',
+    'P15056',
+    'O14965',
+    'P50613',
   ],
   features: {
     family: {
-      values: ["Kinase", "Protease", "Receptor", "Other"],
-      colors: ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3"],
-      shapes: ["circle", "square", "triangle", "diamond"],
+      values: ['Kinase', 'Protease', 'Receptor', 'Other'],
+      colors: ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3'],
+      shapes: ['circle', 'square', 'triangle', 'diamond'],
     },
     size_category: {
-      values: ["small", "medium", "large"],
-      colors: ["#ff7f00", "#ffff33", "#a65628"],
-      shapes: ["circle", "circle", "circle"],
+      values: ['small', 'medium', 'large'],
+      colors: ['#ff7f00', '#ffff33', '#a65628'],
+      shapes: ['circle', 'circle', 'circle'],
     },
   },
   feature_data: {
@@ -58,57 +58,51 @@ const sampleData: VisualizationData = {
 };
 
 // Set up data loader event listeners immediately
-const dataLoader = document.getElementById("myDataLoader") as DataLoader | null;
+const dataLoader = document.getElementById('myDataLoader') as DataLoader | null;
 
 if (dataLoader) {
-  console.log("🎧 Setting up data-loaded event listener on:", dataLoader);
+  console.log('🎧 Setting up data-loaded event listener on:', dataLoader);
 
   // Handle successful data loading
-  dataLoader.addEventListener("data-loaded", (event: Event) => {
-    console.log("🔥 DATA-LOADED EVENT FIRED!", event);
+  dataLoader.addEventListener('data-loaded', (event: Event) => {
+    console.log('🔥 DATA-LOADED EVENT FIRED!', event);
     const customEvent = event as CustomEvent;
     const { data } = customEvent.detail;
-    console.log("📁 Data loaded from Arrow file:", data);
+    console.log('📁 Data loaded from Arrow file:', data);
 
     // Wait for other components to be ready before loading data
     Promise.all([
-      customElements.whenDefined("protspace-scatterplot"),
-      customElements.whenDefined("protspace-legend"),
-      customElements.whenDefined("protspace-structure-viewer"),
-      customElements.whenDefined("protspace-control-bar"),
+      customElements.whenDefined('protspace-scatterplot'),
+      customElements.whenDefined('protspace-legend'),
+      customElements.whenDefined('protspace-structure-viewer'),
+      customElements.whenDefined('protspace-control-bar'),
     ]).then(() => {
-      const plotElement = document.getElementById(
-        "myPlot"
-      ) as ProtspaceScatterplot | null;
-      const legendElement = document.getElementById(
-        "myLegend"
-      ) as ProtspaceLegend | null;
+      const plotElement = document.getElementById('myPlot') as ProtspaceScatterplot | null;
+      const legendElement = document.getElementById('myLegend') as ProtspaceLegend | null;
       const structureViewer = document.getElementById(
-        "myStructureViewer"
+        'myStructureViewer'
       ) as ProtspaceStructureViewer | null;
-      const controlBar = document.getElementById(
-        "myControlBar"
-      ) as ProtspaceControlBar | null;
+      const controlBar = document.getElementById('myControlBar') as ProtspaceControlBar | null;
 
       if (plotElement && legendElement && structureViewer && controlBar) {
         // Create a loadNewData function in this scope
         const loadNewDataFromEvent = (newData: VisualizationData) => {
-          console.log("🔄 Loading new data from event:", newData);
+          console.log('🔄 Loading new data from event:', newData);
 
           // Update scatterplot with new data
-          console.log("📊 Updating scatterplot with new data...");
+          console.log('📊 Updating scatterplot with new data...');
           const oldData = plotElement.data;
           plotElement.data = newData;
-          plotElement.requestUpdate("data", oldData);
+          plotElement.requestUpdate('data', oldData);
 
           plotElement.selectedProjectionIndex = 0;
-          plotElement.selectedFeature = Object.keys(newData.features)[0] || "";
+          plotElement.selectedFeature = Object.keys(newData.features)[0] || '';
           plotElement.selectedProteinIds = [];
           plotElement.selectionMode = false;
           plotElement.hiddenFeatureValues = [];
           plotElement.requestUpdate();
 
-          console.log("📊 Scatterplot updated with:", {
+          console.log('📊 Scatterplot updated with:', {
             projections: newData.projections.map((p) => p.name),
             features: Object.keys(newData.features),
             proteinCount: newData.protein_ids.length,
@@ -120,12 +114,11 @@ if (dataLoader) {
 
           // Update legend
           setTimeout(() => {
-            console.log("🏷️ Updating legend with new data...");
+            console.log('🏷️ Updating legend with new data...');
             legendElement.autoSync = true;
             legendElement.autoHide = true;
             legendElement.data = { features: newData.features };
-            legendElement.selectedFeature =
-              Object.keys(newData.features)[0] || "";
+            legendElement.selectedFeature = Object.keys(newData.features)[0] || '';
 
             const firstFeature = Object.keys(newData.features)[0];
             if (firstFeature) {
@@ -133,10 +126,10 @@ if (dataLoader) {
                 const featureIdx = newData.feature_data[firstFeature][index];
                 // Handle out-of-bounds indices the same way as DataProcessor
                 return featureIdx !== undefined &&
-                       featureIdx !== null &&
-                       Array.isArray(newData.features[firstFeature].values) &&
-                       featureIdx >= 0 &&
-                       featureIdx < newData.features[firstFeature].values.length
+                  featureIdx !== null &&
+                  Array.isArray(newData.features[firstFeature].values) &&
+                  featureIdx >= 0 &&
+                  featureIdx < newData.features[firstFeature].values.length
                   ? newData.features[firstFeature].values[featureIdx] || null
                   : null;
               });
@@ -145,7 +138,7 @@ if (dataLoader) {
             }
             legendElement.requestUpdate();
 
-            console.log("🏷️ Legend updated with:", {
+            console.log('🏷️ Legend updated with:', {
               feature: legendElement.selectedFeature,
               dataKeys: Object.keys(newData.features),
               proteinCount: newData.protein_ids.length,
@@ -153,9 +146,9 @@ if (dataLoader) {
           }, 200);
 
           console.log(
-            "✅ Data loaded successfully from event with",
+            '✅ Data loaded successfully from event with',
             newData.protein_ids.length,
-            "proteins"
+            'proteins'
           );
         };
 
@@ -166,50 +159,36 @@ if (dataLoader) {
   });
 
   // Handle data loading errors
-  dataLoader.addEventListener("data-load-error", (event: Event) => {
+  dataLoader.addEventListener('data-load-error', (event: Event) => {
     const customEvent = event as CustomEvent;
     const { error } = customEvent.detail;
-    console.error("❌ Data loading failed:", error);
+    console.error('❌ Data loading failed:', error);
     alert(`Failed to load data: ${error}`);
   });
 
-  console.log("🎧 Event listeners attached successfully");
+  console.log('🎧 Event listeners attached successfully');
 }
 
 // Wait for all components to be defined for initial setup
 Promise.all([
-  customElements.whenDefined("protspace-scatterplot"),
-  customElements.whenDefined("protspace-legend"),
-  customElements.whenDefined("protspace-structure-viewer"),
-  customElements.whenDefined("protspace-control-bar"),
-  customElements.whenDefined("protspace-data-loader"),
+  customElements.whenDefined('protspace-scatterplot'),
+  customElements.whenDefined('protspace-legend'),
+  customElements.whenDefined('protspace-structure-viewer'),
+  customElements.whenDefined('protspace-control-bar'),
+  customElements.whenDefined('protspace-data-loader'),
 ]).then(() => {
-  console.log("🚀 All web components defined and ready!");
-  const plotElement = document.getElementById(
-    "myPlot"
-  ) as ProtspaceScatterplot | null;
-  const legendElement = document.getElementById(
-    "myLegend"
-  ) as ProtspaceLegend | null;
+  console.log('🚀 All web components defined and ready!');
+  const plotElement = document.getElementById('myPlot') as ProtspaceScatterplot | null;
+  const legendElement = document.getElementById('myLegend') as ProtspaceLegend | null;
   const structureViewer = document.getElementById(
-    "myStructureViewer"
+    'myStructureViewer'
   ) as ProtspaceStructureViewer | null;
-  const controlBar = document.getElementById(
-    "myControlBar"
-  ) as ProtspaceControlBar | null;
+  const controlBar = document.getElementById('myControlBar') as ProtspaceControlBar | null;
 
   // UI elements
-  const selectedProteinElement = document.getElementById(
-    "selectedProtein"
-  ) as HTMLElement | null;
+  const selectedProteinElement = document.getElementById('selectedProtein') as HTMLElement | null;
 
-  if (
-    plotElement &&
-    legendElement &&
-    structureViewer &&
-    controlBar &&
-    dataLoader
-  ) {
+  if (plotElement && legendElement && structureViewer && controlBar && dataLoader) {
     // Track state
     let hiddenValues: string[] = [];
     let selectedProteins: string[] = [];
@@ -220,12 +199,12 @@ Promise.all([
     const performanceMetrics = {
       lastDataSize: 0,
       loadingTime: 0,
-      renderingMode: "unknown" as string,
+      renderingMode: 'unknown' as string,
     };
 
     // Function to load new data and reset all state with progressive loading and performance optimization
     const loadNewData = async (newData: VisualizationData) => {
-      console.log("🔄 Loading new data:", newData);
+      console.log('🔄 Loading new data:', newData);
       const startTime = performance.now();
       const dataSize = newData.protein_ids.length;
 
@@ -237,21 +216,17 @@ Promise.all([
       const isMassiveDataset = dataSize > 10000;
       const isMegaDataset = dataSize > 50000;
 
-      console.log(`📊 Dataset analysis:`, {
+      console.log('📊 Dataset analysis:', {
         size: dataSize.toLocaleString(),
         category: isMegaDataset
-          ? "MEGA"
+          ? 'MEGA'
           : isMassiveDataset
-          ? "MASSIVE"
-          : isLargeDataset
-          ? "LARGE"
-          : "NORMAL",
+            ? 'MASSIVE'
+            : isLargeDataset
+              ? 'LARGE'
+              : 'NORMAL',
         willUseProgressiveLoading: isLargeDataset,
-        expectedPerformanceMode: isMegaDataset
-          ? "canvas"
-          : isMassiveDataset
-          ? "hybrid"
-          : "svg",
+        expectedPerformanceMode: isMegaDataset ? 'canvas' : isMassiveDataset ? 'hybrid' : 'svg',
       });
 
       // Show enhanced loading indicator for large datasets
@@ -261,8 +236,8 @@ Promise.all([
         );
 
         // Show enhanced loading overlay with performance info
-        const loadingOverlay = document.createElement("div");
-        loadingOverlay.id = "progressive-loading";
+        const loadingOverlay = document.createElement('div');
+        loadingOverlay.id = 'progressive-loading';
         loadingOverlay.style.cssText = `
           position: fixed; top: 0; left: 0; width: 100%; height: 100%;
           background: linear-gradient(135deg, rgba(0,0,0,0.9), rgba(20,20,40,0.9)); 
@@ -272,10 +247,10 @@ Promise.all([
         `;
 
         const performanceMode = isMegaDataset
-          ? "Canvas (Maximum Performance)"
+          ? 'Canvas (Maximum Performance)'
           : isMassiveDataset
-          ? "Hybrid (Balanced)"
-          : "SVG (High Quality)";
+            ? 'Hybrid (Balanced)'
+            : 'SVG (High Quality)';
 
         loadingOverlay.innerHTML = `
           <div style="text-align: center; max-width: 500px;">
@@ -309,44 +284,37 @@ Promise.all([
 
         // Update progress
         if (isLargeDataset) {
-          const progressBar = document.getElementById("progress-bar");
-          const progressText = document.getElementById("progress-text");
-          if (progressBar) progressBar.style.width = "10%";
+          const progressBar = document.getElementById('progress-bar');
+          const progressText = document.getElementById('progress-text');
+          if (progressBar) progressBar.style.width = '10%';
           if (progressText)
-            progressText.textContent =
-              "Step 1/5: Configuring performance settings...";
+            progressText.textContent = 'Step 1/5: Configuring performance settings...';
         }
 
         // ✨ NEW: Configure performance settings based on data size
-        console.log("⚡ Configuring performance settings...");
+        console.log('⚡ Configuring performance settings...');
         if (isMegaDataset) {
           // Maximum performance for mega datasets
-          plotElement.configurePerformance(dataSize, "fast");
+          plotElement.configurePerformance(dataSize, 'fast');
           plotElement.useCanvas = true;
           plotElement.enableVirtualization = true;
-          performanceMetrics.renderingMode = "canvas-extreme";
-          console.log(
-            `🎨 Configured for EXTREME performance mode (canvas + virtualization)`
-          );
+          performanceMetrics.renderingMode = 'canvas-extreme';
+          console.log('🎨 Configured for EXTREME performance mode (canvas + virtualization)');
         } else if (isMassiveDataset) {
           // Balanced performance for massive datasets
-          plotElement.configurePerformance(dataSize, "auto");
-          performanceMetrics.renderingMode = "auto-optimized";
-          console.log(`⚖️ Configured for AUTO performance mode (balanced)`);
+          plotElement.configurePerformance(dataSize, 'auto');
+          performanceMetrics.renderingMode = 'auto-optimized';
+          console.log('⚖️ Configured for AUTO performance mode (balanced)');
         } else if (isLargeDataset) {
           // Quality-focused but still optimized
-          plotElement.configurePerformance(dataSize, "auto");
-          performanceMetrics.renderingMode = "svg-optimized";
-          console.log(
-            `✨ Configured for OPTIMIZED performance mode (quality + speed)`
-          );
+          plotElement.configurePerformance(dataSize, 'auto');
+          performanceMetrics.renderingMode = 'svg-optimized';
+          console.log('✨ Configured for OPTIMIZED performance mode (quality + speed)');
         } else {
           // Maximum quality for small datasets
-          plotElement.configurePerformance(dataSize, "quality");
-          performanceMetrics.renderingMode = "svg-quality";
-          console.log(
-            `🌟 Configured for QUALITY performance mode (full features)`
-          );
+          plotElement.configurePerformance(dataSize, 'quality');
+          performanceMetrics.renderingMode = 'svg-quality';
+          console.log('🌟 Configured for QUALITY performance mode (full features)');
         }
 
         // Yield to browser before heavy processing
@@ -354,27 +322,25 @@ Promise.all([
 
         // Update progress
         if (isLargeDataset) {
-          const progressBar = document.getElementById("progress-bar");
-          const progressText = document.getElementById("progress-text");
-          if (progressBar) progressBar.style.width = "25%";
-          if (progressText)
-            progressText.textContent =
-              "Step 2/5: Loading data into scatterplot...";
+          const progressBar = document.getElementById('progress-bar');
+          const progressText = document.getElementById('progress-text');
+          if (progressBar) progressBar.style.width = '25%';
+          if (progressText) progressText.textContent = 'Step 2/5: Loading data into scatterplot...';
         }
 
         // Update scatterplot with new data (non-blocking)
-        console.log("📊 Updating scatterplot with new data...");
+        console.log('📊 Updating scatterplot with new data...');
         const oldData = plotElement.data;
 
         // ✨ NEW: Set data with performance-aware batching
         if (isMegaDataset) {
           // For mega datasets, use requestIdleCallback if available
-          if ("requestIdleCallback" in window) {
+          if ('requestIdleCallback' in window) {
             await new Promise<void>((resolve) => {
               (window as any).requestIdleCallback(
                 () => {
                   plotElement.data = newData;
-                  plotElement.requestUpdate("data", oldData);
+                  plotElement.requestUpdate('data', oldData);
                   resolve();
                 },
                 { timeout: 1000 }
@@ -384,21 +350,21 @@ Promise.all([
             // Fallback for browsers without requestIdleCallback
             await new Promise((resolve) => setTimeout(resolve, 10));
             plotElement.data = newData;
-            plotElement.requestUpdate("data", oldData);
+            plotElement.requestUpdate('data', oldData);
           }
         } else {
           plotElement.data = newData;
-          plotElement.requestUpdate("data", oldData);
+          plotElement.requestUpdate('data', oldData);
         }
 
         plotElement.selectedProjectionIndex = 0;
-        const firstFeatureKey = Object.keys(newData.features)[0] || "";
+        const firstFeatureKey = Object.keys(newData.features)[0] || '';
         plotElement.selectedFeature = firstFeatureKey;
         plotElement.selectedProteinIds = [];
         plotElement.selectionMode = false;
         plotElement.hiddenFeatureValues = [];
 
-        console.log("📊 Scatterplot updated with:", {
+        console.log('📊 Scatterplot updated with:', {
           projections: newData.projections.map((p) => p.name),
           features: Object.keys(newData.features),
           proteinCount: newData.protein_ids.length,
@@ -408,12 +374,10 @@ Promise.all([
 
         // Update progress
         if (isLargeDataset) {
-          const progressBar = document.getElementById("progress-bar");
-          const progressText = document.getElementById("progress-text");
-          if (progressBar) progressBar.style.width = "50%";
-          if (progressText)
-            progressText.textContent =
-              "Step 3/5: Updating control interface...";
+          const progressBar = document.getElementById('progress-bar');
+          const progressText = document.getElementById('progress-text');
+          if (progressBar) progressBar.style.width = '50%';
+          if (progressText) progressText.textContent = 'Step 3/5: Updating control interface...';
         }
 
         // Yield to browser
@@ -424,10 +388,8 @@ Promise.all([
           setTimeout(
             () => {
               controlBar.autoSync = true;
-              controlBar.selectedProjection =
-                newData.projections[0]?.name || "";
-              controlBar.selectedFeature =
-                Object.keys(newData.features)[0] || "";
+              controlBar.selectedProjection = newData.projections[0]?.name || '';
+              controlBar.selectedFeature = Object.keys(newData.features)[0] || '';
               controlBar.selectionMode = false;
               controlBar.selectedProteinsCount = 0;
               controlBar.requestUpdate();
@@ -439,11 +401,10 @@ Promise.all([
 
         // Update progress
         if (isLargeDataset) {
-          const progressBar = document.getElementById("progress-bar");
-          const progressText = document.getElementById("progress-text");
-          if (progressBar) progressBar.style.width = "75%";
-          if (progressText)
-            progressText.textContent = "Step 4/5: Processing legend data...";
+          const progressBar = document.getElementById('progress-bar');
+          const progressText = document.getElementById('progress-text');
+          if (progressBar) progressBar.style.width = '75%';
+          if (progressText) progressText.textContent = 'Step 4/5: Processing legend data...';
         }
 
         // Yield to browser
@@ -453,61 +414,43 @@ Promise.all([
         await new Promise((resolve) => {
           setTimeout(
             async () => {
-              console.log(
-                "🏷️ Updating legend with performance optimization..."
-              );
+              console.log('🏷️ Updating legend with performance optimization...');
               legendElement.autoSync = true;
               legendElement.autoHide = true;
 
               legendElement.data = { features: newData.features };
-              legendElement.selectedFeature =
-                Object.keys(newData.features)[0] || "";
+              legendElement.selectedFeature = Object.keys(newData.features)[0] || '';
 
               // ✨ NEW: Enhanced progressive processing with memory management
               const firstFeature = Object.keys(newData.features)[0];
               if (firstFeature) {
                 if (isMegaDataset) {
                   // Mega datasets: Use web workers if available, otherwise chunk processing
-                  console.log(
-                    "🔧 Using advanced chunked processing for mega dataset..."
-                  );
+                  console.log('🔧 Using advanced chunked processing for mega dataset...');
                   const chunkSize = 2000; // Larger chunks for better performance
                   const featureValues: (string | null)[] = [];
 
                   // Pre-allocate array for better memory performance
                   featureValues.length = newData.protein_ids.length;
 
-                  for (
-                    let i = 0;
-                    i < newData.protein_ids.length;
-                    i += chunkSize
-                  ) {
-                    const endIndex = Math.min(
-                      i + chunkSize,
-                      newData.protein_ids.length
-                    );
+                  for (let i = 0; i < newData.protein_ids.length; i += chunkSize) {
+                    const endIndex = Math.min(i + chunkSize, newData.protein_ids.length);
 
                     // Process chunk with optimized loop
                     const featureDataArray = newData.feature_data[firstFeature];
-                    const featureValuesArray =
-                      newData.features[firstFeature].values;
+                    const featureValuesArray = newData.features[firstFeature].values;
 
                     for (let j = i; j < endIndex; j++) {
-                      featureValues[j] =
-                        featureValuesArray[featureDataArray[j]];
+                      featureValues[j] = featureValuesArray[featureDataArray[j]];
                     }
 
                     // Yield to browser every few chunks and update progress
                     if (i % (chunkSize * 3) === 0) {
-                      const progress =
-                        75 + (i / newData.protein_ids.length) * 20;
-                      const progressBar =
-                        document.getElementById("progress-bar");
+                      const progress = 75 + (i / newData.protein_ids.length) * 20;
+                      const progressBar = document.getElementById('progress-bar');
                       if (progressBar) progressBar.style.width = `${progress}%`;
 
-                      await new Promise((resolve) =>
-                        requestAnimationFrame(resolve)
-                      );
+                      await new Promise((resolve) => requestAnimationFrame(resolve));
                     }
                   }
 
@@ -517,27 +460,16 @@ Promise.all([
                   const chunkSize = 1000;
                   const featureValues: (string | null)[] = [];
 
-                  for (
-                    let i = 0;
-                    i < newData.protein_ids.length;
-                    i += chunkSize
-                  ) {
-                    const endIndex = Math.min(
-                      i + chunkSize,
-                      newData.protein_ids.length
-                    );
+                  for (let i = 0; i < newData.protein_ids.length; i += chunkSize) {
+                    const endIndex = Math.min(i + chunkSize, newData.protein_ids.length);
 
                     for (let j = i; j < endIndex; j++) {
                       const featureIdx = newData.feature_data[firstFeature][j];
-                      featureValues.push(
-                        newData.features[firstFeature].values[featureIdx]
-                      );
+                      featureValues.push(newData.features[firstFeature].values[featureIdx]);
                     }
 
                     if (i + chunkSize < newData.protein_ids.length) {
-                      await new Promise((resolve) =>
-                        requestAnimationFrame(resolve)
-                      );
+                      await new Promise((resolve) => requestAnimationFrame(resolve));
                     }
                   }
 
@@ -545,8 +477,7 @@ Promise.all([
                 } else {
                   // Small datasets: Process normally with high quality
                   const featureValues = newData.protein_ids.map((_, index) => {
-                    const featureIdx =
-                      newData.feature_data[firstFeature][index];
+                    const featureIdx = newData.feature_data[firstFeature][index];
                     return newData.features[firstFeature].values[featureIdx];
                   });
                   legendElement.featureValues = featureValues;
@@ -557,15 +488,15 @@ Promise.all([
 
               legendElement.requestUpdate();
 
-              console.log("🏷️ Legend updated with:", {
+              console.log('🏷️ Legend updated with:', {
                 feature: legendElement.selectedFeature,
                 dataKeys: Object.keys(newData.features),
                 proteinCount: newData.protein_ids.length,
                 processingMode: isMegaDataset
-                  ? "chunked-optimized"
+                  ? 'chunked-optimized'
                   : isLargeDataset
-                  ? "chunked"
-                  : "standard",
+                    ? 'chunked'
+                    : 'standard',
               });
 
               resolve(undefined);
@@ -576,31 +507,29 @@ Promise.all([
 
         // Update progress
         if (isLargeDataset) {
-          const progressBar = document.getElementById("progress-bar");
-          const progressText = document.getElementById("progress-text");
-          if (progressBar) progressBar.style.width = "95%";
-          if (progressText)
-            progressText.textContent = "Step 5/5: Finalizing interface...";
+          const progressBar = document.getElementById('progress-bar');
+          const progressText = document.getElementById('progress-text');
+          if (progressBar) progressBar.style.width = '95%';
+          if (progressText) progressText.textContent = 'Step 5/5: Finalizing interface...';
         }
 
         // Yield to browser
         await new Promise((resolve) => requestAnimationFrame(resolve));
 
         // Hide structure viewer and finalize
-        if (structureViewer.style.display !== "none") {
-          structureViewer.style.display = "none";
+        if (structureViewer.style.display !== 'none') {
+          structureViewer.style.display = 'none';
         }
 
         updateSelectedProteinDisplay(null);
 
         // Update progress to 100%
         if (isLargeDataset) {
-          const progressBar = document.getElementById("progress-bar");
-          const progressText = document.getElementById("progress-text");
-          if (progressBar) progressBar.style.width = "100%";
+          const progressBar = document.getElementById('progress-bar');
+          const progressText = document.getElementById('progress-text');
+          if (progressBar) progressBar.style.width = '100%';
           if (progressText)
-            progressText.textContent =
-              "✅ Loading complete! Optimized for performance.";
+            progressText.textContent = '✅ Loading complete! Optimized for performance.';
 
           // Keep the success message visible briefly
           await new Promise((resolve) => setTimeout(resolve, 800));
@@ -609,16 +538,14 @@ Promise.all([
         const endTime = performance.now();
         performanceMetrics.loadingTime = endTime - startTime;
 
-        console.log(`✅ Performance-optimized data loading completed:`, {
+        console.log('✅ Performance-optimized data loading completed:', {
           proteins: newData.protein_ids.length.toLocaleString(),
           loadingTime: `${Math.round(performanceMetrics.loadingTime)}ms`,
           renderingMode: performanceMetrics.renderingMode,
           averageTimePerProtein: `${(
             performanceMetrics.loadingTime / newData.protein_ids.length
           ).toFixed(3)}ms`,
-          memoryEstimate: `~${Math.round(
-            (newData.protein_ids.length * 0.1) / 1024
-          )}MB`,
+          memoryEstimate: `~${Math.round((newData.protein_ids.length * 0.1) / 1024)}MB`,
         });
 
         // ✨ NEW: Performance monitoring and optimization feedback
@@ -630,18 +557,16 @@ Promise.all([
           );
         } else if (performanceMetrics.loadingTime < 1000) {
           console.log(
-            `🚀 Excellent performance! Loaded in ${Math.round(
-              performanceMetrics.loadingTime
-            )}ms`
+            `🚀 Excellent performance! Loaded in ${Math.round(performanceMetrics.loadingTime)}ms`
           );
         }
       } finally {
         // Remove loading overlay with fade effect
         if (isLargeDataset) {
-          const overlay = document.getElementById("progressive-loading");
+          const overlay = document.getElementById('progressive-loading');
           if (overlay) {
-            overlay.style.transition = "opacity 0.5s ease";
-            overlay.style.opacity = "0";
+            overlay.style.transition = 'opacity 0.5s ease';
+            overlay.style.opacity = '0';
             setTimeout(() => overlay.remove(), 500);
           }
         }
@@ -664,11 +589,7 @@ Promise.all([
     const updateLegend = () => {
       const currentFeature = plotElement.selectedFeature;
       const currentData = plotElement.getCurrentData();
-      if (
-        currentFeature &&
-        currentData &&
-        currentData.features[currentFeature]
-      ) {
+      if (currentFeature && currentData && currentData.features[currentFeature]) {
         // Force legend sync using the public interface
         if (legendElement.autoSync && 'forceSync' in legendElement) {
           legendElement.forceSync();
@@ -682,10 +603,10 @@ Promise.all([
             const featureIdx = currentData.feature_data[currentFeature][index];
             // Handle out-of-bounds indices the same way as DataProcessor
             return featureIdx !== undefined &&
-                   featureIdx !== null &&
-                   Array.isArray(currentData.features[currentFeature].values) &&
-                   featureIdx >= 0 &&
-                   featureIdx < currentData.features[currentFeature].values.length
+              featureIdx !== null &&
+              Array.isArray(currentData.features[currentFeature].values) &&
+              featureIdx >= 0 &&
+              featureIdx < currentData.features[currentFeature].values.length
               ? currentData.features[currentFeature].values[featureIdx] || null
               : null;
           });
@@ -703,10 +624,10 @@ Promise.all([
       }
       if (proteinId) {
         selectedProteinElement.textContent = `Selected: ${proteinId}`;
-        selectedProteinElement.style.color = "#3b82f6";
+        selectedProteinElement.style.color = '#3b82f6';
       } else {
-        selectedProteinElement.textContent = "No protein selected";
-        selectedProteinElement.style.color = "#6b7280";
+        selectedProteinElement.textContent = 'No protein selected';
+        selectedProteinElement.style.color = '#6b7280';
       }
     };
 
@@ -720,36 +641,35 @@ Promise.all([
     updateLegend();
 
     // Listen for split state changes from scatterplot
-    plotElement.addEventListener("split-state-change", (event: Event) => {
+    plotElement.addEventListener('split-state-change', (event: Event) => {
       const customEvent = event as CustomEvent;
-      const { isolationMode: newIsolationMode, selectedProteinsCount } =
-        customEvent.detail;
+      const { isolationMode: newIsolationMode, selectedProteinsCount } = customEvent.detail;
 
       isolationMode = newIsolationMode;
       controlBar.selectedProteinsCount = selectedProteinsCount;
       controlBar.requestUpdate();
 
-      console.log(`Split state changed: ${isolationMode ? "ON" : "OFF"}`);
+      console.log(`Split state changed: ${isolationMode ? 'ON' : 'OFF'}`);
     });
 
     // Listen for data changes from scatterplot
-    plotElement.addEventListener("data-change", (event: Event) => {
+    plotElement.addEventListener('data-change', (event: Event) => {
       const customEvent = event as CustomEvent;
       const { isFiltered } = customEvent.detail;
 
       updateLegend();
-      console.log(`Data changed: ${isFiltered ? "Filtered" : "Full"} data`);
+      console.log(`Data changed: ${isFiltered ? 'Filtered' : 'Full'} data`);
     });
 
     // Handle brush selections from scatterplot
-    plotElement.addEventListener("brush-selection", (event: Event) => {
+    plotElement.addEventListener('brush-selection', (event: Event) => {
       const customEvent = event as CustomEvent;
       const { proteinIds } = customEvent.detail;
-      
+
       // For brush selections, just sync the local state without interfering
       selectedProteins = [...proteinIds];
       updateControlBarState();
-      
+
       if (selectedProteins.length > 0) {
         updateSelectedProteinDisplay(`${selectedProteins.length} proteins selected`);
       } else {
@@ -758,7 +678,7 @@ Promise.all([
     });
 
     // Handle individual protein clicks from scatterplot
-    plotElement.addEventListener("protein-click", (event: Event) => {
+    plotElement.addEventListener('protein-click', (event: Event) => {
       const customEvent = event as CustomEvent;
       const { proteinId, modifierKeys } = customEvent.detail;
 
@@ -782,18 +702,13 @@ Promise.all([
         updateControlBarState();
 
         if (selectedProteins.length > 0) {
-          updateSelectedProteinDisplay(
-            `${selectedProteins.length} proteins selected`
-          );
+          updateSelectedProteinDisplay(`${selectedProteins.length} proteins selected`);
         } else {
           updateSelectedProteinDisplay(null);
         }
       } else {
         // Single selection mode - handle single click behavior
-        if (
-          selectedProteins.length === 1 &&
-          selectedProteins[0] === proteinId
-        ) {
+        if (selectedProteins.length === 1 && selectedProteins[0] === proteinId) {
           // Clicking the same protein again - deselect it
           selectedProteins = [];
           plotElement.selectedProteinIds = [];
@@ -818,18 +733,18 @@ Promise.all([
     });
 
     // Handle split events from scatterplot
-    plotElement.addEventListener("data-split", (event: Event) => {
+    plotElement.addEventListener('data-split', (event: Event) => {
       // Update legend with new filtered data
       updateLegend();
     });
 
-    plotElement.addEventListener("data-split-reset", (event: Event) => {
+    plotElement.addEventListener('data-split-reset', (event: Event) => {
       // Update legend with full data
       updateLegend();
     });
 
     // Handle protein hover from scatterplot
-    plotElement.addEventListener("protein-hover", (event: Event) => {
+    plotElement.addEventListener('protein-hover', (event: Event) => {
       const customEvent = event as CustomEvent;
       const proteinId = customEvent.detail.proteinId;
       if (proteinId) {
@@ -838,13 +753,13 @@ Promise.all([
     });
 
     // Handle legend item clicks to toggle visibility
-    legendElement.addEventListener("legend-item-click", (event: Event) => {
+    legendElement.addEventListener('legend-item-click', (event: Event) => {
       const customEvent = event as CustomEvent;
       const value = customEvent.detail.value;
 
       // Legend handles hiding automatically when autoHide=true
       // Just keep track locally for export functionality
-      const valueKey = value === null ? "null" : value;
+      const valueKey = value === null ? 'null' : value;
 
       if (hiddenValues.includes(valueKey)) {
         hiddenValues = hiddenValues.filter((v) => v !== valueKey);
@@ -852,39 +767,32 @@ Promise.all([
         hiddenValues = [...hiddenValues, valueKey];
       }
 
-      console.log(
-        `Toggled visibility for "${value}". Hidden values:`,
-        hiddenValues
-      );
+      console.log(`Toggled visibility for "${value}". Hidden values:`, hiddenValues);
     });
 
     // Handle structure viewer events
-    structureViewer.addEventListener("structure-load", (event: Event) => {
+    structureViewer.addEventListener('structure-load', (event: Event) => {
       const customEvent = event as CustomEvent;
       const { proteinId, status, error } = customEvent.detail;
-      console.log(`Structure ${proteinId}: ${status}`, error || "");
+      console.log(`Structure ${proteinId}: ${status}`, error || '');
 
-      if (status === "loaded") {
-        console.log(
-          `✅ Structure viewer is now visible with protein ${proteinId}`
-        );
+      if (status === 'loaded') {
+        console.log(`✅ Structure viewer is now visible with protein ${proteinId}`);
         console.log(
           `Close button should be visible in header (showCloseButton: ${structureViewer.showCloseButton})`
         );
       }
 
-      if (status === "error") {
+      if (status === 'error') {
         console.warn(`Failed to load structure for ${proteinId}: ${error}`);
       }
     });
 
-    structureViewer.addEventListener("structure-close", (event: Event) => {
+    structureViewer.addEventListener('structure-close', (event: Event) => {
       const customEvent = event as CustomEvent;
       const { proteinId } = customEvent.detail;
-      console.log(
-        `🔒 Structure viewer closed for protein: ${proteinId || "none"}`
-      );
-      console.log(`Structure viewer should now be hidden`);
+      console.log(`🔒 Structure viewer closed for protein: ${proteinId || 'none'}`);
+      console.log('Structure viewer should now be hidden');
       updateSelectedProteinDisplay(null);
     });
 
@@ -893,7 +801,7 @@ Promise.all([
     // We keep some event listeners for additional logic that auto-sync doesn't handle
 
     // Handle feature change for resetting hidden values
-    controlBar.addEventListener("feature-change", (event: Event) => {
+    controlBar.addEventListener('feature-change', (event: Event) => {
       const customEvent = event as CustomEvent;
       const feature = customEvent.detail.feature;
       hiddenValues = []; // Reset hidden values when switching features
@@ -903,57 +811,57 @@ Promise.all([
     });
 
     // Handle selection mode toggle for local state
-    controlBar.addEventListener("toggle-selection-mode", () => {
+    controlBar.addEventListener('toggle-selection-mode', () => {
       selectionMode = plotElement.selectionMode; // Sync with scatterplot state
     });
 
     // Handle clear selections for local state
-    controlBar.addEventListener("clear-selections", () => {
+    controlBar.addEventListener('clear-selections', () => {
       selectedProteins = [];
       updateSelectedProteinDisplay(null);
     });
 
     // Handle notification events from control bar
     // This separates business logic from presentation concerns
-    controlBar.addEventListener("selection-disabled-notification", (event: Event) => {
+    controlBar.addEventListener('selection-disabled-notification', (event: Event) => {
       const customEvent = event as CustomEvent;
       const { message, type } = customEvent.detail;
-      
+
       // Use the notification utility to show the message
       // Applications can replace this with their own notification system
-      showNotification(message, { 
+      showNotification(message, {
         type: type || 'warning',
-        duration: 3000 
+        duration: 3000,
       });
     });
 
     // Data Loader Event Handlers
 
     // Handle successful data loading
-    console.log("🎧 Setting up data-loaded event listener on:", dataLoader);
-    dataLoader.addEventListener("data-loaded", (event: Event) => {
-      console.log("🔥 DATA-LOADED EVENT FIRED!", event);
+    console.log('🎧 Setting up data-loaded event listener on:', dataLoader);
+    dataLoader.addEventListener('data-loaded', (event: Event) => {
+      console.log('🔥 DATA-LOADED EVENT FIRED!', event);
       const customEvent = event as CustomEvent;
       const { data } = customEvent.detail;
-      console.log("📁 Data loaded from Arrow file:", data);
+      console.log('📁 Data loaded from Arrow file:', data);
 
       // Load the new data into all components
       loadNewData(data);
     });
-    console.log("🎧 Event listener attached successfully");
+    console.log('🎧 Event listener attached successfully');
 
     // Handle data loading errors
-    dataLoader.addEventListener("data-error", (event: Event) => {
+    dataLoader.addEventListener('data-error', (event: Event) => {
       const customEvent = event as CustomEvent;
       const { error } = customEvent.detail;
-      console.error("❌ Data loading error:", error);
+      console.error('❌ Data loading error:', error);
 
       // You could show a toast notification or error message here
       alert(`Failed to load data: ${error}`);
     });
 
     // Handle export using the new export utilities
-    controlBar.addEventListener("export", async (event: Event) => {
+    controlBar.addEventListener('export', async (event: Event) => {
       const customEvent = event as CustomEvent;
       const exportType = customEvent.detail.type;
       console.log(`Export requested: ${exportType}`);
@@ -964,50 +872,44 @@ Promise.all([
 
         // Export options
         const exportOptions = {
-          exportName: isolationMode ? "protspace_data_split" : "protspace_data",
+          exportName: isolationMode ? 'protspace_data_split' : 'protspace_data',
           includeSelection: selectedProteins.length > 0,
           scaleForExport: 2,
           maxLegendItems: 10,
-          backgroundColor: "white",
+          backgroundColor: 'white',
         };
 
         // Handle different export types
         switch (exportType) {
-          case "json":
+          case 'json':
             exporter.exportJSON(exportOptions);
             break;
-          case "ids":
+          case 'ids':
             exporter.exportProteinIds(exportOptions);
             break;
-          case "png":
+          case 'png':
             await exporter.exportPNG(exportOptions);
             break;
-          case "pdf":
+          case 'pdf':
             await exporter.exportPDF(exportOptions);
             break;
           default:
             console.warn(`Unknown export type: ${exportType}`);
         }
       } catch (error) {
-        console.error("Export failed:", error);
-        alert(
-          `Export failed: ${
-            error instanceof Error ? error.message : "Unknown error"
-          }`
-        );
+        console.error('Export failed:', error);
+        alert(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     });
 
-    console.log("ProtSpace components loaded and connected!");
-    console.log("Available proteins:", sampleData.protein_ids);
-    console.log(
-      "Use the control bar to change features and toggle selection modes!"
-    );
+    console.log('ProtSpace components loaded and connected!');
+    console.log('Available proteins:', sampleData.protein_ids);
+    console.log('Use the control bar to change features and toggle selection modes!');
   } else {
-    console.error("Could not find one or more required elements.");
-    console.log("Plot element:", plotElement);
-    console.log("Legend element:", legendElement);
-    console.log("Structure viewer:", structureViewer);
-    console.log("Control bar:", controlBar);
+    console.error('Could not find one or more required elements.');
+    console.log('Plot element:', plotElement);
+    console.log('Legend element:', legendElement);
+    console.log('Structure viewer:', structureViewer);
+    console.log('Control bar:', controlBar);
   }
 });

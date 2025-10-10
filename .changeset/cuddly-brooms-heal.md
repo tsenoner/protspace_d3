@@ -1,5 +1,5 @@
 ---
-"@protspace/core": patch
+'@protspace/core': patch
 ---
 
 Integrated Storybook into `@protspace/core` for UI component development, testing, and demonstration.

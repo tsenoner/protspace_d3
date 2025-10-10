@@ -1,12 +1,17 @@
-import { LitElement, html, PropertyValues } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
-import { parquetReadObjects } from "hyparquet";
-import type { VisualizationData } from "@protspace/utils";
-import { dataLoaderStyles } from "./data-loader.styles";
-import { readFileOptimized } from "./utils/file-io";
-import { isParquetBundle, extractRowsFromParquetBundle } from "./utils/bundle";
-import { convertParquetToVisualizationDataOptimized } from "./utils/conversion";
-import { assertWithinFileSizeLimit, assertValidParquetMagic, validateRowsBasic } from "./utils/validation";
+import type { PropertyValues } from 'lit';
+import { LitElement, html } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { parquetReadObjects } from 'hyparquet';
+import type { VisualizationData } from '@protspace/utils';
+import { dataLoaderStyles } from './data-loader.styles';
+import { readFileOptimized } from './utils/file-io';
+import { isParquetBundle, extractRowsFromParquetBundle } from './utils/bundle';
+import { convertParquetToVisualizationDataOptimized } from './utils/conversion';
+import {
+  assertWithinFileSizeLimit,
+  assertValidParquetMagic,
+  validateRowsBasic,
+} from './utils/validation';
 
 /**
  * Parquet Data Loader Web Component
@@ -15,24 +20,24 @@ import { assertWithinFileSizeLimit, assertValidParquetMagic, validateRowsBasic }
  * to the ProtSpace visualization data format. Categories from columns
  * become legend items with unique values as elements.
  */
-@customElement("protspace-data-loader")
+@customElement('protspace-data-loader')
 export class DataLoader extends LitElement {
   static styles = dataLoaderStyles;
 
   /** URL or File object for the Arrow data source */
   @property({ type: String })
-  src = "";
+  src = '';
 
   /** Auto-load when src is provided */
-  @property({ type: Boolean, attribute: "auto-load" })
+  @property({ type: Boolean, attribute: 'auto-load' })
   autoLoad = false;
 
   /** Accept drag and drop */
-  @property({ type: Boolean, attribute: "allow-drop" })
+  @property({ type: Boolean, attribute: 'allow-drop' })
   allowDrop = true;
 
   /** Required column mappings for Arrow data */
-  @property({ type: Object, attribute: "column-mappings" })
+  @property({ type: Object, attribute: 'column-mappings' })
   columnMappings: {
     proteinId?: string;
     projection_x?: string;
@@ -65,15 +70,13 @@ export class DataLoader extends LitElement {
   }
 
   updated(changedProperties: PropertyValues) {
-    if (changedProperties.has("src") && this.src && this.autoLoad) {
+    if (changedProperties.has('src') && this.src && this.autoLoad) {
       this.loadFromUrl(this.src);
     }
   }
 
   firstUpdated() {
-    this.fileInput = this.shadowRoot!.querySelector(
-      ".hidden-input"
-    ) as HTMLInputElement;
+    this.fileInput = this.shadowRoot!.querySelector('.hidden-input') as HTMLInputElement;
   }
 
   render() {
@@ -86,41 +89,33 @@ export class DataLoader extends LitElement {
         @dragenter=${this.handleDragEnter}
         @dragleave=${this.handleDragLeave}
       >
-        <div class="icon">
-          ${this.loading ? this.renderLoadingIcon() : this.renderDataIcon()}
-        </div>
+        <div class="icon">${this.loading ? this.renderLoadingIcon() : this.renderDataIcon()}</div>
 
         <div class="message">
           ${this.loading
-            ? "Loading Parquet data..."
+            ? 'Loading Parquet data...'
             : this.error
-            ? "Error loading data"
-            : this.allowDrop
-            ? "Drop a ParquetBundle file here or click to browse"
-            : "Click to load a ParquetBundle file"}
+              ? 'Error loading data'
+              : this.allowDrop
+                ? 'Drop a ParquetBundle file here or click to browse'
+                : 'Click to load a ParquetBundle file'}
         </div>
 
         ${this.fileInfo
           ? html`
               <div class="file-info">
-                ${this.fileInfo.name}
-                (${this.formatFileSize(this.fileInfo.size)})
+                ${this.fileInfo.name} (${this.formatFileSize(this.fileInfo.size)})
               </div>
             `
-          : ""}
+          : ''}
         ${this.loading
           ? html`
               <div class="progress">
-                <div
-                  class="progress-bar"
-                  style="width: ${this.progress}%"
-                ></div>
+                <div class="progress-bar" style="width: ${this.progress}%"></div>
               </div>
             `
-          : ""}
-        ${this.error
-          ? html` <div class="error-message">${this.error}</div> `
-          : ""}
+          : ''}
+        ${this.error ? html` <div class="error-message">${this.error}</div> ` : ''}
       </div>
 
       <input
@@ -144,11 +139,7 @@ export class DataLoader extends LitElement {
 
   private renderLoadingIcon() {
     return html`
-      <svg
-        viewBox="0 0 24 24"
-        fill="currentColor"
-        style="animation: spin 1s linear infinite"
-      >
+      <svg viewBox="0 0 24 24" fill="currentColor" style="animation: spin 1s linear infinite">
         <path d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z" />
       </svg>
       <style>
@@ -173,25 +164,25 @@ export class DataLoader extends LitElement {
   private handleDragOver(e: DragEvent) {
     if (!this.allowDrop) return;
     e.preventDefault();
-    e.dataTransfer!.dropEffect = "copy";
+    e.dataTransfer!.dropEffect = 'copy';
   }
 
   private handleDragEnter(e: DragEvent) {
     if (!this.allowDrop) return;
     e.preventDefault();
-    this.setAttribute("dragging", "");
+    this.setAttribute('dragging', '');
   }
 
   private handleDragLeave(e: DragEvent) {
     if (!this.allowDrop) return;
     e.preventDefault();
-    this.removeAttribute("dragging");
+    this.removeAttribute('dragging');
   }
 
   private handleDrop(e: DragEvent) {
     if (!this.allowDrop) return;
     e.preventDefault();
-    this.removeAttribute("dragging");
+    this.removeAttribute('dragging');
 
     const files = e.dataTransfer?.files;
     if (files && files.length > 0) {
@@ -222,9 +213,7 @@ export class DataLoader extends LitElement {
       const response = await fetch(url);
 
       if (!response.ok) {
-        throw new Error(
-          `Failed to fetch: ${response.status} ${response.statusText}`
-        );
+        throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
       }
       this.completeStep();
 
@@ -241,8 +230,7 @@ export class DataLoader extends LitElement {
       this.completeStep();
       this.dispatchDataLoaded(visualizationData);
     } catch (error) {
-      this.error =
-        error instanceof Error ? error.message : "Unknown error occurred";
+      this.error = error instanceof Error ? error.message : 'Unknown error occurred';
       this.dispatchError(this.error);
     } finally {
       this.setLoading(false);
@@ -273,10 +261,12 @@ export class DataLoader extends LitElement {
       this.completeStep();
 
       // Branch-specific steps
-      if (file.name.endsWith(".parquetbundle") || isParquetBundle(arrayBuffer)) {
+      if (file.name.endsWith('.parquetbundle') || isParquetBundle(arrayBuffer)) {
         // For bundles: extract -> validate -> convert
         this.addSteps(3);
-        const extractedData = await extractRowsFromParquetBundle(arrayBuffer, { disableInspection });
+        const extractedData = await extractRowsFromParquetBundle(arrayBuffer, {
+          disableInspection,
+        });
         this.completeStep();
         validateRowsBasic(extractedData);
         this.completeStep();
@@ -296,10 +286,8 @@ export class DataLoader extends LitElement {
         this.completeStep();
         this.dispatchDataLoaded(visualizationData);
       }
-
     } catch (error) {
-      this.error =
-        error instanceof Error ? error.message : "Unknown error occurred";
+      this.error = error instanceof Error ? error.message : 'Unknown error occurred';
       this.dispatchError(this.error);
     } finally {
       this.setLoading(false);
@@ -309,10 +297,10 @@ export class DataLoader extends LitElement {
   private setLoading(loading: boolean) {
     this.loading = loading;
     if (loading) {
-      this.setAttribute("loading", "");
+      this.setAttribute('loading', '');
       this.progress = 0;
     } else {
-      this.removeAttribute("loading");
+      this.removeAttribute('loading');
       this.progress = 0;
     }
   }
@@ -340,7 +328,7 @@ export class DataLoader extends LitElement {
 
   private dispatchDataLoaded(data: VisualizationData) {
     this.dispatchEvent(
-      new CustomEvent("data-loaded", {
+      new CustomEvent('data-loaded', {
         detail: { data },
         bubbles: true,
         composed: true,
@@ -350,7 +338,7 @@ export class DataLoader extends LitElement {
 
   private dispatchError(error: string) {
     this.dispatchEvent(
-      new CustomEvent("data-error", {
+      new CustomEvent('data-error', {
         detail: { error },
         bubbles: true,
         composed: true,
@@ -359,16 +347,16 @@ export class DataLoader extends LitElement {
   }
 
   private formatFileSize(bytes: number): string {
-    if (bytes === 0) return "0 Bytes";
+    if (bytes === 0) return '0 Bytes';
     const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "protspace-data-loader": DataLoader;
+    'protspace-data-loader': DataLoader;
   }
 }

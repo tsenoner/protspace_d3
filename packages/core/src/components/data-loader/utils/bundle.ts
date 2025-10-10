@@ -1,8 +1,8 @@
-import { parquetReadObjects } from "hyparquet";
-import { Rows } from "./types";
-import { assertValidParquetMagic, validateMergedBundleRows } from "./validation";
+import { parquetReadObjects } from 'hyparquet';
+import type { Rows } from './types';
+import { assertValidParquetMagic, validateMergedBundleRows } from './validation';
 
-const BUNDLE_DELIMITER = new TextEncoder().encode("---PARQUET_DELIMITER---");
+const BUNDLE_DELIMITER = new TextEncoder().encode('---PARQUET_DELIMITER---');
 
 export function isParquetBundle(arrayBuffer: ArrayBuffer): boolean {
   const uint8Array = new Uint8Array(arrayBuffer);
@@ -44,30 +44,25 @@ export async function extractRowsFromParquetBundle(
   const delimiterPositions = findBundleDelimiterPositions(uint8Array);
 
   if (delimiterPositions.length !== 2) {
-    throw new Error(
-      `Expected 2 delimiters in parquetbundle, found ${delimiterPositions.length}`
-    );
+    throw new Error(`Expected 2 delimiters in parquetbundle, found ${delimiterPositions.length}`);
   }
 
   const part1 = uint8Array.subarray(0, delimiterPositions[0]).slice().buffer;
   const part2 = uint8Array
     .subarray(delimiterPositions[0] + BUNDLE_DELIMITER.length, delimiterPositions[1])
     .slice().buffer;
-  const part3 = uint8Array
-    .subarray(delimiterPositions[1] + BUNDLE_DELIMITER.length)
-    .slice().buffer;
+  const part3 = uint8Array.subarray(delimiterPositions[1] + BUNDLE_DELIMITER.length).slice().buffer;
 
   // Validate parquet magic for each part before parsing
   assertValidParquetMagic(part1);
   assertValidParquetMagic(part2);
   assertValidParquetMagic(part3);
 
-  const [selectedFeaturesData, projectionsMetadataData, projectionsData] =
-    await Promise.all([
-      parquetReadObjects({ file: part1 }),
-      parquetReadObjects({ file: part2 }),
-      parquetReadObjects({ file: part3 }),
-    ]);
+  const [selectedFeaturesData, projectionsMetadataData, projectionsData] = await Promise.all([
+    parquetReadObjects({ file: part1 }),
+    parquetReadObjects({ file: part2 }),
+    parquetReadObjects({ file: part3 }),
+  ]);
 
   const mergedRows = mergeProjectionsWithFeatures(projectionsData, selectedFeaturesData);
 
@@ -75,21 +70,28 @@ export async function extractRowsFromParquetBundle(
   validateMergedBundleRows(mergedRows);
 
   if (!disableInspection) {
-    createInspectionFiles(part1, part2, part3, selectedFeaturesData, projectionsMetadataData, projectionsData);
+    createInspectionFiles(
+      part1,
+      part2,
+      part3,
+      selectedFeaturesData,
+      projectionsMetadataData,
+      projectionsData
+    );
   }
 
   return mergedRows;
 }
 
-export function mergeProjectionsWithFeatures(
-  projectionsData: Rows,
-  featuresData: Rows
-): Rows {
+export function mergeProjectionsWithFeatures(projectionsData: Rows, featuresData: Rows): Rows {
   // Build map of features keyed by protein id
-  const featureIdColumn = findColumn(
-    featuresData.length > 0 ? Object.keys(featuresData[0]) : [],
-    ["protein_id", "identifier", "id", "uniprot", "entry"]
-  );
+  const featureIdColumn = findColumn(featuresData.length > 0 ? Object.keys(featuresData[0]) : [], [
+    'protein_id',
+    'identifier',
+    'id',
+    'uniprot',
+    'entry',
+  ]);
 
   const finalFeatureIdColumn =
     featureIdColumn || (featuresData.length > 0 ? Object.keys(featuresData[0])[0] : undefined);
@@ -106,7 +108,7 @@ export function mergeProjectionsWithFeatures(
 
   const projectionIdColumn = findColumn(
     projectionsData.length > 0 ? Object.keys(projectionsData[0]) : [],
-    ["identifier", "protein_id", "id", "uniprot", "entry"]
+    ['identifier', 'protein_id', 'id', 'uniprot', 'entry']
   );
 
   if (!projectionIdColumn) {
@@ -141,15 +143,21 @@ function createInspectionFiles(
   part3Data: Rows
 ): void {
   try {
-    const part1Blob = new Blob([part1Buffer], { type: "application/octet-stream" });
-    const part2Blob = new Blob([part2Buffer], { type: "application/octet-stream" });
-    const part3Blob = new Blob([part3Buffer], { type: "application/octet-stream" });
+    const part1Blob = new Blob([part1Buffer], {
+      type: 'application/octet-stream',
+    });
+    const part2Blob = new Blob([part2Buffer], {
+      type: 'application/octet-stream',
+    });
+    const part3Blob = new Blob([part3Buffer], {
+      type: 'application/octet-stream',
+    });
 
     const part1Url = URL.createObjectURL(part1Blob);
     const part2Url = URL.createObjectURL(part2Blob);
     const part3Url = URL.createObjectURL(part3Blob);
 
-    const downloadContainer = document.createElement("div");
+    const downloadContainer = document.createElement('div');
     downloadContainer.style.cssText = `
       position: fixed; top: 20px; right: 20px; z-index: 10000;
       background: white; border: 2px solid #333; border-radius: 8px;
@@ -182,8 +190,8 @@ function createInspectionFiles(
 
     document.body.appendChild(downloadContainer);
 
-    const closeBtn = downloadContainer.querySelector<HTMLButtonElement>("#ps-bundle-close");
-    closeBtn?.addEventListener("click", () => downloadContainer.remove());
+    const closeBtn = downloadContainer.querySelector<HTMLButtonElement>('#ps-bundle-close');
+    closeBtn?.addEventListener('click', () => downloadContainer.remove());
 
     setTimeout(() => {
       if (downloadContainer.parentElement) downloadContainer.remove();
@@ -193,9 +201,7 @@ function createInspectionFiles(
     }, 30000);
   } catch (error) {
     // non-fatal
-     
-    console.error("Failed to create inspection files", error);
+
+    console.error('Failed to create inspection files', error);
   }
 }
-
-

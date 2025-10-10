@@ -1,9 +1,12 @@
-import { css } from "lit";
+import { css } from 'lit';
 
 export const controlBarStyles = css`
   :host {
     display: block;
-    font-family: system-ui, -apple-system, sans-serif;
+    font-family:
+      system-ui,
+      -apple-system,
+      sans-serif;
     /* UniProt-inspired design tokens */
     --up-primary: #00a3e0; /* lighter azure */
     --up-primary-hover: #008ec4;
@@ -243,5 +246,3 @@ export const controlBarStyles = css`
     }
   }
 `;
-
-
