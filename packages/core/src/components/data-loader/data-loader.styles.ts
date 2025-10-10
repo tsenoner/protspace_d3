@@ -1,4 +1,4 @@
-import { css } from "lit";
+import { css } from 'lit';
 
 export const dataLoaderStyles = css`
   :host {
@@ -113,5 +113,3 @@ export const dataLoaderStyles = css`
     }
   }
 `;
-
-

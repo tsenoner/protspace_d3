@@ -1,4 +1,4 @@
-import type { ScatterplotConfig } from "@protspace/utils";
+import type { ScatterplotConfig } from '@protspace/utils';
 
 // Centralized default configuration for the scatterplot component
 export const DEFAULT_CONFIG: Required<ScatterplotConfig> = {
@@ -21,6 +21,4 @@ export const DEFAULT_CONFIG: Required<ScatterplotConfig> = {
   zoomSizeScaleExponent: 1.0,
 };
 
-export const NEUTRAL_VALUE_COLOR = "#888888";
-
-
+export const NEUTRAL_VALUE_COLOR = '#888888';

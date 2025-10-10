@@ -1,7 +1,7 @@
-import * as d3 from "d3";
-import { NEUTRAL_VALUE_COLOR } from "./config";
-import type { PlotDataPoint, VisualizationData } from "@protspace/utils";
-import { getSymbolType } from "@protspace/utils";
+import * as d3 from 'd3';
+import { NEUTRAL_VALUE_COLOR } from './config';
+import type { PlotDataPoint, VisualizationData } from '@protspace/utils';
+import { getSymbolType } from '@protspace/utils';
 
 export interface StyleConfig {
   selectedProteinIds: string[];
@@ -25,8 +25,8 @@ export interface StyleConfig {
 export function createStyleGetters(data: VisualizationData | null, styleConfig: StyleConfig) {
   // Normalize values: null and empty-string map to simple string keys
   const normalizeToKey = (value: unknown): string => {
-    if (value === null) return "null";
-    if (typeof value === "string" && value.trim() === "") return "";
+    if (value === null) return 'null';
+    if (typeof value === 'string' && value.trim() === '') return '';
     return String(value);
   };
 
@@ -37,9 +37,8 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
   const otherValuesSet = new Set(styleConfig.otherFeatureValues);
 
   // Precompute value -> color and value -> shape for the selected feature
-  const feature = data && styleConfig.selectedFeature
-    ? data.features[styleConfig.selectedFeature]
-    : undefined;
+  const feature =
+    data && styleConfig.selectedFeature ? data.features[styleConfig.selectedFeature] : undefined;
   const valueToColor = new Map<string, string>();
   const valueToShape = new Map<string, d3.SymbolType>();
   let nullishConfiguredColor: string | null = null;
@@ -53,13 +52,13 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
       if (styleConfig.useShapes && feature.shapes && feature.shapes[i]) {
         valueToShape.set(k, getSymbolType(feature.shapes[i]));
       }
-      if ((v === null || (typeof v === "string" && v.trim() === "")) && color) {
+      if ((v === null || (typeof v === 'string' && v.trim() === '')) && color) {
         nullishConfiguredColor = color;
       }
     }
   }
   const isNullishDisplay = (value: unknown): boolean => {
-    return value === null || (typeof value === "string" && value.trim() === "");
+    return value === null || (typeof value === 'string' && value.trim() === '');
   };
 
   // Detect if the user has effectively hidden all values for the selected feature
@@ -71,7 +70,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     const hidden = new Set(styleConfig.hiddenFeatureValues);
     if (hidden.size === 0) return false;
     const normalizedKeys = feature.values.map((v) =>
-      v === null ? "null" : typeof v === "string" && v.trim() === "" ? "" : (v as string)
+      v === null ? 'null' : typeof v === 'string' && v.trim() === '' ? '' : (v as string)
     );
     return normalizedKeys.length > 0 && normalizedKeys.every((k) => hidden.has(k));
   };
@@ -124,9 +123,9 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
   };
 
   const getStrokeColor = (point: PlotDataPoint): string => {
-    if (selectedIdsSet.has(point.id)) return "var(--protspace-selection-color, #FF5500)";
-    if (highlightedIdsSet.has(point.id)) return "var(--protspace-highlight-color, #00A3E0)";
-    return "var(--protspace-default-stroke, #333333)";
+    if (selectedIdsSet.has(point.id)) return 'var(--protspace-selection-color, #FF5500)';
+    if (highlightedIdsSet.has(point.id)) return 'var(--protspace-highlight-color, #00A3E0)';
+    return 'var(--protspace-default-stroke, #333333)';
   };
 
   const getStrokeWidth = (point: PlotDataPoint): number => {
@@ -144,5 +143,3 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     getStrokeWidth,
   };
 }
-
-

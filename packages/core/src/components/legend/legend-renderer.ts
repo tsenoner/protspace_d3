@@ -1,7 +1,8 @@
-import { html, TemplateResult } from "lit";
-import * as d3 from "d3";
-import type { LegendItem } from "./types";
-import { SHAPE_MAPPING, LEGEND_DEFAULTS, LEGEND_STYLES } from "./config";
+import type { TemplateResult } from 'lit';
+import { html } from 'lit';
+import * as d3 from 'd3';
+import type { LegendItem } from './types';
+import { SHAPE_MAPPING, LEGEND_DEFAULTS, LEGEND_STYLES } from './config';
 
 /**
  * Utility class for rendering legend components
@@ -19,9 +20,7 @@ export class LegendRenderer {
     const halfSize = size / 1;
 
     // Safely handle null or undefined shape
-    const shapeKey = (
-      shape || "circle"
-    ).toLowerCase() as keyof typeof SHAPE_MAPPING;
+    const shapeKey = (shape || 'circle').toLowerCase() as keyof typeof SHAPE_MAPPING;
 
     // Get the D3 symbol type (default to circle if not found)
     const symbolType = SHAPE_MAPPING[shapeKey] || d3.symbolCircle;
@@ -53,11 +52,9 @@ export class LegendRenderer {
         <g transform="translate(${halfSize}, ${halfSize})">
           <path
             d="${path}"
-            fill="${isOutlineOnly ? "none" : validColor}"
+            fill="${isOutlineOnly ? 'none' : validColor}"
             stroke="${isOutlineOnly ? validColor : strokeColor}"
-            stroke-width="${isOutlineOnly
-              ? LEGEND_STYLES.strokeWidth.outline
-              : strokeWidth}"
+            stroke-width="${isOutlineOnly ? LEGEND_STYLES.strokeWidth.outline : strokeWidth}"
           />
         </g>
       </svg>
@@ -72,13 +69,7 @@ export class LegendRenderer {
       <div class="legend-header">
         <h3 class="legend-title">${title}</h3>
         <button class="customize-button" @click=${onCustomize}>
-          <svg
-            width="20"
-            height="20"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
+          <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
               stroke-linecap="round"
               stroke-linejoin="round"
@@ -109,9 +100,7 @@ export class LegendRenderer {
     }
 
     return html`
-      <div class="legend-items">
-        ${sortedLegendItems.map((item) => renderItemCallback(item))}
-      </div>
+      <div class="legend-items">${sortedLegendItems.map((item) => renderItemCallback(item))}</div>
     `;
   }
 
@@ -143,20 +132,12 @@ export class LegendRenderer {
   /**
    * Render the item symbol (either "Other" default or feature-specific symbol)
    */
-  static renderItemSymbol(
-    item: LegendItem,
-    isItemSelected: boolean
-  ): TemplateResult {
+  static renderItemSymbol(item: LegendItem, isItemSelected: boolean): TemplateResult {
     return html`
       <div class="mr-2">
-        ${item.value === "Other"
-          ? this.renderSymbol("circle", "#888")
-          : this.renderSymbol(
-              item.shape,
-              item.color,
-              LEGEND_DEFAULTS.symbolSize,
-              isItemSelected
-            )}
+        ${item.value === 'Other'
+          ? this.renderSymbol('circle', '#888')
+          : this.renderSymbol(item.shape, item.color, LEGEND_DEFAULTS.symbolSize, isItemSelected)}
       </div>
     `;
   }
@@ -165,30 +146,21 @@ export class LegendRenderer {
    * Render the item text label
    */
   static renderItemText(item: LegendItem): TemplateResult {
-    const isEmptyString =
-      typeof item.value === "string" && item.value.trim() === "";
-    const displayText =
-      item.value === null || isEmptyString ? "N\\A" : item.value;
+    const isEmptyString = typeof item.value === 'string' && item.value.trim() === '';
+    const displayText = item.value === null || isEmptyString ? 'N\\A' : item.value;
     return html`<span class="legend-text">${displayText}</span>`;
   }
 
   /**
    * Render item actions (like "view" button for "Other" category)
    */
-  static renderItemActions(
-    item: LegendItem,
-    onViewOther: (e: Event) => void
-  ): TemplateResult {
-    if (item.value !== "Other") {
+  static renderItemActions(item: LegendItem, onViewOther: (e: Event) => void): TemplateResult {
+    if (item.value !== 'Other') {
       return html``;
     }
 
     return html`
-      <button
-        class="view-button"
-        @click=${onViewOther}
-        title="Extract items from Other"
-      >
+      <button class="view-button" @click=${onViewOther} title="Extract items from Other">
         (view)
       </button>
     `;
@@ -221,10 +193,8 @@ export class LegendRenderer {
         @dragend=${eventHandlers.onDragEnd}
       >
         <div class="legend-item-content">
-          ${this.renderDragHandle()}
-          ${this.renderItemSymbol(item, isItemSelected)}
-          ${this.renderItemText(item)}
-          ${this.renderItemActions(item, eventHandlers.onViewOther)}
+          ${this.renderDragHandle()} ${this.renderItemSymbol(item, isItemSelected)}
+          ${this.renderItemText(item)} ${this.renderItemActions(item, eventHandlers.onViewOther)}
         </div>
         <span class="legend-count">${item.count}</span>
       </div>

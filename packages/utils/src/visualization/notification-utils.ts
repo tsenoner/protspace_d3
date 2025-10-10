@@ -20,30 +20,30 @@ const NOTIFICATION_STYLES: Record<string, NotificationStyles> = {
   info: {
     background: 'rgba(23, 162, 184, 0.9)',
     color: '#0c5460',
-    position: { top: '20px', right: '20px' }
+    position: { top: '20px', right: '20px' },
   },
   warning: {
     background: 'rgba(255, 193, 7, 0.9)',
     color: '#856404',
-    position: { top: '20px', right: '20px' }
+    position: { top: '20px', right: '20px' },
   },
   error: {
     background: 'rgba(220, 53, 69, 0.9)',
     color: '#721c24',
-    position: { top: '20px', right: '20px' }
+    position: { top: '20px', right: '20px' },
   },
   success: {
     background: 'rgba(40, 167, 69, 0.9)',
     color: '#155724',
-    position: { top: '20px', right: '20px' }
-  }
+    position: { top: '20px', right: '20px' },
+  },
 };
 
 const POSITION_STYLES: Record<string, Partial<NotificationStyles['position']>> = {
   'top-right': { top: '20px', right: '20px' },
   'top-left': { top: '20px', left: '20px' },
   'bottom-right': { bottom: '20px', right: '20px' },
-  'bottom-left': { bottom: '20px', left: '20px' }
+  'bottom-left': { bottom: '20px', left: '20px' },
 };
 
 /**
@@ -51,16 +51,8 @@ const POSITION_STYLES: Record<string, Partial<NotificationStyles['position']>> =
  * This is an optional utility that can be used by applications
  * Most frameworks have better notification systems, so this is just a fallback
  */
-export function showNotification(
-  message: string, 
-  options: NotificationOptions = {}
-): void {
-  const {
-    type = 'info',
-    duration = 3000,
-    position = 'top-right',
-    maxWidth = '300px'
-  } = options;
+export function showNotification(message: string, options: NotificationOptions = {}): void {
+  const { type = 'info', duration = 3000, position = 'top-right', maxWidth = '300px' } = options;
 
   const styles = NOTIFICATION_STYLES[type];
   const positionStyle = POSITION_STYLES[position];
@@ -78,7 +70,9 @@ export function showNotification(
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     animation: slideIn 0.3s ease;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    ${Object.entries(positionStyle).map(([key, value]) => `${key}: ${value}`).join('; ')};
+    ${Object.entries(positionStyle)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join('; ')};
   `;
   notification.innerHTML = message;
 
@@ -126,13 +120,14 @@ export function createSelectionDisabledEvent(
   reason: string,
   dataSize: number
 ): CustomEvent<SelectionDisabledEventDetail> {
-  const message = reason === 'insufficient-data' 
-    ? `Selection mode disabled: Only ${dataSize} point${dataSize !== 1 ? 's' : ''} remaining`
-    : 'Selection mode disabled';
+  const message =
+    reason === 'insufficient-data'
+      ? `Selection mode disabled: Only ${dataSize} point${dataSize !== 1 ? 's' : ''} remaining`
+      : 'Selection mode disabled';
 
   return new CustomEvent('selection-disabled-notification', {
     detail: { reason, dataSize, message },
     bubbles: true,
-    composed: true
+    composed: true,
   });
 }

@@ -1,0 +1,13 @@
+**/node_modules/**
+**/dist/**
+**/build/**
+**/.turbo/**
+**/.cache/**
+**/*.d.ts
+**/*.map
+**/*.bundle
+**/*.parquetbundle
+**/*.h5
+**/*.ipynb
+**/examples/scatterplot-vite/dist/**
+**/*lock.yaml

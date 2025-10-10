@@ -1,29 +1,29 @@
-import { LitElement, html } from "lit";
-import { customElement, property, state, query } from "lit/decorators.js";
-import { StructureService } from "@protspace/utils";
-import type { StructureData } from "@protspace/utils";
-import { structureViewerStyles } from "./structure-viewer.styles";
-import { createMolstarViewer, type MolstarViewer } from "./molstar-loader";
-import type { StructureLoadEvent } from "./types";
+import { LitElement, html } from 'lit';
+import { customElement, property, state, query } from 'lit/decorators.js';
+import { StructureService } from '@protspace/utils';
+import type { StructureData } from '@protspace/utils';
+import { structureViewerStyles } from './structure-viewer.styles';
+import { createMolstarViewer, type MolstarViewer } from './molstar-loader';
+import type { StructureLoadEvent } from './types';
 
-@customElement("protspace-structure-viewer")
+@customElement('protspace-structure-viewer')
 export class ProtspaceStructureViewer extends LitElement {
   static styles = structureViewerStyles;
 
   // Properties
   @property({ type: String }) proteinId: string | null = null;
-  @property({ type: String }) title = "Protein Structure";
+  @property({ type: String }) title = 'Protein Structure';
   @property({ type: Boolean }) showHeader = true;
   @property({ type: Boolean }) showCloseButton = true;
   @property({ type: Boolean }) showTips = true;
-  @property({ type: String }) height = "400px";
+  @property({ type: String }) height = '400px';
 
   // Auto-sync properties
-  @property({ type: String, attribute: "scatterplot-selector" })
-  scatterplotSelector: string = "protspace-scatterplot";
-  @property({ type: Boolean, attribute: "auto-sync" })
+  @property({ type: String, attribute: 'scatterplot-selector' })
+  scatterplotSelector: string = 'protspace-scatterplot';
+  @property({ type: Boolean, attribute: 'auto-sync' })
   autoSync: boolean = true;
-  @property({ type: Boolean, attribute: "auto-show" })
+  @property({ type: Boolean, attribute: 'auto-show' })
   autoShow: boolean = true; // Automatically show/hide based on selections
 
   // State
@@ -34,12 +34,12 @@ export class ProtspaceStructureViewer extends LitElement {
   private _scatterplotElement: Element | null = null;
 
   // Refs
-  @query(".viewer-content") private _viewerContainer!: HTMLElement;
+  @query('.viewer-content') private _viewerContainer!: HTMLElement;
 
   protected updated(changedProperties: Map<string | number | symbol, unknown>) {
     if (changedProperties.size > 0) {
     }
-    if (changedProperties.has("proteinId")) {
+    if (changedProperties.has('proteinId')) {
       if (this.proteinId) {
         this._loadStructure();
       } else {
@@ -64,33 +64,24 @@ export class ProtspaceStructureViewer extends LitElement {
     this._cleanup();
 
     if (this._scatterplotElement && this._proteinClickHandler) {
-      this._scatterplotElement.removeEventListener(
-        "protein-click",
-        this._proteinClickHandler
-      );
+      this._scatterplotElement.removeEventListener('protein-click', this._proteinClickHandler);
     }
   }
 
-  private _proteinClickHandler: (e: Event) => void = (e: Event) =>
-    this._handleProteinClick(e);
+  private _proteinClickHandler: (e: Event) => void = (e: Event) => this._handleProteinClick(e);
 
   private _setupAutoSync() {
     // Find scatterplot element
     setTimeout(() => {
-      this._scatterplotElement = document.querySelector(
-        this.scatterplotSelector
-      );
+      this._scatterplotElement = document.querySelector(this.scatterplotSelector);
 
       if (this._scatterplotElement) {
         // Listen for protein clicks
-        this._scatterplotElement.addEventListener(
-          "protein-click",
-          this._proteinClickHandler
-        );
+        this._scatterplotElement.addEventListener('protein-click', this._proteinClickHandler);
 
         // Initially hide if autoShow is enabled
         if (this.autoShow && !this.proteinId) {
-          this.style.display = "none";
+          this.style.display = 'none';
         }
       }
     }, 100);
@@ -104,14 +95,14 @@ export class ProtspaceStructureViewer extends LitElement {
     if (!modifierKeys.ctrl && !modifierKeys.shift && this.autoShow) {
       // Show structure viewer and load protein
       this.proteinId = proteinId;
-      this.style.display = "block";
+      this.style.display = 'block';
     }
   }
 
   // Public methods for external control
   public hide() {
     if (this.autoShow) {
-      this.style.display = "none";
+      this.style.display = 'none';
       this.proteinId = null;
       this._cleanup();
       this._dispatchCloseEvent();
@@ -120,7 +111,7 @@ export class ProtspaceStructureViewer extends LitElement {
 
   public show(proteinId?: string) {
     if (this.autoShow) {
-      this.style.display = "block";
+      this.style.display = 'block';
       if (proteinId) {
         this.proteinId = proteinId;
       }
@@ -132,7 +123,7 @@ export class ProtspaceStructureViewer extends LitElement {
     this.proteinId = null;
     this._cleanup();
     if (this.autoShow) {
-      this.style.display = "none";
+      this.style.display = 'none';
     }
     this._dispatchCloseEvent();
   }
@@ -141,7 +132,7 @@ export class ProtspaceStructureViewer extends LitElement {
     // Public method to load a specific protein
     this.proteinId = proteinId;
     if (this.autoShow) {
-      this.style.display = "block";
+      this.style.display = 'block';
     }
   }
 
@@ -156,21 +147,19 @@ export class ProtspaceStructureViewer extends LitElement {
     this._structureData = null;
 
     // Dispatch loading event
-    this._dispatchStructureEvent("loading");
+    this._dispatchStructureEvent('loading');
 
     try {
       // Clean up any existing viewer
       this._cleanup();
 
       // Use service to load structure data
-      this._structureData = await StructureService.loadStructure(
-        this.proteinId
-      );
+      this._structureData = await StructureService.loadStructure(this.proteinId);
 
       // Create Mol* viewer
       await this.updateComplete;
       if (!this._viewerContainer) {
-        throw new Error("Viewer container not available");
+        throw new Error('Viewer container not available');
       }
       this._viewer = await createMolstarViewer(this._viewerContainer);
 
@@ -178,20 +167,18 @@ export class ProtspaceStructureViewer extends LitElement {
       await this._displayStructure(this._structureData);
 
       this._isLoading = false;
-      this._dispatchStructureEvent("loaded");
+      this._dispatchStructureEvent('loaded');
     } catch (error) {
-      console.error("[StructureViewer] Structure loading error:", error);
-      const formattedId = this.proteinId?.split(".")[0] ?? this.proteinId ?? "";
+      console.error('[StructureViewer] Structure loading error:', error);
+      const formattedId = this.proteinId?.split('.')[0] ?? this.proteinId ?? '';
       const genericMessage = `No 3D structure was found for ${formattedId}.`;
-      const fallbackMessage = "Failed to load structure. Please try again.";
+      const fallbackMessage = 'Failed to load structure. Please try again.';
       if (error instanceof Error) {
         // Map low-level errors to a user-friendly message
         const message = error.message.toLowerCase();
         if (
-          message.includes(
-            "failed to load structure from both alphafold and pdb"
-          ) ||
-          message.includes("alphafold structure not available")
+          message.includes('failed to load structure from both alphafold and pdb') ||
+          message.includes('alphafold structure not available')
         ) {
           this._error = genericMessage;
         } else {
@@ -201,7 +188,7 @@ export class ProtspaceStructureViewer extends LitElement {
         this._error = fallbackMessage;
       }
       this._isLoading = false;
-      this._dispatchStructureEvent("error", this._error);
+      this._dispatchStructureEvent('error', this._error);
     }
   }
 
@@ -209,25 +196,20 @@ export class ProtspaceStructureViewer extends LitElement {
 
   private async _displayStructure(structureData: StructureData): Promise<void> {
     if (!this._viewer) {
-      throw new Error("Viewer not initialized");
+      throw new Error('Viewer not initialized');
     }
 
     // Load structure based on source
     switch (structureData.source) {
-      case "alphafold":
+      case 'alphafold':
         if (structureData.url) {
-          await this._viewer.loadStructureFromUrl(
-            structureData.url,
-            structureData.format
-          );
+          await this._viewer.loadStructureFromUrl(structureData.url, structureData.format);
         } else {
-          throw new Error("AlphaFold structure URL not available");
+          throw new Error('AlphaFold structure URL not available');
         }
         break;
       default:
-        throw new Error(
-          `Unsupported structure source: ${structureData.source}`
-        );
+        throw new Error(`Unsupported structure source: ${structureData.source}`);
     }
   }
 
@@ -236,24 +218,21 @@ export class ProtspaceStructureViewer extends LitElement {
       try {
         this._viewer.dispose();
       } catch (error) {
-        console.warn("[StructureViewer] Error disposing viewer:", error);
+        console.warn('[StructureViewer] Error disposing viewer:', error);
       }
       this._viewer = null;
     }
 
     if (this._viewerContainer) {
-      this._viewerContainer.innerHTML = "";
+      this._viewerContainer.innerHTML = '';
     }
 
     this._structureData = null;
   }
 
-  private _dispatchStructureEvent(
-    status: "loading" | "loaded" | "error",
-    error?: string
-  ) {
+  private _dispatchStructureEvent(status: 'loading' | 'loaded' | 'error', error?: string) {
     this.dispatchEvent(
-      new CustomEvent("structure-load", {
+      new CustomEvent('structure-load', {
         detail: {
           proteinId: this.proteinId!,
           status,
@@ -267,7 +246,7 @@ export class ProtspaceStructureViewer extends LitElement {
 
   private _dispatchCloseEvent() {
     this.dispatchEvent(
-      new CustomEvent("structure-close", {
+      new CustomEvent('structure-close', {
         detail: {
           proteinId: this.proteinId,
         },
@@ -304,15 +283,11 @@ export class ProtspaceStructureViewer extends LitElement {
                 <span class="protein-id">${this.proteinId}</span>
               </div>
               ${this.showCloseButton
-                ? html`
-                    <button class="close-button" @click=${this._handleClose}>
-                      ✕
-                    </button>
-                  `
-                : ""}
+                ? html` <button class="close-button" @click=${this._handleClose}>✕</button> `
+                : ''}
             </div>
           `
-        : ""}
+        : ''}
 
       <div class="viewer-container">
         ${this._isLoading
@@ -322,14 +297,14 @@ export class ProtspaceStructureViewer extends LitElement {
                 <div class="loading-text">Loading protein structure...</div>
               </div>
             `
-          : ""}
+          : ''}
         ${this._error
           ? html`
               <div class="error-container">
                 <div class="error-title">${this._error}</div>
               </div>
             `
-          : ""}
+          : ''}
 
         <div class="viewer-content"></div>
       </div>
@@ -337,11 +312,11 @@ export class ProtspaceStructureViewer extends LitElement {
       ${this.showTips && !this._error
         ? html`
             <div class="tips">
-              <strong>Tip:</strong> Left-click and drag to rotate. Click and
-              drag to move. Scroll to zoom.
+              <strong>Tip:</strong> Left-click and drag to rotate. Click and drag to move. Scroll to
+              zoom.
             </div>
           `
-        : ""}
+        : ''}
     `;
   }
 }
@@ -349,6 +324,6 @@ export class ProtspaceStructureViewer extends LitElement {
 // Global type declarations
 declare global {
   interface HTMLElementTagNameMap {
-    "protspace-structure-viewer": ProtspaceStructureViewer;
+    'protspace-structure-viewer': ProtspaceStructureViewer;
   }
 }

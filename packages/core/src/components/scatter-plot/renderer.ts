@@ -26,12 +26,12 @@ export interface StyleGetters {
 export class ScatterplotRenderer {
   private mainGroup: d3.Selection<SVGGElement, unknown, null, undefined>;
   private config: RenderConfig;
-  private scales: { x: d3.ScaleLinear<number, number>; y: d3.ScaleLinear<number, number> } | null = null;
+  private scales: {
+    x: d3.ScaleLinear<number, number>;
+    y: d3.ScaleLinear<number, number>;
+  } | null = null;
 
-  constructor(
-    mainGroup: SVGGElement,
-    config: RenderConfig
-  ) {
+  constructor(mainGroup: SVGGElement, config: RenderConfig) {
     this.mainGroup = d3.select(mainGroup);
     this.config = config;
   }
@@ -58,7 +58,7 @@ export class ScatterplotRenderer {
     // D3 enter/update/exit pattern
     const points = this.mainGroup
       .selectAll<SVGPathElement, PlotDataPoint>('.protein-point')
-      .data(plotData, d => d.id);
+      .data(plotData, (d) => d.id);
 
     // Remove exiting points
     points.exit().transition(t).attr('opacity', 0).remove();
@@ -68,32 +68,32 @@ export class ScatterplotRenderer {
       .enter()
       .append('path')
       .attr('class', 'protein-point')
-      .attr('d', d => this._createPointPath(d, styleGetters))
-      .attr('fill', d => styleGetters.getColor(d))
-      .attr('stroke', d => styleGetters.getStrokeColor(d))
+      .attr('d', (d) => this._createPointPath(d, styleGetters))
+      .attr('fill', (d) => styleGetters.getColor(d))
+      .attr('stroke', (d) => styleGetters.getStrokeColor(d))
       .attr('stroke-opacity', 0.5)
-      .attr('stroke-width', d => styleGetters.getStrokeWidth(d))
+      .attr('stroke-width', (d) => styleGetters.getStrokeWidth(d))
       .attr('opacity', 0)
-      .attr('transform', d => `translate(${this.scales!.x(d.x)}, ${this.scales!.y(d.y)})`)
+      .attr('transform', (d) => `translate(${this.scales!.x(d.x)}, ${this.scales!.y(d.y)})`)
       .attr('cursor', 'pointer')
-      .attr('data-protein-id', d => d.id)
+      .attr('data-protein-id', (d) => d.id)
       .on('mouseover', (event, d) => eventHandlers.onMouseOver(event, d))
       .on('mouseout', (event, d) => eventHandlers.onMouseOut(event, d))
       .on('click', (event, d) => eventHandlers.onClick(event, d));
 
     // Animate new points in
-    enterPoints.transition(t).attr('opacity', d => styleGetters.getOpacity(d));
+    enterPoints.transition(t).attr('opacity', (d) => styleGetters.getOpacity(d));
 
     // Update existing points
     points
       .transition(t)
-      .attr('d', d => this._createPointPath(d, styleGetters))
-      .attr('fill', d => styleGetters.getColor(d))
-      .attr('opacity', d => styleGetters.getOpacity(d))
-      .attr('stroke', d => styleGetters.getStrokeColor(d))
+      .attr('d', (d) => this._createPointPath(d, styleGetters))
+      .attr('fill', (d) => styleGetters.getColor(d))
+      .attr('opacity', (d) => styleGetters.getOpacity(d))
+      .attr('stroke', (d) => styleGetters.getStrokeColor(d))
       .attr('stroke-opacity', 0.5)
-      .attr('stroke-width', d => styleGetters.getStrokeWidth(d))
-      .attr('transform', d => `translate(${this.scales!.x(d.x)}, ${this.scales!.y(d.y)})`);
+      .attr('stroke-width', (d) => styleGetters.getStrokeWidth(d))
+      .attr('transform', (d) => `translate(${this.scales!.x(d.x)}, ${this.scales!.y(d.y)})`);
   }
 
   private _createPointPath(point: PlotDataPoint, styleGetters: StyleGetters): string {
@@ -109,12 +109,13 @@ export class ScatterplotRenderer {
   highlightPoints(proteinIds: string[], className: string = 'highlighted') {
     this.mainGroup
       .selectAll<SVGPathElement, PlotDataPoint>('.protein-point')
-      .classed(className, d => proteinIds.includes(d.id));
+      .classed(className, (d) => proteinIds.includes(d.id));
   }
 
   animatePointSelection(proteinId: string, isSelected: boolean) {
-    const point = this.mainGroup
-      .select<SVGPathElement>(`.protein-point[data-protein-id="${proteinId}"]`);
+    const point = this.mainGroup.select<SVGPathElement>(
+      `.protein-point[data-protein-id="${proteinId}"]`
+    );
 
     if (point.empty()) return;
 
@@ -131,11 +132,7 @@ export class ScatterplotRenderer {
         .attr('stroke-opacity', 0.5);
     } else {
       // Deselection animation
-      point
-        .transition()
-        .duration(150)
-        .attr('stroke-width', 1)
-        .attr('stroke-opacity', 0.5);
+      point.transition().duration(150).attr('stroke-width', 1).attr('stroke-opacity', 0.5);
     }
   }
 }

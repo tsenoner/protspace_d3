@@ -15,5 +15,3 @@ export const aliases: Record<string, string> = {
   '@protspace/core': paths.coreIndex,
   '@protspace/utils': paths.utilsIndex,
 };
-
-

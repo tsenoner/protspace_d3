@@ -32,7 +32,8 @@ export class InteractionHandler {
   initializeZoom(onZoom: (transform: d3.ZoomTransform) => void) {
     if (!this.config.enableZoom) return;
 
-    this.zoom = d3.zoom<SVGSVGElement, unknown>()
+    this.zoom = d3
+      .zoom<SVGSVGElement, unknown>()
       .scaleExtent(this.config.zoomExtent)
       .on('zoom', (event) => {
         this.mainGroup.attr('transform', event.transform);
@@ -47,7 +48,10 @@ export class InteractionHandler {
     extent: [[number, number], [number, number]],
     onBrushEnd: (selectedPoints: PlotDataPoint[]) => void,
     plotData: PlotDataPoint[],
-    scales: { x: d3.ScaleLinear<number, number>; y: d3.ScaleLinear<number, number> }
+    scales: {
+      x: d3.ScaleLinear<number, number>;
+      y: d3.ScaleLinear<number, number>;
+    }
   ) {
     if (!this.config.enableBrush) return;
 
@@ -56,7 +60,8 @@ export class InteractionHandler {
       this.svg.on('.zoom', null);
     }
 
-    this.brush = d3.brush()
+    this.brush = d3
+      .brush()
       .extent(extent)
       .on('end', (event) => {
         if (!event.selection) {
@@ -66,7 +71,7 @@ export class InteractionHandler {
         }
 
         const [[x0, y0], [x1, y1]] = event.selection as [[number, number], [number, number]];
-        const selectedPoints = plotData.filter(d => {
+        const selectedPoints = plotData.filter((d) => {
           const pointX = scales.x(d.x);
           const pointY = scales.y(d.y);
           return pointX >= x0 && pointX <= x1 && pointY >= y0 && pointY <= y1;

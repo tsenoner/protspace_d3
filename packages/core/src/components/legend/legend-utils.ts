@@ -1,8 +1,4 @@
-import type {
-  LegendItem,
-  LegendFeatureData,
-  ScatterplotElement,
-} from "./types";
+import type { LegendItem, LegendFeatureData, ScatterplotElement } from './types';
 
 /**
  * Utility class for legend state management and operations
@@ -13,12 +9,8 @@ export class LegendUtils {
    */
   static isItemSelected(item: LegendItem, selectedItems: string[]): boolean {
     return (
-      (item.value === null &&
-        selectedItems.includes("null") &&
-        selectedItems.length > 0) ||
-      (item.value !== null &&
-        item.value !== "Other" &&
-        selectedItems.includes(item.value))
+      (item.value === null && selectedItems.includes('null') && selectedItems.length > 0) ||
+      (item.value !== null && item.value !== 'Other' && selectedItems.includes(item.value))
     );
   }
 
@@ -30,15 +22,14 @@ export class LegendUtils {
     isItemSelected: boolean,
     draggedItem: string | null
   ): string {
-    const classes = ["legend-item"];
+    const classes = ['legend-item'];
 
-    if (!item.isVisible) classes.push("hidden");
-    if (draggedItem === item.value && item.value !== null)
-      classes.push("dragging");
-    if (isItemSelected) classes.push("selected");
-    if (item.extractedFromOther) classes.push("extracted");
+    if (!item.isVisible) classes.push('hidden');
+    if (draggedItem === item.value && item.value !== null) classes.push('dragging');
+    if (isItemSelected) classes.push('selected');
+    if (item.extractedFromOther) classes.push('extracted');
 
-    return classes.join(" ");
+    return classes.join(' ');
   }
 
   /**
@@ -51,9 +42,7 @@ export class LegendUtils {
   ): LegendItem[] | null {
     // Find the indices
     const draggedIdx = legendItems.findIndex((i) => i.value === draggedItem);
-    const targetIdx = legendItems.findIndex(
-      (i) => i.value === targetItem.value
-    );
+    const targetIdx = legendItems.findIndex((i) => i.value === targetItem.value);
 
     if (draggedIdx === -1 || targetIdx === -1) return null;
 
@@ -72,12 +61,10 @@ export class LegendUtils {
   /**
    * Create z-order mapping from legend items for event dispatching
    */
-  static createZOrderMapping(
-    legendItems: LegendItem[]
-  ): Record<string, number> {
+  static createZOrderMapping(legendItems: LegendItem[]): Record<string, number> {
     const zOrderMap: Record<string, number> = {};
     legendItems.forEach((legendItem) => {
-      if (legendItem.value !== null && legendItem.value !== "Other") {
+      if (legendItem.value !== null && legendItem.value !== 'Other') {
         zOrderMap[legendItem.value] = legendItem.zOrder;
       }
     });
@@ -87,10 +74,7 @@ export class LegendUtils {
   /**
    * Update feature data from scatterplot data
    */
-  static updateFeatureData(
-    currentData: any,
-    selectedFeature: string
-  ): LegendFeatureData {
+  static updateFeatureData(currentData: any, selectedFeature: string): LegendFeatureData {
     return {
       name: selectedFeature,
       values: currentData.features[selectedFeature].values,
@@ -102,10 +86,7 @@ export class LegendUtils {
   /**
    * Extract feature values for current data
    */
-  static updateFeatureValues(
-    currentData: any,
-    selectedFeature: string
-  ): (string | null)[] {
+  static updateFeatureValues(currentData: any, selectedFeature: string): (string | null)[] {
     return currentData.protein_ids.map((_: string, index: number) => {
       const featureIdx = currentData.feature_data[selectedFeature][index];
       return currentData.features[selectedFeature].values[featureIdx];
@@ -119,15 +100,12 @@ export class LegendUtils {
     currentData: any;
     selectedFeature: string;
   } | null {
-    if (!scatterplotElement || !("getCurrentData" in scatterplotElement)) {
+    if (!scatterplotElement || !('getCurrentData' in scatterplotElement)) {
       return null;
     }
 
-    const currentData = (
-      scatterplotElement as ScatterplotElement
-    ).getCurrentData();
-    const selectedFeature = (scatterplotElement as ScatterplotElement)
-      .selectedFeature;
+    const currentData = (scatterplotElement as ScatterplotElement).getCurrentData();
+    const selectedFeature = (scatterplotElement as ScatterplotElement).selectedFeature;
 
     if (!currentData || !selectedFeature) {
       return null;
@@ -139,11 +117,8 @@ export class LegendUtils {
   /**
    * Toggle hidden state for a value
    */
-  static toggleHiddenValue(
-    hiddenValues: string[],
-    value: string | null
-  ): string[] {
-    const valueKey = value === null ? "null" : value;
+  static toggleHiddenValue(hiddenValues: string[], value: string | null): string[] {
+    const valueKey = value === null ? 'null' : value;
 
     if (hiddenValues.includes(valueKey)) {
       return hiddenValues.filter((v) => v !== valueKey);
@@ -155,33 +130,24 @@ export class LegendUtils {
   /**
    * Update legend items visibility based on hidden values
    */
-  static updateItemsVisibility(
-    legendItems: LegendItem[],
-    hiddenValues: string[]
-  ): LegendItem[] {
+  static updateItemsVisibility(legendItems: LegendItem[], hiddenValues: string[]): LegendItem[] {
     return legendItems.map((item) => ({
       ...item,
-      isVisible: !hiddenValues.includes(
-        item.value === null ? "null" : item.value!
-      ),
+      isVisible: !hiddenValues.includes(item.value === null ? 'null' : item.value!),
     }));
   }
 
   /**
    * Handle item double-click isolation logic
    */
-  static handleItemIsolation(
-    legendItems: LegendItem[],
-    targetValue: string | null
-  ): LegendItem[] {
+  static handleItemIsolation(legendItems: LegendItem[], targetValue: string | null): LegendItem[] {
     // Get the clicked item
     const clickedItem = legendItems.find((item) => item.value === targetValue);
     if (!clickedItem) return legendItems;
 
     // Check if it's the only visible item
     const visibleItems = legendItems.filter((item) => item.isVisible);
-    const isOnlyVisible =
-      visibleItems.length === 1 && visibleItems[0].value === targetValue;
+    const isOnlyVisible = visibleItems.length === 1 && visibleItems[0].value === targetValue;
 
     // Case 1: It's the only visible item - show all
     if (isOnlyVisible) {
@@ -213,8 +179,8 @@ export class LegendUtils {
 
     return {
       value,
-      color: valueIndex !== -1 ? featureData.colors[valueIndex] : "#888",
-      shape: valueIndex !== -1 ? featureData.shapes[valueIndex] : "circle",
+      color: valueIndex !== -1 ? featureData.colors[valueIndex] : '#888',
+      shape: valueIndex !== -1 ? featureData.shapes[valueIndex] : 'circle',
       count,
       isVisible: true,
       zOrder,
@@ -230,14 +196,8 @@ export class LegendUtils {
     hiddenValues: string[],
     autoHide: boolean
   ): void {
-    if (
-      autoHide &&
-      scatterplotElement &&
-      "hiddenFeatureValues" in scatterplotElement
-    ) {
-      (scatterplotElement as ScatterplotElement).hiddenFeatureValues = [
-        ...hiddenValues,
-      ];
+    if (autoHide && scatterplotElement && 'hiddenFeatureValues' in scatterplotElement) {
+      (scatterplotElement as ScatterplotElement).hiddenFeatureValues = [...hiddenValues];
     }
   }
 }

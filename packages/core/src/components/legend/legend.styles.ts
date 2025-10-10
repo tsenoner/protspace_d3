@@ -1,4 +1,4 @@
-import { css } from "lit";
+import { css } from 'lit';
 
 export const legendStyles = css`
   :host {
@@ -265,7 +265,8 @@ export const legendStyles = css`
     padding: 1.3rem 1.5rem;
      display: flex;
     border-radius: 0.5rem;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    box-shadow:
+      0 20px 25px -5px rgba(0, 0, 0, 0.1),
       0 10px 10px -5px rgba(0, 0, 0, 0.04);
      width: 25rem;
     height: 28rem;
@@ -514,5 +515,3 @@ export const legendStyles = css`
   }
 
 `;
-
-
