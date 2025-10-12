@@ -2,16 +2,7 @@ import { css } from 'lit';
 
 export const dataLoaderStyles = css`
   :host {
-    display: block;
-    padding: 1rem;
-    border: 2px dashed #c6d3e0;
-    border-radius: 6px;
-    text-align: center;
-    background: #f6f8fb;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    box-sizing: border-box;
-    width: 100%;
+    display: none;
   }
 
   :host(:hover) {

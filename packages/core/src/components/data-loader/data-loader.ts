@@ -79,53 +79,65 @@ export class DataLoader extends LitElement {
     this.fileInput = this.shadowRoot!.querySelector('.hidden-input') as HTMLInputElement;
   }
 
+  // render() {
+  //   return html`
+  //     <div
+  //       class="drop-zone"
+  //       @click=${this.handleClick}
+  //       @dragover=${this.handleDragOver}
+  //       @drop=${this.handleDrop}
+  //       @dragenter=${this.handleDragEnter}
+  //       @dragleave=${this.handleDragLeave}
+  //     >
+  //       <div class="icon">${this.loading ? this.renderLoadingIcon() : this.renderDataIcon()}</div>
+
+  //       <div class="message">
+  //         ${this.loading
+  //           ? 'Loading Parquet data...'
+  //           : this.error
+  //             ? 'Error loading data'
+  //             : this.allowDrop
+  //               ? 'Drop a ParquetBundle file here or click to browse'
+  //               : 'Click to load a ParquetBundle file'}
+  //       </div>
+
+  //       ${this.fileInfo
+  //         ? html`
+  //             <div class="file-info">
+  //               ${this.fileInfo.name} (${this.formatFileSize(this.fileInfo.size)})
+  //             </div>
+  //           `
+  //         : ''}
+  //       ${this.loading
+  //         ? html`
+  //             <div class="progress">
+  //               <div class="progress-bar" style="width: ${this.progress}%"></div>
+  //             </div>
+  //           `
+  //         : ''}
+  //       ${this.error ? html` <div class="error-message">${this.error}</div> ` : ''}
+  //     </div>
+
+  //     <input
+  //       type="file"
+  //       class="hidden-input"
+  //       accept=".parquet,.parquetbundle"
+  //       @change=${this.handleFileSelect}
+  //     />
+  //   `;
+  // }
+
   render() {
-    return html`
-      <div
-        class="drop-zone"
-        @click=${this.handleClick}
-        @dragover=${this.handleDragOver}
-        @drop=${this.handleDrop}
-        @dragenter=${this.handleDragEnter}
-        @dragleave=${this.handleDragLeave}
-      >
-        <div class="icon">${this.loading ? this.renderLoadingIcon() : this.renderDataIcon()}</div>
-
-        <div class="message">
-          ${this.loading
-            ? 'Loading Parquet data...'
-            : this.error
-              ? 'Error loading data'
-              : this.allowDrop
-                ? 'Drop a ParquetBundle file here or click to browse'
-                : 'Click to load a ParquetBundle file'}
-        </div>
-
-        ${this.fileInfo
-          ? html`
-              <div class="file-info">
-                ${this.fileInfo.name} (${this.formatFileSize(this.fileInfo.size)})
-              </div>
-            `
-          : ''}
-        ${this.loading
-          ? html`
-              <div class="progress">
-                <div class="progress-bar" style="width: ${this.progress}%"></div>
-              </div>
-            `
-          : ''}
-        ${this.error ? html` <div class="error-message">${this.error}</div> ` : ''}
-      </div>
-
-      <input
-        type="file"
-        class="hidden-input"
-        accept=".parquet,.parquetbundle"
-        @change=${this.handleFileSelect}
-      />
-    `;
-  }
+  return html`
+    <input
+      type="file"
+      class="hidden-input"
+      accept=".parquet,.parquetbundle"
+      @change=${this.handleFileSelect}
+      style="display:none"
+    />
+  `;
+}
 
   private renderDataIcon() {
     return html`

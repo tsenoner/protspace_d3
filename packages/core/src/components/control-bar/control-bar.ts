@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { controlBarStyles } from './control-bar.styles';
 import type { DataChangeDetail, ProtspaceData, ScatterplotElementLike } from './types';
 
+
 @customElement('protspace-control-bar')
 export class ProtspaceControlBar extends LitElement {
   @property({ type: Array }) projections: string[] = [];
@@ -204,6 +205,11 @@ export class ProtspaceControlBar extends LitElement {
     this.showExportMenu = !this.showExportMenu;
   }
 
+  private openFileDialog() {
+  const loader = document.querySelector('protspace-data-loader') as any;
+  loader?.shadowRoot?.querySelector('input[type="file"]')?.click();
+ }
+
   render() {
     return html`
       <div class="control-bar">
@@ -260,6 +266,9 @@ export class ProtspaceControlBar extends LitElement {
         <!-- Right side controls -->
         <div class="right-controls">
           <!-- Selection mode toggle -->
+
+          
+         
           <button
             class=${this.selectionMode ? 'right-controls-button active' : 'right-controls-button'}
             ?disabled=${this._selectionDisabled}
@@ -317,6 +326,7 @@ export class ProtspaceControlBar extends LitElement {
             </svg>
             Split
           </button>
+          
 
           <!-- Reset split button -->
           ${this.splitMode
@@ -524,7 +534,10 @@ export class ProtspaceControlBar extends LitElement {
                   </div>
                 `
               : ''}
-          </div>
+              </div>
+              <button class="right-controls-button" @click=${this.openFileDialog}>
+            📂 Load Data
+              </button>
         </div>
       </div>
     `;
