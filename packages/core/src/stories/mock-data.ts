@@ -83,6 +83,7 @@ export function generateMediumData(): VisualizationData {
   const proteinCount = 100;
   const families = ["Kinase", "Protease", "Receptor", "Transporter", "Channel"];
   const sizes = ["Small", "Medium", "Large"];
+  const organisms = ["Human", "Mouse", "Yeast"];
 
   // Define cluster centers for each family
   const clusterCenters: Record<string, [number, number]> = {
@@ -97,6 +98,7 @@ export function generateMediumData(): VisualizationData {
   const projectionData: [number, number][] = [];
   const familyData: number[] = [];
   const sizeData: number[] = [];
+  const organismData: number[] = [];
 
   for (let i = 0; i < proteinCount; i++) {
     // Generate protein ID
@@ -112,6 +114,9 @@ export function generateMediumData(): VisualizationData {
 
     // Random size
     sizeData.push(Math.floor(Math.random() * sizes.length));
+
+    // Random organism
+    organismData.push(Math.floor(Math.random() * organisms.length));
   }
 
   return {
@@ -136,10 +141,16 @@ export function generateMediumData(): VisualizationData {
         colors: ["#66c2a5", "#fc8d62", "#8da0cb"],
         shapes: ["circle", "circle", "circle"],
       },
+      organism: {
+        values: organisms,
+        colors: ["#8dd3c7", "#ffffb3", "#bebada"],
+        shapes: ["circle", "circle", "circle"],
+      },
     },
     feature_data: {
       family: familyData,
       size: sizeData,
+      organism: organismData,
     },
   };
 }
