@@ -7,7 +7,6 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { html } from "lit";
 import "./scatter-plot";
 import {
-  MINIMAL_DATA,
   generateMediumData,
   generateLargeData,
   generateDataWithNulls,
@@ -21,7 +20,7 @@ const meta: Meta = {
     docs: {
       description: {
         component:
-          "High-performance canvas-based scatterplot component for visualizing protein data with support for zooming, panning, and interactive selections.",
+          "High-performance canvas-based scatterplot component for visualizing protein data with support for zooming, panning, and interactive selections. Custom events are logged to the browser console.",
       },
     },
   },
@@ -59,36 +58,15 @@ export default meta;
 type Story = StoryObj;
 
 /**
- * Basic scatterplot with minimal data
+ * Interactive scatterplot with all features - hover, click, zoom, and pan
  */
-export const Basic: Story = {
-  args: {
-    data: MINIMAL_DATA,
-    selectedProjectionIndex: 0,
-    selectedFeature: "family",
-    useCanvas: true,
-  },
-  render: (args) => html`
-    <div style="width: 800px; height: 600px; border: 1px solid #ccc;">
-      <protspace-scatterplot
-        .data=${args.data}
-        .selectedProjectionIndex=${args.selectedProjectionIndex}
-        .selectedFeature=${args.selectedFeature}
-        .useCanvas=${args.useCanvas}
-      ></protspace-scatterplot>
-    </div>
-  `,
-};
-
-/**
- * Medium dataset with 100 proteins showing realistic clustering
- */
-export const MediumDataset: Story = {
+export const Interactive: Story = {
   args: {
     data: generateMediumData(),
     selectedProjectionIndex: 0,
     selectedFeature: "family",
     useCanvas: true,
+    selectionMode: false,
   },
   render: (args) => html`
     <div style="width: 800px; height: 600px; border: 1px solid #ccc;">
@@ -97,14 +75,23 @@ export const MediumDataset: Story = {
         .selectedProjectionIndex=${args.selectedProjectionIndex}
         .selectedFeature=${args.selectedFeature}
         .useCanvas=${args.useCanvas}
+        .selectionMode=${args.selectionMode}
+        @protein-hover=${(e: CustomEvent) => {
+          if (e.detail.proteinId) {
+            console.log('protein-hover:', e.detail.proteinId);
+          }
+        }}
+        @protein-click=${(e: CustomEvent) => {
+          console.log('protein-click:', e.detail.proteinId);
+        }}
       ></protspace-scatterplot>
     </div>
     <div
       style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px;"
     >
-      <strong>Dataset info:</strong> ${args.data.protein_ids.length} proteins,
-      ${args.data.projections.length} projections,
-      ${Object.keys(args.data.features).length} features
+      <strong>📊 Dataset:</strong> ${args.data.protein_ids.length} proteins, ${args.data.projections.length} projections<br />
+      <strong>🖱️ Interactions:</strong> Hover for tooltips, click to select, scroll to zoom, drag to pan, double-click to reset<br />
+      <strong>💡 Events:</strong> Check browser console for event logs
     </div>
   `,
 };
@@ -239,9 +226,9 @@ export const WithShapes: Story = {
 };
 
 /**
- * Selection mode - brush to select multiple points
+ * Brush selection mode - drag to select multiple points
  */
-export const SelectionMode: Story = {
+export const BrushSelection: Story = {
   args: {
     data: generateMediumData(),
     selectedProjectionIndex: 0,
@@ -258,84 +245,14 @@ export const SelectionMode: Story = {
         .selectionMode=${args.selectionMode}
         .useCanvas=${args.useCanvas}
         @brush-selection=${(e: CustomEvent) => {
-          console.log("Selected proteins:", e.detail.proteinIds);
+          console.log('brush-selection:', e.detail);
         }}
       ></protspace-scatterplot>
     </div>
     <div
       style="margin-top: 1rem; padding: 1rem; background: #d1ecf1; border-radius: 4px; border-left: 4px solid #0c5460;"
     >
-      <strong>Selection mode enabled:</strong> Click and drag to select multiple
-      points. Check the Actions panel to see selection events.
-    </div>
-  `,
-};
-
-/**
- * Interactive tooltips - hover to see protein information
- */
-export const InteractiveTooltips: Story = {
-  args: {
-    data: generateMediumData(),
-    selectedProjectionIndex: 0,
-    selectedFeature: "family",
-    useCanvas: true,
-  },
-  render: (args) => html`
-    <div style="width: 800px; height: 600px; border: 1px solid #ccc;">
-      <protspace-scatterplot
-        .data=${args.data}
-        .selectedProjectionIndex=${args.selectedProjectionIndex}
-        .selectedFeature=${args.selectedFeature}
-        .useCanvas=${args.useCanvas}
-        @protein-hover=${(e: CustomEvent) => {
-          if (e.detail.proteinId) {
-            console.log("Hovering:", e.detail.proteinId);
-          }
-        }}
-        @protein-click=${(e: CustomEvent) => {
-          console.log("Clicked:", e.detail.proteinId);
-        }}
-      ></protspace-scatterplot>
-    </div>
-    <div
-      style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px;"
-    >
-      <strong>💡 Try this:</strong> Hover over points to see tooltips. Click
-      points to select them. Check the Actions panel to see hover and click
-      events.
-    </div>
-  `,
-};
-
-/**
- * Zoom and pan - double-click to reset
- */
-export const ZoomAndPan: Story = {
-  args: {
-    data: generateMediumData(),
-    selectedProjectionIndex: 0,
-    selectedFeature: "family",
-    useCanvas: true,
-  },
-  render: (args) => html`
-    <div style="width: 800px; height: 600px; border: 1px solid #ccc;">
-      <protspace-scatterplot
-        .data=${args.data}
-        .selectedProjectionIndex=${args.selectedProjectionIndex}
-        .selectedFeature=${args.selectedFeature}
-        .useCanvas=${args.useCanvas}
-      ></protspace-scatterplot>
-    </div>
-    <div
-      style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px;"
-    >
-      <strong>🖱️ Controls:</strong>
-      <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
-        <li>Scroll to zoom in/out</li>
-        <li>Click and drag to pan</li>
-        <li>Double-click to reset zoom</li>
-      </ul>
+      <strong>Selection mode:</strong> Click and drag to select multiple points. Events logged to console.
     </div>
   `,
 };

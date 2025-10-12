@@ -33,11 +33,11 @@ const meta: Meta = {
     maxVisibleValues: {
       control: { type: "number", min: 3, max: 20 },
       description:
-        "Maximum number of values to show before grouping into 'Other'",
+        "Maximum number of values to display individually. Values below this threshold are grouped into the 'Other' category (configurable, not fixed at 10).",
     },
     includeOthers: {
       control: "boolean",
-      description: "Show 'Other' category for less common values",
+      description: "Show 'Other' category for values below the maxVisibleValues threshold",
     },
     includeShapes: {
       control: "boolean",
@@ -133,9 +133,9 @@ export const MediumDataset: Story = {
 };
 
 /**
- * Interactive legend - click to hide/show
+ * Interactive features - click to toggle, drag to reorder
  */
-export const Interactive: Story = {
+export const InteractiveFeatures: Story = {
   args: {
     data: (() => {
       const data = generateMediumData();
@@ -166,53 +166,6 @@ export const Interactive: Story = {
         @legend-item-click=${(e: CustomEvent) => {
           console.log("Legend item clicked:", e.detail);
         }}
-      ></protspace-legend>
-    </div>
-    <div
-      style="margin-top: 1rem; padding: 1rem; background: #d1ecf1; border-radius: 4px; max-width: 300px; border-left: 4px solid #0c5460;"
-    >
-      <strong>💡 Try this:</strong>
-      <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
-        <li>Click items to hide/show them</li>
-        <li>Double-click to isolate a single item</li>
-        <li>Double-click again to show all</li>
-      </ul>
-      Check the Actions panel to see events!
-    </div>
-  `,
-};
-
-/**
- * Drag and drop reordering
- */
-export const DragAndDrop: Story = {
-  args: {
-    data: (() => {
-      const data = generateMediumData();
-      return { features: data.features };
-    })(),
-    selectedFeature: "family",
-    featureValues: (() => {
-      const data = generateMediumData();
-      return data.protein_ids.map(
-        (_, i) => data.features.family.values[data.feature_data.family[i]],
-      );
-    })(),
-    proteinIds: generateMediumData().protein_ids,
-    autoSync: false,
-    autoHide: false,
-  },
-  render: (args) => html`
-    <div
-      style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;"
-    >
-      <protspace-legend
-        .data=${args.data}
-        .selectedFeature=${args.selectedFeature}
-        .featureValues=${args.featureValues}
-        .proteinIds=${args.proteinIds}
-        .autoSync=${args.autoSync}
-        .autoHide=${args.autoHide}
         @legend-zorder-change=${(e: CustomEvent) => {
           console.log("Z-order changed:", e.detail.zOrderMapping);
         }}
@@ -221,17 +174,21 @@ export const DragAndDrop: Story = {
     <div
       style="margin-top: 1rem; padding: 1rem; background: #d1ecf1; border-radius: 4px; max-width: 300px; border-left: 4px solid #0c5460;"
     >
-      <strong>🎨 Z-order control:</strong><br />
-      Drag items to reorder them. This changes the drawing order in the
-      scatterplot, controlling which points appear on top.
+      <strong>💡 Interactions:</strong>
+      <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+        <li>Click to hide/show items</li>
+        <li>Double-click to isolate</li>
+        <li>Drag to reorder (controls z-order in plot)</li>
+      </ul>
+      Events logged to console.
     </div>
   `,
 };
 
 /**
- * With "Other" category for many features
+ * "Other" category management - grouping and extraction
  */
-export const WithOtherCategory: Story = {
+export const OtherCategoryManagement: Story = {
   args: {
     data: (() => {
       const data = generateManyFeaturesData();
@@ -245,54 +202,7 @@ export const WithOtherCategory: Story = {
       );
     })(),
     proteinIds: generateManyFeaturesData().protein_ids,
-    maxVisibleValues: 10,
-    includeOthers: true,
-    autoSync: false,
-    autoHide: false,
-  },
-  render: (args) => html`
-    <div
-      style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;"
-    >
-      <protspace-legend
-        .data=${args.data}
-        .selectedFeature=${args.selectedFeature}
-        .featureValues=${args.featureValues}
-        .proteinIds=${args.proteinIds}
-        .maxVisibleValues=${args.maxVisibleValues}
-        .includeOthers=${args.includeOthers}
-        .autoSync=${args.autoSync}
-        .autoHide=${args.autoHide}
-      ></protspace-legend>
-    </div>
-    <div
-      style="margin-top: 1rem; padding: 1rem; background: #fff3cd; border-radius: 4px; max-width: 300px; border-left: 4px solid #ffc107;"
-    >
-      <strong>📦 "Other" category:</strong><br />
-      Less common values (below top ${args.maxVisibleValues}) are grouped into
-      an "Other" category. Click "(view)" to extract individual items.
-    </div>
-  `,
-};
-
-/**
- * Extract from Other dialog
- */
-export const ExtractFromOther: Story = {
-  args: {
-    data: (() => {
-      const data = generateManyFeaturesData();
-      return { features: data.features };
-    })(),
-    selectedFeature: "family",
-    featureValues: (() => {
-      const data = generateManyFeaturesData();
-      return data.protein_ids.map(
-        (_, i) => data.features.family.values[data.feature_data.family[i]],
-      );
-    })(),
-    proteinIds: generateManyFeaturesData().protein_ids,
-    maxVisibleValues: 5,
+    maxVisibleValues: 8,
     includeOthers: true,
     autoSync: false,
     autoHide: false,
@@ -318,19 +228,17 @@ export const ExtractFromOther: Story = {
       ></protspace-legend>
     </div>
     <div
-      style="margin-top: 1rem; padding: 1rem; background: #d1ecf1; border-radius: 4px; max-width: 300px; border-left: 4px solid #0c5460;"
+      style="margin-top: 1rem; padding: 1rem; background: #fff3cd; border-radius: 4px; max-width: 300px; border-left: 4px solid #ffc107;"
     >
-      <strong>💡 Try this:</strong><br />
-      Click "(view)" next to "Other" to see all grouped items. Extract
-      interesting values to show them individually in the legend.
+      <strong>📦 "Other" category:</strong> Values below the top ${args.maxVisibleValues} (configurable via <code>maxVisibleValues</code>) are grouped. Click "(view)" to extract individual items.
     </div>
   `,
 };
 
 /**
- * With shapes enabled
+ * Shape options - toggle shapes on/off
  */
-export const WithShapes: Story = {
+export const ShapeOptions: Story = {
   args: {
     data: (() => {
       const data = generateMediumData();
@@ -365,52 +273,7 @@ export const WithShapes: Story = {
     <div
       style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px; max-width: 300px;"
     >
-      <strong>Shapes enabled:</strong> Each value displays with both color and
-      shape (circle, square, triangle, diamond, star)
-    </div>
-  `,
-};
-
-/**
- * Without shapes (color only)
- */
-export const ColorOnly: Story = {
-  args: {
-    data: (() => {
-      const data = generateMediumData();
-      return { features: data.features };
-    })(),
-    selectedFeature: "family",
-    featureValues: (() => {
-      const data = generateMediumData();
-      return data.protein_ids.map(
-        (_, i) => data.features.family.values[data.feature_data.family[i]],
-      );
-    })(),
-    proteinIds: generateMediumData().protein_ids,
-    includeShapes: false,
-    autoSync: false,
-    autoHide: false,
-  },
-  render: (args) => html`
-    <div
-      style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;"
-    >
-      <protspace-legend
-        .data=${args.data}
-        .selectedFeature=${args.selectedFeature}
-        .featureValues=${args.featureValues}
-        .proteinIds=${args.proteinIds}
-        .includeShapes=${args.includeShapes}
-        .autoSync=${args.autoSync}
-        .autoHide=${args.autoHide}
-      ></protspace-legend>
-    </div>
-    <div
-      style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px; max-width: 300px;"
-    >
-      <strong>Color only mode:</strong> All values use circles, differentiated
-      only by color
+      <strong>Shape mode:</strong> Toggle <code>includeShapes</code> to show shapes (circle, square, triangle, diamond, star) or color only
     </div>
   `,
 };
