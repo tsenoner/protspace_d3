@@ -1,7 +1,7 @@
 ---
-"@protspace/react": minor
-"@protspace/utils": minor
-"@protspace/core": minor
+'@protspace/react': minor
+'@protspace/utils': minor
+'@protspace/core': minor
 ---
 
 Setup basic web component structure:

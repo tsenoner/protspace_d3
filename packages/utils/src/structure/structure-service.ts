@@ -2,9 +2,8 @@
  * Service for handling protein structure loading from various sources
  */
 export class StructureService {
-  private static readonly ALPHAFOLD_BASE_URL =
-    "https://alphafold.ebi.ac.uk/files";
-  private static readonly ALPHAFOLD_MODEL_VERSIONS = ["v4", "v3", "v2", "v1"] as const;
+  private static readonly ALPHAFOLD_BASE_URL = 'https://alphafold.ebi.ac.uk/files';
+  private static readonly ALPHAFOLD_MODEL_VERSIONS = ['v4', 'v3', 'v2', 'v1'] as const;
   private static buildAlphaFoldUrl(proteinId: string, version: string) {
     return `${StructureService.ALPHAFOLD_BASE_URL}/AF-${proteinId}-F1-model_${version}.pdb`;
   }
@@ -32,15 +31,13 @@ export class StructureService {
    * @param proteinId - The protein identifier
    * @returns Promise<boolean> indicating availability
    */
-  public static async isAlphaFoldAvailable(
-    proteinId: string
-  ): Promise<boolean> {
+  public static async isAlphaFoldAvailable(proteinId: string): Promise<boolean> {
     const formattedId = this.formatProteinId(proteinId);
     // Probe the latest known version first
     const alphafoldUrl = this.buildAlphaFoldUrl(formattedId, this.ALPHAFOLD_MODEL_VERSIONS[0]);
 
     try {
-      const response = await fetch(alphafoldUrl, { method: "HEAD" });
+      const response = await fetch(alphafoldUrl, { method: 'HEAD' });
       return response.ok;
     } catch {
       return false;
@@ -51,20 +48,24 @@ export class StructureService {
    * Load structure from AlphaFold
    * @private
    */
-  private static async loadFromAlphaFold(url: string, proteinId: string, version: string): Promise<StructureData> {
-    const response = await fetch(url, { method: "HEAD" });
+  private static async loadFromAlphaFold(
+    url: string,
+    proteinId: string,
+    version: string
+  ): Promise<StructureData> {
+    const response = await fetch(url, { method: 'HEAD' });
     if (!response.ok) {
       throw new Error(`AlphaFold structure not available for ${proteinId} (${version})`);
     }
 
     return {
       proteinId,
-      source: "alphafold",
+      source: 'alphafold',
       url,
-      format: "pdb",
+      format: 'pdb',
       metadata: {
-        confidence: "high",
-        method: "predicted",
+        confidence: 'high',
+        method: 'predicted',
         version,
       },
     };
@@ -77,12 +78,18 @@ export class StructureService {
         const url = this.buildAlphaFoldUrl(proteinId, version);
         return await this.loadFromAlphaFold(url, proteinId, version);
       } catch (e) {
-        console.warn("[StructureService] AlphaFold version failed", { proteinId, version, error: e });
+        console.warn('[StructureService] AlphaFold version failed', {
+          proteinId,
+          version,
+          error: e,
+        });
         errors.push(e);
         continue;
       }
     }
-    throw errors[errors.length - 1] ?? new Error(`AlphaFold structure not available for ${proteinId}`);
+    throw (
+      errors[errors.length - 1] ?? new Error(`AlphaFold structure not available for ${proteinId}`)
+    );
   }
 
   /**
@@ -90,7 +97,7 @@ export class StructureService {
    * @private
    */
   private static formatProteinId(proteinId: string): string {
-    return proteinId.split(".")[0];
+    return proteinId.split('.')[0];
   }
 }
 
@@ -99,12 +106,12 @@ export class StructureService {
  */
 export interface StructureData {
   proteinId: string;
-  source: "alphafold";
+  source: 'alphafold';
   url: string | null;
-  format: "pdb" | "cif";
+  format: 'pdb' | 'cif';
   metadata: {
-    confidence: "high" | "medium" | "low" | "experimental";
-    method: "predicted" | "experimental";
+    confidence: 'high' | 'medium' | 'low' | 'experimental';
+    method: 'predicted' | 'experimental';
     version: string;
   };
 }
@@ -114,7 +121,7 @@ export interface StructureData {
  */
 export interface StructureLoadingEvent {
   proteinId: string;
-  status: "loading" | "loaded" | "error";
+  status: 'loading' | 'loaded' | 'error';
   error?: string;
   data?: StructureData;
 }

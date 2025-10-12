@@ -58,7 +58,7 @@ For each web component package:
 To ensure Tailwind CSS styles flow through to the component:
 
 ```typescript
-@customElement("prot-scatter-plot")
+@customElement('prot-scatter-plot')
 export class ProtScatterPlot extends LitElement {
   // Use Light DOM instead of Shadow DOM
   createRenderRoot() {
@@ -74,12 +74,12 @@ export class ProtScatterPlot extends LitElement {
 Define clear property interfaces that match our current React props:
 
 ```typescript
-@customElement("prot-scatter-plot")
+@customElement('prot-scatter-plot')
 export class ProtScatterPlot extends LitElement {
   // Data properties
   @property({ type: Array }) data = [];
   @property({ type: Number }) selectedProjectionIndex = 0;
-  @property({ type: String }) selectedFeature = "";
+  @property({ type: String }) selectedFeature = '';
   @property({ type: Array }) selectedProteinIds = [];
   @property({ type: Array }) highlightedProteinIds = [];
   @property({ type: Array }) hiddenFeatureValues = [];
@@ -101,7 +101,7 @@ export class ProtScatterPlot extends LitElement {
   // Events
   private handleProteinClick(id: string) {
     this.dispatchEvent(
-      new CustomEvent("protein-click", {
+      new CustomEvent('protein-click', {
         detail: { proteinId: id },
         bubbles: true,
       })
@@ -115,12 +115,11 @@ export class ProtScatterPlot extends LitElement {
 Move the D3.js logic from React's useEffect to the web component's lifecycle methods:
 
 ```typescript
-@customElement("prot-scatter-plot")
+@customElement('prot-scatter-plot')
 export class ProtScatterPlot extends LitElement {
   // Properties and setup
 
-  private svg: d3.Selection<SVGSVGElement, unknown, null, undefined> | null =
-    null;
+  private svg: d3.Selection<SVGSVGElement, unknown, null, undefined> | null = null;
   private zoomBehavior: d3.ZoomBehavior<SVGElement, unknown> | null = null;
 
   // Called when the element is first connected to the document
@@ -134,9 +133,9 @@ export class ProtScatterPlot extends LitElement {
     super.updated(changedProperties);
 
     if (
-      changedProperties.has("data") ||
-      changedProperties.has("selectedProjectionIndex") ||
-      changedProperties.has("selectedFeature")
+      changedProperties.has('data') ||
+      changedProperties.has('selectedProjectionIndex') ||
+      changedProperties.has('selectedFeature')
     ) {
       this.updateVisualization();
     }
@@ -144,7 +143,7 @@ export class ProtScatterPlot extends LitElement {
 
   // D3 initialization
   private initializeSvg() {
-    this.svg = d3.select(this.querySelector("svg"));
+    this.svg = d3.select(this.querySelector('svg'));
     // D3 setup code here
   }
 
@@ -243,7 +242,7 @@ Example Tailwind configuration:
 ```js
 // tailwind.config.js for web component packages
 module.exports = {
-  content: ["./src/**/*.{js,ts}"],
+  content: ['./src/**/*.{js,ts}'],
   theme: {
     extend: {
       // Theme extensions

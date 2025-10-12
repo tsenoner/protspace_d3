@@ -7,13 +7,13 @@ export default defineConfig({
     dts({
       insertTypesEntry: true,
       include: ['src/**/*'],
-      exclude: ['src/**/*.test.ts']
-    })
+      exclude: ['src/**/*.test.ts'],
+    }),
   ],
   build: {
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
-      formats: ['es', 'cjs']
+      formats: ['es', 'cjs'],
     },
     rollupOptions: {
       external: ['react', 'react-dom', '@protspace/core'],
@@ -21,9 +21,9 @@ export default defineConfig({
         globals: {
           react: 'React',
           'react-dom': 'ReactDOM',
-          '@protspace/core': 'ProtspaceCore'
-        }
-      }
-    }
-  }
+          '@protspace/core': 'ProtspaceCore',
+        },
+      },
+    },
+  },
 });

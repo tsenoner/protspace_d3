@@ -55,13 +55,13 @@ export interface ScatterplotConfig {
 }
 
 export type PointShape =
-  | "asterisk"
-  | "circle"
-  | "cross"
-  | "diamond"
-  | "plus"
-  | "square"
-  | "star"
-  | "triangle"
-  | "wye"
-  | "times";
+  | 'asterisk'
+  | 'circle'
+  | 'cross'
+  | 'diamond'
+  | 'plus'
+  | 'square'
+  | 'star'
+  | 'triangle'
+  | 'wye'
+  | 'times';

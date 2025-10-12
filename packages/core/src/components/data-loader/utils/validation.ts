@@ -1,5 +1,5 @@
-import type { Rows } from "./types";
-import { sanitizeForMessage } from "@protspace/utils";
+import type { Rows } from './types';
+import { sanitizeForMessage } from '@protspace/utils';
 
 // Parquet magic bytes 'PAR1'
 const PARQUET_MAGIC = new Uint8Array([0x50, 0x41, 0x52, 0x31]);
@@ -14,18 +14,21 @@ const MAX_CELL_STRING_LENGTH_DEFAULT = 1024;
 export function assertValidParquetMagic(buffer: ArrayBuffer): void {
   const u8 = new Uint8Array(buffer);
   if (u8.length < 12) {
-    throw new Error("Invalid Parquet file: too small");
+    throw new Error('Invalid Parquet file: too small');
   }
   const head = u8.subarray(0, 4);
   const tail = u8.subarray(u8.length - 4);
   for (let i = 0; i < 4; i++) {
     if (head[i] !== PARQUET_MAGIC[i] || tail[i] !== PARQUET_MAGIC[i]) {
-      throw new Error("Invalid Parquet file: magic bytes not found");
+      throw new Error('Invalid Parquet file: magic bytes not found');
     }
   }
 }
 
-export function assertWithinFileSizeLimit(sizeBytes: number, maxSizeBytes = MAX_FILE_SIZE_BYTES_DEFAULT): void {
+export function assertWithinFileSizeLimit(
+  sizeBytes: number,
+  maxSizeBytes = MAX_FILE_SIZE_BYTES_DEFAULT
+): void {
   if (sizeBytes > maxSizeBytes) {
     throw new Error(`File too large: ${(sizeBytes / (1024 * 1024)).toFixed(2)}MB exceeds limit`);
   }
@@ -46,21 +49,21 @@ export function validateRowsBasic(
   } = {}
 ): asserts rows is Rows {
   if (!Array.isArray(rows)) {
-    throw new Error("Parsed data is not an array of rows");
+    throw new Error('Parsed data is not an array of rows');
   }
   if (rows.length === 0) {
-    throw new Error("No data rows found in file");
+    throw new Error('No data rows found in file');
   }
   if (rows.length > maxRows) {
     throw new Error(`Too many rows: ${rows.length} exceeds limit`);
   }
   const first = rows[0];
-  if (typeof first !== "object" || first == null) {
-    throw new Error("Rows must be objects");
+  if (typeof first !== 'object' || first == null) {
+    throw new Error('Rows must be objects');
   }
   const columnNames = Object.keys(first as Record<string, unknown>);
   if (columnNames.length === 0) {
-    throw new Error("No columns found in data");
+    throw new Error('No columns found in data');
   }
   if (columnNames.length > maxColumns) {
     throw new Error(`Too many columns: ${columnNames.length} exceeds limit`);
@@ -76,7 +79,7 @@ export function validateRowsBasic(
     for (const key of columnNames) {
       const val = row[key];
       const safeKey = sanitizeForMessage(key);
-      if (typeof val === "string") {
+      if (typeof val === 'string') {
         if (val.length > maxCellStringLength) {
           throw new Error(`Cell string too long in column '${safeKey}'`);
         }
@@ -93,7 +96,7 @@ export function validateMergedBundleRows(rows: Rows): void {
   const columnNames = Object.keys(rows[0]);
   const numericLikeColumns = columnNames.filter((name) => /^[+-]?\d+(?:\.\d+)?$/.test(name));
   if (numericLikeColumns.length > 0) {
-    const sampleList = sanitizeForMessage(numericLikeColumns.slice(0, 5).join(", "));
+    const sampleList = sanitizeForMessage(numericLikeColumns.slice(0, 5).join(', '));
     throw new Error(
       `Invalid bundle: numeric-looking column names detected (${sampleList}). Expected named columns like 'projection_name', 'x', 'y'`
     );
@@ -101,12 +104,12 @@ export function validateMergedBundleRows(rows: Rows): void {
   // Guard: empty column names are not allowed
   for (const name of columnNames) {
     if (name.trim().length === 0) {
-      throw new Error("Invalid bundle: empty column name found");
+      throw new Error('Invalid bundle: empty column name found');
     }
   }
-  const hasX = columnNames.includes("x");
-  const hasY = columnNames.includes("y");
-  const hasProjectionName = columnNames.includes("projection_name");
+  const hasX = columnNames.includes('x');
+  const hasY = columnNames.includes('y');
+  const hasProjectionName = columnNames.includes('projection_name');
   if (!hasX || !hasY || !hasProjectionName) {
     throw new Error("Invalid bundle: expected columns 'projection_name', 'x', 'y'");
   }
@@ -117,9 +120,7 @@ export function validateMergedBundleRows(rows: Rows): void {
     const x = Number((r as any).x);
     const y = Number((r as any).y);
     if (!Number.isFinite(x) || !Number.isFinite(y)) {
-      throw new Error("Invalid coordinates detected in bundle data");
+      throw new Error('Invalid coordinates detected in bundle data');
     }
   }
 }
-
-

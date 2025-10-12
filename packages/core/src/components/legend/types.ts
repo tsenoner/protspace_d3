@@ -48,7 +48,7 @@ export interface ScatterplotElement extends Element {
 export interface LegendItemClickEvent extends CustomEvent {
   detail: {
     value: string | null;
-    action: "toggle" | "isolate" | "extract" | "merge-into-other";
+    action: 'toggle' | 'isolate' | 'extract' | 'merge-into-other';
   };
 }
 

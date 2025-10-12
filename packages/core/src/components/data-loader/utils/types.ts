@@ -1,4 +1,4 @@
-import type { Feature, VisualizationData } from "@protspace/utils";
+import type { Feature, VisualizationData } from '@protspace/utils';
 
 export type GenericRow = Record<string, any>;
 
@@ -19,5 +19,3 @@ export type FeaturesMap = Record<string, Feature>;
 export type FeatureDataMap = Record<string, number[]>;
 
 export type VisualizationDataResult = VisualizationData;
-
-

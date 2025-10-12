@@ -1,5 +1,5 @@
 ---
-"@protspace/core": minor
+'@protspace/core': minor
 ---
 
 Add interactive legend web component

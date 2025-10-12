@@ -1,5 +1,5 @@
-import type { LegendItem, OtherItem, LegendFeatureData } from "./types";
-import { DEFAULT_STYLES } from "./config";
+import type { LegendItem, OtherItem, LegendFeatureData } from './types';
+import { DEFAULT_STYLES } from './config';
 
 /**
  * Utility class for processing legend data and creating legend items
@@ -15,12 +15,7 @@ export class LegendDataProcessor {
   ): Set<number> {
     const filteredIndices = new Set<number>();
 
-    if (
-      isolationMode &&
-      splitHistory &&
-      splitHistory.length > 0 &&
-      proteinIds
-    ) {
+    if (isolationMode && splitHistory && splitHistory.length > 0 && proteinIds) {
       proteinIds.forEach((id, index) => {
         // For the first split, check if the protein is in the first selection
         let isIncluded = splitHistory[0].includes(id);
@@ -146,15 +141,13 @@ export class LegendDataProcessor {
         return b[1] - a[1];
       })
       .slice(0, maxVisibleValues)
-      .filter(([value]) => value !== null && manuallyOtherValues.has(String(value)))
-      .length;
+      .filter(([value]) => value !== null && manuallyOtherValues.has(String(value))).length;
 
     // Reduce effective capacity by the number of manual top items to avoid backfilling
     const effectiveTopCap = Math.max(0, maxVisibleValues - manualCountInOriginalTop);
 
-    const filteredSortedItems = (isolationMode
-      ? sortedItems.filter(([value]) => frequencyMap.has(value))
-      : sortedItems
+    const filteredSortedItems = (
+      isolationMode ? sortedItems.filter(([value]) => frequencyMap.has(value)) : sortedItems
     ).filter(([value]) => {
       // Always allow null; otherwise, if value is manually assigned to Other, exclude from top selection
       if (value === null) return true;
@@ -166,9 +159,7 @@ export class LegendDataProcessor {
 
     // Get items that will go into the "Other" category (excluding null)
     // Build Other array as: everything beyond top cap + all manual-to-Other values, deduped
-    const beyondCap = sortedItems
-      .slice(maxVisibleValues)
-      .filter(([value]) => value !== null);
+    const beyondCap = sortedItems.slice(maxVisibleValues).filter(([value]) => value !== null);
     const manualPairs = sortedItems.filter(
       ([value]) => value !== null && manuallyOtherValues.has(String(value))
     );
@@ -187,10 +178,7 @@ export class LegendDataProcessor {
     }));
 
     // Calculate count for "Other" category
-    const otherCount = otherItemsArray.reduce(
-      (sum, [, count]) => sum + count,
-      0
-    );
+    const otherCount = otherItemsArray.reduce((sum, [, count]) => sum + count, 0);
 
     return { topItems, otherItems, otherCount };
   }
@@ -209,7 +197,7 @@ export class LegendDataProcessor {
     // Create a map of existing z-orders for preservation
     const existingZOrderMap = new Map<string | null, number>();
     existingLegendItems.forEach((item) => {
-      if (item.value !== "Other" || item.extractedFromOther) {
+      if (item.value !== 'Other' || item.extractedFromOther) {
         existingZOrderMap.set(item.value, item.zOrder);
       }
     });
@@ -233,7 +221,10 @@ export class LegendDataProcessor {
         if (Array.isArray(featureData.values)) {
           for (let i = 0; i < featureData.values.length; i++) {
             const v = featureData.values[i];
-            if ((v === null || (typeof v === "string" && v.trim() === "")) && featureData.colors?.[i]) {
+            if (
+              (v === null || (typeof v === 'string' && v.trim() === '')) &&
+              featureData.colors?.[i]
+            ) {
               nullishConfiguredColor = featureData.colors[i];
               break;
             }
@@ -241,9 +232,10 @@ export class LegendDataProcessor {
         }
         itemColor = nullishConfiguredColor || DEFAULT_STYLES.null.color;
       } else {
-        itemColor = valueIndex !== -1
-          ? featureData.colors?.[valueIndex] || DEFAULT_STYLES.null.color
-          : DEFAULT_STYLES.null.color;
+        itemColor =
+          valueIndex !== -1
+            ? featureData.colors?.[valueIndex] || DEFAULT_STYLES.null.color
+            : DEFAULT_STYLES.null.color;
       }
 
       return {
@@ -262,11 +254,11 @@ export class LegendDataProcessor {
     // Add "Other" if needed, enabled, and if we're not in isolation mode
     if (otherCount > 0 && includeOthers && !isolationMode) {
       // Try to preserve existing z-order for "Other", otherwise use next available
-      const existingOtherItem = existingLegendItems.find(item => item.value === "Other");
+      const existingOtherItem = existingLegendItems.find((item) => item.value === 'Other');
       const otherZOrder = existingOtherItem ? existingOtherItem.zOrder : items.length;
 
       items.push({
-        value: "Other",
+        value: 'Other',
         color: DEFAULT_STYLES.other.color,
         shape: DEFAULT_STYLES.other.shape,
         count: otherCount,
@@ -289,16 +281,14 @@ export class LegendDataProcessor {
     existingLegendItems: LegendItem[] = []
   ): void {
     // Find null entry
-    const nullEntry = Array.from(frequencyMap.entries()).find(
-      ([value]) => value === null
-    );
+    const nullEntry = Array.from(frequencyMap.entries()).find(([value]) => value === null);
 
     // Add null if not already included in top items
     if (nullEntry && !topItems.some(([value]) => value === null)) {
       const valueIndex = featureData.values.findIndex((v) => v === null);
 
       // Try to preserve existing z-order for null entry
-      const existingNullItem = existingLegendItems.find(item => item.value === null);
+      const existingNullItem = existingLegendItems.find((item) => item.value === null);
       const nullZOrder = existingNullItem ? existingNullItem.zOrder : items.length;
 
       // Use the same logic as scatter plot for finding configured null colors
@@ -306,7 +296,10 @@ export class LegendDataProcessor {
       if (Array.isArray(featureData.values)) {
         for (let i = 0; i < featureData.values.length; i++) {
           const v = featureData.values[i];
-          if ((v === null || (typeof v === "string" && v.trim() === "")) && featureData.colors?.[i]) {
+          if (
+            (v === null || (typeof v === 'string' && v.trim() === '')) &&
+            featureData.colors?.[i]
+          ) {
             nullishConfiguredColor = featureData.colors[i];
             break;
           }
@@ -336,9 +329,7 @@ export class LegendDataProcessor {
     existingLegendItems: LegendItem[]
   ): void {
     // Get previously extracted items
-    const extractedItems = existingLegendItems.filter(
-      (item) => item.extractedFromOther
-    );
+    const extractedItems = existingLegendItems.filter((item) => item.extractedFromOther);
 
     // Add extracted items, but only if they exist in the current data
     const itemsToAdd: LegendItem[] = [];
@@ -350,12 +341,8 @@ export class LegendDataProcessor {
         frequencyMap.has(extractedItem.value)
       ) {
         // Find the original frequency of this item
-        const sortedItems = Array.from(frequencyMap.entries()).sort(
-          (a, b) => b[1] - a[1]
-        );
-        const itemFrequency = sortedItems.find(
-          ([value]) => value === extractedItem.value
-        );
+        const sortedItems = Array.from(frequencyMap.entries()).sort((a, b) => b[1] - a[1]);
+        const itemFrequency = sortedItems.find(([value]) => value === extractedItem.value);
 
         if (itemFrequency) {
           itemsToAdd.push({
@@ -391,11 +378,7 @@ export class LegendDataProcessor {
   } {
     const manualOtherSet = new Set<string>(manuallyOtherValues);
     // Get filtered indices based on split history
-    const filteredIndices = this.getFilteredIndices(
-      isolationMode,
-      splitHistory,
-      proteinIds
-    );
+    const filteredIndices = this.getFilteredIndices(isolationMode, splitHistory, proteinIds);
 
     // Count frequencies with filtering
     const frequencyMap = this.countFeatureFrequencies(
@@ -406,9 +389,7 @@ export class LegendDataProcessor {
     );
 
     // Determine effective cap. When Others is disabled, show all categories
-    const effectiveMaxVisibleValues = includeOthers
-      ? maxVisibleValues
-      : Number.MAX_SAFE_INTEGER;
+    const effectiveMaxVisibleValues = includeOthers ? maxVisibleValues : Number.MAX_SAFE_INTEGER;
 
     // Sort and limit items
     const { topItems, otherItems, otherCount } = this.sortAndLimitItems(
@@ -438,9 +419,7 @@ export class LegendDataProcessor {
     if (includeOthers && !isolationMode) {
       // Build a set of values already shown individually (exclude null and the synthetic "Other")
       const individuallyShownValues = new Set(
-        items
-          .map((i) => i.value)
-          .filter((v): v is string => v !== null && v !== "Other")
+        items.map((i) => i.value).filter((v): v is string => v !== null && v !== 'Other')
       );
 
       // Filter Other dialog items by removing already extracted/visible ones
@@ -449,13 +428,10 @@ export class LegendDataProcessor {
         .filter((oi) => !individuallyShownValues.has(oi.value!));
 
       // Recompute Other count
-      const newOtherCount = filteredOtherItems.reduce(
-        (sum, oi) => sum + oi.count,
-        0
-      );
+      const newOtherCount = filteredOtherItems.reduce((sum, oi) => sum + oi.count, 0);
 
       // Update the "Other" legend item count or remove it if empty
-      const otherIndex = items.findIndex((i) => i.value === "Other");
+      const otherIndex = items.findIndex((i) => i.value === 'Other');
       if (otherIndex !== -1) {
         if (newOtherCount > 0) {
           items[otherIndex] = { ...items[otherIndex], count: newOtherCount };
