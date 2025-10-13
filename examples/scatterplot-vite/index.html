@@ -55,6 +55,7 @@
       width: 100%;
       overflow-y: scroll;
       scrollbar-width: none;
+      border-radius: 6px;
     }
 
     protspace-scatterplot {
@@ -68,21 +69,7 @@
 
 
 
-
-    protspace-structure-viewer .close-button {
-      background: #ef4444 !important;
-      color: white !important;
-      border: 1px solid #dc2626 !important;
-      border-radius: 0.25rem !important;
-      padding: 0.25rem 0.5rem !important;
-      font-size: 1rem !important;
-      cursor: pointer !important;
-      transition: background-color 0.2s !important;
-    }
-
-    protspace-structure-viewer .close-button:hover {
-      background: #dc2626 !important;
-    }
+    protspace-structure-viewer {}
 
     protspace-control-bar {
       display: block;
@@ -120,10 +107,20 @@
       margin-bottom: 0.5rem;
     }
 
-    @media (max-width: 1024px) {
+    @media (max-width: 1050px) {
+
+      .visualization-container {
+        grid-template-rows: calc(100vh - 126px);
+      }
+    }
+
+
+    @media (max-width: 950px) {
+
       .visualization-container {
         grid-template-columns: 1fr;
-        grid-template-rows: calc(24rem) 35rem;
+        grid-template-rows: 24rem calc(100vh - 20px);
+
       }
 
       .right-panel {
@@ -135,12 +132,27 @@
         height: calc(100%);
       }
 
-      protspace-structure-viewer {
+      protspace-structure-viewer {}
 
-        height: max-content;
-
+      .container {
+        padding: 10px 20px;
       }
 
+
+
+    }
+
+
+
+    @media (max-width: 550px) {
+      .right-panel {
+        flex-direction: column;
+      }
+
+      .visualization-container {
+        grid-template-columns: 1fr;
+        grid-template-rows: min-content calc(100vh - 20px);
+      }
     }
   </style>
 
