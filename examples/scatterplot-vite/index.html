@@ -143,6 +143,7 @@
 
     }
   </style>
+
 </head>
 
 <body>
@@ -161,7 +162,10 @@
 
   <div class="container">
     <!-- Data Loader -->
-    <protspace-data-loader id="myDataLoader" allow-drop="true"></protspace-data-loader>
+
+
+
+    <protspace-data-loader id="myDataLoader"></protspace-data-loader>
 
     <!-- Control Bar -->
     <protspace-control-bar id="myControlBar" selected-projection="UMAP" selected-feature="family" selection-mode="false"
@@ -183,6 +187,20 @@
     </div>
   </div>
   </div>
+
+  <script>
+
+    function handleFileDrop(e) {
+      const file = e.detail.file;
+      const loader = document.getElementById('myDataLoader');
+      if (file && loader) {
+        loader.loadFromFile(file);
+      }
+    }
+
+    const scatterplot = document.getElementById('myPlot');
+    scatterplot.addEventListener('file-dropped', handleFileDrop);
+  </script>
 
   <script type="module" src="/src/main.ts"></script>
 </body>
