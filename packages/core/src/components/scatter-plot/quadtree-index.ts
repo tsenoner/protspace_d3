@@ -39,12 +39,7 @@ export class QuadtreeIndex {
    * The rectangle is specified in the same coordinate system used to build the quadtree
    * (in this component we index screen coordinates via scales.x/.y).
    */
-  queryRectangle(
-    x0: number,
-    y0: number,
-    x1: number,
-    y1: number
-  ): PlotDataPoint[] {
+  queryRectangle(x0: number, y0: number, x1: number, y1: number): PlotDataPoint[] {
     const results: PlotDataPoint[] = [];
     if (!this.qt) return results;
     const minX = Math.min(x0, x1);

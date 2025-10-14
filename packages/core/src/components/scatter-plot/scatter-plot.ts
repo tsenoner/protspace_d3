@@ -879,13 +879,22 @@ export class ProtspaceScatterplot extends LitElement {
     return html`
       <div class="container">
         <!-- Base canvas for high-performance rendering -->
-        <canvas class="base-canvas" style="position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1;"></canvas>
+        <canvas
+          class="base-canvas"
+          style="position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1;"
+        ></canvas>
 
         <!-- Overlay canvas for selection highlights -->
-        <canvas class="overlay-canvas" style="position: absolute; top: 0; left: 0; pointer-events: none; z-index: 2;"></canvas>
+        <canvas
+          class="overlay-canvas"
+          style="position: absolute; top: 0; left: 0; pointer-events: none; z-index: 2;"
+        ></canvas>
 
         <!-- Lightweight hover highlight canvas (redrawn frequently) -->
-        <canvas class="hover-canvas" style="position: absolute; top: 0; left: 0; pointer-events: none; z-index: 3;"></canvas>
+        <canvas
+          class="hover-canvas"
+          style="position: absolute; top: 0; left: 0; pointer-events: none; z-index: 3;"
+        ></canvas>
 
         <!-- SVG overlay for interactions and UI elements -->
         <svg
