@@ -85,11 +85,11 @@ export const Interactive: Story = {
     plot.selectionMode = args.selectionMode;
 
     // Attach event listeners to capture events in Actions panel
-    plot.addEventListener('protein-hover', fn());
-    plot.addEventListener('protein-click', fn());
+    plot.addEventListener('protein-hover', (e) => {console.log(e)});
+    plot.addEventListener('protein-click', (e) => {console.log(e)});
 
     plotContainer.appendChild(plot);
-
+ 
     const info = document.createElement('div');
     info.style.cssText = 'padding: 1rem; background: #f0f0f0; border-radius: 4px;';
     info.innerHTML = `
@@ -259,7 +259,7 @@ export const BrushSelection: Story = {
     plot.useCanvas = args.useCanvas;
 
     // Attach event listener to capture events in Actions panel
-    plot.addEventListener('brush-selection', fn());
+    plot.addEventListener('brush-selection', (e) => {console.log(e)});
 
     plotContainer.appendChild(plot);
 
