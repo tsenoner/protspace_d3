@@ -5,16 +5,14 @@
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { html } from "lit";
-import "./scatter-plot/scatter-plot";
-import "./legend/legend";
+import "@protspace/core";
 import {
-  MINIMAL_DATA,
   generateMediumData,
   generateLargeData,
   generateManyFeaturesData,
   generateDataWithNulls,
   generateOverlappingData,
-} from "../stories/mock-data";
+} from "./mock-data";
 
 const meta: Meta = {
   title: "Integration/Scatterplot + Legend",

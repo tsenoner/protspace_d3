@@ -5,13 +5,10 @@
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { html } from "lit";
-import "./control-bar/control-bar";
-import "./legend/legend";
-import "./scatter-plot/scatter-plot";
-import "./data-loader/data-loader";
+import "@protspace/core";
 import {
   generateMediumData,
-} from "../stories/mock-data";
+} from "./mock-data";
 
 const meta: Meta = {
   title: "Styling/Component Showcase",

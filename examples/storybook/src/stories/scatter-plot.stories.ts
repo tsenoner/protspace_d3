@@ -5,12 +5,14 @@
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { html } from "lit";
-import "./scatter-plot";
+import { fn } from 'storybook/test';
+
+import "@protspace/core";
 import {
   generateMediumData,
   generateLargeData,
   generateDataWithNulls,
-} from "../../stories/mock-data";
+} from "./mock-data";
 
 const meta: Meta = {
   title: "Components/Scatterplot",
@@ -68,32 +70,39 @@ export const Interactive: Story = {
     useCanvas: true,
     selectionMode: false,
   },
-  render: (args) => html`
-    <div style="width: 800px; height: 600px; border: 1px solid #ccc;">
-      <protspace-scatterplot
-        .data=${args.data}
-        .selectedProjectionIndex=${args.selectedProjectionIndex}
-        .selectedFeature=${args.selectedFeature}
-        .useCanvas=${args.useCanvas}
-        .selectionMode=${args.selectionMode}
-        @protein-hover=${(e: CustomEvent) => {
-          if (e.detail.proteinId) {
-            console.log('protein-hover:', e.detail.proteinId);
-          }
-        }}
-        @protein-click=${(e: CustomEvent) => {
-          console.log('protein-click:', e.detail.proteinId);
-        }}
-      ></protspace-scatterplot>
-    </div>
-    <div
-      style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px;"
-    >
+  render: (args) => {
+    const container = document.createElement('div');
+    container.style.cssText = 'display: flex; flex-direction: column; gap: 1rem;';
+
+    const plotContainer = document.createElement('div');
+    plotContainer.style.cssText = 'width: 800px; height: 600px; border: 1px solid #ccc;';
+
+    const plot = document.createElement('protspace-scatterplot');
+    plot.data = args.data;
+    plot.selectedProjectionIndex = args.selectedProjectionIndex;
+    plot.selectedFeature = args.selectedFeature;
+    plot.useCanvas = args.useCanvas;
+    plot.selectionMode = args.selectionMode;
+
+    // Attach event listeners to capture events in Actions panel
+    plot.addEventListener('protein-hover', fn());
+    plot.addEventListener('protein-click', fn());
+
+    plotContainer.appendChild(plot);
+
+    const info = document.createElement('div');
+    info.style.cssText = 'padding: 1rem; background: #f0f0f0; border-radius: 4px;';
+    info.innerHTML = `
       <strong>📊 Dataset:</strong> ${args.data.protein_ids.length} proteins, ${args.data.projections.length} projections<br />
       <strong>🖱️ Interactions:</strong> Hover for tooltips, click to select, scroll to zoom, drag to pan, double-click to reset<br />
-      <strong>💡 Events:</strong> Check browser console for event logs
-    </div>
-  `,
+      <strong>💡 Events:</strong> Check Actions panel below for event logs
+    `;
+
+    container.appendChild(plotContainer);
+    container.appendChild(info);
+
+    return container;
+  },
 };
 
 /**
@@ -137,7 +146,7 @@ export const MultipleProjections: Story = {
   render: (args) => html`
     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
       ${args.data.projections.map(
-        (proj, idx) => html`
+        (proj: any, idx: number) => html`
             <div style="width: 100%; height: 100%; border: 1px solid #ccc; position: relative;">
               <h3 style="text-align: center; position: relative; z-index: 1;">
                 ${proj.name}
@@ -235,25 +244,34 @@ export const BrushSelection: Story = {
     selectionMode: true,
     useCanvas: true,
   },
-  render: (args) => html`
-    <div style="width: 800px; height: 600px; border: 1px solid #ccc;">
-      <protspace-scatterplot
-        .data=${args.data}
-        .selectedProjectionIndex=${args.selectedProjectionIndex}
-        .selectedFeature=${args.selectedFeature}
-        .selectionMode=${args.selectionMode}
-        .useCanvas=${args.useCanvas}
-        @brush-selection=${(e: CustomEvent) => {
-          console.log('brush-selection:', e.detail);
-        }}
-      ></protspace-scatterplot>
-    </div>
-    <div
-      style="margin-top: 1rem; padding: 1rem; background: #d1ecf1; border-radius: 4px; border-left: 4px solid #0c5460;"
-    >
-      <strong>Selection mode:</strong> Click and drag to select multiple points. Events logged to console.
-    </div>
-  `,
+  render: (args) => {
+    const container = document.createElement('div');
+    container.style.cssText = 'display: flex; flex-direction: column; gap: 1rem;';
+
+    const plotContainer = document.createElement('div');
+    plotContainer.style.cssText = 'width: 800px; height: 600px; border: 1px solid #ccc;';
+
+    const plot = document.createElement('protspace-scatterplot');
+    plot.data = args.data;
+    plot.selectedProjectionIndex = args.selectedProjectionIndex;
+    plot.selectedFeature = args.selectedFeature;
+    plot.selectionMode = args.selectionMode;
+    plot.useCanvas = args.useCanvas;
+
+    // Attach event listener to capture events in Actions panel
+    plot.addEventListener('brush-selection', fn());
+
+    plotContainer.appendChild(plot);
+
+    const info = document.createElement('div');
+    info.style.cssText = 'padding: 1rem; background: #d1ecf1; border-radius: 4px; border-left: 4px solid #0c5460;';
+    info.innerHTML = '<strong>Selection mode:</strong> Click and drag to select multiple points. Selected protein IDs will appear in the Actions panel below.';
+
+    container.appendChild(plotContainer);
+    container.appendChild(info);
+
+    return container;
+  },
 };
 
 /**

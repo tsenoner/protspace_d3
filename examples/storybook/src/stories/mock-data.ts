@@ -266,8 +266,6 @@ export function generateLargeData(): VisualizationData {
  * Data with many feature values to test "Other" category
  */
 export function generateManyFeaturesData(): VisualizationData {
-  const proteinCount = 200;
-
   // Generate 20 different families (to test "Other" bucket)
   const families = Array.from({ length: 20 }, (_, i) => `Family_${i + 1}`);
   const colors = Array.from(

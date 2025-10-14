@@ -5,13 +5,13 @@
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { html } from "lit";
-import "./legend";
+import "@protspace/core";
 import {
   MINIMAL_DATA,
   generateMediumData,
   generateManyFeaturesData,
   generateDataWithNulls,
-} from "../../stories/mock-data";
+} from "./mock-data";
 
 const meta: Meta = {
   title: "Components/Legend",

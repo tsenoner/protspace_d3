@@ -15,11 +15,16 @@ const config: StorybookConfig = {
     "../src/**/*.stories.@(js|jsx|mjs|ts|tsx)"
   ],
   "addons": [
+    getAbsolutePath('@storybook/addon-essentials'),
     getAbsolutePath('@chromatic-com/storybook')
   ],
   "framework": {
     "name": getAbsolutePath('@storybook/web-components-vite'),
     "options": {}
+  },
+  viteFinal: async (config) => {
+    // No aliases needed - let Storybook handle internal resolution
+    return config;
   }
 };
 export default config;
