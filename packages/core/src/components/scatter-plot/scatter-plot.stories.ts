@@ -168,11 +168,11 @@ export const MultipleProjections: Story = {
  */
 export const FeatureComparison: Story = {
   args: {
-    data: generateLargeData(),
+    data: generateMediumData(),
     selectedProjectionIndex: 0,
   },
   render: (args) => html`
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
       ${Object.keys(args.data.features).map(
         (feature) => html`
           <div>
