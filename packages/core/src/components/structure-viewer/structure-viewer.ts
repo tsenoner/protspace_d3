@@ -171,21 +171,34 @@ export class ProtspaceStructureViewer extends LitElement {
     } catch (error) {
       console.error('[StructureViewer] Structure loading error:', error);
       const formattedId = this.proteinId?.split('.')[0] ?? this.proteinId ?? '';
-      const genericMessage = `No 3D structure was found for ${formattedId}.`;
-      const fallbackMessage = 'Failed to load structure. Please try again.';
+      const noStructureMessage = `No 3D structure was found for ${formattedId}.`;
+      const networkErrorMessage = 'Failed to load structure. Please try again.';
+      const formatErrorMessage = 'Structure format not supported.';
+
       if (error instanceof Error) {
-        // Map low-level errors to a user-friendly message
         const message = error.message.toLowerCase();
-        if (
-          message.includes('failed to load structure from both alphafold and pdb') ||
-          message.includes('alphafold structure not available')
+
+        if (message.includes('structure not available')) {
+          // API succeeded but no structures found for this protein
+          this._error = noStructureMessage;
+        } else if (message.includes('coordinate format not recognized')) {
+          // Format detection failed
+          this._error = formatErrorMessage;
+        } else if (message.includes('3d-beacons request failed: 404')) {
+          // 404 typically means protein not found in 3D-Beacons database
+          this._error = noStructureMessage;
+        } else if (
+          message.includes('3d-beacons request failed') ||
+          message.includes('3dbeacons request failed')
         ) {
-          this._error = genericMessage;
+          // Other network/API failures (500, timeout, connection issues, etc.)
+          this._error = networkErrorMessage;
         } else {
-          this._error = fallbackMessage;
+          // Other unexpected errors
+          this._error = networkErrorMessage;
         }
       } else {
-        this._error = fallbackMessage;
+        this._error = networkErrorMessage;
       }
       this._isLoading = false;
       this._dispatchStructureEvent('error', this._error);
@@ -198,19 +211,10 @@ export class ProtspaceStructureViewer extends LitElement {
     if (!this._viewer) {
       throw new Error('Viewer not initialized');
     }
-
-    // Load structure based on source
-    switch (structureData.source) {
-      case 'alphafold':
-        if (structureData.url) {
-          await this._viewer.loadStructureFromUrl(structureData.url, structureData.format);
-        } else {
-          throw new Error('AlphaFold structure URL not available');
-        }
-        break;
-      default:
-        throw new Error(`Unsupported structure source: ${structureData.source}`);
+    if (!structureData.url) {
+      throw new Error('Structure URL not available');
     }
+    await this._viewer.loadStructureFromUrl(structureData.url, structureData.format);
   }
 
   private _cleanup() {
