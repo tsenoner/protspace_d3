@@ -17,7 +17,7 @@
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "turbo build && changeset publish",
-    "build-storybook": "turbo run --filter storybook storybook build"
+    "build-storybook": "turbo run --filter storybook build"
   },
   "keywords": [],
   "author": "",
