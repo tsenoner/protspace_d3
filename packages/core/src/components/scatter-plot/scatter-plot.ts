@@ -9,8 +9,6 @@ import { createStyleGetters } from './style-getters';
 import { CanvasRenderer } from './canvas-renderer';
 import { QuadtreeIndex } from './quadtree-index';
 
-// Default configuration moved to config.ts
-
 /**
  * High-performance canvas-based scatterplot component for up to 100k points.
  * Uses canvas for rendering and SVG overlay for interactions.
@@ -47,7 +45,9 @@ export class ProtspaceScatterplot extends LitElement {
   @state() private _splitMode = false;
 
   // Queries
-  @query('canvas') private _canvas?: HTMLCanvasElement;
+  @query('canvas.base-canvas') private _canvas?: HTMLCanvasElement;
+  @query('canvas.overlay-canvas') private _overlayCanvas?: HTMLCanvasElement;
+  @query('canvas.hover-canvas') private _hoverCanvas?: HTMLCanvasElement;
   @query('svg') private _svg!: SVGSVGElement;
 
   // Internal
@@ -57,7 +57,6 @@ export class ProtspaceScatterplot extends LitElement {
   private _svgSelection: d3.Selection<SVGSVGElement, unknown, null, undefined> | null = null;
   private _mainGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
   private _brushGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
-  private _overlayGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
   private _brush: d3.BrushBehavior<unknown> | null = null;
   private _canvasRenderer: CanvasRenderer | null = null;
   private _zoomRafId: number | null = null;
@@ -66,6 +65,9 @@ export class ProtspaceScatterplot extends LitElement {
   private _styleGettersCache: ReturnType<typeof createStyleGetters> | null = null;
   private _quadtreeRebuildRafId: number | null = null;
   private _selectionRerenderTimeout: number | null = null;
+  private _idToPoint: Map<string, PlotDataPoint> = new Map();
+  private _lastHoverId: string | null = null;
+  private _lastHoverTs: number = 0;
 
   // Computed properties
   private get _scales() {
@@ -153,20 +155,15 @@ export class ProtspaceScatterplot extends LitElement {
       }
     }
     // Ensure selection/highlight changes immediately reflect in canvas styles
-    if (
-      changedProperties.has('selectedProteinIds') ||
-      changedProperties.has('highlightedProteinIds')
-    ) {
-      // Fast path: draw selection overlay immediately without full rerender
-      this._updateSelectionOverlays();
+    if (changedProperties.has('selectedProteinIds')) {
+      // Only redraw selection overlay when selection changes (can be thousands of points)
+      this._selectionOverlays();
       this._scheduleDeferredSelectionRerender();
-    }
-    // Ensure selection/highlight changes immediately reflect in canvas styles
-    if (
-      changedProperties.has('selectedProteinIds') ||
-      changedProperties.has('highlightedProteinIds')
-    ) {
       this._canvasRenderer?.invalidateStyleCache();
+    }
+    if (changedProperties.has('highlightedProteinIds')) {
+      // Lightweight redraw for hover highlights; avoid heavy selection redraw
+      this._highlightOverlay();
     }
     if (changedProperties.has('selectionMode')) {
       this._updateSelectionMode();
@@ -178,13 +175,13 @@ export class ProtspaceScatterplot extends LitElement {
       changedProperties.has('hiddenFeatureValues') ||
       changedProperties.has('otherFeatureValues') ||
       changedProperties.has('selectedProteinIds') ||
-      changedProperties.has('highlightedProteinIds') ||
       changedProperties.has('config') ||
       changedProperties.has('useShapes')
     ) {
       this._styleGettersCache = createStyleGetters(this.data, {
         selectedProteinIds: this.selectedProteinIds,
-        highlightedProteinIds: this.highlightedProteinIds,
+        // Do not pipe hover highlights into base style to avoid heavy redraws
+        highlightedProteinIds: [],
         selectedFeature: this.selectedFeature,
         hiddenFeatureValues: this.hiddenFeatureValues,
         otherFeatureValues: this.otherFeatureValues,
@@ -201,14 +198,14 @@ export class ProtspaceScatterplot extends LitElement {
         },
       });
     }
-    // Avoid full rerender if only selection/highlight changed; overlay handles immediate feedback
-    const selectionKeys = ['selectedProteinIds', 'highlightedProteinIds'];
+    // Avoid full rerender if only overlays/tooltip changed; overlays handle immediate feedback
+    const overlayOnlyKeys = ['selectedProteinIds', 'highlightedProteinIds', '_tooltipData'];
     const changedKeys = Array.from(changedProperties.keys());
-    const onlySelectionChanged =
-      changedKeys.length > 0 && changedKeys.every((k) => selectionKeys.includes(k));
-    if (!onlySelectionChanged) {
+    const onlyOverlayChanged =
+      changedKeys.length > 0 && changedKeys.every((k) => overlayOnlyKeys.includes(k));
+    if (!onlyOverlayChanged) {
       this._renderPlot();
-      this._updateSelectionOverlays();
+      this._selectionOverlays();
     }
   }
 
@@ -247,6 +244,9 @@ export class ProtspaceScatterplot extends LitElement {
       this._splitHistory,
       this.projectionPlane
     );
+    // Rebuild id -> point mapping for fast lookup
+    this._idToPoint.clear();
+    for (const p of this._plotData) this._idToPoint.set(p.id, p);
   }
 
   private _buildQuadtree() {
@@ -280,9 +280,6 @@ export class ProtspaceScatterplot extends LitElement {
     // Create brush group
     this._brushGroup = this._svgSelection.append('g').attr('class', 'brush-container');
 
-    // Create overlay group (above brush) for transient drawings like selections
-    this._overlayGroup = this._svgSelection.append('g').attr('class', 'overlay-container');
-
     this._zoom = d3
       .zoom<SVGSVGElement, unknown>()
       .scaleExtent(this._mergedConfig.zoomExtent)
@@ -294,9 +291,6 @@ export class ProtspaceScatterplot extends LitElement {
         if (this._brushGroup) {
           this._brushGroup.attr('transform', event.transform);
         }
-        if (this._overlayGroup) {
-          this._overlayGroup.attr('transform', event.transform);
-        }
         // Smooth canvas rendering during zoom using requestAnimationFrame
         if (this.useCanvas && this._canvas) {
           if (this._zoomRafId !== null) {
@@ -305,7 +299,7 @@ export class ProtspaceScatterplot extends LitElement {
           this._zoomRafId = requestAnimationFrame(() => {
             this._zoomRafId = null;
             this._renderCanvas();
-            this._updateSelectionOverlays();
+            this._selectionOverlays();
           });
         }
       });
@@ -346,6 +340,14 @@ export class ProtspaceScatterplot extends LitElement {
       this._canvasRenderer.invalidatePositionCache();
     }
 
+    // Setup overlay canvas for selection rendering
+    if (this._overlayCanvas) {
+      this._setupOverlayCanvas(width, height);
+    }
+    if (this._hoverCanvas) {
+      this._setupOverlayCanvas(width, height);
+    }
+
     if (this._svg) {
       this._svg.setAttribute('width', width.toString());
       this._svg.setAttribute('height', height.toString());
@@ -355,10 +357,8 @@ export class ProtspaceScatterplot extends LitElement {
     // Scales depend on width/height; rebuild spatial index to keep hit-testing accurate after resize
     this._scheduleQuadtreeRebuild();
     this._renderPlot();
-    this._updateSelectionOverlays();
+    this._selectionOverlays();
   }
-
-  // HiDPI setup and quality moved to CanvasRenderer
 
   private _updateSelectionMode() {
     if (!this._svgSelection || !this._brushGroup || !this._scales) return;
@@ -401,17 +401,8 @@ export class ProtspaceScatterplot extends LitElement {
     if (!event.selection || !this._scales) return;
 
     const [[x0, y0], [x1, y1]] = event.selection as [[number, number], [number, number]];
-    const selectedIds: string[] = [];
-
-    this._plotData.forEach((d) => {
-      if (this._getOpacity(d) === 0) return;
-      const pointX = this._scales!.x(d.x);
-      const pointY = this._scales!.y(d.y);
-
-      if (pointX >= x0 && pointX <= x1 && pointY >= y0 && pointY <= y1) {
-        selectedIds.push(d.id);
-      }
-    });
+    const selectedPoints = this._quadtreeIndex.queryRectangle(x0, y0, x1, y1);
+    const selectedIds: string[] = selectedPoints.map((p) => p.id);
 
     if (selectedIds.length > 0) {
       // Batch the updates for better performance
@@ -521,39 +512,117 @@ export class ProtspaceScatterplot extends LitElement {
   }
 
   /**
-   * Draw selection overlays on the SVG layer to avoid full canvas rerenders on selection changes.
+   * Draw selection overlays using a dedicated canvas to avoid DOM churn.
    */
-  private _updateSelectionOverlays() {
-    if (!this._overlayGroup || !this._scales) return;
+  private _selectionOverlays() {
+    if (!this._scales) return;
+    this._drawSelectionOverlayOnCanvas();
+  }
 
-    const selectedSet = new Set(this.selectedProteinIds || []);
-    const selectedPoints = this._plotData.filter((p) => selectedSet.has(p.id));
+  private _setupOverlayCanvas(width: number, height: number) {
+    const dpr = window.devicePixelRatio || 1;
+    const canvases: HTMLCanvasElement[] = [];
+    if (this._overlayCanvas) canvases.push(this._overlayCanvas);
+    if (this._hoverCanvas) canvases.push(this._hoverCanvas);
+    for (const c of canvases) {
+      c.width = width * dpr;
+      c.height = height * dpr;
+      c.style.width = `${width}px`;
+      c.style.height = `${height}px`;
+      const ctx = c.getContext('2d');
+      if (ctx) {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+      }
+    }
+  }
 
-    const k = this._transform.k || 1;
+  private _drawSelectionOverlayOnCanvas() {
+    if (!this._overlayCanvas || !this._scales) return;
+    const ctx = this._overlayCanvas.getContext('2d');
+    if (!ctx) return;
+
+    // Clear full canvas (already scaled for HiDPI in setup)
+    ctx.clearRect(0, 0, this._overlayCanvas.width, this._overlayCanvas.height);
+
+    const selectedIds = this.selectedProteinIds || [];
+    if (!selectedIds.length) return;
+
+    const transform = this._transform;
+    ctx.save();
+    ctx.translate(transform.x, transform.y);
+    ctx.scale(transform.k, transform.k);
+
+    // Visual parameters
+    const k = transform.k || 1;
     const exp = this._mergedConfig.zoomSizeScaleExponent ?? 1;
     const baseRadius = Math.sqrt(this._mergedConfig.selectedPointSize) / 3;
     const r = Math.max(1, baseRadius / Math.pow(k, exp));
-    const strokeW = 2 / k;
 
-    const sel = this._overlayGroup
-      .selectAll<SVGCircleElement, any>('.selected-overlay')
-      .data(selectedPoints, (d: any) => d.id);
+    // Resolve selection color (fallback to hex if CSS var missing)
+    const selColor = this._resolveCssColor('--protspace-selection-color', '#FF5500');
+    ctx.globalAlpha = 0.2; // soft fill highlight
+    ctx.fillStyle = selColor;
 
-    sel
-      .enter()
-      .append('circle')
-      .attr('class', 'selected-overlay')
-      .attr('fill', 'none')
-      .attr('pointer-events', 'none')
-      .merge(sel as any)
-      .attr('cx', (d: any) => this._scales!.x(d.x))
-      .attr('cy', (d: any) => this._scales!.y(d.y))
-      .attr('r', r)
-      .attr('stroke', '#000')
-      .attr('stroke-width', strokeW)
-      .attr('opacity', 0.95);
+    ctx.beginPath();
+    for (let i = 0; i < selectedIds.length; i++) {
+      const id = selectedIds[i];
+      const p = this._idToPoint.get(id);
+      if (!p) continue;
+      const sx = this._scales.x(p.x);
+      const sy = this._scales.y(p.y);
+      ctx.moveTo(sx + r, sy);
+      ctx.arc(sx, sy, r, 0, 2 * Math.PI);
+    }
+    ctx.fill();
+    ctx.restore();
+  }
 
-    sel.exit().remove();
+  private _highlightOverlay() {
+    if (!this._hoverCanvas || !this._scales) return;
+    const ctx = this._hoverCanvas.getContext('2d');
+    if (!ctx) return;
+    // Clear
+    ctx.clearRect(0, 0, this._hoverCanvas.width, this._hoverCanvas.height);
+
+    // Only draw small outline(s) for highlighted points
+    const ids = this.highlightedProteinIds || [];
+    if (!ids.length) return;
+    const transform = this._transform;
+    ctx.save();
+    ctx.translate(transform.x, transform.y);
+    ctx.scale(transform.k, transform.k);
+
+    const k = transform.k || 1;
+    const exp = this._mergedConfig.zoomSizeScaleExponent ?? 1;
+    const baseRadius = Math.sqrt(this._mergedConfig.highlightedPointSize) / 3;
+    const r = Math.max(1, baseRadius / Math.pow(k, exp));
+
+    const hiColor = this._resolveCssColor('--protspace-highlight-color', '#00A3E0');
+    ctx.globalAlpha = 0.25; // soft fill for hover
+    ctx.fillStyle = hiColor;
+
+    ctx.beginPath();
+    const maxToDraw = Math.min(ids.length, 2000); // cap to avoid worst-case jank
+    for (let i = 0; i < maxToDraw; i++) {
+      const p = this._idToPoint.get(ids[i]);
+      if (!p) continue;
+      const sx = this._scales.x(p.x);
+      const sy = this._scales.y(p.y);
+      ctx.moveTo(sx + r, sy);
+      ctx.arc(sx, sy, r, 0, 2 * Math.PI);
+    }
+    ctx.fill();
+    ctx.restore();
+  }
+
+  private _resolveCssColor(varName: string, fallback: string): string {
+    const value = getComputedStyle(this).getPropertyValue(varName).trim();
+    return value || fallback;
   }
 
   private _scheduleDeferredSelectionRerender() {
@@ -565,7 +634,7 @@ export class ProtspaceScatterplot extends LitElement {
       this._selectionRerenderTimeout = null;
       this._canvasRenderer?.invalidateStyleCache();
       this._renderPlot();
-      this._updateSelectionOverlays();
+      this._selectionOverlays();
     }, 200);
   }
 
@@ -641,6 +710,13 @@ export class ProtspaceScatterplot extends LitElement {
   }
 
   private _handleMouseOver(event: MouseEvent, point: PlotDataPoint) {
+    // Throttle duplicate/too-frequent hover events to reduce churn
+    const now = performance.now();
+    if (this._lastHoverId === point.id && now - this._lastHoverTs < 16) {
+      return;
+    }
+    this._lastHoverId = point.id;
+    this._lastHoverTs = now;
     const { x, y } = this._getLocalPointerPosition(event);
     this._tooltipData = { x, y, protein: point };
 
@@ -802,16 +878,21 @@ export class ProtspaceScatterplot extends LitElement {
 
     return html`
       <div class="container">
-        <!-- Canvas for high-performance rendering (always visible for better performance) -->
-        <canvas style="position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1;">
-        </canvas>
+        <!-- Base canvas for high-performance rendering -->
+        <canvas class="base-canvas" style="position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1;"></canvas>
+
+        <!-- Overlay canvas for selection highlights -->
+        <canvas class="overlay-canvas" style="position: absolute; top: 0; left: 0; pointer-events: none; z-index: 2;"></canvas>
+
+        <!-- Lightweight hover highlight canvas (redrawn frequently) -->
+        <canvas class="hover-canvas" style="position: absolute; top: 0; left: 0; pointer-events: none; z-index: 3;"></canvas>
 
         <!-- SVG overlay for interactions and UI elements -->
         <svg
           width="100%"
           height="100%"
           viewBox="0 0 ${config.width} ${config.height}"
-          style="position: absolute; top: 0; left: 0; max-width: ${config.width}px; max-height: ${config.height}px; z-index: 2; background: transparent;"
+          style="position: absolute; top: 0; left: 0; max-width: ${config.width}px; max-height: ${config.height}px; z-index: 4; background: transparent;"
         ></svg>
 
         ${this._tooltipData

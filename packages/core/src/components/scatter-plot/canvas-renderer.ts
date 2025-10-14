@@ -44,6 +44,11 @@ export class CanvasRenderer {
   private styleSignature: string | null = null;
   private zOrderMapping: Record<string, number> = {};
   private selectedFeature: string = '';
+  // Cached per-point immutable attributes for hover-time reuse
+  private cachedColor: string[] | null = null;
+  private cachedStrokeColor: string[] | null = null;
+  private cachedStrokeWidth: Float32Array | null = null;
+  private cachedBasePointSize: Float32Array | null = null;
   private groupsCache: Array<{
     isCircle: boolean;
     path?: Path2D;
@@ -97,6 +102,10 @@ export class CanvasRenderer {
 
   invalidateStyleCache() {
     this.groupsCache = null;
+    this.cachedColor = null;
+    this.cachedStrokeColor = null;
+    this.cachedStrokeWidth = null;
+    this.cachedBasePointSize = null;
   }
 
   invalidatePositionCache() {
@@ -162,6 +171,29 @@ export class CanvasRenderer {
       this.cachedPointsRef = pointsData;
     }
 
+    // Cache per-point style attributes used across frames (color, stroke, base size)
+    const needPerPointStyleCache =
+      !this.cachedColor ||
+      !this.cachedStrokeColor ||
+      !this.cachedStrokeWidth ||
+      !this.cachedBasePointSize ||
+      this.cachedLen !== pointsData.length ||
+      this.cachedPointsRef !== pointsData ||
+      this.styleSignature !== this.styleSignature; // placeholder to trigger when style sig changes
+    if (needPerPointStyleCache) {
+      this.cachedColor = new Array(pointsData.length);
+      this.cachedStrokeColor = new Array(pointsData.length);
+      this.cachedStrokeWidth = new Float32Array(pointsData.length);
+      this.cachedBasePointSize = new Float32Array(pointsData.length);
+      for (let i = 0; i < pointsData.length; i++) {
+        const point = pointsData[i];
+        this.cachedColor[i] = this.style.getColor(point);
+        this.cachedStrokeColor[i] = this.style.getStrokeColor(point);
+        this.cachedStrokeWidth[i] = this.style.getStrokeWidth(point);
+        this.cachedBasePointSize[i] = Math.sqrt(this.style.getPointSize(point)) / 3;
+      }
+    }
+
     // Build or reuse style groups cache
     if (!this.groupsCache) {
       // Batch points by style and shape, store indices
@@ -170,10 +202,10 @@ export class CanvasRenderer {
         const point = pointsData[i];
         const opacity = this.style.getOpacity(point);
         if (opacity === 0) continue;
-        const color = this.style.getColor(point);
-        const size = Math.sqrt(this.style.getPointSize(point)) / 3;
-        const strokeColor = this.style.getStrokeColor(point);
-        const strokeWidth = this.style.getStrokeWidth(point);
+        const color = this.cachedColor![i];
+        const size = this.cachedBasePointSize![i];
+        const strokeColor = this.cachedStrokeColor![i];
+        const strokeWidth = this.cachedStrokeWidth![i];
         const shape = this.style.getShape(point);
         const isCircle = shape === d3.symbolCircle;
         const area = Math.pow(size * 3, 2);
