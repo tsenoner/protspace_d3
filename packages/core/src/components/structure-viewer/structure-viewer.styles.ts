@@ -34,6 +34,20 @@ export const structureViewerStyles = css`
     border-bottom: 1px solid var(--protspace-viewer-border);
   }
 
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .ext-buttons {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.25rem;
+    margin-right: 0.25rem;
+  }
+
   .title {
     font-size: 1rem;
     font-weight: 500;
@@ -57,6 +71,34 @@ export const structureViewerStyles = css`
     line-height: 1;
     border-radius: 0.25rem;
     transition: color 0.2s;
+  }
+
+  .ext-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: 1px solid var(--protspace-viewer-border);
+    color: var(--protspace-viewer-text);
+    cursor: pointer;
+    padding: 0.18rem 0.45rem;
+    font-size: 0.65rem;
+    line-height: 1;
+    border-radius: 0.4rem;
+    transition:
+      background 0.2s,
+      color 0.2s,
+      border-color 0.2s;
+  }
+
+  .ext-button:hover {
+    background: rgba(0, 0, 0, 0.04);
+    color: var(--protspace-viewer-text);
+    border-color: #cfd8e3;
+  }
+
+  .icon {
+    display: none;
   }
 
   .close-button:hover {
