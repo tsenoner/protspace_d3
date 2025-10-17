@@ -95,7 +95,7 @@ export class ProtspaceStructureViewer extends LitElement {
     if (!modifierKeys.ctrl && !modifierKeys.shift && this.autoShow) {
       // Show structure viewer and load protein
       this.proteinId = proteinId;
-      this.style.display = 'block';
+      this.style.display = 'flex';
     }
   }
 
