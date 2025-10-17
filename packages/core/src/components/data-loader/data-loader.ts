@@ -128,16 +128,16 @@ export class DataLoader extends LitElement {
   // }
 
   render() {
-  return html`
-    <input
-      type="file"
-      class="hidden-input"
-      accept=".parquet,.parquetbundle"
-      @change=${this.handleFileSelect}
-      style="display:none"
-    />
-  `;
-}
+    return html`
+      <input
+        type="file"
+        class="hidden-input"
+        accept=".parquet,.parquetbundle"
+        @change=${this.handleFileSelect}
+        style="display:none"
+      />
+    `;
+  }
 
   private renderDataIcon() {
     return html`

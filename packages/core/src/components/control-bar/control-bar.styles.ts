@@ -29,12 +29,11 @@ export const controlBarStyles = css`
   }
 
   @media (max-width: 1050px) {
-
-      .control-bar {
-        row-gap: 0.9rem;
-        flex-direction: column-reverse;
-      }
-}      
+    .control-bar {
+      row-gap: 0.9rem;
+      flex-direction: column-reverse;
+    }
+  }
 
   .left-controls {
     display: flex;
@@ -452,39 +451,48 @@ export const controlBarStyles = css`
     justify-content: center;
     background-color: #fff;
   }
+  .right-controls-data {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    column-gap: 5px;
+    padding: 0.3rem 0.45rem 0.3rem 0.9rem;
+    border: 1px solid var(--up-border);
+    border-radius: 5px;
+    outline: unset;
+    outline-color: #8c3c3c94;
+    background-color: rgb(239, 239, 239);
+    box-shadow: inset -1px -1px 3px 0px #d8d8d8;
+    transition: 0.3s;
+  }
 
   /* Responsive layout: stack controls on small screens */
   @media (max-width: 680px) {
     .control-bar {
       flex-direction: column-reverse;
     }
-      .right-controls-select{
-        order: 6;
-      }
+    .right-controls-select {
+      order: 6;
+    }
 
-      .right-controls-clear{
-      
-        order:  5;
-      }
-      .right-controls-split{
-      
-        order: 4;
-      }
-      .right-controls-filter{
-      
-        order: 3 ;
-      }
+    .right-controls-clear {
+      order: 5;
+    }
+    .right-controls-split {
+      order: 4;
+    }
+    .right-controls-filter {
+      order: 3;
+    }
 
-      .right-controls-export{
-      
-        order: 2;
-      }
+    .right-controls-export {
+      order: 2;
+    }
 
-      .right-controls-data{
-        order: 1;
-        
-      }
-
+    .right-controls-data {
+      order: 1;
+      display: flex;
+    }
 
     .left-controls,
     .right-controls {
@@ -494,8 +502,6 @@ export const controlBarStyles = css`
 
     .control-group {
     }
-
-  
   }
 
   /* Dark mode support */

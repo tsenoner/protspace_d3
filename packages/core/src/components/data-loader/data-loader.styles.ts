@@ -4,6 +4,4 @@ export const dataLoaderStyles = css`
   :host {
     display: none;
   }
-
- 
 `;

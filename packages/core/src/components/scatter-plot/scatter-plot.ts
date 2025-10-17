@@ -84,10 +84,10 @@ export class ProtspaceScatterplot extends LitElement {
 
     // Listen for legend z-order changes
     this.addEventListener('legend-zorder-change', this._handleLegendZOrderChange.bind(this));
-      this.addEventListener('dragover', this.handleDragOver);
-  this.addEventListener('dragenter', this.handleDragEnter);
-  this.addEventListener('dragleave', this.handleDragLeave);
-  this.addEventListener('drop', this.handleDrop);
+    this.addEventListener('dragover', this.handleDragOver);
+    this.addEventListener('dragenter', this.handleDragEnter);
+    this.addEventListener('dragleave', this.handleDragLeave);
+    this.addEventListener('drop', this.handleDrop);
   }
 
   disconnectedCallback() {
@@ -98,42 +98,42 @@ export class ProtspaceScatterplot extends LitElement {
     }
 
     super.disconnectedCallback();
-     this.removeEventListener('dragover', this.handleDragOver);
-  this.removeEventListener('dragenter', this.handleDragEnter);
-  this.removeEventListener('dragleave', this.handleDragLeave);
-  this.removeEventListener('drop', this.handleDrop);
+    this.removeEventListener('dragover', this.handleDragOver);
+    this.removeEventListener('dragenter', this.handleDragEnter);
+    this.removeEventListener('dragleave', this.handleDragLeave);
+    this.removeEventListener('drop', this.handleDrop);
   }
 
-private handleDragOver = (e: DragEvent) => {
-  e.preventDefault();
-  e.dataTransfer!.dropEffect = 'copy';
-  this.setAttribute('dragging', '');
-};
+  private handleDragOver = (e: DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer!.dropEffect = 'copy';
+    this.setAttribute('dragging', '');
+  };
 
-private handleDragEnter = (e: DragEvent) => {
-  e.preventDefault();
-  this.setAttribute('dragging', '');
-};
+  private handleDragEnter = (e: DragEvent) => {
+    e.preventDefault();
+    this.setAttribute('dragging', '');
+  };
 
-private handleDragLeave = (e: DragEvent) => {
-  e.preventDefault();
-  this.removeAttribute('dragging');
-};
+  private handleDragLeave = (e: DragEvent) => {
+    e.preventDefault();
+    this.removeAttribute('dragging');
+  };
 
-private handleDrop = (e: DragEvent) => {
-  e.preventDefault();
-  this.removeAttribute('dragging');
-  const files = e.dataTransfer?.files;
-  if (files && files.length > 0) {
-    this.dispatchEvent(
-      new CustomEvent('file-dropped', {
-        detail: { file: files[0] },
-        bubbles: true,
-        composed: true,
-      })
-    );
-  }
-};
+  private handleDrop = (e: DragEvent) => {
+    e.preventDefault();
+    this.removeAttribute('dragging');
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      this.dispatchEvent(
+        new CustomEvent('file-dropped', {
+          detail: { file: files[0] },
+          bubbles: true,
+          composed: true,
+        })
+      );
+    }
+  };
 
   private _handleLegendZOrderChange(event: Event) {
     const customEvent = event as CustomEvent;

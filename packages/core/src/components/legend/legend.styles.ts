@@ -30,7 +30,7 @@ export const legendStyles = css`
     user-select: none;
     flex-direction: column;
     width: 100%;
-    
+
     border: 1px solid var(--legend-border);
     background: var(--legend-bg);
     border-radius: var(--legend-border-radius);
@@ -43,15 +43,10 @@ export const legendStyles = css`
   }
 
   @media (max-width: 950px) {
-
-      :host{
-        max-width: unset;
-
-      }
-
-
-
+    :host {
+      max-width: unset;
     }
+  }
 
   .legend-container {
     display: flex;

@@ -3,7 +3,6 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { controlBarStyles } from './control-bar.styles';
 import type { DataChangeDetail, ProtspaceData, ScatterplotElementLike } from './types';
 
-
 @customElement('protspace-control-bar')
 export class ProtspaceControlBar extends LitElement {
   @property({ type: Array }) projections: string[] = [];
@@ -206,9 +205,9 @@ export class ProtspaceControlBar extends LitElement {
   }
 
   private openFileDialog() {
-  const loader = document.querySelector('protspace-data-loader') as any;
-  loader?.shadowRoot?.querySelector('input[type="file"]')?.click();
- }
+    const loader = document.querySelector('protspace-data-loader') as any;
+    loader?.shadowRoot?.querySelector('input[type="file"]')?.click();
+  }
 
   render() {
     return html`
@@ -267,10 +266,10 @@ export class ProtspaceControlBar extends LitElement {
         <div class="right-controls">
           <!-- Selection mode toggle -->
 
-          
-         
           <button
-            class=${this.selectionMode ? 'right-controls-button right-controls-select active' : 'right-controls-select right-controls-button'}
+            class=${this.selectionMode
+              ? 'right-controls-button right-controls-select active'
+              : 'right-controls-select right-controls-button'}
             ?disabled=${this._selectionDisabled}
             @click=${this.handleToggleSelectionMode}
             title=${this._selectionDisabled
@@ -326,7 +325,6 @@ export class ProtspaceControlBar extends LitElement {
             </svg>
             Split
           </button>
-          
 
           <!-- Reset split button -->
           ${this.splitMode
@@ -534,10 +532,16 @@ export class ProtspaceControlBar extends LitElement {
                   </div>
                 `
               : ''}
-              </div>
-              <button class="right-controls-data right-controls-button" @click=${this.openFileDialog}>
-            📂 Load Data
-              </button>
+          </div>
+          <button
+            class="right-controls-data right-controls-button right-controls-export"
+            @click=${this.openFileDialog}
+          >
+            Import
+            <svg class="chevron-down" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
         </div>
       </div>
     `;

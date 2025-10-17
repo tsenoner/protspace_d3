@@ -15,7 +15,7 @@ export const structureViewerStyles = css`
 
     flex-direction: column;
     width: 100%;
-   
+
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     box-sizing: border-box;
     position: relative;
@@ -23,27 +23,21 @@ export const structureViewerStyles = css`
     border: 1px solid var(--protspace-viewer-border);
     flex-shrink: 0;
     flex-grow: 0;
-    min-height: 16rem;
-     border-radius: 6px;
+    min-height: 52%;
+    border-radius: 6px;
   }
 
-
- @media (max-width: 950px) {
-
-      :host{
-        width: calc(50% - 6px);
-        
-      }
+  @media (max-width: 950px) {
+    :host {
+      width: calc(50% - 6px);
     }
-      
+  }
+
   @media (max-width: 550px) {
-
-      :host{
-        width: 100%;
-        
-      }
+    :host {
+      width: 100%;
     }
-
+  }
 
   .header {
     display: flex;
@@ -52,7 +46,7 @@ export const structureViewerStyles = css`
     padding: 0.4rem 0.4rem 0.4rem 1.2rem;
     background: var(--protspace-viewer-header-bg);
     border-bottom: 1px solid var(--protspace-viewer-border);
-     border-radius:6px 6px 0 0;
+    border-radius: 6px 6px 0 0;
   }
 
   .title {
@@ -88,7 +82,7 @@ export const structureViewerStyles = css`
   .viewer-container {
     position: relative;
     width: 100%;
-    height: var(--protspace-viewer-height);
+    height: 100%;
     background: var(--protspace-viewer-bg);
     border-radius: 0 0 6px 6px;
   }
@@ -129,7 +123,7 @@ export const structureViewerStyles = css`
     background: var(--protspace-viewer-bg);
     z-index: 10;
     padding: 2rem;
-    border-radius: 0 0 6px 6px ;
+    border-radius: 0 0 6px 6px;
     text-align: center;
   }
 
@@ -166,22 +160,20 @@ export const structureViewerStyles = css`
   .viewer-content {
     width: 100%;
     height: 100%;
-    border-radius: 0 0 6px 6px ;
-
+    border-radius: 0 0 6px 6px;
   }
 
   .tips {
     display: flex;
     align-items: flex-start;
     justify-content: center;
-    padding: 0.2rem .5rem;
+    padding: 0.2rem 0.5rem;
     background: #f6f8fb;
     column-gap: 5px;
     border-top: 1px solid var(--protspace-viewer-border);
     font-size: 0.75rem;
     color: var(--protspace-viewer-text-muted);
-    border-radius: 0 0 6px 6px ;
-
+    border-radius: 0 0 6px 6px;
   }
 
   .tips strong {
