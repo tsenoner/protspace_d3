@@ -6,7 +6,7 @@
   "scripts": {
     "build": "turbo build",
     "dev": "turbo run --filter @protspace/example-scatterplot dev",
-    "storybook": "turbo run --filter storybook storybook dev -p 6006",
+    "storybook": "turbo run --filter storybook storybook",
     "test": "turbo test",
     "lint": "turbo lint",
     "lint:fix": "turbo lint -- --fix",
