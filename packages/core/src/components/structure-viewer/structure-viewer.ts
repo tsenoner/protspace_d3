@@ -227,6 +227,15 @@ export class ProtspaceStructureViewer extends LitElement {
       this._viewerContainer.innerHTML = '';
     }
 
+    // Clean up blob URL to prevent memory leaks
+    if (this._structureData?.url && this._structureData.url.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(this._structureData.url);
+      } catch (error) {
+        console.warn('[StructureViewer] Error revoking blob URL:', error);
+      }
+    }
+
     this._structureData = null;
   }
 
