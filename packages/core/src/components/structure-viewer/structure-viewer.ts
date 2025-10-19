@@ -268,28 +268,6 @@ export class ProtspaceStructureViewer extends LitElement {
     this.close(); // Use internal close method
   }
 
-  private _openExternal(url: string) {
-    try {
-      window.open(url, '_blank', 'noopener,noreferrer');
-    } catch (e) {
-      console.warn('[StructureViewer] Failed to open external link:', e);
-    }
-  }
-
-  private _openUniProt() {
-    if (!this.proteinId) return;
-    const acc = this.proteinId.split('.')[0];
-    const url = `https://www.uniprot.org/uniprotkb/${encodeURIComponent(acc)}/entry`;
-    this._openExternal(url);
-  }
-
-  private _openAlphaFold() {
-    if (!this.proteinId) return;
-    const acc = this.proteinId.split('.')[0];
-    const url = `https://alphafold.ebi.ac.uk/entry/${encodeURIComponent(acc)}`;
-    this._openExternal(url);
-  }
-
   render() {
     if (!this.proteinId) {
       return html`
@@ -310,22 +288,30 @@ export class ProtspaceStructureViewer extends LitElement {
         ? html`
             <div class="header">
               <div>
-                <span class="title">${this.title}</span>
-                <span class="protein-id">${this.proteinId}</span>
+                <a
+                  class="title"
+                  href=${`https://alphafold.ebi.ac.uk/entry/${encodeURIComponent(
+                    this.proteinId.split('.')[0]
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Open in AlphaFold DB"
+                >
+                  ${this.title}
+                </a>
+                <a
+                  class="protein-id"
+                  href=${`https://www.uniprot.org/uniprotkb/${encodeURIComponent(
+                    this.proteinId.split('.')[0]
+                  )}/entry`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Open in UniProt"
+                >
+                  ${this.proteinId}
+                </a>
               </div>
               <div class="header-actions">
-                <div class="ext-buttons">
-                  <button class="ext-button" @click=${this._openUniProt} title="Open in UniProt">
-                    UniProt
-                  </button>
-                  <button
-                    class="ext-button"
-                    @click=${this._openAlphaFold}
-                    title="Open in AlphaFold DB"
-                  >
-                    AlphaFold
-                  </button>
-                </div>
                 ${this.showCloseButton
                   ? html` <button class="close-button" @click=${this._handleClose}>✕</button> `
                   : ''}
