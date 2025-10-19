@@ -34,17 +34,48 @@ export const structureViewerStyles = css`
     border-bottom: 1px solid var(--protspace-viewer-border);
   }
 
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
   .title {
     font-size: 1rem;
     font-weight: 500;
     color: var(--protspace-viewer-text);
     margin: 0;
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+      color 0.2s,
+      text-decoration-color 0.2s;
   }
 
   .protein-id {
     font-size: 0.875rem;
     color: var(--protspace-viewer-text-muted);
     margin-left: 0.5rem;
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+      color 0.2s,
+      text-decoration-color 0.2s;
+  }
+
+  .title:hover,
+  .title:focus-visible,
+  .protein-id:hover,
+  .protein-id:focus-visible {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .title:focus-visible,
+  .protein-id:focus-visible {
+    outline: 2px solid var(--protspace-viewer-loading);
+    outline-offset: 2px;
+    border-radius: 2px;
   }
 
   .close-button {

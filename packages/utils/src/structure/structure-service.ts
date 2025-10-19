@@ -2,14 +2,6 @@
  * AlphaFold API response interface
  */
 interface AlphaFoldPrediction {
-  entryId: string;
-  gene: string;
-  uniprotAccession: string;
-  uniprotId: string;
-  uniprotDescription: string;
-  taxId: number;
-  organismScientificName: string;
-  uniprotSequence: string;
   bcifUrl?: string;
   cifUrl?: string;
   pdbUrl?: string;
@@ -21,6 +13,9 @@ interface AlphaFoldPrediction {
  */
 export class StructureService {
   private static readonly ALPHAFOLD_API_URL = 'https://www.alphafold.ebi.ac.uk/api/prediction';
+  private static readonly THREE_D_BEACONS_SUMMARY_URL =
+    'https://www.ebi.ac.uk/pdbe/pdbe-kb/3dbeacons/api/uniprot/summary';
+  private static readonly alphaFoldModelPageCache: Map<string, string | null> = new Map();
 
   /**
    * Load protein structure from available sources
@@ -113,17 +108,54 @@ export class StructureService {
    * @returns Promise<boolean> indicating availability
    */
   public static async isAlphaFoldAvailable(proteinId: string): Promise<boolean> {
+    const url = await this.getAlphaFoldModelPageUrl(proteinId);
+    return url !== null;
+  }
+
+  /**
+   * Get AlphaFold model page URL via 3D Beacons summary
+   * @param proteinId - UniProt accession (e.g., P04637)
+   * @param signal - optional AbortSignal for cancellation
+   */
+  public static async getAlphaFoldModelPageUrl(
+    proteinId: string,
+    signal?: AbortSignal
+  ): Promise<string | null> {
     const formattedId = this.formatProteinId(proteinId);
-    const apiUrl = `${this.ALPHAFOLD_API_URL}/${formattedId}`;
+
+    if (this.alphaFoldModelPageCache.has(formattedId)) {
+      return this.alphaFoldModelPageCache.get(formattedId) ?? null;
+    }
+
+    const endpoint = `${this.THREE_D_BEACONS_SUMMARY_URL}/${encodeURIComponent(formattedId)}.json`;
 
     try {
-      const response = await fetch(apiUrl);
-      if (!response.ok) return false;
+      const res = await fetch(endpoint, { signal, headers: { Accept: 'application/json' } });
+      if (!res.ok) {
+        this.alphaFoldModelPageCache.set(formattedId, null);
+        return null;
+      }
 
-      const predictions: AlphaFoldPrediction[] = await response.json();
-      return predictions && predictions.length > 0;
+      const data = await res.json();
+      const root = Array.isArray(data) ? data[0] : data;
+      const structures: any[] = root?.structures ?? [];
+
+      let modelPageUrl: string | null = null;
+      for (let i = 0; i < structures.length; i++) {
+        const summary = structures[i]?.summary;
+        if (!summary) continue;
+        const provider = summary?.provider?.name ?? summary?.provider;
+        if (provider === 'AlphaFold DB') {
+          modelPageUrl = summary?.model_page_url ?? null;
+          break;
+        }
+      }
+
+      this.alphaFoldModelPageCache.set(formattedId, modelPageUrl);
+      return modelPageUrl;
     } catch {
-      return false;
+      this.alphaFoldModelPageCache.set(formattedId, null);
+      return null;
     }
   }
 
