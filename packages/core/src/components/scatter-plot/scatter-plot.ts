@@ -157,6 +157,9 @@ export class ProtspaceScatterplot extends LitElement {
       this._scheduleQuadtreeRebuild();
       this._canvasRenderer?.invalidatePositionCache();
       this._canvasRenderer?.invalidateStyleCache();
+      if (changedProperties.has('data')) {
+        this.resetZoom();
+      }
 
       // Dispatch data-change event for auto-sync with control bar and other components
       if (changedProperties.has('data') && this.data) {
