@@ -127,6 +127,7 @@ export const LegendStyling: Story = {
               .proteinIds=${data.protein_ids}
               .autoSync=${false}
               .autoHide=${false}
+              height=300
             ></protspace-legend>
           </div>
 
@@ -159,18 +160,6 @@ export const LegendStyling: Story = {
             ></protspace-legend>
           </div>
 
-          <!-- Compact Version -->
-          <div>
-            <h3 style="margin: 0 0 1rem 0; color: #555;">Compact Version</h3>
-            <protspace-legend
-              .data=${{ features: data.features }}
-              .selectedFeature=${"family"}
-              .featureValues=${featureValues.slice(0, 3)}
-              .proteinIds=${data.protein_ids.slice(0, 50)}
-              .autoSync=${false}
-              .autoHide=${false}
-            ></protspace-legend>
-          </div>
 
         </div>
 
@@ -182,7 +171,6 @@ export const LegendStyling: Story = {
             <li>Drag-and-drop visual feedback with scale and border effects</li>
             <li>Modal dialogs for "Others" category management</li>
             <li>Responsive design that works on all screen sizes</li>
-            <li>Dark mode support with appropriate color adjustments</li>
           </ul>
         </div>
       </div>
