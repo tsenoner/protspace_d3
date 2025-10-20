@@ -92,7 +92,6 @@ export const Interactive: Story = {
     const info = document.createElement('div');
     info.style.cssText = 'padding: 1rem; background: #f0f0f0; border-radius: 4px;';
     info.innerHTML = `
-      <strong>📊 Dataset:</strong> ${args.data.protein_ids.length} proteins, ${args.data.projections.length} projections<br />
       <strong>🖱️ Interactions:</strong> Hover for tooltips, click to select, scroll to zoom, drag to pan, double-click to reset<br />
       <strong>💡 Events:</strong> Check Actions panel below for event logs
     `;
