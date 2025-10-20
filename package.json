@@ -6,6 +6,7 @@
   "scripts": {
     "build": "turbo build",
     "dev": "turbo run --filter @protspace/example-scatterplot dev",
+    "storybook": "turbo run --filter storybook storybook",
     "test": "turbo test",
     "lint": "turbo lint",
     "lint:fix": "turbo lint -- --fix",
@@ -15,19 +16,20 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,css,scss,md,json,yml,yaml,mjs,cjs}\"",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "turbo build && changeset publish"
+    "release": "turbo build && changeset publish",
+    "build-storybook": "turbo run --filter storybook build"
   },
   "keywords": [],
   "author": "",
   "devDependencies": {
-    "@changesets/cli": "^2.29.4",
-    "@eslint/eslintrc": "^3.3.0",
+    "@changesets/cli": "^2.29.7",
     "@types/three": "^0.179.0",
-    "@typescript-eslint/eslint-plugin": "^8.46.0",
-    "@typescript-eslint/parser": "^8.46.0",
+    "@typescript-eslint/eslint-plugin": "^8.46.1",
+    "@typescript-eslint/parser": "^8.46.1",
     "esbuild": "^0.25.10",
     "eslint": "^9.33.0",
     "eslint-config-prettier": "^10.1.8",
+    "lit": "^3.3.1",
     "prettier": "^3.6.2",
     "turbo": "^2.5.3"
   }
