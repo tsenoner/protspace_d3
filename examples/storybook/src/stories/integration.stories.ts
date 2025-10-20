@@ -43,7 +43,6 @@ export const BasicIntegration: Story = {
 
     return html`
       <div style="padding: 2rem; background: #f5f5f5; min-height: 100vh;">
-        <h2 style="margin: 0 0 1rem 0;">Scatterplot with Legend</h2>
         <div
           style="display: grid; grid-template-columns: 1fr 320px; gap: 1rem; align-items: start;"
         >
@@ -96,7 +95,6 @@ export const ClickToHide: Story = {
 
     return html`
       <div style="padding: 2rem; background: #f5f5f5; min-height: 100vh;">
-        <h2 style="margin: 0 0 1rem 0;">Interactive Hide/Show</h2>
         <div
           style="display: grid; grid-template-columns: 1fr 320px; gap: 1rem; align-items: start;"
         >
@@ -160,9 +158,6 @@ export const DragToReorder: Story = {
 
     return html`
       <div style="padding: 2rem; background: #f5f5f5; min-height: 100vh;">
-        <h2 style="margin: 0 0 1rem 0;">
-          Z-Order Control with Overlapping Points
-        </h2>
         <div
           style="display: grid; grid-template-columns: 1fr 320px; gap: 1rem; align-items: start;"
         >
@@ -233,7 +228,6 @@ export const OtherCategoryIntegration: Story = {
 
     return html`
       <div style="padding: 2rem; background: #f5f5f5; min-height: 100vh;">
-        <h2 style="margin: 0 0 1rem 0;">"Other" Category Management</h2>
         <div
           style="display: grid; grid-template-columns: 1fr 320px; gap: 1rem; align-items: start;"
         >
@@ -293,7 +287,6 @@ export const WithShapes: Story = {
 
     return html`
       <div style="padding: 2rem; background: #f5f5f5; min-height: 100vh;">
-        <h2 style="margin: 0 0 1rem 0;">Shapes for Better Differentiation</h2>
         <div
           style="display: grid; grid-template-columns: 1fr 320px; gap: 1rem; align-items: start;"
         >
@@ -371,7 +364,6 @@ export const FeatureSwitching: Story = {
 
     return html`
       <div style="padding: 2rem; background: #f5f5f5; min-height: 100vh;">
-        <h2 style="margin: 0 0 1rem 0;">Feature Switching</h2>
 
         <div
           style="margin-bottom: 1rem; padding: 1rem; background: white; border: 1px solid #ccc; border-radius: 8px;"
@@ -447,7 +439,6 @@ export const WithNullValues: Story = {
 
     return html`
       <div style="padding: 2rem; background: #f5f5f5; min-height: 100vh;">
-        <h2 style="margin: 0 0 1rem 0;">Null/Missing Value Handling</h2>
         <div
           style="display: grid; grid-template-columns: 1fr 320px; gap: 1rem; align-items: start;"
         >
@@ -501,7 +492,6 @@ export const LargeDatasetIntegration: Story = {
 
     return html`
       <div style="padding: 2rem; background: #f5f5f5; min-height: 100vh;">
-        <h2 style="margin: 0 0 1rem 0;">Large Dataset (100k proteins)</h2>
         <div
           style="display: grid; grid-template-columns: 1fr 320px; gap: 1rem; align-items: start;"
         >
@@ -555,7 +545,6 @@ export const CompleteWorkflow: Story = {
 
     return html`
       <div style="padding: 2rem; background: #f5f5f5; min-height: 100vh;">
-        <h2 style="margin: 0 0 0.5rem 0;">Complete Interactive Workflow</h2>
         <p style="margin: 0 0 1rem 0; color: #666;">
           Full-featured example showing all interactions between scatterplot and
           legend

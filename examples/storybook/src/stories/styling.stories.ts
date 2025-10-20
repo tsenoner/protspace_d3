@@ -35,7 +35,6 @@ export const ControlBarStyling: Story = {
 
     return html`
       <div style="padding: 2rem; background: #f5f5f5; min-height: 100vh;">
-        <h2 style="margin: 0 0 2rem 0; color: #333;">Control Bar Styling Showcase</h2>
         
         <!-- Default Styling -->
         <div style="margin-bottom: 3rem;">
@@ -115,7 +114,6 @@ export const LegendStyling: Story = {
 
     return html`
       <div style="padding: 2rem; background: #f5f5f5; min-height: 100vh;">
-        <h2 style="margin: 0 0 2rem 0; color: #333;">Legend Styling Showcase</h2>
         
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2rem;">
           
@@ -201,7 +199,6 @@ export const ScatterplotStyling: Story = {
 
     return html`
       <div style="padding: 2rem; background: #f5f5f5; min-height: 100vh;">
-        <h2 style="margin: 0 0 2rem 0; color: #333;">Scatterplot Styling Showcase</h2>
         
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 2rem;">
           
@@ -290,7 +287,6 @@ export const DataLoaderStyling: Story = {
   render: () => {
     return html`
       <div style="padding: 2rem; background: #f5f5f5; min-height: 100vh;">
-        <h2 style="margin: 0 0 2rem 0; color: #333;">Data Loader Styling Showcase</h2>
         
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
           
@@ -364,7 +360,6 @@ export const DarkThemeShowcase: Story = {
 
     return html`
       <div style="padding: 2rem; background: #1f2937; min-height: 100vh; color: #f9fafb;">
-        <h2 style="margin: 0 0 2rem 0; color: #f9fafb;">Dark Theme Showcase</h2>
         <p style="margin: 0 0 2rem 0; color: #d1d5db;">
           All components automatically adapt to dark mode using CSS media queries.
         </p>
@@ -492,7 +487,6 @@ export const CustomCSSVariables: Story = {
       </style>
       
       <div class="custom-theme" style="padding: 2rem; background: #fce4ec; min-height: 100vh;">
-        <h2 style="margin: 0 0 2rem 0; color: #ad1457;">Custom CSS Variables Theme</h2>
         <p style="margin: 0 0 2rem 0; color: #ad1457;">
           All components use CSS custom properties that can be easily overridden for custom theming.
         </p>
@@ -568,7 +562,6 @@ export const PointSizeVariables: Story = {
 
     return html`
       <div style="padding: 2rem; background: #f5f5f5; min-height: 100vh;">
-        <h2 style="margin: 0 0 2rem 0; color: #333;">Point Size Variables Showcase</h2>
         <p style="margin: 0 0 2rem 0; color: #666;">
           Demonstrates different point size configurations and how they affect the scatterplot visualization.
         </p>
@@ -753,7 +746,6 @@ export const ResponsiveDesign: Story = {
 
     return html`
       <div style="padding: 2rem; background: #f5f5f5; min-height: 100vh;">
-        <h2 style="margin: 0 0 2rem 0; color: #333;">Responsive Design Showcase</h2>
         <p style="margin: 0 0 2rem 0; color: #666;">
           All components are designed to be responsive and work well on different screen sizes.
         </p>
