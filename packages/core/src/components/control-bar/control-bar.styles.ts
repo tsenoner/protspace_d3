@@ -451,19 +451,11 @@ export const controlBarStyles = css`
     justify-content: center;
     background-color: #fff;
   }
-  .right-controls-data {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    column-gap: 5px;
-    padding: 0.3rem 0.45rem 0.3rem 0.9rem;
-    border: 1px solid var(--up-border);
-    border-radius: 5px;
-    outline: unset;
-    outline-color: #8c3c3c94;
-    background-color: rgb(239, 239, 239);
-    box-shadow: inset -1px -1px 3px 0px #d8d8d8;
-    transition: 0.3s;
+
+  .right-controls-data > button {
+    color: #0b0f19;
+    font-weight: 400;
+    padding-right: 0.9rem;
   }
 
   /* Responsive layout: stack controls on small screens */

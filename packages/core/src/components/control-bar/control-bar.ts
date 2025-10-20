@@ -533,15 +533,18 @@ export class ProtspaceControlBar extends LitElement {
                 `
               : ''}
           </div>
-          <button
-            class="right-controls-data right-controls-button right-controls-export"
-            @click=${this.openFileDialog}
-          >
-            Import
-            <svg class="chevron-down" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
+          <div class="export-container right-controls-data">
+            <button @click=${this.openFileDialog} title="Import Data">
+              <svg class="icon" viewBox="0 0 24 24">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L9 8m3-4v12"
+                />
+              </svg>
+              Import
+            </button>
+          </div>
         </div>
       </div>
     `;
