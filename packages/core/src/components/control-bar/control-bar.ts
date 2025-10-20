@@ -2,6 +2,7 @@ import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { controlBarStyles } from './control-bar.styles';
 import type { DataChangeDetail, ProtspaceData, ScatterplotElementLike } from './types';
+import './search';
 
 @customElement('protspace-control-bar')
 export class ProtspaceControlBar extends LitElement {
@@ -46,6 +47,10 @@ export class ProtspaceControlBar extends LitElement {
   @state() private openValueMenus: Record<string, boolean> = {};
   private _scatterplotElement: ScatterplotElementLike | null = null;
 
+  // Search state
+  @state() private allProteinIds: string[] = [];
+  @state() private selectedIdsChips: string[] = [];
+
   // Stable listeners for proper add/remove
   private _onDocumentClick = (event: Event) => this.handleDocumentClick(event);
   private _onDataChange = (event: Event) => this._handleDataChange(event);
@@ -53,6 +58,7 @@ export class ProtspaceControlBar extends LitElement {
   private _onDataSplit = (event: Event) => this._handleDataSplit(event);
   private _onDataSplitReset = (event: Event) => this._handleDataSplitReset(event);
   private _onAutoDisableSelection = (event: Event) => this._handleAutoDisableSelection(event);
+  private _onBrushSelection = (event: Event) => this._handleBrushSelection(event);
 
   static styles = controlBarStyles;
 
@@ -158,6 +164,9 @@ export class ProtspaceControlBar extends LitElement {
         this.selectedProteinsCount = 0;
       }
     }
+
+    // Clear search chips
+    this.selectedIdsChips = [];
   }
 
   private handleSplitData() {
@@ -255,6 +264,15 @@ export class ProtspaceControlBar extends LitElement {
               ${this.features.map((feature) => html`<option value=${feature}>${feature}</option>`)}
             </select>
           </div>
+        </div>
+
+        <!-- Search selection -->
+        <div class="control-group" style="min-width: 22.5rem;">
+          <protspace-protein-search
+            .availableProteinIds=${this.allProteinIds}
+            .selectedProteinIds=${this.selectedIdsChips}
+            @selection-change=${this._handleSearchSelectionChange}
+          ></protspace-protein-search>
         </div>
 
         <!-- Right side controls -->
@@ -547,6 +565,7 @@ export class ProtspaceControlBar extends LitElement {
     if (this._scatterplotElement) {
       this._scatterplotElement.removeEventListener('data-change', this._onDataChange);
       this._scatterplotElement.removeEventListener('protein-click', this._onProteinClick);
+      this._scatterplotElement.removeEventListener('brush-selection', this._onBrushSelection);
       this._scatterplotElement.removeEventListener('data-split', this._onDataSplit);
       this._scatterplotElement.removeEventListener('data-split-reset', this._onDataSplitReset);
       this._scatterplotElement.removeEventListener(
@@ -577,6 +596,9 @@ export class ProtspaceControlBar extends LitElement {
 
         // Listen for protein selection changes
         this._scatterplotElement.addEventListener('protein-click', this._onProteinClick);
+
+        // Listen for brush selection events
+        this._scatterplotElement.addEventListener('brush-selection', this._onBrushSelection);
 
         // Listen for data split events
         this._scatterplotElement.addEventListener('data-split', this._onDataSplit);
@@ -611,6 +633,21 @@ export class ProtspaceControlBar extends LitElement {
     if (!data) return;
 
     this._updateOptionsFromData(data);
+    // Update protein ids for search
+    try {
+      const ids = (data as any).protein_ids as string[] | undefined;
+      this.allProteinIds = Array.isArray(ids) ? ids : [];
+      // Keep chips in sync with scatterplot's selection if available
+      if (this._scatterplotElement && 'selectedProteinIds' in this._scatterplotElement) {
+        const current = (this._scatterplotElement as any).selectedProteinIds as
+          | string[]
+          | undefined;
+        this.selectedIdsChips = Array.isArray(current) ? current : [];
+        this.selectedProteinsCount = this.selectedIdsChips.length;
+      }
+    } catch (e) {
+      console.error(e);
+    }
     // Update feature value options for filter UI
     try {
       const features = (data as any).features || {};
@@ -648,6 +685,7 @@ export class ProtspaceControlBar extends LitElement {
     this.splitHistory = splitHistory;
     this.splitMode = splitMode;
     this.selectedProteinsCount = 0;
+    this.selectedIdsChips = [];
     this.requestUpdate();
   }
 
@@ -657,6 +695,7 @@ export class ProtspaceControlBar extends LitElement {
     this.splitHistory = splitHistory;
     this.splitMode = splitMode;
     this.selectedProteinsCount = 0;
+    this.selectedIdsChips = [];
 
     // Re-enable selection when split is reset (back to full data)
     this._selectionDisabled = false;
@@ -770,6 +809,9 @@ export class ProtspaceControlBar extends LitElement {
 
         if ('selectedProteinIds' in scatterplot) {
           this.selectedProteinsCount = ((scatterplot.selectedProteinIds as unknown[]) || []).length;
+          this.selectedIdsChips = Array.isArray(scatterplot.selectedProteinIds)
+            ? (scatterplot.selectedProteinIds as string[])
+            : [];
         }
 
         this.splitMode = scatterplot.isSplitMode?.() ?? false;
@@ -786,6 +828,38 @@ export class ProtspaceControlBar extends LitElement {
         this.requestUpdate();
       }
     }
+  }
+
+  // Search selection handler
+  private _handleSearchSelectionChange(event: CustomEvent<{ proteinIds: string[] }>) {
+    const newSelection = event.detail.proteinIds;
+    this.selectedIdsChips = newSelection;
+    this.selectedProteinsCount = newSelection.length;
+
+    // Sync with scatterplot
+    if (
+      this.autoSync &&
+      this._scatterplotElement &&
+      'selectedProteinIds' in this._scatterplotElement
+    ) {
+      (this._scatterplotElement as any).selectedProteinIds = [...newSelection];
+    }
+
+    // Dispatch event for external listeners
+    this.dispatchEvent(
+      new CustomEvent('protein-selection-change', {
+        detail: { proteinIds: newSelection.slice() },
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
+  private _handleBrushSelection(event: Event) {
+    const customEvent = event as CustomEvent<{ proteinIds: string[]; isMultiple: boolean }>;
+    const ids = Array.isArray(customEvent.detail?.proteinIds) ? customEvent.detail.proteinIds : [];
+    this.selectedIdsChips = ids.slice();
+    this.selectedProteinsCount = ids.length;
   }
 
   private toggleFilterMenu() {
