@@ -30,6 +30,8 @@ export const searchStyles = css`
     overflow-x: auto;
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e0 transparent;
   }
 
   .search-chip {

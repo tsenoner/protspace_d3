@@ -19,7 +19,7 @@ export class ProtspaceProteinSearch extends LitElement {
   render() {
     return html`
       <div class="search-container" @click=${this._focusSearchInput}>
-        <div class="search-chips">
+        <div class="search-chips" @wheel=${this._handleWheelScroll}>
           ${this.selectedProteinIds.map(
             (id) => html`
               <span class="search-chip">
@@ -88,6 +88,17 @@ export class ProtspaceProteinSearch extends LitElement {
       '#protein-search-input'
     ) as HTMLInputElement | null;
     input?.focus();
+  }
+
+  private _handleWheelScroll(event: WheelEvent) {
+    const target = event.target as HTMLElement;
+    const searchChips = target.closest('.search-chips') as HTMLElement;
+
+    if (searchChips && searchChips.scrollWidth > searchChips.clientWidth) {
+      // Convert vertical scroll to horizontal scroll
+      event.preventDefault();
+      searchChips.scrollLeft += event.deltaY;
+    }
   }
 
   private _onSearchInput(event: Event) {
