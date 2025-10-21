@@ -689,14 +689,47 @@ export class ProtspaceControlBar extends LitElement {
     this.requestUpdate();
   }
 
-  private _handleProteinSelection(_event: Event) {
-    // Update selected proteins count when proteins are selected/deselected
-    if (this._scatterplotElement && 'selectedProteinIds' in this._scatterplotElement) {
-      const selectedIds =
-        (this._scatterplotElement as ScatterplotElementLike).selectedProteinIds || [];
-      this.selectedProteinsCount = selectedIds.length;
-      this.requestUpdate();
+  private _handleProteinSelection(event: Event) {
+    const customEvent = event as CustomEvent<{
+      proteinId: string;
+      modifierKeys: { ctrl: boolean; shift: boolean };
+    }>;
+    const { proteinId, modifierKeys } = customEvent.detail;
+    if (!proteinId) return;
+    const currentSelection = new Set(this.selectedIdsChips);
+    const isCurrentlySelected = currentSelection.has(proteinId);
+    let newSelection: string[];
+    if (modifierKeys.ctrl || modifierKeys.shift) {
+      if (isCurrentlySelected) {
+        currentSelection.delete(proteinId);
+      } else {
+        currentSelection.add(proteinId);
+      }
+      newSelection = Array.from(currentSelection);
+    } else {
+      if (isCurrentlySelected && currentSelection.size === 1) {
+        newSelection = [];
+      } else {
+        newSelection = [proteinId];
+      }
     }
+    this.selectedIdsChips = newSelection;
+    this.selectedProteinsCount = newSelection.length;
+    if (
+      this.autoSync &&
+      this._scatterplotElement &&
+      'selectedProteinIds' in this._scatterplotElement
+    ) {
+      (this._scatterplotElement as any).selectedProteinIds = [...newSelection];
+    }
+    this.dispatchEvent(
+      new CustomEvent('protein-selection-change', {
+        detail: { proteinIds: newSelection.slice() },
+        bubbles: true,
+        composed: true,
+      })
+    );
+    this.requestUpdate();
   }
 
   private _handleDataSplit(event: Event) {
