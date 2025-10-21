@@ -19,7 +19,7 @@ export const searchStyles = css`
   .search-chips {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 0.25rem;
     border: 1px solid var(--up-border, #d9e2ec);
     padding: 0.1rem 0.2rem;
@@ -27,6 +27,9 @@ export const searchStyles = css`
     background: var(--up-surface, #ffffff);
     min-height: 1.6rem;
     width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
   }
 
   .search-chip {
@@ -39,6 +42,7 @@ export const searchStyles = css`
     border-radius: 999px;
     padding: 0.04rem 0.35rem;
     font-size: 0.75rem;
+    flex: 0 0 auto;
   }
 
   .search-chip-remove {
