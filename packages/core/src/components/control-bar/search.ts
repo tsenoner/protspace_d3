@@ -49,6 +49,7 @@ export class ProtspaceProteinSearch extends LitElement {
             @input=${this._onSearchInput}
             @keydown=${this._onSearchKeydown}
             @blur=${this._onInputBlur}
+            @paste=${this._onPaste}
           />
         </div>
         ${this.searchSuggestions.length > 0 && this.searchQuery
@@ -88,6 +89,16 @@ export class ProtspaceProteinSearch extends LitElement {
       '#protein-search-input'
     ) as HTMLInputElement | null;
     input?.focus();
+  }
+
+  private _onPaste(e: ClipboardEvent) {
+    const pastedText = e.clipboardData?.getData('text/plain') ?? '';
+    const ids = pastedText.trim().split(/\s+/);
+
+    if (ids.length > 1 || pastedText.includes('\n')) {
+      e.preventDefault();
+      this._addMultipleSelections(ids.filter(Boolean));
+    }
   }
 
   private _handleWheelScroll(event: WheelEvent) {
@@ -219,6 +230,47 @@ export class ProtspaceProteinSearch extends LitElement {
         composed: true,
       })
     );
+  }
+
+  private _addMultipleSelections(ids: string[]) {
+    const availableIdsSet = new Set(this.availableProteinIds);
+    const lowerCaseAvailableMap = new Map<string, string>();
+    this.availableProteinIds.forEach((id) => lowerCaseAvailableMap.set(id.toLowerCase(), id));
+
+    const newValidIds = new Set<string>();
+
+    for (const id of ids) {
+      if (!id) continue;
+
+      if (availableIdsSet.has(id)) {
+        newValidIds.add(id);
+      } else {
+        const lowerId = id.toLowerCase();
+        if (lowerCaseAvailableMap.has(lowerId)) {
+          newValidIds.add(lowerCaseAvailableMap.get(lowerId)!);
+        }
+      }
+    }
+
+    const currentSelectedSet = new Set(this.selectedProteinIds);
+    const uniqueNewIds = [...newValidIds].filter((id) => !currentSelectedSet.has(id));
+
+    if (uniqueNewIds.length > 0) {
+      const newSelection = [...this.selectedProteinIds, ...uniqueNewIds];
+      this.selectedProteinIds = newSelection;
+
+      this.dispatchEvent(
+        new CustomEvent('selection-change', {
+          detail: { proteinIds: newSelection },
+          bubbles: true,
+          composed: true,
+        })
+      );
+    }
+
+    this.searchQuery = '';
+    this.searchSuggestions = [];
+    this.highlightedSuggestionIndex = -1;
   }
 
   private _removeSelection(id: string) {
