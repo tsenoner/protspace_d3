@@ -204,6 +204,8 @@ export class ProtspaceProteinSearch extends LitElement {
     // Add to selection
     const newSelection = [...this.selectedProteinIds, validId];
 
+    this.selectedProteinIds = newSelection;
+
     // Clear search state
     this.searchQuery = '';
     this.searchSuggestions = [];
@@ -222,6 +224,8 @@ export class ProtspaceProteinSearch extends LitElement {
   private _removeSelection(id: string) {
     const newSelection = this.selectedProteinIds.filter((x) => x !== id);
 
+    this.selectedProteinIds = newSelection;
+
     // Dispatch selection change event
     this.dispatchEvent(
       new CustomEvent('selection-change', {
@@ -237,6 +241,8 @@ export class ProtspaceProteinSearch extends LitElement {
    */
   public clearSelections() {
     if (this.selectedProteinIds.length > 0) {
+      this.selectedProteinIds = [];
+
       this.dispatchEvent(
         new CustomEvent('selection-change', {
           detail: { proteinIds: [] },
@@ -253,6 +259,8 @@ export class ProtspaceProteinSearch extends LitElement {
   public setSelections(proteinIds: string[]) {
     const validIds = proteinIds.filter((id) => this.availableProteinIds.includes(id));
     if (JSON.stringify(validIds) !== JSON.stringify(this.selectedProteinIds)) {
+      this.selectedProteinIds = validIds;
+
       this.dispatchEvent(
         new CustomEvent('selection-change', {
           detail: { proteinIds: validIds },
