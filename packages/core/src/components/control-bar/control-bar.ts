@@ -267,7 +267,7 @@ export class ProtspaceControlBar extends LitElement {
         </div>
 
         <!-- Search selection -->
-        <div class="control-group" style="min-width: 22.5rem;">
+        <div class="control-group search-group">
           <protspace-protein-search
             .availableProteinIds=${this.allProteinIds}
             .selectedProteinIds=${this.selectedIdsChips}

@@ -54,6 +54,18 @@ export const controlBarStyles = css`
     min-width: 0;
   }
 
+  /* Center search should expand to take remaining horizontal space */
+  .search-group {
+    flex: 1 1 auto;
+    min-width: 12rem;
+    margin: 0 0.5rem;
+  }
+
+  .search-group > protspace-protein-search {
+    width: 100%;
+    min-width: 0;
+  }
+
   label {
     font-size: 0.875rem;
     font-weight: 500;
@@ -461,6 +473,12 @@ export const controlBarStyles = css`
 
     .control-group {
       width: 100%;
+    }
+
+    .search-group {
+      width: 100%;
+      flex: 0 0 auto;
+      margin: 0; /* avoid horizontal overflow on small screens */
     }
 
     /* Make selects expand to available width inside a row */

@@ -3,7 +3,8 @@ import { css } from 'lit';
 export const searchStyles = css`
   :host {
     display: block;
-    min-width: 18.75rem;
+    min-width: 12rem;
+    width: 100%;
   }
 
   .search-container {
@@ -11,7 +12,8 @@ export const searchStyles = css`
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
-    max-width: 32.5rem;
+    max-width: none;
+    margin: 0 1.5rem;
   }
 
   .search-chips {
@@ -20,10 +22,11 @@ export const searchStyles = css`
     flex-wrap: wrap;
     gap: 0.25rem;
     border: 1px solid var(--up-border, #d9e2ec);
-    padding: 0.15rem 0.25rem;
+    padding: 0.1rem 0.2rem;
     border-radius: 0.25rem;
     background: var(--up-surface, #ffffff);
-    min-height: 2rem;
+    min-height: 1.6rem;
+    width: 100%;
   }
 
   .search-chip {
@@ -34,7 +37,7 @@ export const searchStyles = css`
     color: #0b0f19;
     border: 1px solid #cfe8f5;
     border-radius: 999px;
-    padding: 0.05rem 0.4rem;
+    padding: 0.04rem 0.35rem;
     font-size: 0.75rem;
   }
 
@@ -56,11 +59,11 @@ export const searchStyles = css`
   }
 
   .search-input {
-    flex: 1;
+    flex: 1 1 auto;
     min-width: 9rem;
     border: none;
     outline: none;
-    padding: 0.15rem 0.3rem;
+    padding: 0.1rem 0.25rem;
     font-size: 0.875rem;
     background: transparent;
   }
