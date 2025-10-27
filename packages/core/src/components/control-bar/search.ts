@@ -3,7 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { searchStyles } from './search.styles';
 
 /**
- * Protein search component with multi-select chips and autocomplete suggestions
+ * Protein search component with autocomplete suggestions and multi-select state (no chips UI)
  */
 @customElement('protspace-protein-search')
 export class ProtspaceProteinSearch extends LitElement {
@@ -19,33 +19,13 @@ export class ProtspaceProteinSearch extends LitElement {
   render() {
     return html`
       <div class="search-container" @click=${this._focusSearchInput}>
-        <div class="search-chips" @wheel=${this._handleWheelScroll}>
-          ${this.selectedProteinIds.map(
-            (id) => html`
-              <span class="search-chip">
-                ${id}
-                <button
-                  class="search-chip-remove"
-                  @click=${(e: Event) => {
-                    e.stopPropagation();
-                    this._removeSelection(id);
-                  }}
-                  title="Remove ${id}"
-                  aria-label="Remove ${id}"
-                >
-                  ×
-                </button>
-              </span>
-            `
-          )}
+        <div class="search-chips">
           <input
             id="protein-search-input"
             class="search-input"
             type="text"
             .value=${this.searchQuery}
-            placeholder="${this.selectedProteinIds.length > 0
-              ? ''
-              : 'Search or select protein accession IDs'}"
+            placeholder="Search or select protein accession IDs"
             @input=${this._onSearchInput}
             @keydown=${this._onSearchKeydown}
             @blur=${this._onInputBlur}
@@ -101,17 +81,6 @@ export class ProtspaceProteinSearch extends LitElement {
     }
   }
 
-  private _handleWheelScroll(event: WheelEvent) {
-    const target = event.target as HTMLElement;
-    const searchChips = target.closest('.search-chips') as HTMLElement;
-
-    if (searchChips && searchChips.scrollWidth > searchChips.clientWidth) {
-      // Convert vertical scroll to horizontal scroll
-      event.preventDefault();
-      searchChips.scrollLeft += event.deltaY;
-    }
-  }
-
   private _onSearchInput(event: Event) {
     const target = event.target as HTMLInputElement;
     this.searchQuery = target.value;
@@ -129,14 +98,6 @@ export class ProtspaceProteinSearch extends LitElement {
       } else if (this.searchQuery.trim()) {
         this._addSelection(this.searchQuery.trim());
       }
-    } else if (
-      event.key === 'Backspace' &&
-      !this.searchQuery &&
-      this.selectedProteinIds.length > 0
-    ) {
-      // Remove last chip when backspacing on empty input
-      event.preventDefault();
-      this._removeSelection(this.selectedProteinIds[this.selectedProteinIds.length - 1]);
     } else if (event.key === 'ArrowDown') {
       event.preventDefault();
       if (this.searchSuggestions.length > 0) {
@@ -271,21 +232,6 @@ export class ProtspaceProteinSearch extends LitElement {
     this.searchQuery = '';
     this.searchSuggestions = [];
     this.highlightedSuggestionIndex = -1;
-  }
-
-  private _removeSelection(id: string) {
-    const newSelection = this.selectedProteinIds.filter((x) => x !== id);
-
-    this.selectedProteinIds = newSelection;
-
-    // Dispatch selection change event
-    this.dispatchEvent(
-      new CustomEvent('selection-change', {
-        detail: { proteinIds: newSelection },
-        bubbles: true,
-        composed: true,
-      })
-    );
   }
 
   /**
