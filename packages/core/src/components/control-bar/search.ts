@@ -140,7 +140,7 @@ export class ProtspaceProteinSearch extends LitElement {
     const maxItems = 10;
 
     this.searchSuggestions = this.availableProteinIds
-      .filter((id) => !selectedSet.has(id) && id.toLowerCase().includes(q))
+      .filter((id) => !selectedSet.has(id) && id.toLowerCase().startsWith(q))
       .slice(0, maxItems);
 
     this.highlightedSuggestionIndex = this.searchSuggestions.length > 0 ? 0 : -1;
