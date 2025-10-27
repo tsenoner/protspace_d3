@@ -644,12 +644,6 @@ Promise.all([
     // The control bar is now the single source of truth for selection events.
     controlBar.addEventListener('protein-selection-change', handleSelectionChange);
 
-    // Update control bar state - simplified since auto-sync handles most updates
-    const updateControlBarState = () => {
-      // Control bar now auto-syncs with scatterplot, so we only need to update local state
-      controlBar.selectedProteinsCount = selectedProteins.length;
-    };
-
     // Initialize legend
     updateLegend();
 
@@ -663,22 +657,6 @@ Promise.all([
       controlBar.requestUpdate();
 
       console.log(`Split state changed: ${isolationMode ? 'ON' : 'OFF'}`);
-    });
-
-    // Handle brush selections from scatterplot
-    plotElement.addEventListener('brush-selection', (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const { proteinIds } = customEvent.detail;
-
-      // For brush selections, just sync the local state without interfering
-      selectedProteins = [...proteinIds];
-      updateControlBarState();
-
-      if (selectedProteins.length > 0) {
-        updateSelectedProteinDisplay(`${selectedProteins.length} proteins selected`);
-      } else {
-        updateSelectedProteinDisplay(null);
-      }
     });
 
     // Handle split events from scatterplot
@@ -762,12 +740,6 @@ Promise.all([
     // Handle selection mode toggle for local state
     controlBar.addEventListener('toggle-selection-mode', () => {
       selectionMode = plotElement.selectionMode; // Sync with scatterplot state
-    });
-
-    // Handle clear selections for local state
-    controlBar.addEventListener('clear-selections', () => {
-      selectedProteins = [];
-      updateSelectedProteinDisplay(null);
     });
 
     // Handle data-change from scatterplot to sync selections

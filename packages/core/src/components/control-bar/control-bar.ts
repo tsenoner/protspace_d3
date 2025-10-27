@@ -167,6 +167,15 @@ export class ProtspaceControlBar extends LitElement {
 
     // Clear search chips
     this.selectedIdsChips = [];
+
+    // Dispatch a single, consistent event for all selection changes
+    this.dispatchEvent(
+      new CustomEvent('protein-selection-change', {
+        detail: { proteinIds: [] },
+        bubbles: true,
+        composed: true,
+      })
+    );
   }
 
   private handleSplitData() {
@@ -974,6 +983,15 @@ export class ProtspaceControlBar extends LitElement {
     const ids = Array.isArray(customEvent.detail?.proteinIds) ? customEvent.detail.proteinIds : [];
     this.selectedIdsChips = ids.slice();
     this.selectedProteinsCount = ids.length;
+
+    // Dispatch a single, consistent event for all selection changes
+    this.dispatchEvent(
+      new CustomEvent('protein-selection-change', {
+        detail: { proteinIds: ids.slice() },
+        bubbles: true,
+        composed: true,
+      })
+    );
   }
 
   private toggleFilterMenu() {
