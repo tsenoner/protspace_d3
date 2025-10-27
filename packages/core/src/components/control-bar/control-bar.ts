@@ -898,16 +898,13 @@ export class ProtspaceControlBar extends LitElement {
       (this._scatterplotElement as any).selectedProteinIds = [...newSelection];
     }
 
-    // If exactly one protein is selected via search, emulate a direct click on the scatterplot
-    if (this._scatterplotElement && newSelection.length === 1) {
-      const proteinId = newSelection[0];
-      this._scatterplotElement.dispatchEvent(
-        new CustomEvent('protein-click', {
-          detail: { proteinId, modifierKeys: { ctrl: false, shift: false } },
-          bubbles: true,
-          composed: true,
-        })
-      );
+    // Trigger structure viewer for the most recently added protein without altering selection
+    if (newSelection.length >= 1) {
+      const lastSelectedId = newSelection[newSelection.length - 1];
+      const viewers = Array.from(
+        document.querySelectorAll('protspace-structure-viewer')
+      ) as any[];
+      viewers.forEach((v) => v?.loadProtein?.(lastSelectedId));
     }
 
     // Dispatch event for external listeners
