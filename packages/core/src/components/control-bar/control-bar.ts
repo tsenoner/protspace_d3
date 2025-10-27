@@ -277,6 +277,8 @@ export class ProtspaceControlBar extends LitElement {
             .availableProteinIds=${this.allProteinIds}
             .selectedProteinIds=${this.selectedIdsChips}
             @selection-change=${this._handleSearchSelectionChange}
+            @add-selection=${this._handleSearchSelectionAdd}
+            @add-selection-multiple=${this._handleSearchSelectionAddMultiple}
           ></protspace-protein-search>
         </div>
 
@@ -885,11 +887,34 @@ export class ProtspaceControlBar extends LitElement {
 
   // Search selection handler
   private _handleSearchSelectionChange(event: CustomEvent<{ proteinIds: string[] }>) {
+    // This handles programmatic changes and clearing from within the search component
     const newSelection = event.detail.proteinIds;
     this.selectedIdsChips = newSelection;
     this.selectedProteinsCount = newSelection.length;
+    if (
+      this.autoSync &&
+      this._scatterplotElement &&
+      'selectedProteinIds' in this._scatterplotElement
+    ) {
+      (this._scatterplotElement as any).selectedProteinIds = [...newSelection];
+    }
+    this.dispatchEvent(
+      new CustomEvent('protein-selection-change', {
+        detail: { proteinIds: newSelection.slice() },
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
 
-    // Sync with scatterplot
+  private _handleSearchSelectionAdd(event: CustomEvent<{ proteinId: string }>) {
+    const { proteinId } = event.detail;
+    if (!proteinId || this.selectedIdsChips.includes(proteinId)) return;
+
+    const newSelection = [...this.selectedIdsChips, proteinId];
+    this.selectedIdsChips = newSelection;
+    this.selectedProteinsCount = newSelection.length;
+
     if (
       this.autoSync &&
       this._scatterplotElement &&
@@ -898,16 +923,43 @@ export class ProtspaceControlBar extends LitElement {
       (this._scatterplotElement as any).selectedProteinIds = [...newSelection];
     }
 
-    // Trigger structure viewer for the most recently added protein without altering selection
-    if (newSelection.length >= 1) {
-      const lastSelectedId = newSelection[newSelection.length - 1];
-      const viewers = Array.from(
-        document.querySelectorAll('protspace-structure-viewer')
-      ) as any[];
-      viewers.forEach((v) => v?.loadProtein?.(lastSelectedId));
+    const viewers = Array.from(document.querySelectorAll('protspace-structure-viewer')) as any[];
+    viewers.forEach((v) => v?.loadProtein?.(proteinId));
+
+    this.dispatchEvent(
+      new CustomEvent('protein-selection-change', {
+        detail: { proteinIds: newSelection.slice() },
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
+  private _handleSearchSelectionAddMultiple(event: CustomEvent<{ proteinIds: string[] }>) {
+    const { proteinIds } = event.detail;
+    if (!proteinIds || proteinIds.length === 0) return;
+
+    const currentSelectedSet = new Set(this.selectedIdsChips);
+    const newUniqueIds = proteinIds.filter((id) => !currentSelectedSet.has(id));
+
+    if (newUniqueIds.length === 0) return;
+
+    const newSelection = [...this.selectedIdsChips, ...newUniqueIds];
+    this.selectedIdsChips = newSelection;
+    this.selectedProteinsCount = newSelection.length;
+
+    if (
+      this.autoSync &&
+      this._scatterplotElement &&
+      'selectedProteinIds' in this._scatterplotElement
+    ) {
+      (this._scatterplotElement as any).selectedProteinIds = [...newSelection];
     }
 
-    // Dispatch event for external listeners
+    const lastAddedId = newUniqueIds[newUniqueIds.length - 1];
+    const viewers = Array.from(document.querySelectorAll('protspace-structure-viewer')) as any[];
+    viewers.forEach((v) => v?.loadProtein?.(lastAddedId));
+
     this.dispatchEvent(
       new CustomEvent('protein-selection-change', {
         detail: { proteinIds: newSelection.slice() },

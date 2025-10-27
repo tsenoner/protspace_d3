@@ -173,11 +173,6 @@ export class ProtspaceProteinSearch extends LitElement {
       return;
     }
 
-    // Add to selection
-    const newSelection = [...this.selectedProteinIds, validId];
-
-    this.selectedProteinIds = newSelection;
-
     // Clear search state
     this.searchQuery = '';
     this.searchSuggestions = [];
@@ -185,8 +180,8 @@ export class ProtspaceProteinSearch extends LitElement {
 
     // Dispatch selection change event
     this.dispatchEvent(
-      new CustomEvent('selection-change', {
-        detail: { proteinIds: newSelection },
+      new CustomEvent('add-selection', {
+        detail: { proteinId: validId },
         bubbles: true,
         composed: true,
       })
@@ -217,12 +212,9 @@ export class ProtspaceProteinSearch extends LitElement {
     const uniqueNewIds = [...newValidIds].filter((id) => !currentSelectedSet.has(id));
 
     if (uniqueNewIds.length > 0) {
-      const newSelection = [...this.selectedProteinIds, ...uniqueNewIds];
-      this.selectedProteinIds = newSelection;
-
       this.dispatchEvent(
-        new CustomEvent('selection-change', {
-          detail: { proteinIds: newSelection },
+        new CustomEvent('add-selection-multiple', {
+          detail: { proteinIds: uniqueNewIds },
           bubbles: true,
           composed: true,
         })
