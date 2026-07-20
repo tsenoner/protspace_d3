@@ -7,6 +7,8 @@
 
 # Annotation Reference
 
+This page is the canonical reference for every annotation column ProtSpace ships: what each value means, how it is produced, and where it comes from. To learn how to _request_ annotations when you prepare a dataset — the `-a` groups, custom CSV columns, and the input requirements of each source — see [Using Python CLI](/guide/python-cli).
+
 ## Annotation Value Format (v2 Encoding)
 
 As of bundle format v2, annotation values containing special characters use percent-encoding to ensure reliable parsing across sources. When reading the per-column descriptions below, note these encoding rules:

@@ -54,6 +54,53 @@ The columns `gene_name`, `protein_name`, and `uniprot_kb_id` are **tooltip-only*
 | `y`               | float  | Y coordinate                |
 | `z`               | float  | Z coordinate (null for 2D)  |
 
+### Statistics (Optional, 5th Part)
+
+The optional fifth part, `statistics.parquet`, holds projection quality metrics. It is a tidy
+long-format table — one row per space, annotation, label kind and metric:
+
+| Column        | Type   | Description                                        |
+| ------------- | ------ | -------------------------------------------------- |
+| `space_kind`  | string | `embedding` or `projection`                        |
+| `space_name`  | string | Which embedding or projection was scored           |
+| `annotation`  | string | Annotation column the metric was computed against  |
+| `stat_family` | string | Metric group (e.g. `cluster_agreement`)            |
+| `label_kind`  | string | Which labels were used                             |
+| `metric`      | string | Metric name (e.g. silhouette, Davies-Bouldin, ARI) |
+| `metric_kind` | string | Metric category                                    |
+| `value`       | float  | Metric value                                       |
+| `extra_json`  | string | Extra per-row detail as JSON                       |
+
+Two CLI paths produce it:
+
+```bash
+# During the full pipeline
+protspace prepare -i embeddings.h5 -m pca2,umap2 --stats -o output
+
+# Standalone, against an existing project directory
+protspace stats -i embeddings.h5 -p project_dir -o statistics.parquet
+```
+
+Because the parts are positional, a bundle that carries statistics **without** settings still writes
+the settings slot — as zero bytes — so the statistics table stays at position five.
+
+::: warning Five-part bundles do not open in the web app
+The web app currently rejects five-part bundles, so a `--stats` bundle will fail to open at
+[protspace.app](https://protspace.app).
+
+To get projection quality metrics that **do** display, run `protspace stats` standalone and then
+`protspace bundle` **without** `-s`. The faithfulness metrics travel in the projection metadata
+(`info_json.quality`) rather than in the statistics table, so they ride along in a four-part bundle
+and render in the [Projection Metadata panel](/explore/scatterplot#quality-metrics):
+
+```bash
+protspace stats -i embeddings.h5 -p project_dir -o statistics.parquet
+protspace bundle -p project_dir -a annotations.parquet -o out.parquetbundle
+```
+
+The full `statistics.parquet` table is still readable with the Python CLI or any Parquet reader.
+:::
+
 ## Annotation Types
 
 ProtSpace distinguishes three practical annotation shapes:
@@ -64,17 +111,30 @@ ProtSpace distinguishes three practical annotation shapes:
 
 ### Numeric Annotations
 
-A column is treated as numeric when every non-empty value is a single finite scalar number. This
-includes true numeric source values and dense or continuous numeric-looking strings. Sparse or
-small integer-like string columns stay categorical by default so identifier-style code fields are
-not silently reclassified.
+Detection is all-or-nothing and content-based. ProtSpace scans the column, skips missing values,
+and tries to parse each remaining value as a plain finite number. The **first** non-missing value
+that fails to parse makes the whole column categorical. If every parsed value is an integer the
+column is an integer column; if any value has a fractional part it is a float column. A column with
+no numeric value at all stays categorical.
 
-Numeric detection does **not** apply to:
+A value fails to parse — and therefore forces the column categorical — when it is:
 
-- sparse integer-like string labels such as cluster or code identifiers
-- semicolon-separated multi-value fields
-- pipe-coded score/evidence fields such as `PF00001|1.5e-10`
-- mixed-format columns
+- anything containing `;`, such as semicolon-separated multi-value fields
+- anything containing `|`, such as pipe-coded score or evidence fields (`PF00001|1.5e-10`)
+- any other text that is not a plain finite number
+
+Empty and whitespace-only cells are normalized to missing before this check runs, so they never
+force a column categorical: a column of numbers with blank cells stays numeric, and the blanks
+become the N/A legend entry.
+
+There is no density, cardinality, or sparsity heuristic.
+
+::: warning Identifier-style number columns become numeric
+A column of cluster IDs or numeric codes stored as strings (`"1"`, `"2"`, `"17"`) parses cleanly as
+numbers, so it **is** treated as numeric and binned with a gradient — even if it is sparse and you
+meant it as a label. To keep such a column categorical, give every value a non-numeric form before
+bundling, for example `cluster_1` / `cluster_2` instead of `1` / `2`.
+:::
 
 For numeric annotations:
 

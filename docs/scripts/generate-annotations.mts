@@ -88,6 +88,13 @@ function build(): string {
   lines.push('');
   lines.push('# Annotation Reference');
   lines.push('');
+  lines.push(
+    'This page is the canonical reference for every annotation column ProtSpace ships: what each ' +
+      'value means, how it is produced, and where it comes from. To learn how to _request_ ' +
+      'annotations when you prepare a dataset — the `-a` groups, custom CSV columns, and the input ' +
+      'requirements of each source — see [Using Python CLI](/guide/python-cli).',
+  );
+  lines.push('');
   lines.push('## Annotation Value Format (v2 Encoding)');
   lines.push('');
   lines.push(
