@@ -4,6 +4,7 @@ import {
   findBundleDelimiterPositions,
   normalizeBundleSettings,
   type BundleSettings,
+  type ProjectionStatisticRow,
 } from '@protspace/utils';
 import type { Rows, GenericRow } from './types';
 import { assertValidParquetMagic, validateProjectionRows } from './validation';
@@ -27,6 +28,8 @@ export interface BundleExtractionResult {
   projectionsMetadata: Rows;
   /** Settings loaded from bundle (null if not present) */
   settings: BundleSettings | null;
+  /** Rows of the optional statistics part (5th); null when the bundle has none. */
+  statistics: readonly ProjectionStatisticRow[] | null;
   /**
    * Bundle annotation format version, read from the `protspace_format_version`
    * parquet key-value metadata on the annotations part (part 1). `1` when the
@@ -56,9 +59,10 @@ function readFormatVersion(metadata: FileMetaData): number {
 /**
  * Extract rows and optional settings from a parquetbundle.
  *
- * Supports two formats:
+ * Supports three formats:
  * - 2 delimiters (3 parts): Original format without settings
  * - 3 delimiters (4 parts): Extended format with settings
+ * - 4 delimiters (5 parts): With projection-quality statistics (backend `--stats`)
  */
 export async function extractRowsFromParquetBundle(
   arrayBuffer: ArrayBuffer,
@@ -66,35 +70,37 @@ export async function extractRowsFromParquetBundle(
   const uint8Array = new Uint8Array(arrayBuffer);
   const delimiterPositions = findBundleDelimiterPositions(uint8Array);
 
-  // Support both 2 delimiters (original) and 3 delimiters (with settings)
-  if (delimiterPositions.length !== 2 && delimiterPositions.length !== 3) {
+  // 2 delimiters (core only), 3 (with settings) or 4 (with settings + statistics)
+  if (delimiterPositions.length < 2 || delimiterPositions.length > 4) {
     throw new Error(
-      `Expected 2 or 3 delimiters in parquetbundle, found ${delimiterPositions.length}`,
+      `Expected 2 to 4 delimiters in parquetbundle, found ${delimiterPositions.length}`,
     );
   }
 
-  const hasSettingsPart = delimiterPositions.length === 3;
+  /**
+   * Copy out part `index` — part 0 starts at byte 0, every later part right after the
+   * preceding delimiter, and the final part runs to the end of the buffer. Order is
+   * fixed by the writer: annotations, projections metadata, projections, settings,
+   * statistics. Returns null for a zero-byte slot (an empty settings placeholder when
+   * a bundle carries statistics but no settings).
+   */
+  const partAt = (index: number): ArrayBuffer | null => {
+    const view = uint8Array.subarray(
+      index === 0 ? 0 : delimiterPositions[index - 1] + BUNDLE_DELIMITER_BYTES.length,
+      index < delimiterPositions.length ? delimiterPositions[index] : uint8Array.length,
+    );
+    return view.byteLength > 0 ? view.slice().buffer : null;
+  };
 
-  // Extract the three required parts
-  let part1: ArrayBuffer | null = uint8Array.subarray(0, delimiterPositions[0]).slice().buffer;
-  let part2: ArrayBuffer | null = uint8Array
-    .subarray(delimiterPositions[0] + BUNDLE_DELIMITER_BYTES.length, delimiterPositions[1])
-    .slice().buffer;
+  // The three required core parts.
+  let part1: ArrayBuffer | null = partAt(0);
+  let part2: ArrayBuffer | null = partAt(1);
+  let part3: ArrayBuffer | null = partAt(2);
+  const part4 = delimiterPositions.length >= 3 ? partAt(3) : null;
+  const part5 = delimiterPositions.length >= 4 ? partAt(4) : null;
 
-  let part3: ArrayBuffer | null;
-  let part4: ArrayBuffer | null = null;
-
-  if (hasSettingsPart) {
-    part3 = uint8Array
-      .subarray(delimiterPositions[1] + BUNDLE_DELIMITER_BYTES.length, delimiterPositions[2])
-      .slice().buffer;
-    part4 = uint8Array
-      .subarray(delimiterPositions[2] + BUNDLE_DELIMITER_BYTES.length)
-      .slice().buffer;
-  } else {
-    part3 = uint8Array
-      .subarray(delimiterPositions[1] + BUNDLE_DELIMITER_BYTES.length)
-      .slice().buffer;
+  if (!part1 || !part2 || !part3) {
+    throw new Error('Parquetbundle is missing one of its three required core parts');
   }
 
   // Validate parquet magic for each part before parsing
@@ -137,6 +143,8 @@ export async function extractRowsFromParquetBundle(
     settings = await extractSettings(part4);
   }
 
+  const statistics = part5 ? await extractStatistics(part5) : null;
+
   // Validate projection rows for expected bundle shape
   validateProjectionRows(projectionsData);
 
@@ -177,8 +185,40 @@ export async function extractRowsFromParquetBundle(
     annotationIdColumn: finalAnnotationIdColumn,
     projectionsMetadata: projectionsMetadataData,
     settings,
+    statistics,
     formatVersion,
   };
+}
+
+/**
+ * Extract the optional statistics part (5th) — projection-quality metrics written by the
+ * backend's `--stats` flag, in tidy long format (one row per space × annotation × metric).
+ *
+ * Returns null when the part is unreadable or doesn't look like the statistics table:
+ * statistics are supplementary, so a malformed part must never fail the whole load.
+ */
+async function extractStatistics(
+  statisticsBuffer: ArrayBuffer,
+): Promise<readonly ProjectionStatisticRow[] | null> {
+  try {
+    assertValidParquetMagic(statisticsBuffer);
+    const rows = await parquetReadObjects({ file: statisticsBuffer });
+    if (!rows.length) return null;
+
+    // Guard against a future/renamed schema landing in this slot: every consumer keys off
+    // these four columns, so without them the rows are unusable anyway.
+    const columns = Object.keys(rows[0]);
+    const required = ['space_name', 'annotation', 'stat_family', 'metric', 'value'];
+    if (!required.every((column) => columns.includes(column))) {
+      console.warn('Statistics parquet has an unexpected schema, ignoring it');
+      return null;
+    }
+
+    return rows as unknown as ProjectionStatisticRow[];
+  } catch (error) {
+    console.warn('Failed to parse statistics from bundle, ignoring them:', error);
+    return null;
+  }
 }
 
 /**

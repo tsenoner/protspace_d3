@@ -662,12 +662,23 @@ export function convertParquetToVisualizationData(
   const hasProjectionName = columnNames.includes('projection_name');
   const hasXY = columnNames.includes('x') && columnNames.includes('y');
 
-  if (hasProjectionName && hasXY) {
-    return normalizeEatCompanionColumns(
-      convertBundleFormatData(rows, columnNames, meta, formatVersion),
-    );
-  }
-  return normalizeEatCompanionColumns(convertLegacyFormatData(rows, columnNames, formatVersion));
+  const converted =
+    hasProjectionName && hasXY
+      ? convertBundleFormatData(rows, columnNames, meta, formatVersion)
+      : convertLegacyFormatData(rows, columnNames, formatVersion);
+  return withStatistics(normalizeEatCompanionColumns(converted), input);
+}
+
+/**
+ * Attach the bundle's optional statistics part to the converted data. Raw `Rows` input
+ * (plain .parquet / legacy reads) never carries statistics, so it passes straight through.
+ */
+function withStatistics(
+  data: VisualizationData,
+  input: BundleExtractionResult | Rows,
+): VisualizationData {
+  if (Array.isArray(input) || !input.statistics) return data;
+  return { ...data, statistics: input.statistics };
 }
 
 export function convertParquetToVisualizationDataOptimized(
@@ -691,7 +702,9 @@ export function convertParquetToVisualizationDataOptimized(
   if (numProjectionRows < 10000) {
     return Promise.resolve(convertParquetToVisualizationData(input));
   }
-  return convertLargeDatasetOptimized(input).then(normalizeEatCompanionColumns);
+  return convertLargeDatasetOptimized(input)
+    .then(normalizeEatCompanionColumns)
+    .then((data) => withStatistics(data, input));
 }
 
 async function convertLargeDatasetOptimizedRaw(
