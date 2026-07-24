@@ -169,12 +169,31 @@ describe('protspace-info-popover', () => {
     await el.updateComplete;
     const trigger = button(el)!;
     const dialog = popover(el)!;
-    const description = dialog.querySelector('.popover-description')!;
 
     expect(trigger.getAttribute('aria-controls')).toBe(dialog.id);
-    expect(trigger.getAttribute('aria-describedby')).toBe(description.id);
+    expect(trigger.getAttribute('aria-describedby')).toBe(dialog.id);
     expect(dialog.getAttribute('role')).toBe('dialog');
     expect(dialog.getAttribute('aria-label')).toBe('No annotation information');
+  });
+
+  it('describes a popover that carries only projected content', async () => {
+    // A stats popover has no description paragraph at all, so describing from one would
+    // announce nothing — the whole popover has to be the description target.
+    const el = await setup({ description: '', docsUrl: '' });
+    el.appendChild(
+      Object.assign(document.createElement('div'), { textContent: 'Silhouette 0.42' }),
+    );
+    el.requestUpdate();
+    await el.updateComplete;
+
+    button(el)!.click();
+    await el.updateComplete;
+
+    expect(button(el)!.getAttribute('aria-describedby')).toBe(popover(el)!.id);
+    // The content reaches the popover through the slot, so it is part of the flattened tree the
+    // accessible description is computed from (it is not in the shadow root's own textContent).
+    const slot = popover(el)!.querySelector('slot') as HTMLSlotElement;
+    expect(slot.assignedNodes().map((node) => node.textContent)).toEqual(['Silhouette 0.42']);
   });
 
   it('clamps a right-aligned bottom popover to the left viewport margin', async () => {

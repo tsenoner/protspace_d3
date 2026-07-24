@@ -35,7 +35,12 @@ let infoPopoverSequence = 0;
  *   edge keeps the bubble out of the list entirely, so every row's label stays visible while you
  *   move the pointer up and down the column of ⓘ icons.
  *
- * Renders nothing when there is neither a description nor a docs URL.
+ * Extra content (e.g. an annotation's projection-quality statistics) can be projected into the
+ * popover body as light-DOM children, which lets the owning component both build and style that
+ * markup in its own shadow root. Because the gate below reads `childElementCount` at render time,
+ * only ever create the element when it actually has content — don't rely on it appearing later.
+ *
+ * Renders nothing when there is no description, docs URL, or projected content.
  */
 @customElement('protspace-info-popover')
 class ProtspaceInfoPopover extends LitElement {
@@ -78,7 +83,7 @@ class ProtspaceInfoPopover extends LitElement {
       z-index: 1000;
       width: max-content;
       box-sizing: border-box;
-      max-width: min(260px, calc(100vw - 24px));
+      max-width: min(var(--info-popover-max-width, 260px), calc(100vw - 24px));
       padding: 0.55rem 0.65rem;
       border-radius: 8px;
       background: var(--surface-color, #ffffff);
@@ -187,7 +192,6 @@ class ProtspaceInfoPopover extends LitElement {
   @state() private sideCoords: SideCoords | null = null;
 
   private readonly popoverId = `protspace-info-popover-${++infoPopoverSequence}`;
-  private readonly descriptionId = `${this.popoverId}-description`;
 
   /** Whether the popover is currently visible (any of the three triggers). */
   private get isOpen(): boolean {
@@ -487,12 +491,16 @@ class ProtspaceInfoPopover extends LitElement {
   }
 
   render() {
-    const hasContent = this.description.length > 0 || this.docsUrl.length > 0;
+    const hasContent =
+      this.description.length > 0 || this.docsUrl.length > 0 || this.childElementCount > 0;
     if (!hasContent) return nothing;
 
     const ariaLabel = this.label ? `Information about ${this.label}` : 'Annotation information';
     const open = this.isOpen;
     const side = this.placement === 'side';
+    // `aria-describedby` points at the whole popover rather than the description paragraph:
+    // a popover may carry only slotted content (an annotation's statistics) with no description
+    // at all, in which case describing from an absent paragraph would announce nothing.
 
     const popoverClass = side
       ? `popover placement-side ${this.sideCoords ? '' : 'measuring'} ${
@@ -514,7 +522,7 @@ class ProtspaceInfoPopover extends LitElement {
         aria-label=${ariaLabel}
         aria-expanded=${open}
         aria-controls=${open ? this.popoverId : nothing}
-        aria-describedby=${open && this.description ? this.descriptionId : nothing}
+        aria-describedby=${open ? this.popoverId : nothing}
         title=${ariaLabel}
         @pointerdown=${this._onPointerDown}
         @focus=${this._onFocus}
@@ -553,10 +561,9 @@ class ProtspaceInfoPopover extends LitElement {
                 ></span>`
               : nothing}
             ${this.description
-              ? html`<p id=${this.descriptionId} class="popover-description">
-                  ${this.description}
-                </p>`
+              ? html`<p class="popover-description">${this.description}</p>`
               : nothing}
+            <slot></slot>
             ${this.docsUrl
               ? html`<a
                   class="popover-link"
