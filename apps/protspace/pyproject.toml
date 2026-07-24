@@ -149,14 +149,12 @@ known-first-party = ["protspace", "protlabel"]
 "examples/notebook/*" = ["E402", "F811", "ARG001", "F841"]  # Jupyter notebooks: imports after config, cell re-imports, widget callback args
 
 # Runs from apps/protspace (see .github/workflows/protspace-release.yml), so the
-# version paths stay relative to this file. build_command mirrors the bumped
-# version into uv.lock's protspace/protlabel entries via sync_lock_version.py — a
-# surgical text edit, NOT `uv lock` (a full re-lock re-serializes every dependency
-# marker in the runner's uv format, unrelated churn) — and stages it so the release
-# commit keeps `uv sync --locked` green on main and every PR. assets stays [] because
-# the lock is staged with `git add`, not an asset path; still no wheel build here
-# (publishing is handled by protspace-publish.yml). protspace + protlabel stay
-# lock-step (same bump).
+# version paths stay relative to this file. build_command mirrors the bumped version
+# into uv.lock via sync_lock_version.py (see its docstring for why a surgical edit
+# rather than `uv lock`) and stages it with `git add` so the release commit keeps
+# `uv sync --locked` green. assets stays [] because the lock is staged, not an asset;
+# no wheel build here (publishing is handled by protspace-publish.yml). protspace +
+# protlabel stay lock-step (same bump).
 [tool.semantic_release]
 # Monorepo scoping (requires python-semantic-release >= 10, pinned in
 # protspace-release.yml): count ONLY commits that touch this package dir

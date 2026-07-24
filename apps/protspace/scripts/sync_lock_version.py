@@ -18,16 +18,15 @@ back to the stamped `[project].version` in apps/protspace/pyproject.toml so the
 script is also runnable standalone.
 """
 
-from __future__ import annotations
-
 import os
 import pathlib
 import re
 import sys
+import tomllib
 
-APP_DIR = pathlib.Path(__file__).resolve().parents[1]  # apps/protspace
-REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]  # workspace root
-LOCK_PATH = REPO_ROOT / "uv.lock"
+_HERE = pathlib.Path(__file__).resolve()
+APP_DIR = _HERE.parents[1]  # apps/protspace
+LOCK_PATH = _HERE.parents[3] / "uv.lock"  # workspace root
 MEMBERS = ("protspace", "protlabel")
 
 
@@ -35,12 +34,9 @@ def _resolve_version() -> str:
     env = os.environ.get("NEW_VERSION")
     if env:
         return env.strip()
-    # Fallback: read the just-stamped [project].version (first top-level match).
-    text = (APP_DIR / "pyproject.toml").read_text()
-    match = re.search(r'(?m)^version = "([^"]+)"', text)
-    if not match:
-        sys.exit("could not determine version from NEW_VERSION or pyproject.toml")
-    return match.group(1)
+    # Fallback (standalone runs): read the just-stamped [project].version.
+    pyproject = tomllib.loads((APP_DIR / "pyproject.toml").read_text())
+    return pyproject["project"]["version"]
 
 
 def main() -> None:
