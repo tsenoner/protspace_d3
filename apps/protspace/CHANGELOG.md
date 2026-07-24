@@ -1,6 +1,41 @@
 # CHANGELOG
 
 
+## v4.9.1 (2026-07-24)
+
+### Bug Fixes
+
+- **ci**: Relock uv.lock to 4.9.0 after the release version bump
+  ([#387](https://github.com/tsenoner/protspace/pull/387),
+  [`6e6ca12`](https://github.com/tsenoner/protspace/commit/6e6ca12af95f38224e7efbe5a3db5aa717b9b1c6))
+
+### Chores
+
+- **scripts**: Drop broken tomli fallback in generate_examples
+  ([#387](https://github.com/tsenoner/protspace/pull/387),
+  [`6e6ca12`](https://github.com/tsenoner/protspace/commit/6e6ca12af95f38224e7efbe5a3db5aa717b9b1c6))
+
+### Continuous Integration
+
+- **release**: Keep uv.lock in sync on release so --locked CI stays green
+  ([#387](https://github.com/tsenoner/protspace/pull/387),
+  [`6e6ca12`](https://github.com/tsenoner/protspace/commit/6e6ca12af95f38224e7efbe5a3db5aa717b9b1c6))
+
+### Refactoring
+
+- **protspace**: Remove dead annoy shim and tomli fallback
+  ([#387](https://github.com/tsenoner/protspace/pull/387),
+  [`6e6ca12`](https://github.com/tsenoner/protspace/commit/6e6ca12af95f38224e7efbe5a3db5aa717b9b1c6))
+
+- **reducers**: Remove dead annoy fallback shim
+  ([#387](https://github.com/tsenoner/protspace/pull/387),
+  [`6e6ca12`](https://github.com/tsenoner/protspace/commit/6e6ca12af95f38224e7efbe5a3db5aa717b9b1c6))
+
+- **release**: Tidy sync_lock_version.py per review
+  ([#387](https://github.com/tsenoner/protspace/pull/387),
+  [`6e6ca12`](https://github.com/tsenoner/protspace/commit/6e6ca12af95f38224e7efbe5a3db5aa717b9b1c6))
+
+
 ## v4.9.0 (2026-07-24)
 
 ### Chores
