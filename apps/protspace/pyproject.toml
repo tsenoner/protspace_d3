@@ -149,10 +149,14 @@ known-first-party = ["protspace", "protlabel"]
 "examples/notebook/*" = ["E402", "F811", "ARG001", "F841"]  # Jupyter notebooks: imports after config, cell re-imports, widget callback args
 
 # Runs from apps/protspace (see .github/workflows/protspace-release.yml), so the
-# version paths stay relative to this file. In the monorepo uv workspace `uv lock`
-# only writes the ROOT lock, so semantic-release no longer manages the lock (assets=[])
-# and does not build (publishing is handled by protspace-publish.yml); it only bumps
-# the versions. protspace + protlabel stay lock-step (same bump).
+# version paths stay relative to this file. build_command mirrors the bumped
+# version into uv.lock's protspace/protlabel entries via sync_lock_version.py — a
+# surgical text edit, NOT `uv lock` (a full re-lock re-serializes every dependency
+# marker in the runner's uv format, unrelated churn) — and stages it so the release
+# commit keeps `uv sync --locked` green on main and every PR. assets stays [] because
+# the lock is staged with `git add`, not an asset path; still no wheel build here
+# (publishing is handled by protspace-publish.yml). protspace + protlabel stay
+# lock-step (same bump).
 [tool.semantic_release]
 # Monorepo scoping (requires python-semantic-release >= 10, pinned in
 # protspace-release.yml): count ONLY commits that touch this package dir
@@ -161,7 +165,7 @@ known-first-party = ["protspace", "protlabel"]
 # `v{version}` (protspace is the primary package; protlabel ships lock-step).
 commit_parser = "conventional-monorepo"
 assets = []
-build_command = ""
+build_command = "python3 scripts/sync_lock_version.py && git add ../../uv.lock"
 version_toml = [
     "pyproject.toml:project.version",
     "packages/protlabel/pyproject.toml:project.version",
