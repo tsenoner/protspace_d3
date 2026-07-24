@@ -91,9 +91,36 @@ export interface Projection {
   dimension: 2 | 3;
 }
 
+/**
+ * One row of the optional `statistics.parquet` bundle part (tidy long format, 9 columns).
+ * Emitted by the backend's `--stats` flag; absent from bundles prepared without it.
+ *
+ * Rows are keyed by `space_name` (a projection name, or the source embedding name when
+ * `space_kind === 'embedding'`) plus `annotation` (`''` for non-annotation rows such as
+ * `n_clusters`). Always filter on `stat_family` *and* `space_kind` — the same `metric`
+ * name appears once per (space × annotation).
+ */
+export interface ProjectionStatisticRow {
+  space_kind: 'embedding' | 'projection';
+  /** Projection name, or the embedding name for `space_kind === 'embedding'`. */
+  space_name: string;
+  /** Annotation the row was scored on; `''` for rows that aren't annotation-scoped. */
+  annotation: string;
+  stat_family: 'annotation_validity' | 'cluster_agreement' | 'cluster_validity';
+  label_kind: string;
+  metric: string;
+  /** `'meta'` rows (e.g. `n_clusters`) are information, not scores. */
+  metric_kind: 'validity' | 'agreement' | 'meta';
+  value: number;
+  /** Per-metric provenance as a JSON string (sample size, seed, …). */
+  extra_json?: string;
+}
+
 export interface VisualizationData {
   protein_ids: string[];
   projections: Projection[];
+  /** Rows of the optional `statistics.parquet` bundle part; absent when not prepared with `--stats`. */
+  statistics?: readonly ProjectionStatisticRow[];
   annotations: Record<string, Annotation>;
   annotation_data: Record<string, AnnotationData>;
   numeric_annotation_data?: Record<string, (number | null)[]>;

@@ -1,0 +1,146 @@
+import type { ProjectionStatisticRow } from '../types.js';
+
+/**
+ * Selects the per-annotation slice of the optional `statistics.parquet` bundle part, so the
+ * annotation picker can answer "how well does colouring by this annotation actually separate
+ * in the projection I'm looking at?".
+ *
+ * Everything here is defensive: a bundle may carry no statistics at all, statistics for only
+ * some annotations, or only some metrics per annotation (the backend skips Davies–Bouldin and
+ * Calinski–Harabasz for high-cardinality annotations). Rows that aren't scores (`metric_kind
+ * === 'meta'`, e.g. `n_clusters`) are never surfaced.
+ */
+
+/** Display name + optimisation direction per metric, and the render order within a group. */
+const METRIC_DISPLAY: Record<string, { label: string; higherIsBetter: boolean }> = {
+  silhouette: { label: 'Silhouette', higherIsBetter: true },
+  davies_bouldin: { label: 'Davies–Bouldin', higherIsBetter: false },
+  calinski_harabasz: { label: 'Calinski–Harabasz', higherIsBetter: true },
+  adjusted_rand: { label: 'ARI', higherIsBetter: true },
+  normalized_mutual_info: { label: 'NMI', higherIsBetter: true },
+};
+
+const VALIDITY_ORDER = ['silhouette', 'davies_bouldin', 'calinski_harabasz'];
+const AGREEMENT_ORDER = ['adjusted_rand', 'normalized_mutual_info'];
+
+/** Human name for a K-selection labelling (`label_kind`), falling back to the raw value. */
+const LABEL_KIND_DISPLAY: Record<string, string> = {
+  kmeans_elbow: 'elbow K',
+  kmeans_silhouette: 'silhouette K',
+};
+
+export interface AnnotationStatMetric {
+  metric: string;
+  /** Human-readable metric name. */
+  label: string;
+  value: number;
+  /**
+   * The same metric scored on the source embedding — the separability "ceiling" a 2D
+   * projection is measured against. `null` when the bundle has no embedding-space row.
+   */
+  embedding: number | null;
+  /** False for Davies–Bouldin; true for every other metric currently emitted. */
+  higherIsBetter: boolean;
+}
+
+export interface AnnotationAgreementGroup {
+  labelKind: string;
+  /** Human-readable K-selection name, e.g. "elbow K". */
+  label: string;
+  metrics: AnnotationStatMetric[];
+}
+
+export interface AnnotationStatSummary {
+  /** How cleanly the annotation's own categories separate in this projection. */
+  validity: AnnotationStatMetric[];
+  /** How well each auto-clustering of this projection recovers the annotation. */
+  agreement: AnnotationAgreementGroup[];
+}
+
+function toMetric(
+  row: ProjectionStatisticRow,
+  embeddingValue: number | null,
+): AnnotationStatMetric {
+  const display = METRIC_DISPLAY[row.metric];
+  return {
+    metric: row.metric,
+    label: display?.label ?? row.metric,
+    value: row.value,
+    embedding: embeddingValue,
+    higherIsBetter: display?.higherIsBetter ?? true,
+  };
+}
+
+function byOrder(order: string[]) {
+  return (a: AnnotationStatMetric, b: AnnotationStatMetric) => {
+    const ai = order.indexOf(a.metric);
+    const bi = order.indexOf(b.metric);
+    // Unknown metrics (a newer backend adding one) sort last rather than being dropped.
+    return (ai === -1 ? order.length : ai) - (bi === -1 ? order.length : bi);
+  };
+}
+
+/**
+ * Build the statistics shown behind an annotation's ⓘ icon, or `null` when the bundle has no
+ * score for this (annotation, projection) pair — which is also the "should we show the icon at
+ * all?" test.
+ *
+ * @param statistics Rows from the bundle's statistics part, if any.
+ * @param annotation Annotation column name, matched against `statistics.annotation`.
+ * @param projectionName Currently selected projection, matched against `statistics.space_name`.
+ */
+export function annotationStatSummary(
+  statistics: readonly ProjectionStatisticRow[] | undefined,
+  annotation: string,
+  projectionName: string,
+): AnnotationStatSummary | null {
+  if (!statistics?.length || !annotation) return null;
+
+  const forAnnotation = statistics.filter(
+    (row) => row.annotation === annotation && row.metric_kind !== 'meta',
+  );
+  if (forAnnotation.length === 0) return null;
+
+  // The embedding-space ceiling is projection-independent: one row per (annotation, metric).
+  const embeddingValues = new Map<string, number>();
+  for (const row of forAnnotation) {
+    if (row.space_kind === 'embedding' && row.stat_family === 'annotation_validity') {
+      embeddingValues.set(row.metric, row.value);
+    }
+  }
+
+  const inProjection = forAnnotation.filter(
+    (row) => row.space_kind === 'projection' && row.space_name === projectionName,
+  );
+
+  const validity = inProjection
+    .filter((row) => row.stat_family === 'annotation_validity')
+    .map((row) => toMetric(row, embeddingValues.get(row.metric) ?? null))
+    .sort(byOrder(VALIDITY_ORDER));
+
+  const agreementByLabelKind = new Map<string, AnnotationStatMetric[]>();
+  for (const row of inProjection) {
+    if (row.stat_family !== 'cluster_agreement') continue;
+    const metrics = agreementByLabelKind.get(row.label_kind) ?? [];
+    metrics.push(toMetric(row, null));
+    agreementByLabelKind.set(row.label_kind, metrics);
+  }
+
+  const agreement = [...agreementByLabelKind.entries()].map(([labelKind, metrics]) => ({
+    labelKind,
+    label: LABEL_KIND_DISPLAY[labelKind] ?? labelKind,
+    metrics: metrics.sort(byOrder(AGREEMENT_ORDER)),
+  }));
+
+  if (validity.length === 0 && agreement.length === 0) return null;
+  return { validity, agreement };
+}
+
+/**
+ * Format a statistic for display. Calinski–Harabasz is unbounded and runs into the hundreds or
+ * thousands, so it would waste the popover's width at 3 decimals; bounded scores keep them.
+ */
+export function formatStatValue(value: number): string {
+  if (!Number.isFinite(value)) return '—';
+  return Math.abs(value) >= 100 ? value.toFixed(0) : value.toFixed(3);
+}
