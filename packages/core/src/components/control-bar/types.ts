@@ -6,6 +6,7 @@ import type {
   NumericAnnotationDisplaySettingsMap,
   AnnotationData,
   AnnotationPredictedData,
+  ProjectionStatisticRow,
 } from '@protspace/utils';
 
 export type LegendSortModeLike =
@@ -50,6 +51,8 @@ export interface ProtspaceData {
   numeric_annotation_data?: Record<string, (number | null)[]>;
   protein_ids?: string[];
   annotation_predicted?: AnnotationPredictedData;
+  /** Rows of the bundle's optional statistics part (backend `--stats`); absent otherwise. */
+  statistics?: readonly ProjectionStatisticRow[];
 }
 
 export interface DataChangeDetail {

@@ -166,6 +166,82 @@ export const annotationSelectStyles = [
     .annotation-info {
       flex: 0 0 auto;
       align-items: center;
+      /* The stats grid needs more room than the popover's text-only default. */
+      --info-popover-max-width: 320px;
+    }
+
+    /* Projection-quality statistics, projected into the ⓘ popover's slot. Styled here (not in
+       the popover) because the markup lives in this component's shadow root. */
+    /* One grid for the whole block (rows are display: contents) so every metric row shares the
+       same column widths — a grid per row would size each row's columns to its own content and
+       leave the values visibly ragged. minmax(0, 1fr) lets the label column shrink instead of
+       pushing the value columns past the popover's max-width at large text sizes. */
+    .annotation-stats {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 0.15rem 0.5rem;
+      margin-top: 0.4rem;
+    }
+
+    .annotation-stats:first-child {
+      margin-top: 0;
+    }
+
+    .stat-heading,
+    .stat-group-label,
+    .stat-caveat {
+      grid-column: 1 / -1;
+    }
+
+    .stat-heading {
+      margin-top: 0.35rem;
+      font-weight: var(--font-semibold);
+      overflow-wrap: anywhere;
+    }
+
+    .stat-heading:first-child {
+      margin-top: 0;
+    }
+
+    .stat-group-label {
+      margin-top: 0.2rem;
+      color: var(--muted);
+      font-size: 0.72rem;
+    }
+
+    .stat-caveat {
+      margin-top: 0.35rem;
+      color: var(--muted);
+      font-size: 0.72rem;
+    }
+
+    .stat-metric {
+      display: contents;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stat-metric-embedding {
+      min-width: 4.5rem;
+      color: var(--muted);
+      text-align: right;
+    }
+
+    .stat-lower-better {
+      margin-left: 0.15rem;
+      color: var(--muted);
+    }
+
+    /* The "↓" glyph is decorative; the words next to it carry the meaning for screen readers. */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
 
     .tooltip-toggle-slot {

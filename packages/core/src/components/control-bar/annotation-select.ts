@@ -6,9 +6,14 @@ import { handleDropdownEscape } from '../../utils/dropdown-helpers';
 import { groupAnnotations, type GroupedAnnotation } from './annotation-categories';
 import {
   annotationLabel,
+  annotationStatSummary,
+  formatStatValue,
   getAnnotationMeta,
   isPredictedAnnotation,
   type Annotation,
+  type AnnotationStatMetric,
+  type AnnotationStatSummary,
+  type ProjectionStatisticRow,
 } from '@protspace/utils';
 import '../common/info-popover';
 
@@ -26,6 +31,16 @@ class ProtspaceAnnotationSelect extends LitElement {
   @property({ type: String, attribute: 'selected-annotation' }) selectedAnnotation: string = '';
   @property({ type: Array }) tooltipAnnotations: string[] = [];
   @property({ type: String }) placeholder: string = 'Select annotation';
+  /** Rows of the bundle's optional statistics part; empty when it was prepared without `--stats`. */
+  @property({ type: Array }) statistics: readonly ProjectionStatisticRow[] = [];
+  /** Projection the statistics are reported for — statistics are scored per projection. */
+  @property({ type: String, attribute: 'selected-projection' }) selectedProjection: string = '';
+  /**
+   * True while isolation or a filter has the plot showing a subset. Statistics are scored once
+   * over the whole dataset and are never recomputed per view, so the popover has to say so
+   * rather than let the numbers read as describing what's on screen.
+   */
+  @property({ type: Boolean, attribute: 'view-is-subset' }) viewIsSubset: boolean = false;
 
   @state() private open: boolean = false;
   @state() private query: string = '';
@@ -201,6 +216,57 @@ class ProtspaceAnnotationSelect extends LitElement {
     return flat;
   }
 
+  /**
+   * One metric row: name (with a "lower is better" marker where that applies), its value in the
+   * selected projection, and — for annotation-validity metrics — the same metric in the source
+   * embedding, which is the separability ceiling the projection is measured against.
+   */
+  private renderStatMetric(metric: AnnotationStatMetric) {
+    return html`
+      <div class="stat-metric">
+        <span class="stat-metric-label">
+          ${metric.label}${metric.higherIsBetter
+            ? ''
+            : html`<span class="stat-lower-better" aria-hidden="true" title="Lower is better"
+                  >↓</span
+                ><span class="sr-only"> (lower is better)</span>`}
+        </span>
+        <span class="stat-metric-value">${formatStatValue(metric.value)}</span>
+        <span class="stat-metric-embedding">
+          ${metric.embedding === null ? '' : `emb ${formatStatValue(metric.embedding)}`}
+        </span>
+      </div>
+    `;
+  }
+
+  /** Projection-quality statistics for one annotation, projected into its ⓘ popover. */
+  private renderStats(summary: AnnotationStatSummary) {
+    return html`
+      <div class="annotation-stats">
+        ${this.viewIsSubset
+          ? html`<div class="stat-caveat">Computed on the full dataset, not the current view.</div>`
+          : ''}
+        ${summary.validity.length > 0
+          ? html`
+              <div class="stat-heading">Separation in ${this.selectedProjection}</div>
+              ${summary.validity.map((metric) => this.renderStatMetric(metric))}
+            `
+          : ''}
+        ${summary.agreement.length > 0
+          ? html`
+              <div class="stat-heading">Auto-cluster agreement</div>
+              ${summary.agreement.map(
+                (group) => html`
+                  <div class="stat-group-label">${group.label}</div>
+                  ${group.metrics.map((metric) => this.renderStatMetric(metric))}
+                `,
+              )}
+            `
+          : ''}
+      </div>
+    `;
+  }
+
   render() {
     const filtered = this.getFilteredGroupedAnnotations();
     const displayText = this.selectedAnnotation
@@ -264,6 +330,11 @@ class ProtspaceAnnotationSelect extends LitElement {
                                 const definition = this.annotationDefinitions[annotation];
                                 const meta = getAnnotationMeta(annotation, definition);
                                 const hasDocs = meta.description.length > 0 || !!meta.docsUrl;
+                                const stats = annotationStatSummary(
+                                  this.statistics,
+                                  annotation,
+                                  this.selectedProjection,
+                                );
                                 return html`
                                   <div
                                     class="dropdown-item ${isHighlighted
@@ -282,7 +353,7 @@ class ProtspaceAnnotationSelect extends LitElement {
                                     >
                                       ${isSelected ? html`<span class="primary-dot"></span>` : ''}
                                     </span>
-                                    ${hasDocs
+                                    ${hasDocs || stats
                                       ? html`<protspace-info-popover
                                           class="annotation-info"
                                           placement="side"
@@ -290,7 +361,10 @@ class ProtspaceAnnotationSelect extends LitElement {
                                           docs-url=${meta.docsUrl ?? ''}
                                           label=${annotationLabel(annotation, definition)}
                                           @click=${(e: Event) => e.stopPropagation()}
-                                        ></protspace-info-popover>`
+                                          >${stats
+                                            ? this.renderStats(stats)
+                                            : ''}</protspace-info-popover
+                                        >`
                                       : ''}
                                     <span class="dropdown-item-label"
                                       >${annotationLabel(annotation, definition)}</span

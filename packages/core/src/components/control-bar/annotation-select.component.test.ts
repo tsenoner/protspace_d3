@@ -4,13 +4,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import './annotation-select';
 import './control-bar';
+import type { ProjectionStatisticRow } from '@protspace/utils';
 import type { ProtspaceData } from './types';
 
 type AnnotationSelectElement = HTMLElement & {
   annotations: string[];
   selectedAnnotation: string;
+  selectedProjection: string;
+  viewIsSubset: boolean;
   tooltipAnnotations: string[];
   eatAnnotations: string[];
+  statistics: readonly ProjectionStatisticRow[];
   updateComplete: Promise<unknown>;
 };
 
@@ -18,8 +22,11 @@ async function setup(initial: Partial<AnnotationSelectElement> = {}) {
   const el = document.createElement('protspace-annotation-select') as AnnotationSelectElement;
   el.annotations = initial.annotations ?? ['gene_name', 'pfam', 'species'];
   el.selectedAnnotation = initial.selectedAnnotation ?? 'pfam';
+  el.selectedProjection = initial.selectedProjection ?? '';
+  el.viewIsSubset = initial.viewIsSubset ?? false;
   el.tooltipAnnotations = initial.tooltipAnnotations ?? [];
   el.eatAnnotations = initial.eatAnnotations ?? [];
+  el.statistics = initial.statistics ?? [];
   document.body.appendChild(el);
   await el.updateComplete;
   return el;
@@ -154,6 +161,104 @@ describe('protspace-annotation-select tooltip extras', () => {
 
     expect(selectSpy).toHaveBeenCalledTimes(1);
     expect((selectSpy.mock.calls[0][0] as CustomEvent).detail).toEqual({ annotation: 'gene_name' });
+  });
+});
+
+describe('protspace-annotation-select statistics info icon', () => {
+  const statRow = (over: Partial<ProjectionStatisticRow> = {}): ProjectionStatisticRow => ({
+    space_kind: 'projection',
+    space_name: 'umap',
+    annotation: 'major_group',
+    stat_family: 'annotation_validity',
+    label_kind: 'annotation',
+    metric: 'silhouette',
+    metric_kind: 'validity',
+    value: 0.42,
+    ...over,
+  });
+
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  // Neither annotation ships built-in docs, so the ⓘ icon here can only come from statistics.
+  const CUSTOM_ANNOTATIONS = ['major_group', 'seq_start'];
+
+  it('shows the ⓘ icon only for annotations that have a statistic', async () => {
+    const el = await setup({
+      annotations: CUSTOM_ANNOTATIONS,
+      statistics: [statRow()],
+      selectedProjection: 'umap',
+    });
+    await openDropdown(el);
+
+    expect(getRowFor(el, 'major_group').querySelector('protspace-info-popover')).not.toBeNull();
+    expect(getRowFor(el, 'seq_start').querySelector('protspace-info-popover')).toBeNull();
+  });
+
+  it('shows no icon when the statistics are for a different projection', async () => {
+    const el = await setup({
+      annotations: CUSTOM_ANNOTATIONS,
+      statistics: [statRow()],
+      selectedProjection: 'pca',
+    });
+    await openDropdown(el);
+
+    expect(getRowFor(el, 'major_group').querySelector('protspace-info-popover')).toBeNull();
+  });
+
+  it('renders the metric, its value and the embedding ceiling in the popover', async () => {
+    const el = await setup({
+      annotations: CUSTOM_ANNOTATIONS,
+      statistics: [
+        statRow(),
+        statRow({ space_kind: 'embedding', space_name: 'prot_t5', value: 0.1 }),
+      ],
+      selectedProjection: 'umap',
+    });
+    await openDropdown(el);
+
+    const stats = getRowFor(el, 'major_group').querySelector('.annotation-stats') as HTMLElement;
+    expect(stats.textContent).toContain('Separation in umap');
+    expect(stats.textContent).toContain('Silhouette');
+    expect(stats.textContent).toContain('0.420');
+    expect(stats.textContent).toContain('emb 0.100');
+  });
+
+  it('conveys "lower is better" as text, not only as a title attribute', async () => {
+    const el = await setup({
+      annotations: CUSTOM_ANNOTATIONS,
+      statistics: [statRow({ metric: 'davies_bouldin', value: 1.5 })],
+      selectedProjection: 'umap',
+    });
+    await openDropdown(el);
+
+    // The ↓ glyph alone reaches neither screen readers nor touch users.
+    const stats = getRowFor(el, 'major_group').querySelector('.annotation-stats') as HTMLElement;
+    expect(stats.querySelector('.stat-lower-better')?.getAttribute('aria-hidden')).toBe('true');
+    expect(stats.textContent).toContain('lower is better');
+  });
+
+  it('warns that the numbers describe the full dataset while a subset is shown', async () => {
+    const args = {
+      annotations: CUSTOM_ANNOTATIONS,
+      statistics: [statRow()],
+      selectedProjection: 'umap',
+    };
+    const caveat = 'Computed on the full dataset';
+
+    const whole = await setup(args);
+    await openDropdown(whole);
+    expect(getRowFor(whole, 'major_group').textContent).not.toContain(caveat);
+
+    document.body.innerHTML = '';
+    const subset = await setup({ ...args, viewIsSubset: true });
+    await openDropdown(subset);
+    expect(getRowFor(subset, 'major_group').textContent).toContain(caveat);
   });
 });
 
