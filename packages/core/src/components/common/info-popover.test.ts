@@ -171,7 +171,10 @@ describe('protspace-info-popover', () => {
     const dialog = popover(el)!;
 
     expect(trigger.getAttribute('aria-controls')).toBe(dialog.id);
-    expect(trigger.getAttribute('aria-describedby')).toBe(dialog.id);
+    // Describing the dialog itself would announce its aria-label instead of its contents,
+    // so the description target is the unlabelled content wrapper.
+    expect(trigger.getAttribute('aria-describedby')).toBe(`${dialog.id}-content`);
+    expect(dialog.querySelector('.popover-content')!.id).toBe(`${dialog.id}-content`);
     expect(dialog.getAttribute('role')).toBe('dialog');
     expect(dialog.getAttribute('aria-label')).toBe('No annotation information');
   });
@@ -189,11 +192,24 @@ describe('protspace-info-popover', () => {
     button(el)!.click();
     await el.updateComplete;
 
-    expect(button(el)!.getAttribute('aria-describedby')).toBe(popover(el)!.id);
+    expect(button(el)!.getAttribute('aria-describedby')).toBe(`${popover(el)!.id}-content`);
     // The content reaches the popover through the slot, so it is part of the flattened tree the
     // accessible description is computed from (it is not in the shadow root's own textContent).
     const slot = popover(el)!.querySelector('slot') as HTMLSlotElement;
     expect(slot.assignedNodes().map((node) => node.textContent)).toEqual(['Silhouette 0.42']);
+  });
+
+  it('keeps a description-only popover describing its description text', async () => {
+    // Regression guard: pointing aria-describedby at the dialog made screen readers announce the
+    // dialog's aria-label instead of this sentence (every legend/annotation ⓘ on main).
+    const el = await setup({ description: 'Predictions below this reliability are hidden.' });
+    button(el)!.click();
+    await el.updateComplete;
+
+    const describedBy = button(el)!.getAttribute('aria-describedby')!;
+    const described = popover(el)!.querySelector(`#${describedBy}`) as HTMLElement;
+    expect(described.textContent).toContain('Predictions below this reliability are hidden.');
+    expect(described.getAttribute('aria-label')).toBeNull();
   });
 
   it('clamps a right-aligned bottom popover to the left viewport margin', async () => {

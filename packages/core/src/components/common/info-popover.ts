@@ -144,6 +144,16 @@ class ProtspaceInfoPopover extends LitElement {
       border-top: none;
     }
 
+    /* Scroll container for the description + projected statistics. It has to be an inner element:
+       \`.popover\` cannot take \`overflow\` because the arrow is positioned outside its box. The cap
+       keeps a tall stats popover on screen — the side-placement clamp collapses to \`top: 8px\`
+       once the bubble is taller than the viewport, leaving the last rows unreachable. */
+    .popover-content {
+      max-height: 60vh;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+
     .popover-description {
       margin: 0;
     }
@@ -192,6 +202,13 @@ class ProtspaceInfoPopover extends LitElement {
   @state() private sideCoords: SideCoords | null = null;
 
   private readonly popoverId = `protspace-info-popover-${++infoPopoverSequence}`;
+
+  /**
+   * `aria-describedby` target. It is the content wrapper, not the popover itself: the popover
+   * carries an `aria-label`, and accname step 2C returns that label rather than descending into
+   * the contents — which silently emptied the description for every consumer.
+   */
+  private readonly contentId = `${this.popoverId}-content`;
 
   /** Whether the popover is currently visible (any of the three triggers). */
   private get isOpen(): boolean {
@@ -498,9 +515,6 @@ class ProtspaceInfoPopover extends LitElement {
     const ariaLabel = this.label ? `Information about ${this.label}` : 'Annotation information';
     const open = this.isOpen;
     const side = this.placement === 'side';
-    // `aria-describedby` points at the whole popover rather than the description paragraph:
-    // a popover may carry only slotted content (an annotation's statistics) with no description
-    // at all, in which case describing from an absent paragraph would announce nothing.
 
     const popoverClass = side
       ? `popover placement-side ${this.sideCoords ? '' : 'measuring'} ${
@@ -522,7 +536,7 @@ class ProtspaceInfoPopover extends LitElement {
         aria-label=${ariaLabel}
         aria-expanded=${open}
         aria-controls=${open ? this.popoverId : nothing}
-        aria-describedby=${open ? this.popoverId : nothing}
+        aria-describedby=${open ? this.contentId : nothing}
         title=${ariaLabel}
         @pointerdown=${this._onPointerDown}
         @focus=${this._onFocus}
@@ -560,10 +574,12 @@ class ProtspaceInfoPopover extends LitElement {
                   style=${this.sideCoords ? `top:${this.sideCoords.arrowTop}px` : ''}
                 ></span>`
               : nothing}
-            ${this.description
-              ? html`<p class="popover-description">${this.description}</p>`
-              : nothing}
-            <slot></slot>
+            <div id=${this.contentId} class="popover-content">
+              ${this.description
+                ? html`<p class="popover-description">${this.description}</p>`
+                : nothing}
+              <slot></slot>
+            </div>
             ${this.docsUrl
               ? html`<a
                   class="popover-link"
