@@ -1,6 +1,6 @@
 import { css } from 'lit';
 import { tokens } from '../../styles/tokens';
-import { buttonMixin, inputMixin, dropdownMixin } from '../../styles/mixins';
+import { buttonMixin, inputMixin, dropdownMixin, srOnlyMixin } from '../../styles/mixins';
 
 /**
  * Annotation Select Component Styles
@@ -14,6 +14,7 @@ export const annotationSelectStyles = [
   buttonMixin,
   inputMixin,
   dropdownMixin,
+  srOnlyMixin,
   css`
     :host {
       display: inline-flex;
@@ -236,19 +237,6 @@ export const annotationSelectStyles = [
     .stat-lower-better {
       margin-left: 0.15rem;
       color: var(--muted);
-    }
-
-    /* The "↓" glyph is decorative; the words next to it carry the meaning for screen readers. */
-    .sr-only {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
     }
 
     .tooltip-toggle-slot {
