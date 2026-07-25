@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parquetWriteBuffer } from 'hyparquet-writer';
@@ -43,6 +43,9 @@ const joinParts = (parts: Uint8Array[]): ArrayBuffer =>
 const bundleWith = (...trailing: Uint8Array[]): ArrayBuffer => joinParts([CORE, ...trailing]);
 
 describe('statistics part of a parquetbundle', () => {
+  // Inline mockRestore() can be skipped by a throwing assertion and leak into later tests.
+  afterEach(() => vi.restoreAllMocks());
+
   it('loads a 5-part bundle (core + settings + statistics)', async () => {
     const extraction = await extractRowsFromParquetBundle(bundleWith(SETTINGS, STATISTICS));
 
@@ -142,7 +145,6 @@ describe('statistics part of a parquetbundle', () => {
 
     expect(extraction.statistics).toBeNull();
     expect(warn).toHaveBeenCalledWith('Statistics parquet has an unexpected schema, ignoring it');
-    warn.mockRestore();
   });
 
   it('coerces an INT64 value column to numbers', async () => {
@@ -251,6 +253,5 @@ describe('statistics part of a parquetbundle', () => {
 
     expect(extraction.settings).toBeNull();
     expect(warn).not.toHaveBeenCalled();
-    warn.mockRestore();
   });
 });
