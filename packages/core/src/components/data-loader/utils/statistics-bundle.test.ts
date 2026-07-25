@@ -173,6 +173,21 @@ describe('statistics part of a parquetbundle', () => {
     });
   });
 
+  it('round-trips settings alongside statistics (full 5-part bundle)', async () => {
+    const extraction = await extractRowsFromParquetBundle(bundleWith(SETTINGS, STATISTICS));
+    const data = convertParquetToVisualizationData(extraction);
+    const settings = { legendSettings: {}, exportOptions: {}, eatConfidenceThreshold: 0.75 };
+
+    const exported = await extractRowsFromParquetBundle(
+      createParquetBundle(data, { includeSettings: true, settings }),
+    );
+
+    expect(exported.settings).not.toBeNull();
+    expect(exported.settings!.eatConfidenceThreshold).toBe(0.75);
+    expect(exported.statistics).not.toBeNull();
+    expect(exported.statistics!.length).toBe(data.statistics!.length);
+  });
+
   it('omits the statistics part when the caller opts out', async () => {
     const extraction = await extractRowsFromParquetBundle(bundleWith(SETTINGS, STATISTICS));
     const data = convertParquetToVisualizationData(extraction);

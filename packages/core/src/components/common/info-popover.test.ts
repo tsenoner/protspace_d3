@@ -180,8 +180,9 @@ describe('protspace-info-popover', () => {
   });
 
   it('describes a popover that carries only projected content', async () => {
-    // A stats popover has no description paragraph at all, so describing from one would
-    // announce nothing — the whole popover has to be the description target.
+    // A stats popover has no description paragraph at all, only slotted content — but the
+    // description target is still the unlabelled content wrapper, not the popover/dialog
+    // itself, which carries an aria-label that would be announced instead.
     const el = await setup({ description: '', docsUrl: '' });
     el.appendChild(
       Object.assign(document.createElement('div'), { textContent: 'Silhouette 0.42' }),

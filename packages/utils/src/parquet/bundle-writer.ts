@@ -1,5 +1,6 @@
 /**
- * Bundle writer utilities for creating .parquetbundle files with optional settings.
+ * Bundle writer utilities for creating .parquetbundle files with optional settings and
+ * statistics.
  *
  * Bundle format:
  * - Part 1: selected_annotations.parquet (identifier + annotation columns)
@@ -7,8 +8,17 @@
  * - Part 2: projections_metadata.parquet (projection_name, dimensions, info_json)
  * - Delimiter: ---PARQUET_DELIMITER---
  * - Part 3: projections_data.parquet (projection_name, identifier, x, y, z)
- * - Delimiter: ---PARQUET_DELIMITER--- (optional, only if settings included)
- * - Part 4: settings.parquet (optional, settings_json column)
+ * - Delimiter: ---PARQUET_DELIMITER--- (present when a 4th part follows)
+ * - Part 4: settings.parquet (settings_json column) — present whenever settings are
+ *   included; also written as a MANDATORY ZERO-BYTE placeholder when statistics are
+ *   included without settings, so the statistics part keeps a fixed slot (5)
+ * - Delimiter: ---PARQUET_DELIMITER--- (present when a 5th part follows)
+ * - Part 5: statistics.parquet (tidy annotation/cluster stat rows), only when statistics
+ *   are included
+ *
+ * Resulting layouts: 3 parts (no settings, no statistics), 4 parts (settings only), or
+ * 5 parts (statistics present, with part 4 either real settings or the zero-byte
+ * placeholder above).
  */
 
 import { parquetWriteBuffer } from 'hyparquet-writer';
@@ -283,7 +293,12 @@ function concatenateBuffers(buffers: ArrayBuffer[], delimiter: Uint8Array): Arra
 }
 
 export interface CreateBundleOptions {
-  /** Include persisted settings in the bundle (4-part format) */
+  /**
+   * Include persisted settings in the bundle. Adds a 4th part on its own, or fills the
+   * settings slot of a 5-part bundle when statistics are also included (see the module
+   * doc above for the zero-byte placeholder rule when statistics are included without
+   * settings).
+   */
   includeSettings?: boolean;
   /** Persisted settings to include (required if includeSettings is true) */
   settings?: BundleSettings;
