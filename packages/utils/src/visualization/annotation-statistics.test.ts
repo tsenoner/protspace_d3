@@ -151,6 +151,25 @@ describe('annotationStatSummary', () => {
 
     expect(summary!.validity[0].embedding).toBe(0.095);
   });
+
+  it('orders agreement groups independently of parquet row order', async () => {
+    const agreementRow = (labelKind: string, value: number) =>
+      row({
+        stat_family: 'cluster_agreement',
+        label_kind: labelKind,
+        metric: 'adjusted_rand',
+        metric_kind: 'agreement',
+        value,
+      });
+    // silhouette-K rows first — the reverse of what the current writer happens to emit.
+    const summary = annotationStatSummary(
+      [agreementRow('kmeans_silhouette', 0.2), agreementRow('kmeans_elbow', 0.5)],
+      'major_group',
+      'UMAP 2',
+    );
+
+    expect(summary!.agreement.map((group) => group.label)).toEqual(['elbow K', 'silhouette K']);
+  });
 });
 
 describe('formatStatValue', () => {

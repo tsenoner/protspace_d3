@@ -20,14 +20,19 @@ const METRIC_DISPLAY: Record<string, { label: string; higherIsBetter: boolean }>
   normalized_mutual_info: { label: 'NMI', higherIsBetter: true },
 };
 
-const VALIDITY_ORDER = ['silhouette', 'davies_bouldin', 'calinski_harabasz'];
-const AGREEMENT_ORDER = ['adjusted_rand', 'normalized_mutual_info'];
-
 /** Human name for a K-selection labelling (`label_kind`), falling back to the raw value. */
 const LABEL_KIND_DISPLAY: Record<string, string> = {
   kmeans_elbow: 'elbow K',
   kmeans_silhouette: 'silhouette K',
 };
+
+/**
+ * Render order, derived from the display maps rather than restated — a metric added to
+ * `METRIC_DISPLAY` alone would otherwise silently sort last. Validity and agreement metrics
+ * never share a list, so one order covers both.
+ */
+const METRIC_ORDER = Object.keys(METRIC_DISPLAY);
+const LABEL_KIND_ORDER = Object.keys(LABEL_KIND_DISPLAY);
 
 export interface AnnotationStatMetric {
   metric: string;
@@ -71,13 +76,15 @@ function toMetric(
   };
 }
 
+/** Position of `key` in `order`; unknown keys (a newer backend adding one) sort last. */
+function orderIndex(order: string[], key: string): number {
+  const index = order.indexOf(key);
+  return index === -1 ? order.length : index;
+}
+
 function byOrder(order: string[]) {
-  return (a: AnnotationStatMetric, b: AnnotationStatMetric) => {
-    const ai = order.indexOf(a.metric);
-    const bi = order.indexOf(b.metric);
-    // Unknown metrics (a newer backend adding one) sort last rather than being dropped.
-    return (ai === -1 ? order.length : ai) - (bi === -1 ? order.length : bi);
-  };
+  return (a: AnnotationStatMetric, b: AnnotationStatMetric) =>
+    orderIndex(order, a.metric) - orderIndex(order, b.metric);
 }
 
 /**
@@ -126,7 +133,7 @@ export function annotationStatSummary(
   const validity = inProjection
     .filter((row) => row.stat_family === 'annotation_validity')
     .map((row) => toMetric(row, embeddingValues.get(row.metric) ?? null))
-    .sort(byOrder(VALIDITY_ORDER));
+    .sort(byOrder(METRIC_ORDER));
 
   const agreementByLabelKind = new Map<string, AnnotationStatMetric[]>();
   for (const row of inProjection) {
@@ -136,11 +143,15 @@ export function annotationStatSummary(
     agreementByLabelKind.set(row.label_kind, metrics);
   }
 
-  const agreement = [...agreementByLabelKind.entries()].map(([labelKind, metrics]) => ({
-    labelKind,
-    label: LABEL_KIND_DISPLAY[labelKind] ?? labelKind,
-    metrics: metrics.sort(byOrder(AGREEMENT_ORDER)),
-  }));
+  // Sorted here rather than inherited from parquet row order, so the popover's group order is
+  // this module's decision and not the Python writer's iteration order over K-selections.
+  const agreement = [...agreementByLabelKind.entries()]
+    .sort(([a], [b]) => orderIndex(LABEL_KIND_ORDER, a) - orderIndex(LABEL_KIND_ORDER, b))
+    .map(([labelKind, metrics]) => ({
+      labelKind,
+      label: LABEL_KIND_DISPLAY[labelKind] ?? labelKind,
+      metrics: metrics.sort(byOrder(METRIC_ORDER)),
+    }));
 
   if (validity.length === 0 && agreement.length === 0) return null;
   return { validity, agreement };
