@@ -5,6 +5,7 @@ import { parquetWriteBuffer } from 'hyparquet-writer';
 import {
   BUNDLE_DELIMITER_BYTES,
   annotationStatSummary,
+  concatenateBuffers,
   createParquetBundle,
 } from '@protspace/utils';
 import { extractRowsFromParquetBundle } from './bundle';
@@ -31,23 +32,12 @@ const SETTINGS = fixture('stats-sample-settings.parquet');
 /** A real 3-part (2-delimiter) bundle: annotations, projections metadata, projections. */
 const CORE = fixture('v2-sample.parquetbundle');
 
-/** Join parts with the bundle delimiter. An empty part yields a zero-byte slot. */
-function joinParts(parts: Uint8Array[]): ArrayBuffer {
-  const size =
-    parts.reduce((total, part) => total + part.byteLength, 0) +
-    BUNDLE_DELIMITER_BYTES.length * (parts.length - 1);
-  const out = new Uint8Array(size);
-  let offset = 0;
-  parts.forEach((part, index) => {
-    out.set(part, offset);
-    offset += part.byteLength;
-    if (index < parts.length - 1) {
-      out.set(BUNDLE_DELIMITER_BYTES, offset);
-      offset += BUNDLE_DELIMITER_BYTES.length;
-    }
-  });
-  return out.buffer;
-}
+/** Join parts with the writer's own framing. An empty part yields a zero-byte slot. */
+const joinParts = (parts: Uint8Array[]): ArrayBuffer =>
+  concatenateBuffers(
+    parts.map((part) => part.slice().buffer),
+    BUNDLE_DELIMITER_BYTES,
+  );
 
 /** `[core, core, core]` + whatever trailing parts a case needs. */
 const bundleWith = (...trailing: Uint8Array[]): ArrayBuffer => joinParts([CORE, ...trailing]);

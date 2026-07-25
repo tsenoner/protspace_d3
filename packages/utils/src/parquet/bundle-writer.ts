@@ -265,9 +265,11 @@ function hasBundleSettings(settings: BundleSettings | undefined): settings is Bu
 }
 
 /**
- * Concatenate multiple ArrayBuffers with delimiters.
+ * Concatenate multiple ArrayBuffers with delimiters. Exported as the single implementation
+ * of the bundle's part-framing (zero-byte slots included) — tests glue fixtures with it
+ * instead of re-implementing the protocol.
  */
-function concatenateBuffers(buffers: ArrayBuffer[], delimiter: Uint8Array): ArrayBuffer {
+export function concatenateBuffers(buffers: ArrayBuffer[], delimiter: Uint8Array): ArrayBuffer {
   // Calculate total size
   let totalSize = 0;
   for (let i = 0; i < buffers.length; i++) {
