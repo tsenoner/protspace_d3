@@ -101,11 +101,21 @@ export function annotationStatSummary(
   );
   if (forAnnotation.length === 0) return null;
 
-  // The embedding-space ceiling is projection-independent: one row per (annotation, metric).
+  // The embedding-space ceiling is projection-independent, but a bundle prepared from several
+  // embeddings carries one row per (annotation, metric, embedding) — the driver runs the
+  // embedding pass once per embedding set. Nothing in the tidy schema links a projection back
+  // to the embedding it came from, so a metric scored on more than one embedding has no
+  // ceiling we can attribute: drop it rather than show a different embedding's number.
   const embeddingValues = new Map<string, number>();
+  const ceilingSource = new Map<string, string>();
   for (const row of forAnnotation) {
-    if (row.space_kind === 'embedding' && row.stat_family === 'annotation_validity') {
+    if (row.space_kind !== 'embedding' || row.stat_family !== 'annotation_validity') continue;
+    const source = ceilingSource.get(row.metric);
+    if (source === undefined) {
+      ceilingSource.set(row.metric, row.space_name);
       embeddingValues.set(row.metric, row.value);
+    } else if (source !== row.space_name) {
+      embeddingValues.delete(row.metric);
     }
   }
 

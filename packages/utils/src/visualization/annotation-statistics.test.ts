@@ -116,6 +116,41 @@ describe('annotationStatSummary', () => {
     const embeddingOnly = ROWS.filter((r) => r.space_kind === 'embedding');
     expect(annotationStatSummary(embeddingOnly, 'major_group', 'UMAP 2')).toBeNull();
   });
+
+  it('drops the embedding ceiling when two embeddings scored the same metric', async () => {
+    // A multi-embedding bundle has one embedding row per (annotation, metric, embedding), and
+    // nothing in the tidy schema says which embedding this projection came from.
+    const summary = annotationStatSummary(
+      [
+        row({ metric: 'silhouette', value: 0.326 }),
+        row({ space_kind: 'embedding', space_name: 'prot_t5', metric: 'silhouette', value: 0.095 }),
+        row({
+          space_kind: 'embedding',
+          space_name: 'esm2_650m',
+          metric: 'silhouette',
+          value: 0.41,
+        }),
+      ],
+      'major_group',
+      'UMAP 2',
+    );
+
+    expect(summary!.validity[0].value).toBe(0.326);
+    expect(summary!.validity[0].embedding).toBeNull();
+  });
+
+  it('keeps the ceiling when a single embedding scored the metric twice-over rows', async () => {
+    const summary = annotationStatSummary(
+      [
+        row({ metric: 'silhouette', value: 0.326 }),
+        row({ space_kind: 'embedding', space_name: 'prot_t5', metric: 'silhouette', value: 0.095 }),
+      ],
+      'major_group',
+      'UMAP 2',
+    );
+
+    expect(summary!.validity[0].embedding).toBe(0.095);
+  });
 });
 
 describe('formatStatValue', () => {
