@@ -35,12 +35,6 @@ class ProtspaceAnnotationSelect extends LitElement {
   @property({ type: Array }) statistics: readonly ProjectionStatisticRow[] = [];
   /** Projection the statistics are reported for — statistics are scored per projection. */
   @property({ type: String, attribute: 'selected-projection' }) selectedProjection: string = '';
-  /**
-   * True while isolation or a filter has the plot showing a subset. Statistics are scored once
-   * over the whole dataset and are never recomputed per view, so the popover has to say so
-   * rather than let the numbers read as describing what's on screen.
-   */
-  @property({ type: Boolean, attribute: 'view-is-subset' }) viewIsSubset: boolean = false;
 
   @state() private open: boolean = false;
   @state() private query: string = '';
@@ -243,9 +237,6 @@ class ProtspaceAnnotationSelect extends LitElement {
   private renderStats(summary: AnnotationStatSummary) {
     return html`
       <div class="annotation-stats">
-        ${this.viewIsSubset
-          ? html`<div class="stat-caveat">Computed on the full dataset, not the current view.</div>`
-          : ''}
         ${summary.validity.length > 0
           ? html`
               <div class="stat-heading">Separation in ${this.selectedProjection}</div>
@@ -263,6 +254,10 @@ class ProtspaceAnnotationSelect extends LitElement {
               )}
             `
           : ''}
+        <!-- Stated unconditionally: isolation, query filters, legend hides and the reliability
+             threshold all narrow the view, and these scores are computed once over the whole
+             dataset regardless. A flag tracking "is the view a subset?" cannot stay correct. -->
+        <div class="stat-caveat">Computed on the full dataset, not the current view.</div>
       </div>
     `;
   }

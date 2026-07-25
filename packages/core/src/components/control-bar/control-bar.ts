@@ -613,7 +613,6 @@ export class ProtspaceControlBar extends LitElement {
               .selectedAnnotation=${this.selectedAnnotation}
               .selectedProjection=${this.selectedProjection}
               .statistics=${this._currentData?.statistics ?? []}
-              .viewIsSubset=${this.isolationMode || this.filterActive}
               .tooltipAnnotations=${this.tooltipAnnotations}
               @annotation-select=${this.handleAnnotationSelected}
               @tooltip-annotation-toggle=${this.handleTooltipAnnotationToggle}

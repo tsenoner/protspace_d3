@@ -11,7 +11,6 @@ type AnnotationSelectElement = HTMLElement & {
   annotations: string[];
   selectedAnnotation: string;
   selectedProjection: string;
-  viewIsSubset: boolean;
   tooltipAnnotations: string[];
   eatAnnotations: string[];
   statistics: readonly ProjectionStatisticRow[];
@@ -23,7 +22,6 @@ async function setup(initial: Partial<AnnotationSelectElement> = {}) {
   el.annotations = initial.annotations ?? ['gene_name', 'pfam', 'species'];
   el.selectedAnnotation = initial.selectedAnnotation ?? 'pfam';
   el.selectedProjection = initial.selectedProjection ?? '';
-  el.viewIsSubset = initial.viewIsSubset ?? false;
   el.tooltipAnnotations = initial.tooltipAnnotations ?? [];
   el.eatAnnotations = initial.eatAnnotations ?? [];
   el.statistics = initial.statistics ?? [];
@@ -257,24 +255,6 @@ describe('protspace-annotation-select statistics info icon', () => {
     expect(stats.textContent).toContain('lower is better');
   });
 
-  it('warns that the numbers describe the full dataset while a subset is shown', async () => {
-    const args = {
-      annotations: CUSTOM_ANNOTATIONS,
-      statistics: [statRow()],
-      selectedProjection: 'umap',
-    };
-    const caveat = 'Computed on the full dataset';
-
-    const whole = await setup(args);
-    await openDropdown(whole);
-    expect(getRowFor(whole, 'major_group').textContent).not.toContain(caveat);
-
-    document.body.innerHTML = '';
-    const subset = await setup({ ...args, viewIsSubset: true });
-    await openDropdown(subset);
-    expect(getRowFor(subset, 'major_group').textContent).toContain(caveat);
-  });
-
   it('renders a clickable ⓘ button for a stats-only annotation', async () => {
     // `major_group` ships no description and no docs URL, so the button can only come from the
     // popover's projected-content gate — the whole feature is invisible if that gate regresses.
@@ -303,6 +283,22 @@ describe('protspace-annotation-select statistics info icon', () => {
     const slotted = slot.assignedElements();
     expect(slotted.map((node) => node.className)).toEqual(['annotation-stats']);
     expect(slotted[0].textContent).toContain('Silhouette');
+  });
+
+  it('always states that statistics cover the full dataset', async () => {
+    // Isolation, query filters, legend hides and the EAT threshold all narrow the view; the
+    // scores never change. Stating the scope unconditionally cannot drift out of date.
+    const el = await setup({
+      annotations: CUSTOM_ANNOTATIONS,
+      statistics: [statRow()],
+      selectedProjection: 'umap',
+    });
+    await openDropdown(el);
+
+    const stats = getRowFor(el, 'major_group').querySelector('.annotation-stats') as HTMLElement;
+    expect(stats.querySelector('.stat-caveat')!.textContent).toContain(
+      'Computed on the full dataset',
+    );
   });
 });
 
