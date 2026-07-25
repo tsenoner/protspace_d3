@@ -10,7 +10,7 @@ import type {
   StructureViewerElement,
 } from './types';
 import { handleDropdownEscape, isAnyDropdownOpen } from '../../utils/dropdown-helpers';
-import { isEatConfidenceAnnotation } from '@protspace/utils';
+import { isEatConfidenceAnnotation, type ProjectionStatisticRow } from '@protspace/utils';
 import {
   EXPORT_DEFAULTS,
   toggleProteinSelection,
@@ -26,6 +26,9 @@ import './query-builder';
 import type { FilterQuery, FilterQueryItem, NumericCondition } from './query-types';
 import { createCondition, createNumericCondition, isFilterGroup } from './query-types';
 import { evaluateQuery, hasConfiguredCondition } from './query-evaluate';
+
+/** Stable empty statistics — a fresh [] per render would dirty the child on every update. */
+const NO_STATISTICS: readonly ProjectionStatisticRow[] = [];
 
 /** Annotations used only for tooltip display, hidden from the annotation dropdown */
 const TOOLTIP_ONLY_ANNOTATIONS = new Set(['gene_name', 'protein_name', 'uniprot_kb_id']);
@@ -612,7 +615,7 @@ export class ProtspaceControlBar extends LitElement {
               .eatAnnotations=${this._eatAnnotationKeys}
               .selectedAnnotation=${this.selectedAnnotation}
               .selectedProjection=${this.selectedProjection}
-              .statistics=${this._currentData?.statistics ?? []}
+              .statistics=${this._currentData?.statistics ?? NO_STATISTICS}
               .tooltipAnnotations=${this.tooltipAnnotations}
               @annotation-select=${this.handleAnnotationSelected}
               @tooltip-annotation-toggle=${this.handleTooltipAnnotationToggle}
