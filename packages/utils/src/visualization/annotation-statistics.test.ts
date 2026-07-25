@@ -182,4 +182,16 @@ describe('formatStatValue', () => {
   it('renders a dash for non-finite values', () => {
     expect(formatStatValue(Number.NaN)).toBe('—');
   });
+
+  it('never prints a signed zero', () => {
+    expect(formatStatValue(-0.0003)).toBe('0.000');
+    expect(formatStatValue(-0)).toBe('0.000');
+    expect(formatStatValue(0.0003)).toBe('0.000');
+  });
+
+  it('applies the whole-number threshold after rounding', () => {
+    expect(formatStatValue(-99.9996)).toBe('-100');
+    expect(formatStatValue(99.9996)).toBe('100');
+    expect(formatStatValue(99.4)).toBe('99.400');
+  });
 });

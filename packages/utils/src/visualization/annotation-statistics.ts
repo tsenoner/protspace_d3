@@ -163,5 +163,10 @@ export function annotationStatSummary(
  */
 export function formatStatValue(value: number): string {
   if (!Number.isFinite(value)) return '—';
-  return Math.abs(value) >= 100 ? value.toFixed(0) : value.toFixed(3);
+  // Round before testing the threshold, so -99.9996 renders as "-100" and not "-100.000"; and
+  // drop the sign `toFixed` keeps on a value that rounded to zero, which reads as a glitch.
+  const decimals = value.toFixed(3);
+  const rounded = Number(decimals);
+  const text = Math.abs(rounded) >= 100 ? value.toFixed(0) : decimals;
+  return rounded === 0 ? text.replace('-', '') : text;
 }
