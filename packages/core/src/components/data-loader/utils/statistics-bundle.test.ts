@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { parquetWriteBuffer } from 'hyparquet-writer';
 import { BUNDLE_DELIMITER_BYTES, annotationStatSummary } from '@protspace/utils';
 import { extractRowsFromParquetBundle } from './bundle';
 import { convertParquetToVisualizationDataOptimized } from './conversion';
@@ -119,5 +120,31 @@ describe('statistics part of a parquetbundle', () => {
     const { statistics } = await extractRowsFromParquetBundle(bundleWith(SETTINGS, STATISTICS));
 
     expect(annotationStatSummary(statistics!, 'not_scored', 'ProtT5 — UMAP 2')).toBeNull();
+  });
+
+  it('ignores a statistics part whose kind columns were renamed', async () => {
+    // A drifted schema that keeps the five value columns but renames `space_kind`: every
+    // consumer branches on it, so the rows are unusable — and silently produce zero ⓘ icons.
+    const drifted = new Uint8Array(
+      parquetWriteBuffer({
+        columnData: [
+          { name: 'space_type', data: ['projection'], type: 'STRING' },
+          { name: 'space_name', data: ['UMAP 2'], type: 'STRING' },
+          { name: 'annotation', data: ['major_group'], type: 'STRING' },
+          { name: 'stat_family', data: ['annotation_validity'], type: 'STRING' },
+          { name: 'label_kind', data: ['annotation'], type: 'STRING' },
+          { name: 'metric', data: ['silhouette'], type: 'STRING' },
+          { name: 'metric_kind', data: ['validity'], type: 'STRING' },
+          { name: 'value', data: [0.326], type: 'DOUBLE' },
+        ],
+      }),
+    );
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const extraction = await extractRowsFromParquetBundle(bundleWith(SETTINGS, drifted));
+
+    expect(extraction.statistics).toBeNull();
+    expect(warn).toHaveBeenCalledWith('Statistics parquet has an unexpected schema, ignoring it');
+    warn.mockRestore();
   });
 });

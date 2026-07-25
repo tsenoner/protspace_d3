@@ -85,6 +85,10 @@ export async function extractRowsFromParquetBundle(
    * a bundle carries statistics but no settings).
    */
   const partAt = (index: number): ArrayBuffer | null => {
+    // Out of range must be null, not a slice: `delimiterPositions[index - 1]` is undefined,
+    // `undefined + 8` is NaN, and `subarray(NaN, len)` coerces NaN to 0 — returning the whole
+    // bundle as if it were one part.
+    if (index < 0 || index > delimiterPositions.length) return null;
     const view = uint8Array.subarray(
       index === 0 ? 0 : delimiterPositions[index - 1] + BUNDLE_DELIMITER_BYTES.length,
       index < delimiterPositions.length ? delimiterPositions[index] : uint8Array.length,
@@ -96,8 +100,8 @@ export async function extractRowsFromParquetBundle(
   let part1: ArrayBuffer | null = partAt(0);
   let part2: ArrayBuffer | null = partAt(1);
   let part3: ArrayBuffer | null = partAt(2);
-  const part4 = delimiterPositions.length >= 3 ? partAt(3) : null;
-  const part5 = delimiterPositions.length >= 4 ? partAt(4) : null;
+  const part4 = partAt(3);
+  const part5 = partAt(4);
 
   if (!part1 || !part2 || !part3) {
     throw new Error('Parquetbundle is missing one of its three required core parts');
@@ -205,10 +209,20 @@ async function extractStatistics(
     const rows = await parquetReadObjects({ file: statisticsBuffer });
     if (!rows.length) return null;
 
-    // Guard against a future/renamed schema landing in this slot: every consumer keys off
-    // these four columns, so without them the rows are unusable anyway.
+    // Guard against a future/renamed schema landing in this slot. `annotationStatSummary`
+    // branches on all three `*_kind` columns, so a rename there yields zero ⓘ icons and no
+    // warning at all — indistinguishable from a bundle prepared without `--stats`.
     const columns = Object.keys(rows[0]);
-    const required = ['space_name', 'annotation', 'stat_family', 'metric', 'value'];
+    const required = [
+      'space_kind',
+      'space_name',
+      'annotation',
+      'stat_family',
+      'label_kind',
+      'metric',
+      'metric_kind',
+      'value',
+    ];
     if (!required.every((column) => columns.includes(column))) {
       console.warn('Statistics parquet has an unexpected schema, ignoring it');
       return null;
