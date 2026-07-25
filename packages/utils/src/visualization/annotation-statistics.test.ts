@@ -152,6 +152,27 @@ describe('annotationStatSummary', () => {
     expect(summary!.validity[0].embedding).toBe(0.095);
   });
 
+  it('ignores non-finite rows entirely', () => {
+    // A NaN double from a foreign writer is not a score: it must not switch the ⓘ icon on,
+    // and as a ceiling it must not defeat the `embedding === null` column collapse.
+    expect(annotationStatSummary([row({ value: Number.NaN })], 'major_group', 'UMAP 2')).toBeNull();
+
+    const summary = annotationStatSummary(
+      [
+        row({ metric: 'silhouette', value: 0.326 }),
+        row({
+          space_kind: 'embedding',
+          space_name: 'prot_t5',
+          metric: 'silhouette',
+          value: Number.NaN,
+        }),
+      ],
+      'major_group',
+      'UMAP 2',
+    );
+    expect(summary!.validity[0].embedding).toBeNull();
+  });
+
   it('orders agreement groups independently of parquet row order', async () => {
     const agreementRow = (labelKind: string, value: number) =>
       row({

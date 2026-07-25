@@ -101,8 +101,11 @@ export function annotationStatSummary(
 ): AnnotationStatSummary | null {
   if (!statistics?.length || !annotation) return null;
 
+  // A non-finite value (NaN/null from a foreign writer) is not a score: it must not switch
+  // the ⓘ icon on, and a NaN ceiling would defeat the `embedding === null` column collapse.
   const forAnnotation = statistics.filter(
-    (row) => row.annotation === annotation && row.metric_kind !== 'meta',
+    (row) =>
+      row.annotation === annotation && row.metric_kind !== 'meta' && Number.isFinite(row.value),
   );
   if (forAnnotation.length === 0) return null;
 
