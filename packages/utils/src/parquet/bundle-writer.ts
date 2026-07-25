@@ -12,7 +12,7 @@
  */
 
 import { parquetWriteBuffer } from 'hyparquet-writer';
-import type { VisualizationData, BundleSettings } from '../types';
+import type { VisualizationData, BundleSettings, ProjectionStatisticRow } from '../types';
 import { BUNDLE_DELIMITER_BYTES } from './constants';
 import { bigIntReplacer } from './bigint-utils';
 import { isNumericAnnotation } from '../visualization/numeric-binning.js';
@@ -218,6 +218,26 @@ function createSettingsParquet(settings: BundleSettings): ArrayBuffer {
   return parquetWriteBuffer({ columnData });
 }
 
+/**
+ * Serialize the tidy statistics table (5th part). Column names and order mirror the backend's
+ * `STATS_SCHEMA`, so a re-exported bundle reads back exactly like the original.
+ */
+function createStatisticsParquet(rows: readonly ProjectionStatisticRow[]): ArrayBuffer {
+  const columnData: ColumnData[] = [
+    { name: 'space_kind', data: rows.map((row) => row.space_kind), type: 'STRING' },
+    { name: 'space_name', data: rows.map((row) => row.space_name), type: 'STRING' },
+    { name: 'annotation', data: rows.map((row) => row.annotation), type: 'STRING' },
+    { name: 'stat_family', data: rows.map((row) => row.stat_family), type: 'STRING' },
+    { name: 'label_kind', data: rows.map((row) => row.label_kind), type: 'STRING' },
+    { name: 'metric', data: rows.map((row) => row.metric), type: 'STRING' },
+    { name: 'metric_kind', data: rows.map((row) => row.metric_kind), type: 'STRING' },
+    { name: 'value', data: rows.map((row) => row.value), type: 'DOUBLE' },
+    { name: 'extra_json', data: rows.map((row) => row.extra_json ?? ''), type: 'STRING' },
+  ];
+
+  return parquetWriteBuffer({ columnData });
+}
+
 function hasBundleSettings(settings: BundleSettings | undefined): settings is BundleSettings {
   if (!settings) {
     return false;
@@ -267,6 +287,12 @@ export interface CreateBundleOptions {
   includeSettings?: boolean;
   /** Persisted settings to include (required if includeSettings is true) */
   settings?: BundleSettings;
+  /**
+   * Include `data.statistics` as the 5th part. Defaults to true. Pass false when the exported
+   * data is a subset of what the statistics were scored on — whole-dataset scores attached to a
+   * slice read as describing the slice.
+   */
+  includeStatistics?: boolean;
 }
 
 /**
@@ -280,7 +306,7 @@ export function createParquetBundle(
   data: VisualizationData,
   options: CreateBundleOptions = {},
 ): ArrayBuffer {
-  const { includeSettings = false, settings } = options;
+  const { includeSettings = false, settings, includeStatistics = true } = options;
 
   // Create the three required parts
   const annotationsBuffer = createAnnotationsParquet(data);
@@ -289,9 +315,15 @@ export function createParquetBundle(
 
   const buffers: ArrayBuffer[] = [annotationsBuffer, metadataBuffer, projectionsBuffer];
 
-  // Optionally add settings as 4th part
-  if (includeSettings && hasBundleSettings(settings)) {
-    const settingsBuffer = createSettingsParquet(settings);
+  const settingsBuffer =
+    includeSettings && hasBundleSettings(settings) ? createSettingsParquet(settings) : null;
+  const statistics = includeStatistics ? (data.statistics ?? []) : [];
+
+  if (statistics.length > 0) {
+    // Part order is fixed, so a bundle with statistics but no settings still needs the 4th slot —
+    // a zero-byte placeholder, exactly what the Python writer emits.
+    buffers.push(settingsBuffer ?? new ArrayBuffer(0), createStatisticsParquet(statistics));
+  } else if (settingsBuffer) {
     buffers.push(settingsBuffer);
   }
 

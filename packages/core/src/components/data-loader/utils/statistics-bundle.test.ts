@@ -2,9 +2,16 @@ import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parquetWriteBuffer } from 'hyparquet-writer';
-import { BUNDLE_DELIMITER_BYTES, annotationStatSummary } from '@protspace/utils';
+import {
+  BUNDLE_DELIMITER_BYTES,
+  annotationStatSummary,
+  createParquetBundle,
+} from '@protspace/utils';
 import { extractRowsFromParquetBundle } from './bundle';
-import { convertParquetToVisualizationDataOptimized } from './conversion';
+import {
+  convertParquetToVisualizationData,
+  convertParquetToVisualizationDataOptimized,
+} from './conversion';
 
 /**
  * Statistics part (5th) of a `.parquetbundle`, produced by the backend's `--stats` flag.
@@ -145,6 +152,50 @@ describe('statistics part of a parquetbundle', () => {
 
     expect(extraction.statistics).toBeNull();
     expect(warn).toHaveBeenCalledWith('Statistics parquet has an unexpected schema, ignoring it');
+    warn.mockRestore();
+  });
+
+  it('round-trips the statistics part through an export', async () => {
+    const extraction = await extractRowsFromParquetBundle(bundleWith(SETTINGS, STATISTICS));
+    const data = convertParquetToVisualizationData(extraction);
+    expect(data.statistics!.length).toBeGreaterThan(0);
+
+    const exported = await extractRowsFromParquetBundle(createParquetBundle(data));
+
+    expect(exported.statistics).not.toBeNull();
+    expect(exported.statistics!.length).toBe(data.statistics!.length);
+    expect(exported.statistics![0]).toMatchObject({
+      space_kind: data.statistics![0].space_kind,
+      space_name: data.statistics![0].space_name,
+      annotation: data.statistics![0].annotation,
+      metric: data.statistics![0].metric,
+      value: data.statistics![0].value,
+    });
+  });
+
+  it('omits the statistics part when the caller opts out', async () => {
+    const extraction = await extractRowsFromParquetBundle(bundleWith(SETTINGS, STATISTICS));
+    const data = convertParquetToVisualizationData(extraction);
+
+    const exported = await extractRowsFromParquetBundle(
+      createParquetBundle(data, { includeStatistics: false }),
+    );
+
+    expect(exported.statistics).toBeNull();
+  });
+
+  it('does not misparse the settings slot from a 3-part bundle (partAt range guard)', async () => {
+    // Regression coverage for the `partAt` out-of-range guard in `bundle.ts`: on a plain 3-part
+    // bundle, slots 3 and 4 (settings, statistics) must resolve to `null`, not a mis-sliced view
+    // of the whole buffer. The statistics path fails silent on a mis-slice (0 rows → `return
+    // null`), so it can't catch a deleted guard; the settings path warns on every outcome
+    // (0 rows, rows without a string `settings_json`, or a parse throw), so it can.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const extraction = await extractRowsFromParquetBundle(joinParts([CORE]));
+
+    expect(extraction.settings).toBeNull();
+    expect(warn).not.toHaveBeenCalled();
     warn.mockRestore();
   });
 });

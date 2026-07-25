@@ -220,6 +220,10 @@ export function createExportHandler({
         exportParquetBundle(currentData, filename, {
           includeSettings,
           settings,
+          // `getCurrentData()` returns a slice under isolation OR an active query filter
+          // (e.g. the reliability slider), not just isolation. The statistics were scored over
+          // the whole dataset, so attaching them to any subset export would misrepresent it.
+          includeStatistics: !plotElement.isIsolationMode?.() && !plotElement.filtersActive,
         });
         notify.success(getExportSuccessNotification(filename));
         return;
