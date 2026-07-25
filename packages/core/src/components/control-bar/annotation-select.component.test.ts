@@ -300,6 +300,23 @@ describe('protspace-annotation-select statistics info icon', () => {
       'Computed on the full dataset',
     );
   });
+
+  it('widens only the popovers that carry stats', async () => {
+    const el = await setup({
+      annotations: [...CUSTOM_ANNOTATIONS, 'gene_name'],
+      statistics: [statRow()],
+      selectedProjection: 'umap',
+    });
+    await openDropdown(el);
+
+    // `gene_name` has a built-in description but no statistics — it must keep the default width.
+    expect(
+      getRowFor(el, 'gene_name').querySelector('protspace-info-popover')!.classList,
+    ).not.toContain('has-stats');
+    expect(
+      getRowFor(el, 'major_group').querySelector('protspace-info-popover')!.classList,
+    ).toContain('has-stats');
+  });
 });
 
 interface ControlBarInternals extends HTMLElement {

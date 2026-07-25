@@ -166,7 +166,12 @@ export const annotationSelectStyles = [
     .annotation-info {
       flex: 0 0 auto;
       align-items: center;
-      /* The stats grid needs more room than the popover's text-only default. */
+    }
+
+    /* Only the stats grid needs more room than the popover's text-only default. Widening every
+       popover moves the viewport threshold at which a side popover flips to the other side of
+       the panel, so description-only tooltips would change placement for nothing. */
+    .annotation-info.has-stats {
       --info-popover-max-width: 320px;
     }
 
@@ -181,10 +186,6 @@ export const annotationSelectStyles = [
       grid-template-columns: minmax(0, 1fr) auto auto;
       gap: 0.15rem 0.5rem;
       margin-top: 0.4rem;
-    }
-
-    .annotation-stats:first-child {
-      margin-top: 0;
     }
 
     .stat-heading,
