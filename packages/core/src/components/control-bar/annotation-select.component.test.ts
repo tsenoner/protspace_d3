@@ -188,6 +188,20 @@ describe('protspace-annotation-select statistics info icon', () => {
   // Neither annotation ships built-in docs, so the ⓘ icon here can only come from statistics.
   const CUSTOM_ANNOTATIONS = ['major_group', 'seq_start'];
 
+  type PopoverEl = HTMLElement & { updateComplete: Promise<unknown> };
+
+  /** Click the row's ⓘ button open and return the popover host, so assertions see rendered DOM. */
+  async function openPopoverFor(
+    el: Awaited<ReturnType<typeof setup>>,
+    annotation: string,
+  ): Promise<PopoverEl> {
+    const pop = getRowFor(el, annotation).querySelector('protspace-info-popover') as PopoverEl;
+    const icon = pop.shadowRoot!.querySelector('.info-button') as HTMLButtonElement;
+    icon.click();
+    await pop.updateComplete;
+    return pop;
+  }
+
   it('shows the ⓘ icon only for annotations that have a statistic', async () => {
     const el = await setup({
       annotations: CUSTOM_ANNOTATIONS,
@@ -259,6 +273,36 @@ describe('protspace-annotation-select statistics info icon', () => {
     const subset = await setup({ ...args, viewIsSubset: true });
     await openDropdown(subset);
     expect(getRowFor(subset, 'major_group').textContent).toContain(caveat);
+  });
+
+  it('renders a clickable ⓘ button for a stats-only annotation', async () => {
+    // `major_group` ships no description and no docs URL, so the button can only come from the
+    // popover's projected-content gate — the whole feature is invisible if that gate regresses.
+    const el = await setup({
+      annotations: CUSTOM_ANNOTATIONS,
+      statistics: [statRow()],
+      selectedProjection: 'umap',
+    });
+    await openDropdown(el);
+
+    const pop = getRowFor(el, 'major_group').querySelector('protspace-info-popover') as HTMLElement;
+    expect(pop.shadowRoot!.querySelector('.info-button')).not.toBeNull();
+  });
+
+  it('shows the stats in the opened popover', async () => {
+    const el = await setup({
+      annotations: CUSTOM_ANNOTATIONS,
+      statistics: [statRow()],
+      selectedProjection: 'umap',
+    });
+    await openDropdown(el);
+
+    const pop = await openPopoverFor(el, 'major_group');
+    expect(pop.shadowRoot!.querySelector('.popover')).not.toBeNull();
+    const slot = pop.shadowRoot!.querySelector('slot') as HTMLSlotElement;
+    const slotted = slot.assignedElements();
+    expect(slotted.map((node) => node.className)).toEqual(['annotation-stats']);
+    expect(slotted[0].textContent).toContain('Silhouette');
   });
 });
 
