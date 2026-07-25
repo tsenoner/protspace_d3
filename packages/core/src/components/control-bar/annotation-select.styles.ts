@@ -227,6 +227,12 @@ export const annotationSelectStyles = [
       text-align: right;
     }
 
+    /* Agreement metrics never have a ceiling, and neither does a bundle prepared without an
+       embedding — reserving 4.5rem for a blank cell steals it from the label column. */
+    .stat-metric-embedding.is-empty {
+      min-width: 0;
+    }
+
     .stat-lower-better {
       margin-left: 0.15rem;
       color: var(--muted);

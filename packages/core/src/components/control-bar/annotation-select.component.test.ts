@@ -317,6 +317,31 @@ describe('protspace-annotation-select statistics info icon', () => {
       getRowFor(el, 'major_group').querySelector('protspace-info-popover')!.classList,
     ).toContain('has-stats');
   });
+
+  it('marks an absent embedding ceiling so its column can collapse', async () => {
+    const el = await setup({
+      annotations: CUSTOM_ANNOTATIONS,
+      statistics: [
+        statRow(),
+        statRow({ space_kind: 'embedding', space_name: 'prot_t5', value: 0.1 }),
+        statRow({
+          stat_family: 'cluster_agreement',
+          label_kind: 'kmeans_elbow',
+          metric: 'adjusted_rand',
+          metric_kind: 'agreement',
+          value: 0.5,
+        }),
+      ],
+      selectedProjection: 'umap',
+    });
+    await openDropdown(el);
+
+    const cells = Array.from(
+      getRowFor(el, 'major_group').querySelectorAll('.stat-metric-embedding'),
+    );
+    // Silhouette has a ceiling; the agreement metric never does.
+    expect(cells.map((cell) => cell.classList.contains('is-empty'))).toEqual([false, true]);
+  });
 });
 
 interface ControlBarInternals extends HTMLElement {

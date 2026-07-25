@@ -226,7 +226,9 @@ class ProtspaceAnnotationSelect extends LitElement {
                 ><span class="sr-only"> (lower is better)</span>`}
         </span>
         <span class="stat-metric-value">${formatStatValue(metric.value)}</span>
-        <span class="stat-metric-embedding">
+        <!-- The cell stays even when empty: \`.stat-metric\` is \`display: contents\`, so dropping
+             it would shift every following row one column across the shared grid. -->
+        <span class="stat-metric-embedding ${metric.embedding === null ? 'is-empty' : ''}">
           ${metric.embedding === null ? '' : `emb ${formatStatValue(metric.embedding)}`}
         </span>
       </div>
