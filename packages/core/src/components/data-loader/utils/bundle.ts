@@ -28,8 +28,12 @@ export interface BundleExtractionResult {
   projectionsMetadata: Rows;
   /** Settings loaded from bundle (null if not present) */
   settings: BundleSettings | null;
-  /** Rows of the optional statistics part (5th); null when the bundle has none. */
-  statistics: readonly ProjectionStatisticRow[] | null;
+  /**
+   * Rows of the optional statistics part (5th); null when the bundle has none. Optional so
+   * callers that build this shape by hand — chiefly tests — need not restate it, matching how
+   * `VisualizationData.statistics` is declared.
+   */
+  statistics?: readonly ProjectionStatisticRow[] | null;
   /**
    * Bundle annotation format version, read from the `protspace_format_version`
    * parquet key-value metadata on the annotations part (part 1). `1` when the
