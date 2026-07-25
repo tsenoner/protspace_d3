@@ -1,4 +1,4 @@
-import { LitElement, html } from 'lit';
+import { LitElement, html, type PropertyValues } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { customElement } from '../../utils/safe-custom-element';
 import { annotationSelectStyles } from './annotation-select.styles';
@@ -211,6 +211,28 @@ class ProtspaceAnnotationSelect extends LitElement {
   }
 
   /**
+   * Per-annotation summaries, rebuilt only when their inputs change: render() re-runs on every
+   * search keystroke and arrow press while the dropdown is open, and deriving each row's
+   * summary there re-scans the whole statistics table per row for identical output.
+   */
+  private statSummaries = new Map<string, AnnotationStatSummary | null>();
+
+  willUpdate(changed: PropertyValues<this>) {
+    if (changed.has('statistics') || changed.has('selectedProjection')) {
+      this.statSummaries.clear();
+    }
+  }
+
+  private getStatSummary(annotation: string): AnnotationStatSummary | null {
+    let summary = this.statSummaries.get(annotation);
+    if (summary === undefined) {
+      summary = annotationStatSummary(this.statistics, annotation, this.selectedProjection);
+      this.statSummaries.set(annotation, summary);
+    }
+    return summary;
+  }
+
+  /**
    * One metric row: name (with a "lower is better" marker where that applies), its value in the
    * selected projection, and — for annotation-validity metrics — the same metric in the source
    * embedding, which is the separability ceiling the projection is measured against.
@@ -331,11 +353,7 @@ class ProtspaceAnnotationSelect extends LitElement {
                                 const definition = this.annotationDefinitions[annotation];
                                 const meta = getAnnotationMeta(annotation, definition);
                                 const hasDocs = meta.description.length > 0 || !!meta.docsUrl;
-                                const stats = annotationStatSummary(
-                                  this.statistics,
-                                  annotation,
-                                  this.selectedProjection,
-                                );
+                                const stats = this.getStatSummary(annotation);
                                 return html`
                                   <div
                                     class="dropdown-item ${isHighlighted
