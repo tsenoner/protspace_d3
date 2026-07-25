@@ -319,6 +319,10 @@ class ProtspaceAnnotationSelect extends LitElement {
                             <div class="annotation-section-header">${group.category}</div>
                             <div class="annotation-section-items">
                               ${group.annotations.map((annotation) => {
+                                // Hover styling comes from `dropdownMixin`'s `.dropdown-item:hover`.
+                                // Mirroring it into `highlightIndex` re-rendered every row — and
+                                // rebuilt every popover's stats block — per row the pointer crossed.
+                                // The index is for keyboard navigation only.
                                 const itemIndex = currentIndex++;
                                 const isHighlighted = itemIndex === this.highlightIndex;
                                 const isSelected = annotation === this.selectedAnnotation;
@@ -339,9 +343,6 @@ class ProtspaceAnnotationSelect extends LitElement {
                                       : ''} ${isSelected ? 'selected' : ''}"
                                     data-annotation=${annotation}
                                     @click=${(e: Event) => this.selectAnnotation(annotation, e)}
-                                    @mouseenter=${() => {
-                                      this.highlightIndex = itemIndex;
-                                    }}
                                   >
                                     <span
                                       class="primary-indicator"

@@ -342,6 +342,35 @@ describe('protspace-annotation-select statistics info icon', () => {
     // Silhouette has a ceiling; the agreement metric never does.
     expect(cells.map((cell) => cell.classList.contains('is-empty'))).toEqual([false, true]);
   });
+
+  it('does not rebuild the list when the pointer crosses a row', async () => {
+    const el = await setup({
+      annotations: CUSTOM_ANNOTATIONS,
+      statistics: [statRow()],
+      selectedProjection: 'umap',
+    });
+    await openDropdown(el);
+
+    // Node-identity alone passes vacuously: lit's keyless `.map()` diffing reuses each row's DOM
+    // node in place regardless of whether the handler runs. Watch for any DOM mutation instead —
+    // hovering is presentation (CSS `:hover`) and must not touch the DOM at all.
+    const container = el.shadowRoot!.querySelector('.annotation-list-container') as HTMLElement;
+    const records: MutationRecord[] = [];
+    const observer = new MutationObserver((mutations) => records.push(...mutations));
+    observer.observe(container, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      characterData: true,
+    });
+
+    getRowFor(el, 'seq_start').dispatchEvent(new MouseEvent('mouseenter'));
+    await el.updateComplete;
+    records.push(...observer.takeRecords());
+    observer.disconnect();
+
+    expect(records).toHaveLength(0);
+  });
 });
 
 interface ControlBarInternals extends HTMLElement {
