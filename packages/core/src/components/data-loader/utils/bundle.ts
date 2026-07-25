@@ -232,6 +232,13 @@ async function extractStatistics(
       return null;
     }
 
+    // hyparquet yields BigInt for INT64 columns. The official writer types `value` DOUBLE,
+    // but a third-party part with an all-integer value column must still render as numbers
+    // and survive a re-export (the DOUBLE writer throws on BigInt).
+    for (const row of rows) {
+      if (typeof row.value === 'bigint') row.value = Number(row.value);
+    }
+
     return rows as unknown as ProjectionStatisticRow[];
   } catch (error) {
     console.warn('Failed to parse statistics from bundle, ignoring them:', error);

@@ -155,6 +155,31 @@ describe('statistics part of a parquetbundle', () => {
     warn.mockRestore();
   });
 
+  it('coerces an INT64 value column to numbers', async () => {
+    // pyarrow types an all-integer column int64 by default; hyparquet reads that as BigInt,
+    // which would render every metric as '—' and crash the DOUBLE writer on re-export.
+    const int64Stats = new Uint8Array(
+      parquetWriteBuffer({
+        columnData: [
+          { name: 'space_kind', data: ['projection'], type: 'STRING' },
+          { name: 'space_name', data: ['UMAP 2'], type: 'STRING' },
+          { name: 'annotation', data: ['major_group'], type: 'STRING' },
+          { name: 'stat_family', data: ['annotation_validity'], type: 'STRING' },
+          { name: 'label_kind', data: ['annotation'], type: 'STRING' },
+          { name: 'metric', data: ['silhouette'], type: 'STRING' },
+          { name: 'metric_kind', data: ['validity'], type: 'STRING' },
+          { name: 'value', data: [7n], type: 'INT64' },
+          { name: 'extra_json', data: [''], type: 'STRING' },
+        ],
+      }),
+    );
+
+    const { statistics } = await extractRowsFromParquetBundle(bundleWith(SETTINGS, int64Stats));
+
+    expect(statistics![0].value).toBe(7);
+    expect(typeof statistics![0].value).toBe('number');
+  });
+
   it('round-trips the statistics part through an export', async () => {
     const extraction = await extractRowsFromParquetBundle(bundleWith(SETTINGS, STATISTICS));
     const data = convertParquetToVisualizationData(extraction);
