@@ -1,6 +1,7 @@
 import { parquetReadObjects, parquetMetadata, type FileMetaData } from 'hyparquet';
 import {
   BUNDLE_DELIMITER_BYTES,
+  PROJECTION_STATISTIC_COLUMNS,
   findBundleDelimiterPositions,
   normalizeBundleSettings,
   type BundleSettings,
@@ -216,17 +217,10 @@ async function extractStatistics(
     // Guard against a future/renamed schema landing in this slot. `annotationStatSummary`
     // branches on all three `*_kind` columns, so a rename there yields zero ⓘ icons and no
     // warning at all — indistinguishable from a bundle prepared without `--stats`.
+    // The shared column list is `satisfies`-tied to ProjectionStatisticRow; only the
+    // provenance column is optional.
     const columns = Object.keys(rows[0]);
-    const required = [
-      'space_kind',
-      'space_name',
-      'annotation',
-      'stat_family',
-      'label_kind',
-      'metric',
-      'metric_kind',
-      'value',
-    ];
+    const required = PROJECTION_STATISTIC_COLUMNS.filter((column) => column !== 'extra_json');
     if (!required.every((column) => columns.includes(column))) {
       console.warn('Statistics parquet has an unexpected schema, ignoring it');
       return null;

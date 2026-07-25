@@ -116,6 +116,23 @@ export interface ProjectionStatisticRow {
   extra_json?: string;
 }
 
+/**
+ * Column names of the statistics part, in the writer's order. `satisfies` ties the list to
+ * `ProjectionStatisticRow`, so renaming a column in only one of them is a compile error
+ * instead of a reader/type drift the schema guard can't see.
+ */
+export const PROJECTION_STATISTIC_COLUMNS = [
+  'space_kind',
+  'space_name',
+  'annotation',
+  'stat_family',
+  'label_kind',
+  'metric',
+  'metric_kind',
+  'value',
+  'extra_json',
+] as const satisfies readonly (keyof ProjectionStatisticRow)[];
+
 export interface VisualizationData {
   protein_ids: string[];
   projections: Projection[];
