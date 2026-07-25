@@ -37,8 +37,9 @@ let infoPopoverSequence = 0;
  *
  * Extra content (e.g. an annotation's projection-quality statistics) can be projected into the
  * popover body as light-DOM children, which lets the owning component both build and style that
- * markup in its own shadow root. Because the gate below reads `childElementCount` at render time,
- * only ever create the element when it actually has content — don't rely on it appearing later.
+ * markup in its own shadow root. The render gate reads `childElementCount`, which is not
+ * reactive, so a childList observer re-renders when projected content appears or disappears
+ * after first render (an imperative consumer may append it later).
  *
  * Renders nothing when there is no description, docs URL, or projected content.
  */
@@ -223,11 +224,15 @@ class ProtspaceInfoPopover extends LitElement {
   /** Parent row used as the keep-open region for side placement (see `firstUpdated`). */
   private _row: HTMLElement | null = null;
 
+  /** Light-DOM children gate render(), but aren't reactive — observe them (see class doc). */
+  private readonly childObserver = new MutationObserver(() => this.requestUpdate());
+
   connectedCallback() {
     super.connectedCallback();
     this.addEventListener('pointerenter', this._onPointerEnter);
     this.addEventListener('pointerleave', this._onPointerLeave);
     this.addEventListener('focusout', this._onFocusOut);
+    this.childObserver.observe(this, { childList: true });
   }
 
   firstUpdated() {
@@ -244,6 +249,7 @@ class ProtspaceInfoPopover extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    this.childObserver.disconnect();
     this.removeEventListener('pointerenter', this._onPointerEnter);
     this.removeEventListener('pointerleave', this._onPointerLeave);
     this.removeEventListener('focusout', this._onFocusOut);
