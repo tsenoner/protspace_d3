@@ -180,6 +180,31 @@ describe('statistics part of a parquetbundle', () => {
     expect(typeof statistics![0].value).toBe('number');
   });
 
+  it('keeps a NULL extra_json cell NULL across a re-export', async () => {
+    const withNullExtra = new Uint8Array(
+      parquetWriteBuffer({
+        columnData: [
+          { name: 'space_kind', data: ['projection'], type: 'STRING' },
+          { name: 'space_name', data: ['UMAP 2'], type: 'STRING' },
+          { name: 'annotation', data: ['major_group'], type: 'STRING' },
+          { name: 'stat_family', data: ['annotation_validity'], type: 'STRING' },
+          { name: 'label_kind', data: ['annotation'], type: 'STRING' },
+          { name: 'metric', data: ['silhouette'], type: 'STRING' },
+          { name: 'metric_kind', data: ['validity'], type: 'STRING' },
+          { name: 'value', data: [0.5], type: 'DOUBLE' },
+          { name: 'extra_json', data: [null], type: 'STRING' },
+        ],
+      }),
+    );
+    const extraction = await extractRowsFromParquetBundle(bundleWith(SETTINGS, withNullExtra));
+    const data = convertParquetToVisualizationData(extraction);
+
+    const exported = await extractRowsFromParquetBundle(createParquetBundle(data));
+
+    // '' would be a lossy rewrite: absent provenance must read back as absent.
+    expect(exported.statistics![0].extra_json ?? null).toBeNull();
+  });
+
   it('round-trips the statistics part through an export', async () => {
     const extraction = await extractRowsFromParquetBundle(bundleWith(SETTINGS, STATISTICS));
     const data = convertParquetToVisualizationData(extraction);

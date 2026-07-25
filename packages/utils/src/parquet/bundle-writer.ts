@@ -242,7 +242,9 @@ function createStatisticsParquet(rows: readonly ProjectionStatisticRow[]): Array
     { name: 'metric', data: rows.map((row) => row.metric), type: 'STRING' },
     { name: 'metric_kind', data: rows.map((row) => row.metric_kind), type: 'STRING' },
     { name: 'value', data: rows.map((row) => row.value), type: 'DOUBLE' },
-    { name: 'extra_json', data: rows.map((row) => row.extra_json ?? ''), type: 'STRING' },
+    // `?? null` (not ''): the column is OPTIONAL in parquet, and a NULL provenance cell must
+    // survive a re-export as NULL, not decay into an empty string.
+    { name: 'extra_json', data: rows.map((row) => row.extra_json ?? null), type: 'STRING' },
   ];
 
   return parquetWriteBuffer({ columnData });
