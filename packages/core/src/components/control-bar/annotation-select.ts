@@ -112,7 +112,16 @@ class ProtspaceAnnotationSelect extends LitElement {
       }
     } else if (event.key === 'Enter') {
       event.preventDefault();
-      if (this.highlightIndex >= 0 && this.highlightIndex < flatAnnotations.length) {
+      // Hover no longer moves highlightIndex (that re-rendered every row the pointer crossed),
+      // so the row under the pointer and the keyboard highlight can differ — and both render
+      // with the same background. The browser's :hover is the source of truth for the pointer,
+      // and it must win, including when no arrow key was ever pressed (highlightIndex −1).
+      const hovered = this.shadowRoot
+        ?.querySelector('.dropdown-item:hover')
+        ?.getAttribute('data-annotation');
+      if (hovered) {
+        this.selectAnnotation(hovered, event);
+      } else if (this.highlightIndex >= 0 && this.highlightIndex < flatAnnotations.length) {
         this.selectAnnotation(flatAnnotations[this.highlightIndex], event);
       }
     }
