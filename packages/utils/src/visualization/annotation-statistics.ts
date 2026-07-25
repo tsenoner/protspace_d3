@@ -82,10 +82,8 @@ function orderIndex(order: string[], key: string): number {
   return index === -1 ? order.length : index;
 }
 
-function byOrder(order: string[]) {
-  return (a: AnnotationStatMetric, b: AnnotationStatMetric) =>
-    orderIndex(order, a.metric) - orderIndex(order, b.metric);
-}
+const byMetricOrder = (a: AnnotationStatMetric, b: AnnotationStatMetric) =>
+  orderIndex(METRIC_ORDER, a.metric) - orderIndex(METRIC_ORDER, b.metric);
 
 /**
  * Build the statistics shown behind an annotation's ⓘ icon, or `null` when the bundle has no
@@ -132,7 +130,7 @@ export function annotationStatSummary(
   const validity = inProjection
     .filter((row) => row.stat_family === 'annotation_validity')
     .map((row) => toMetric(row, ceilings.get(row.metric)?.value ?? null))
-    .sort(byOrder(METRIC_ORDER));
+    .sort(byMetricOrder);
 
   const agreementByLabelKind = new Map<string, AnnotationStatMetric[]>();
   for (const row of inProjection) {
@@ -149,7 +147,7 @@ export function annotationStatSummary(
     .map(([labelKind, metrics]) => ({
       labelKind,
       label: LABEL_KIND_DISPLAY[labelKind] ?? labelKind,
-      metrics: metrics.sort(byOrder(METRIC_ORDER)),
+      metrics: metrics.sort(byMetricOrder),
     }));
 
   if (validity.length === 0 && agreement.length === 0) return null;
