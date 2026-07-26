@@ -37,7 +37,7 @@ export const annotationSelectStyles = [
     }
 
     /* Hug the content (the widest annotation row) rather than stretching to the trigger button's
-       full width — matching the button left a large empty gap on short labels once the row's
+       full width: matching the button left a large empty gap on short labels once the row's
        flex-grow label pushed the visibility toggle to the far edge. The floor keeps the search box
        comfortable; the cap stops very long names from over-widening the menu or running off-screen.
        Uses the .align-left specificity (0,2,0) to beat the shared dropdown mixin, which otherwise
@@ -179,7 +179,7 @@ export const annotationSelectStyles = [
     /* Projection-quality statistics, projected into the ⓘ popover's slot. Styled here (not in
        the popover) because the markup lives in this component's shadow root. */
     /* One grid for the whole block (rows are display: contents) so every metric row shares the
-       same column widths — a grid per row would size each row's columns to its own content and
+       same column widths; a grid per row would size each row's columns to its own content and
        leave the values visibly ragged. minmax(0, 1fr) lets the label column shrink instead of
        pushing the value columns past the popover's max-width at large text sizes. */
     .annotation-stats {
@@ -229,7 +229,7 @@ export const annotationSelectStyles = [
     }
 
     /* Agreement metrics never have a ceiling, and neither does a bundle prepared without an
-       embedding — reserving 4.5rem for a blank cell steals it from the label column. */
+       embedding, and reserving 4.5rem for a blank cell steals it from the label column. */
     .stat-metric-embedding.is-empty {
       min-width: 0;
     }

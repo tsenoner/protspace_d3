@@ -33,7 +33,7 @@ class ProtspaceAnnotationSelect extends LitElement {
   @property({ type: String }) placeholder: string = 'Select annotation';
   /** Rows of the bundle's optional statistics part; empty when it was prepared without `--stats`. */
   @property({ type: Array }) statistics: readonly ProjectionStatisticRow[] = [];
-  /** Projection the statistics are reported for — statistics are scored per projection. */
+  /** Projection the statistics are reported for; statistics are scored per projection. */
   @property({ type: String, attribute: 'selected-projection' }) selectedProjection: string = '';
 
   @state() private open: boolean = false;
@@ -113,7 +113,7 @@ class ProtspaceAnnotationSelect extends LitElement {
     } else if (event.key === 'Enter') {
       event.preventDefault();
       // Hover no longer moves highlightIndex (that re-rendered every row the pointer crossed),
-      // so the row under the pointer and the keyboard highlight can differ — and both render
+      // so the row under the pointer and the keyboard highlight can differ, and both render
       // with the same background. The browser's :hover is the source of truth for the pointer,
       // and it must win, including when no arrow key was ever pressed (highlightIndex −1).
       const hovered = this.shadowRoot
@@ -243,7 +243,7 @@ class ProtspaceAnnotationSelect extends LitElement {
 
   /**
    * One metric row: name (with a "lower is better" marker where that applies), its value in the
-   * selected projection, and — for annotation-validity metrics — the same metric in the source
+   * selected projection, and (for annotation-validity metrics) the same metric in the source
    * embedding, which is the separability ceiling the projection is measured against.
    */
   private renderStatMetric(metric: AnnotationStatMetric) {
@@ -290,7 +290,7 @@ class ProtspaceAnnotationSelect extends LitElement {
         <!-- Stated unconditionally: isolation, query filters, legend hides and the reliability
              threshold all narrow the view, and these scores are computed once over the whole
              dataset regardless. A flag tracking "is the view a subset?" cannot stay correct. -->
-        <div class="stat-caveat">Computed on the full dataset, not the current view.</div>
+        <div class="stat-caveat">Computed on the full dataset.</div>
       </div>
     `;
   }
@@ -351,8 +351,8 @@ class ProtspaceAnnotationSelect extends LitElement {
                             <div class="annotation-section-items">
                               ${group.annotations.map((annotation) => {
                                 // Hover styling comes from `dropdownMixin`'s `.dropdown-item:hover`.
-                                // Mirroring it into `highlightIndex` re-rendered every row — and
-                                // rebuilt every popover's stats block — per row the pointer crossed.
+                                // Mirroring it into `highlightIndex` re-rendered every row (and
+                                // rebuilt every popover's stats block) per row the pointer crossed.
                                 // The index is for keyboard navigation only.
                                 const itemIndex = currentIndex++;
                                 const isHighlighted = itemIndex === this.highlightIndex;
@@ -405,7 +405,7 @@ class ProtspaceAnnotationSelect extends LitElement {
                                     ${isPredictedAnnotation(annotation)
                                       ? html`<span
                                           class="predicted-badge"
-                                          title="Predicted — computational, not experimentally curated"
+                                          title="Predicted: computational, not experimentally curated"
                                           aria-label="Predicted"
                                           >⚡</span
                                         >`

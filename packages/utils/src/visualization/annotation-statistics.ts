@@ -27,7 +27,7 @@ const LABEL_KIND_DISPLAY: Record<string, string> = {
 };
 
 /**
- * Render order, derived from the display maps rather than restated — a metric added to
+ * Render order, derived from the display maps rather than restated: a metric added to
  * `METRIC_DISPLAY` alone would otherwise silently sort last. Validity and agreement metrics
  * never share a list, so one order covers both.
  */
@@ -40,7 +40,7 @@ export interface AnnotationStatMetric {
   label: string;
   value: number;
   /**
-   * The same metric scored on the source embedding — the separability "ceiling" a 2D
+   * The same metric scored on the source embedding, the separability "ceiling" a 2D
    * projection is measured against. `null` when the bundle has no embedding-space row.
    */
   embedding: number | null;
@@ -87,7 +87,7 @@ const byMetricOrder = (a: AnnotationStatMetric, b: AnnotationStatMetric) =>
 
 /**
  * Build the statistics shown behind an annotation's ⓘ icon, or `null` when the bundle has no
- * score for this (annotation, projection) pair — which is also the "should we show the icon at
+ * score for this (annotation, projection) pair, which is also the "should we show the icon at
  * all?" test.
  *
  * @param statistics Rows from the bundle's statistics part, if any.
@@ -110,7 +110,7 @@ export function annotationStatSummary(
   if (forAnnotation.length === 0) return null;
 
   // The embedding-space ceiling is projection-independent, but a bundle prepared from several
-  // embeddings carries one row per (annotation, metric, embedding) — the driver runs the
+  // embeddings carries one row per (annotation, metric, embedding); the driver runs the
   // embedding pass once per embedding set. Nothing in the tidy schema links a projection back
   // to the embedding it came from, so a metric scored on more than one embedding has no
   // ceiling we can attribute: mark it conflicted (`null`) rather than show a different

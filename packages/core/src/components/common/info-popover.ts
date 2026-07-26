@@ -28,7 +28,7 @@ let infoPopoverSequence = 0;
  * - **Click** still toggles a pinned state. Escape or an outside click closes it.
  *
  * Placement:
- * - `"bottom"` (default) drops the popover below the icon — used by the legend header.
+ * - `"bottom"` (default) drops the popover below the icon, used by the legend header.
  * - `"side"` floats it beside the dropdown *panel* (left by default, flipping right near the
  *   viewport edge), level with the hovered row and with an arrow pointing at it, rendered
  *   `position: fixed` so it escapes the dropdown's `overflow` clipping. Anchoring to the panel
@@ -150,7 +150,7 @@ class ProtspaceInfoPopover extends LitElement {
 
     /* Scroll container for the description + projected statistics. It has to be an inner element:
        \`.popover\` cannot take \`overflow\` because the arrow is positioned outside its box. The cap
-       keeps a tall stats popover on screen — the side-placement clamp collapses to \`top: 8px\`
+       keeps a tall stats popover on screen: the side-placement clamp collapses to \`top: 8px\`
        once the bubble is taller than the viewport, leaving the last rows unreachable. */
     .popover-content {
       max-height: 60vh;
@@ -210,7 +210,7 @@ class ProtspaceInfoPopover extends LitElement {
   /**
    * `aria-describedby` target. It is the content wrapper, not the popover itself: the popover
    * carries an `aria-label`, and accname step 2C returns that label rather than descending into
-   * the contents — which silently emptied the description for every consumer.
+   * the contents, which silently emptied the description for every consumer.
    */
   private readonly contentId = `${this.popoverId}-content`;
 
@@ -227,7 +227,7 @@ class ProtspaceInfoPopover extends LitElement {
   /** Parent row used as the keep-open region for side placement (see `firstUpdated`). */
   private _row: HTMLElement | null = null;
 
-  /** Light-DOM children gate render(), but aren't reactive — observe them (see class doc). */
+  /** Light-DOM children gate render(), but aren't reactive, so observe them (see class doc). */
   private readonly childObserver = new MutationObserver(() => this.requestUpdate());
 
   connectedCallback() {
@@ -241,7 +241,7 @@ class ProtspaceInfoPopover extends LitElement {
   firstUpdated() {
     // In side placement the bubble floats outside the dropdown panel, so the path from the icon to
     // the bubble crosses the row. Treat the whole row (this popover's parent) as the keep-open
-    // region — the bubble is a DOM descendant of it — so the user can glide from the ⓘ into the
+    // region (the bubble is a DOM descendant of it), so the user can glide from the ⓘ into the
     // bubble to click "Learn more" without it closing, while only the tiny panel↔bubble gap relies
     // on the grace period.
     if (this.placement === 'side' && this.parentElement) {
@@ -281,7 +281,7 @@ class ProtspaceInfoPopover extends LitElement {
 
   private _onPointerLeave = () => {
     // For side placement, closing is driven by leaving the whole row (see `_onRowPointerLeave`), so
-    // leaving just the icon must not start the close timer — otherwise crossing the row toward the
+    // leaving just the icon must not start the close timer; otherwise crossing the row toward the
     // bubble would dismiss it.
     if (this.placement === 'side') return;
     this._scheduleClose();
@@ -481,7 +481,7 @@ class ProtspaceInfoPopover extends LitElement {
   }
 
   private _onPointerDown = () => {
-    // A focus that immediately follows a pointerdown is a mouse/touch focus, not keyboard tabbing —
+    // A focus that immediately follows a pointerdown is a mouse/touch focus, not keyboard tabbing, so
     // don't open via `kbFocused` in that case (click handles the pinned state instead).
     this.pointerInitiatedFocus = true;
     setTimeout(() => {
