@@ -92,6 +92,9 @@ class ProtspaceInfoPopover extends LitElement {
       border: 1px solid var(--border-color, #e5e7eb);
       box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
       font-size: 0.78rem;
+      /* Pinned like the other typography here: font-weight inherits across the shadow boundary, so
+         a bold ancestor (e.g. a selected dropdown row) would otherwise render this popover bold. */
+      font-weight: normal;
       line-height: 1.35;
       text-align: left;
       white-space: normal;
