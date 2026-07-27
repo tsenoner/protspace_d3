@@ -917,12 +917,6 @@ wheels = [
 ]
 
 [[package]]
-name = "dash-treeview-antd"
-version = "0.0.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/9f/17/787dd4c073c66939477e98c441a6999b30eefaf37caa4ef69d8a24ed151b/dash_treeview_antd-0.0.1.tar.gz", hash = "sha256:3e55427a5e272d373dfac75510866bdb3df3c356b22fd7149f68559eeba1b9c3", size = 578808, upload-time = "2018-10-10T18:47:53.406Z" }
-
-[[package]]
 name = "debugpy"
 version = "1.8.21"
 source = { registry = "https://pypi.org/simple" }
@@ -3333,7 +3327,6 @@ dev = [
     { name = "cairosvg" },
     { name = "dash", extra = ["testing"] },
     { name = "dash-mantine-components" },
-    { name = "dash-treeview-antd" },
     { name = "holoviews" },
     { name = "hvplot" },
     { name = "ijson" },
@@ -3389,7 +3382,6 @@ dev = [
     { name = "cairosvg", specifier = ">=2.7.1" },
     { name = "dash", extras = ["testing"], specifier = ">=3" },
     { name = "dash-mantine-components", specifier = ">=0.14.5" },
-    { name = "dash-treeview-antd", specifier = ">=0.0.1" },
     { name = "holoviews", specifier = ">=1.19.1" },
     { name = "hvplot", specifier = ">=0.11.0" },
     { name = "ijson", specifier = ">=3.3.0" },
