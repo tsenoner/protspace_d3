@@ -1287,18 +1287,6 @@ wheels = [
 ]
 
 [[package]]
-name = "gunicorn"
-version = "26.0.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "packaging" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/6d/b7/a4a3f632f823e432ce6bc65f62961b7980c898c77f075a2f7118cb3846fe/gunicorn-26.0.0.tar.gz", hash = "sha256:ca9346f85e3a4aeeb64d491045c16b9a35647abd37ea15efe53080eb8b090baf", size = 727286, upload-time = "2026-05-05T06:38:25.529Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e6/40/9c2384fc2be4ad25dd4a49decd5ad9ea5a3639814c11bd40ab77cb9f0a14/gunicorn-26.0.0-py3-none-any.whl", hash = "sha256:40233d26a5f0d1872916188c276e21641155111c2853f0c2cd55260aec0d24fc", size = 212009, upload-time = "2026-05-05T06:38:23.007Z" },
-]
-
-[[package]]
 name = "h11"
 version = "0.16.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3274,7 +3262,7 @@ wheels = [
 
 [[package]]
 name = "protlabel"
-version = "4.7.2"
+version = "4.9.1"
 source = { editable = "apps/protspace/packages/protlabel" }
 dependencies = [
     { name = "numpy" },
@@ -3300,7 +3288,7 @@ wheels = [
 
 [[package]]
 name = "protspace"
-version = "4.7.2"
+version = "4.9.1"
 source = { editable = "apps/protspace" }
 dependencies = [
     { name = "biocentral-api" },
@@ -3326,11 +3314,8 @@ frontend = [
     { name = "dash-daq" },
     { name = "dash-iconify" },
     { name = "dash-molstar" },
-    { name = "gunicorn" },
     { name = "kaleido" },
     { name = "plotly" },
-    { name = "python-dotenv" },
-    { name = "requests" },
 ]
 local = [
     { name = "einops" },
@@ -3356,7 +3341,6 @@ dev = [
     { name = "jupytext" },
     { name = "panel" },
     { name = "polars" },
-    { name = "pyarrow" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
@@ -3375,7 +3359,6 @@ requires-dist = [
     { name = "dash-iconify", marker = "extra == 'frontend'", specifier = ">=0.1.2" },
     { name = "dash-molstar", marker = "extra == 'frontend'", specifier = ">=1.3.0" },
     { name = "einops", marker = "extra == 'local'", specifier = ">=0.8.2" },
-    { name = "gunicorn", marker = "extra == 'frontend'", specifier = ">=23.0.0" },
     { name = "h5py", specifier = ">=3.12.1" },
     { name = "kaleido", marker = "extra == 'frontend'", specifier = ">=0.2.1,!=0.2.1.post1" },
     { name = "numpy", specifier = ">=1.23.0" },
@@ -3386,9 +3369,7 @@ requires-dist = [
     { name = "protobuf", marker = "extra == 'local'", specifier = ">=7.35.1" },
     { name = "pyarrow", specifier = ">=20.0.0" },
     { name = "pymmseqs", specifier = ">=1.0.4" },
-    { name = "python-dotenv", marker = "extra == 'frontend'", specifier = ">=1.0.1" },
     { name = "requests", specifier = ">=2.32.4" },
-    { name = "requests", marker = "extra == 'frontend'", specifier = ">=2.32.4" },
     { name = "rich", specifier = ">=14.3.3" },
     { name = "scikit-learn", specifier = ">=1.6.1" },
     { name = "sentencepiece", marker = "extra == 'local'", specifier = ">=0.2.2" },
@@ -3416,7 +3397,6 @@ dev = [
     { name = "jupytext", specifier = ">=1.17.1" },
     { name = "panel", specifier = ">=1.5.2" },
     { name = "polars", specifier = ">=1.26.0" },
-    { name = "pyarrow", specifier = ">=20.0.0" },
     { name = "pytest", specifier = ">=8.3.3" },
     { name = "pytest-cov", specifier = ">=7.0.0" },
     { name = "ruff", specifier = ">=0.6.9" },
@@ -3440,29 +3420,34 @@ dependencies = [
     { name = "uvicorn", extra = ["standard"] },
 ]
 
-[package.optional-dependencies]
+[package.dev-dependencies]
 dev = [
     { name = "httpx" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "respx" },
+    { name = "ruff" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "anyio", specifier = ">=4.6" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.115" },
-    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.28" },
     { name = "protspace", editable = "apps/protspace" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
     { name = "python-multipart", specifier = ">=0.0.20" },
-    { name = "respx", marker = "extra == 'dev'", specifier = ">=0.21" },
     { name = "slowapi", specifier = ">=0.1.9" },
     { name = "structlog", specifier = ">=24.1" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
 ]
-provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "httpx", specifier = ">=0.28" },
+    { name = "pytest", specifier = ">=8.3" },
+    { name = "pytest-asyncio", specifier = ">=0.24" },
+    { name = "respx", specifier = ">=0.21" },
+    { name = "ruff", specifier = ">=0.15.21" },
+]
 
 [[package]]
 name = "psutil"

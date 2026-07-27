@@ -41,6 +41,8 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v6
         with:
+          # Required: semantic-release walks history to compute the bump. A
+          # shallow clone makes it miscount commits rather than fail loudly.
           fetch-depth: 0
           ref: ${{ github.sha }}
           token: ${{ steps.app-token.outputs.token }}
@@ -51,11 +53,11 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
         with:
-          python-version-file: 'apps/protspace/pyproject.toml'
+          # Pin semantic-release's interpreter rather than floating to the newest
+          # runner Python (actions/setup-python resolved requires-python ">=3.12"
+          # to the newest available). Sets UV_PYTHON for the uv tool commands below.
+          python-version: '3.12'
 
       - name: Restore uv tools
         uses: actions/cache@v5
