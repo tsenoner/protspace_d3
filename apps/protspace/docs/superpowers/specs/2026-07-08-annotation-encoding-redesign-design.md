@@ -249,7 +249,7 @@ writes only the first hit's decoded label (`getFirstAnnotationIndex`, `:59-62`) 
 scores, evidence, and secondary hits, without re-serializing the grammar. This is a **pre-existing,
 independent** data-loss bug orthogonal to the encoding contract, so it is not folded into this
 change (which would broaden the PR and risk). It is filed as
-[tsenoner/protspace_web#303](https://github.com/tsenoner/protspace_web/issues/303) (in the
+[tsenoner/protspace#303](https://github.com/tsenoner/protspace/issues/303) (in the
 "ProtSpace Development" project, status **Ready**) and becomes a natural follow-up once the v2 codec
 exists: the exporter should re-serialize from the decoded `{labels, scores, evidence}` via the
 shared codec and stamp `format_version = 2`.
