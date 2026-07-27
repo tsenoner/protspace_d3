@@ -609,12 +609,17 @@ export function materializeNumericAnnotation(
 
   if (summary.nonNullCount === 0) {
     const emptyTopologySignature = createTopologySignature(effectiveSettings.strategy, []);
+    // Zero numeric bins, but the rows still exist and every one of them is missing.
+    // Emit the same N/A pseudo-bin the populated path appends below: leaving every
+    // index on the -1 sentinel renders an empty legend and hides every point. This
+    // is the documented "N numeric bins + 1 N/A" shape degenerating to N = 0.
+    const hasRows = values.length > 0;
     return {
       annotation: {
         kind: 'categorical',
-        values: [],
-        colors: [],
-        shapes: [],
+        values: hasRows ? [NA_VALUE] : [],
+        colors: hasRows ? [NA_DEFAULT_COLOR] : [],
+        shapes: hasRows ? ['circle'] : [],
         sourceKind: 'numeric',
         numericType: resolvedNumericType,
         numericMetadata: {
@@ -627,7 +632,7 @@ export function materializeNumericAnnotation(
           bins: [],
         },
       },
-      annotationData: new Int32Array(values.length).fill(-1),
+      annotationData: new Int32Array(values.length).fill(hasRows ? 0 : -1),
     };
   }
 
