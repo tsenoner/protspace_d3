@@ -38,7 +38,7 @@ protspace prepare -i sequences.fasta -e prot_t5 -m pca2,umap2
 | `-m`      | Projection methods (comma-separated or repeatable)                       |
 | `-a`      | Annotations: group names, individual names, or CSV path                  |
 | `-e`      | Embedder model shortcut (for FASTA input)                                |
-| `-s`      | Compute sequence similarity via MMseqs2                                  |
+| `-s`      | Compute sequence similarity via MMseqs2 (needs `protspace[similarity]`)  |
 | `-v`      | Verbosity (`-v` = INFO, `-vv` = DEBUG)                                   |
 
 ## Annotations

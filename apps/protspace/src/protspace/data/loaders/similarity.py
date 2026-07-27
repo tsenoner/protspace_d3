@@ -57,7 +57,14 @@ def compute_similarity(
         logger.info("Cached similarity headers differ; recomputing.")
 
     # --- Compute ---
-    from pymmseqs.commands import easy_search
+    try:
+        from pymmseqs.commands import easy_search
+    except ModuleNotFoundError as exc:  # pragma: no cover - depends on install extras
+        raise RuntimeError(
+            "-s/--similarity needs MMseqs2, which ships in an optional extra "
+            "because it has no wheels for Python 3.12+ and must be compiled.\n"
+            'Install it with:  pip install "protspace[similarity]"'
+        ) from exc
 
     n_seqs = len(headers)
     input_fasta = str(fasta_path.absolute())

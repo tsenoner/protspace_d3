@@ -319,9 +319,11 @@ Located in `notebooks/`:
 
 ## Dependencies
 
-**Core:** h5py, scikit-learn, umap-learn, pacmap, numpy, pandas, pyarrow, tqdm, requests, pymmseqs, biocentral-api, typer, rich, protlabel (workspace member)
+**Core:** h5py, scikit-learn, umap-learn, pacmap, numpy, pandas, pyarrow, tqdm, requests, biocentral-api, typer, rich, protlabel (workspace member)
 
 **Frontend (optional):** dash, plotly, dash-bootstrap-components, dash-molstar
+
+**Similarity (optional, `[similarity]` extra):** pymmseqs — only reached via `-s/--similarity`. Kept out of core because it publishes cp310-only wheels, so on this package's `requires-python = ">=3.12"` it always compiles from sdist, and its `ipython<9` pin upgrades Colab's pinned ipython. Install with `pip install "protspace[similarity]"`.
 
 **Local embedding (optional, `[local]` extra):** torch, transformers, sentencepiece, protobuf, einops — enables on-device embedding via `protspace.data.embedding.local` (issue #320; alternative to the Biocentral API). Install with `pip install "protspace[local]"`.
 

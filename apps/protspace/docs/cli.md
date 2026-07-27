@@ -75,7 +75,7 @@ protspace prepare -i emb.h5 -m "pca2,umap2:n_neighbors=50;min_dist=0.3,tsne2" -o
 | Flag | Description | Default |
 | ---- | ----------- | ------- |
 | `-m, --methods` | DR methods. Repeat the flag or use commas to combine methods (`-m pca2,umap2`); use semicolons to inline parameter overrides for one method (`-m 'umap2:n_neighbors=50;min_dist=0.1'`). See [Overridable parameters](#overridable-parameters-with--m) for the supported keys. Methods: `pca2`, `umap2`, `tsne2`, `pacmap2`, `mds2`, `localmap2`. | `pca2` |
-| `-s, --similarity` | Also compute sequence similarity DR from FASTA. | off |
+| `-s, --similarity` | Also compute sequence similarity DR from FASTA. Needs the extra: `pip install "protspace[similarity]"`. | off |
 | `--metric` | Distance metric (`euclidean`, `cosine`, `manhattan`). | `euclidean` |
 | `--random-state` | Random seed. | `42` |
 | `--n-neighbors` | UMAP/PaCMAP/LocalMAP neighbors. | `25` |
