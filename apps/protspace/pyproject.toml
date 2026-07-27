@@ -41,7 +41,10 @@ frontend = [
 ]
 local = [
     "einops>=0.8.2",
-    "protobuf",
+    # Floor only, deliberately low: needed by transformers' slow-tokenizer
+    # conversion (ProtT5/Ankh T5Tokenizer). A tighter pin conflicted with
+    # Colab's preinstalled protobuf.
+    "protobuf>=3.20",
     "sentencepiece>=0.2.2",
     "torch>=2.4",
     "transformers>=5.13.1",

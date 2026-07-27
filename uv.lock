@@ -3361,7 +3361,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "plotly", marker = "extra == 'frontend'", specifier = ">=5.24.1" },
     { name = "protlabel", editable = "apps/protspace/packages/protlabel" },
-    { name = "protobuf", marker = "extra == 'local'" },
+    { name = "protobuf", marker = "extra == 'local'", specifier = ">=3.20" },
     { name = "pyarrow", specifier = ">=20.0.0" },
     { name = "pymmseqs", marker = "extra == 'similarity'", specifier = ">=1.0.4" },
     { name = "requests", specifier = ">=2.32.4" },
