@@ -527,13 +527,32 @@ describe('numeric annotation type fidelity', () => {
     expect(reimported.annotation_data.length).toBeUndefined();
   });
 
-  it('keeps a float column float when its surviving values are all integral', async () => {
+  it('lets inference decide int/float for a DOUBLE column, rather than re-labelling it', async () => {
+    // Bundles exported before this writer stored EVERY numeric column as DOUBLE,
+    // so DOUBLE carries no int/float information. Treating it as a declaration
+    // would re-label their integer annotations as float and change bin labels.
     const original = baseData({ ratio: numeric('float') }, { ratio: [1, 2, null] });
+    const exported = createParquetBundle(original);
+    expect(physicalType(exported, 'ratio')).toBe('DOUBLE');
 
     const reimported = convertParquetToVisualizationData(
-      await extractRowsFromParquetBundle(createParquetBundle(original)),
+      await extractRowsFromParquetBundle(exported),
     );
-    expect(reimported.annotations.ratio.numericType).toBe('float');
+    // Integral values in a DOUBLE column ⇒ inference wins, exactly as before this PR.
+    expect(reimported.annotations.ratio.numericType).toBe('int');
+  });
+
+  it('treats an integer physical type as authoritative over inference', async () => {
+    // The inverse: only this writer emits INT32/INT64, and only for a declared
+    // integer column, so it may override a fractional inference.
+    const original = baseData({ residues: numeric('int') }, { residues: [7, 8, null] });
+    const exported = createParquetBundle(original);
+    expect(physicalType(exported, 'residues')).toBe('INT32');
+
+    const reimported = convertParquetToVisualizationData(
+      await extractRowsFromParquetBundle(exported),
+    );
+    expect(reimported.annotations.residues.numericType).toBe('int');
   });
 
   it('leaves a column carrying real categories alone even when a numeric type is declared', async () => {

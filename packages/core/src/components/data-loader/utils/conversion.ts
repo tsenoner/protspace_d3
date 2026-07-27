@@ -643,19 +643,23 @@ function buildCoordinateMap(
 }
 
 /**
- * Re-apply the numeric identity the writer declared in `protspace_numeric_columns`.
+ * Re-apply the numeric identity carried by the annotations part's parquet schema
+ * (derived by `readNumericColumnTypes` in bundle.ts).
  *
  * `inferAnnotationType` derives kind/numericType from the values alone, which is
- * correct for any bundle that carries values but has two blind spots on a
- * frontend re-export:
- *  - a numeric column whose visible rows are all missing (isolation mode or an
- *    active query filter) has nothing to infer from, so it reloads as a
- *    categorical column holding one `__NA__` category and loses its gradient
- *    legend and its `>`/`<`/`between` operators;
- *  - a 'float' column whose surviving rows all happen to be integral reloads as
- *    'int', changing bin-label formatting.
+ * correct whenever a column carries values but has a blind spot: a numeric column
+ * whose rows are all missing — an isolation-mode or query-filtered export — has
+ * nothing to infer from, so it reloads as a categorical column holding one
+ * `__NA__` category and loses its gradient legend and `>`/`<`/`between` operators.
  *
- * Bundles without the key (Python-written, legacy) keep pure inference.
+ * Only an INTEGER physical type is treated as authoritative for the int/float
+ * distinction. Bundles written before this writer stored *every* numeric column
+ * as DOUBLE, so DOUBLE carries no int/float information and must not be allowed
+ * to re-label their integer annotations; inference stays in charge there.
+ *
+ * Columns stored as text — the `protspace` CLI stringifies its annotation frame —
+ * carry no numeric physical type at all, so they are absent from `declared` and
+ * keep pure inference.
  */
 function restoreDeclaredNumericAnnotations(
   data: VisualizationData,
@@ -666,8 +670,9 @@ function restoreDeclaredNumericAnnotations(
     if (!annotation) continue;
 
     if (annotation.kind === 'numeric') {
-      // Values survived; only the int/float identity can have drifted.
-      if (annotation.numericType !== numericType) {
+      // Values survived, so inference already had everything it needed — except
+      // that an integral column can only be stored INT32/INT64 by this writer.
+      if (numericType === 'int' && annotation.numericType !== 'int') {
         data.annotations[column] = { ...annotation, numericType };
       }
       continue;
