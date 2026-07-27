@@ -62,12 +62,84 @@ def _rgba_to_hex(rgba_str: str) -> str:
     return f"#{r:02X}{g:02X}{b:02X}"
 
 
+LEGEND_SETTINGS_KEY = "legendSettings"
+
+
+# Keys that only ever appear inside ONE annotation's legend entry. Their presence
+# means the candidate is an entry, not a map of entries.
+_ENTRY_MARKER_KEYS = frozenset(
+    {"categories", "sortMode", "maxVisibleValues", "shapeSize", "hiddenValues"}
+)
+# Envelope siblings of "legendSettings" in the frontend shape. "exportOptions" is a
+# required field of the frontend's BundleSettings, so a genuine envelope always has
+# at least one of these.
+_ENVELOPE_SIBLING_KEYS = frozenset(
+    {"exportOptions", "publishState", "eatOverlayEnabled", "eatConfidenceThreshold"}
+)
+
+
+def _is_frontend_envelope(settings: object) -> bool:
+    """True only for the frontend's nested part-4 shape.
+
+    Bare key presence is not a safe discriminator: annotation names come from
+    user CSV headers, so a **flat** Python map can legitimately hold a column
+    literally called ``legendSettings``. Unwrapping that would hand back one
+    annotation's own entry as if it were the whole map and blank every legend.
+    Mirrors the structural check the frontend reader does in
+    ``settings-validation.ts`` (``isNormalizedBundleSettings``).
+    """
+    if not isinstance(settings, dict):
+        return False
+    inner = settings.get(LEGEND_SETTINGS_KEY)
+    if not isinstance(inner, dict):
+        return False
+    if _ENTRY_MARKER_KEYS & inner.keys():
+        # `inner` looks like a single legend entry — only an envelope sibling
+        # can prove this is really the nested shape.
+        return bool(_ENVELOPE_SIBLING_KEYS & settings.keys())
+    return True
+
+
+def unwrap_settings(settings: dict) -> dict:
+    """Return the annotation-keyed settings map from either bundle-part-4 shape.
+
+    Two writers produce the settings part and their shapes differ:
+
+    * Python (:func:`visualization_state_to_settings`) writes the **flat** shape,
+      keyed directly by annotation name.
+    * The web frontend writes a **nested** envelope,
+      ``{"legendSettings": {<annotation>: ...}, "exportOptions": ..., "publishState": ...,
+      "eatOverlayEnabled": ..., "eatConfidenceThreshold": ...}``.
+
+    The frontend reader (``normalizeBundleSettings``) already accepts both, so
+    this is the Python-side half of that contract. Without it, iterating a
+    frontend-written dict hits scalar envelope values (``eatOverlayEnabled`` is a
+    bool) and every legend colour/shape is silently dropped.
+    """
+    return (
+        settings[LEGEND_SETTINGS_KEY] if _is_frontend_envelope(settings) else settings
+    )
+
+
+def rewrap_settings(settings: dict, template: dict | None) -> dict:
+    """Re-apply the envelope *template* was read in, so a rewrite stays non-lossy.
+
+    ``protspace style`` reads part 4, rebuilds the annotation map, and writes it
+    back. When the source bundle came from the frontend, writing the bare map
+    would drop ``publishState``, ``exportOptions`` and the EAT display settings.
+    """
+    if not _is_frontend_envelope(template):
+        return settings
+    return {**template, LEGEND_SETTINGS_KEY: settings}
+
+
 def settings_to_visualization_state(settings: dict) -> dict:
     """Convert *settings_json* to *visualization_state*.
 
     Args:
-        settings: Settings dict keyed by annotation name, each containing a
-            ``categories`` mapping with ``color`` (hex) and ``shape`` entries.
+        settings: Settings in either bundle shape (see :func:`unwrap_settings`) —
+            keyed by annotation name, each containing a ``categories`` mapping
+            with ``color`` (hex) and ``shape`` entries.
 
     Returns:
         ``{"annotation_colors": {...}, "marker_shapes": {...}}``
@@ -75,7 +147,10 @@ def settings_to_visualization_state(settings: dict) -> dict:
     annotation_colors: dict[str, dict[str, str]] = {}
     marker_shapes: dict[str, dict[str, str]] = {}
 
-    for annotation_name, annotation_settings in settings.items():
+    for annotation_name, annotation_settings in unwrap_settings(settings).items():
+        # Tolerate stray scalars so one malformed entry cannot blank the whole legend.
+        if not isinstance(annotation_settings, dict):
+            continue
         categories = annotation_settings.get("categories", {})
         if not categories:
             continue
@@ -149,7 +224,9 @@ def visualization_state_to_settings(
 
     Args:
         viz_state: ``{"annotation_colors": {...}, "marker_shapes": {...}}``
-        existing_settings: Optional prior settings to merge with.
+        existing_settings: Optional prior settings to merge with, in either
+            bundle shape. A frontend-written envelope is preserved on output so
+            styling a frontend export keeps its publishState/EAT settings.
         value_frequencies: Optional ``{annotation_name: {value: count}}``
             used to assign zOrder when sortMode is size-based.
         style_overrides: Optional ``{annotation_name: {key: value}}`` with
@@ -161,6 +238,10 @@ def visualization_state_to_settings(
     """
     annotation_colors = viz_state.get("annotation_colors", {})
     marker_shapes = viz_state.get("marker_shapes", {})
+    settings_template = existing_settings
+    existing_settings = (
+        unwrap_settings(existing_settings) if existing_settings else existing_settings
+    )
 
     # Collect all annotation names referenced in colors, shapes, or style_overrides
     all_annotations = set(annotation_colors.keys()) | set(marker_shapes.keys())
@@ -313,4 +394,4 @@ def visualization_state_to_settings(
 
         settings[annotation_name] = ann_settings
 
-    return settings
+    return rewrap_settings(settings, settings_template)
