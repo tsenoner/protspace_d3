@@ -591,4 +591,47 @@ describe('numeric annotation type fidelity', () => {
     const extraction = await extractRowsFromParquetBundle(createParquetBundle(original));
     expect(extraction.numericColumnTypes).toMatchObject({ residues: 'int', score: 'float' });
   });
+
+  it('does not re-label a real DOUBLE-stored integer fixture as float', async () => {
+    // raw_numeric_test.parquetbundle stores `length`/`weight` as DOUBLE with
+    // wholly integral values — the shape every pre-INT32 frontend export has, and
+    // what `protspace bundle -a` produces once pandas promotes an int column with
+    // a missing value. Honouring DOUBLE as a 'float' declaration would turn the
+    // legend labels from "10 - 25" into "10.0 - 25.0".
+    const extraction = await extractRowsFromParquetBundle(
+      loadArrayBuffer(
+        resolve(
+          __dirname,
+          '../../../../../../apps/web/tests/fixtures/raw_numeric_test.parquetbundle',
+        ),
+      ),
+    );
+    expect(extraction.numericColumnTypes).toMatchObject({ length: 'float', weight: 'float' });
+
+    const data = convertParquetToVisualizationData(extraction);
+    expect(data.annotations.length.kind).toBe('numeric');
+    expect(data.annotations.length.numericType).toBe('int');
+    expect(data.annotations.weight.numericType).toBe('int');
+  });
+
+  it('keeps EAT confidence companions out of the user-visible annotations', async () => {
+    // The companion column is written FLOAT, so it legitimately appears in
+    // numericColumnTypes. What keeps it out of the legend is that
+    // normalizeEatCompanionColumns strips it BEFORE the restore pass runs — an
+    // ordering this test pins, since reversing it would resurrect the column as a
+    // bogus numeric annotation.
+    const extraction = await extractRowsFromParquetBundle(
+      loadArrayBuffer(
+        resolve(
+          __dirname,
+          '../../../../../../apps/web/tests/fixtures/phosphatase_eat.parquetbundle',
+        ),
+      ),
+    );
+    expect(extraction.numericColumnTypes).toMatchObject({ ec__pred_confidence: 'float' });
+
+    const data = convertParquetToVisualizationData(extraction);
+    expect(Object.keys(data.annotations).filter((key) => key.includes('__pred_'))).toEqual([]);
+    expect(data.numeric_annotation_data?.ec__pred_confidence).toBeUndefined();
+  });
 });
