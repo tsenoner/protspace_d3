@@ -3,10 +3,12 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import './projection-metadata';
-import type { Projection } from '@protspace/utils';
+import type { Projection, ProjectionStatisticRow } from '@protspace/utils';
 
 type ProjectionMetadataElement = HTMLElement & {
   projection: Projection | null;
+  statistics?: readonly ProjectionStatisticRow[];
+  selectedAnnotation: string;
   updateComplete: Promise<unknown>;
 };
 
@@ -15,12 +17,37 @@ function qualityEntry(value: number | null, scope: 'local' | 'global') {
   return { value, scope, k: 15, seed: 42, sampled: false, sample_size: 1428 };
 }
 
-async function setup(metadata: Record<string, unknown>): Promise<ProjectionMetadataElement> {
+/** One statistics row for `major_group`, scored in the projection the panel is showing. */
+const statRow = (over: Partial<ProjectionStatisticRow> = {}): ProjectionStatisticRow => ({
+  space_kind: 'projection',
+  space_name: 'ProtT5 — UMAP 2',
+  annotation: 'major_group',
+  stat_family: 'annotation_validity',
+  label_kind: 'annotation',
+  metric: 'silhouette',
+  metric_kind: 'validity',
+  value: 0.326,
+  ...over,
+});
+
+async function setup(
+  metadata: Record<string, unknown>,
+  stats?: { statistics: readonly ProjectionStatisticRow[]; selectedAnnotation: string },
+): Promise<ProjectionMetadataElement> {
   const el = document.createElement('protspace-projection-metadata') as ProjectionMetadataElement;
   el.projection = { name: 'ProtT5 — UMAP 2', metadata };
+  if (stats) {
+    el.statistics = stats.statistics;
+    el.selectedAnnotation = stats.selectedAnnotation;
+  }
   document.body.appendChild(el);
   await el.updateComplete;
   return el;
+}
+
+/** The annotation-quality section, present only when the bundle scored this pair. */
+function statsBlock(el: ProjectionMetadataElement): HTMLElement | null {
+  return el.shadowRoot!.querySelector('.annotation-stats');
 }
 
 function rows(el: ProjectionMetadataElement): Array<[string, string]> {
@@ -72,5 +99,99 @@ describe('protspace-projection-metadata quality rows', () => {
     const el = await setup({ quality: { continuity: qualityEntry(null, 'local') } });
 
     expect(rows(el)).toEqual([['Continuity (local)', 'N/A']]);
+  });
+});
+
+describe('protspace-projection-metadata annotation quality section', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('stays absent when the bundle has no score for this annotation and projection', async () => {
+    // The projection half of the panel must look untouched for a bundle prepared without --stats.
+    const plain = await setup({ n_components: 2 });
+    expect(statsBlock(plain)).toBeNull();
+
+    const otherAnnotation = await setup(
+      { n_components: 2 },
+      { statistics: [statRow()], selectedAnnotation: 'seq_start' },
+    );
+    expect(statsBlock(otherAnnotation)).toBeNull();
+
+    const otherProjection = await setup(
+      { n_components: 2 },
+      {
+        statistics: [statRow({ space_name: 'ProtT5 — PCA 2' })],
+        selectedAnnotation: 'major_group',
+      },
+    );
+    expect(statsBlock(otherProjection)).toBeNull();
+  });
+
+  it('names the annotation and shows each metric against its embedding ceiling', async () => {
+    const el = await setup(
+      { n_components: 2 },
+      {
+        statistics: [
+          statRow({ extra_json: '{"n_categories": 5, "n_labels": 1427}' }),
+          statRow({ space_kind: 'embedding', space_name: 'prot_t5', value: 0.095 }),
+          statRow({ metric: 'davies_bouldin', value: 1.281 }),
+        ],
+        selectedAnnotation: 'major_group',
+      },
+    );
+
+    expect(el.shadowRoot!.querySelector('.stats-header')!.textContent).toContain('Major group');
+    const text = statsBlock(el)!.textContent!;
+    expect(text).toContain('Separation in this projection');
+    expect(text).toContain('0.326');
+    expect(text).toContain('emb 0.095');
+    expect(text).toContain('5 categories · 1,427 proteins scored');
+    expect(text).toContain('Computed on the full dataset');
+  });
+
+  it('marks each metric with the direction that counts as better', async () => {
+    const el = await setup(
+      { n_components: 2 },
+      {
+        statistics: [statRow(), statRow({ metric: 'davies_bouldin', value: 1.281 })],
+        selectedAnnotation: 'major_group',
+      },
+    );
+
+    const arrows = Array.from(statsBlock(el)!.querySelectorAll('.stat-direction'));
+    expect(arrows.map((a) => a.textContent)).toEqual(['↑', '↓']);
+    // The glyphs alone reach neither screen readers nor touch users.
+    expect(arrows.every((a) => a.getAttribute('aria-hidden') === 'true')).toBe(true);
+    expect(statsBlock(el)!.textContent).toContain('lower is better');
+  });
+
+  it('collapses the ceiling column on metrics that never have one', async () => {
+    const el = await setup(
+      { n_components: 2 },
+      {
+        statistics: [
+          statRow(),
+          statRow({ space_kind: 'embedding', space_name: 'prot_t5', value: 0.095 }),
+          statRow({
+            stat_family: 'cluster_agreement',
+            label_kind: 'kmeans_elbow',
+            metric: 'adjusted_rand',
+            metric_kind: 'agreement',
+            value: 0.362,
+          }),
+        ],
+        selectedAnnotation: 'major_group',
+      },
+    );
+
+    const cells = Array.from(statsBlock(el)!.querySelectorAll('.stat-metric-embedding'));
+    // Silhouette has a ceiling; the agreement metric never does.
+    expect(cells.map((cell) => cell.classList.contains('is-empty'))).toEqual([false, true]);
+    expect(statsBlock(el)!.textContent).toContain('Auto-cluster agreement');
   });
 });
