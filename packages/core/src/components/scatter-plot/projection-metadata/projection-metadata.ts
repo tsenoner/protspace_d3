@@ -79,6 +79,13 @@ class ProtspaceProjectionMetadata extends LitElement {
         }
       }
 
+      // Faithfulness rides in as a nested `{metric: {value, scope, ...provenance}}` map, which the
+      // object branch of `_formatSingleValue` would print as one long JSON string.
+      if (lowerKey === 'quality' && !!value && typeof value === 'object' && !Array.isArray(value)) {
+        processedEntries.push(...this._qualityEntries(value as Record<string, unknown>));
+        continue;
+      }
+
       processedEntries.push([key, value]);
     }
 
@@ -87,6 +94,19 @@ class ProtspaceProjectionMetadata extends LitElement {
       this._formatMetadataKey(key),
       this._formatMetadataValue(value, key),
     ]);
+  }
+
+  /**
+   * One entry per faithfulness metric, tagged with its scope ("local" neighbourhoods vs "global"
+   * layout). The shared provenance each metric carries (k, seed, sampling, source embedding) is
+   * dropped: it repeats per metric and would bury the five numbers worth reading.
+   */
+  private _qualityEntries(quality: Record<string, unknown>): Array<[string, unknown]> {
+    return Object.entries(quality).map(([metric, entry]): [string, unknown] => {
+      if (!entry || typeof entry !== 'object' || !('value' in entry)) return [metric, entry];
+      const { value, scope } = entry as { value: unknown; scope?: unknown };
+      return [typeof scope === 'string' ? `${metric} (${scope})` : metric, value];
+    });
   }
 
   /**
