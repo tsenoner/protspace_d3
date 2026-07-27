@@ -1,0 +1,30 @@
+name: Model licence canary
+
+# pLM checkpoints are not Python dependencies, so no dependency bot, SBOM or SCA
+# tool can see them. ESM-C was relicensed from non-commercial to MIT on
+# 2026-05-27 and the docs still said non-commercial two months later; this is the
+# only check that would have caught it. Weekly is enough — the failure mode is
+# stale documentation, not a broken build.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1' # Mondays 06:00 UTC
+  workflow_dispatch: # also re-arms the schedule after repo-inactivity auto-disable
+  pull_request:
+    paths:
+      - 'apps/protspace/scripts/check_model_licences.py'
+      - '.github/workflows/model-licences.yml'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: '3.12'
+
+      # No dependencies needed — the script uses only the standard library.
+      - name: Compare documented licences against the HuggingFace Hub
+        run: uv run --no-project python apps/protspace/scripts/check_model_licences.py

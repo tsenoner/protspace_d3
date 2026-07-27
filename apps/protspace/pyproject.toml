@@ -79,6 +79,7 @@ dev = [
     "polars>=1.26.0",
     "jupytext>=1.17.1",
     "pytest-cov>=7.0.0",
+    "deptry>=0.25.1",
 ]
 
 # protlabel (the EAT engine) is a separate distribution developed in-repo. It is a
@@ -156,6 +157,25 @@ known-first-party = ["protspace", "protlabel"]
 # `uv sync --locked` green. assets stays [] because the lock is staged, not an asset;
 # no wheel build here (publishing is handled by protspace-publish.yml). protspace +
 # protlabel stay lock-step (same bump).
+[tool.deptry]
+# The Python analogue of the `knip` run on the JS side: catches dependencies that
+# are declared but never used. `rich>=14.3.3` and `protobuf>=7.35.1` were floors on
+# packages this codebase does not import, and between them they produced five of the
+# six dependency-conflict warnings users saw on every Colab install.
+#
+# Every DEP002 entry below is required at RUNTIME by something we do import, so
+# deptry cannot see the link. Anything flagged that is NOT on this list is a real
+# candidate for removal -- justify it here or drop it.
+[tool.deptry.per_rule_ignores]
+DEP001 = ["__main__"]  # stdlib module, misdetected as a missing dependency
+DEP002 = [
+    "rich",           # typer renders its --help panels through rich (rich_help_panel)
+    "kaleido",        # plotly's static image-export backend
+    "einops",         # runtime requirement of several transformers architectures
+    "protobuf",       # runtime requirement of transformers/sentencepiece tokenizers
+    "sentencepiece",  # transformers tokenizer backend for the T5/Ankh families
+]
+
 [tool.semantic_release]
 # Monorepo scoping (requires python-semantic-release >= 10, pinned in
 # protspace-release.yml): count ONLY commits that touch this package dir

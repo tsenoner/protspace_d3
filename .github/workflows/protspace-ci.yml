@@ -53,6 +53,16 @@ jobs:
       - name: Ruff format check
         run: uv run ruff format --check src/ packages/ tests/
 
+      # Dependency hygiene. Both are cheap and both exist because of real
+      # regressions: pymmseqs sat in core deps for months publishing cp310-only
+      # wheels against a >=3.12 floor, and rich/protobuf carried floors on
+      # packages this codebase never imports.
+      - name: Unused / undeclared dependencies (deptry)
+        run: uv run deptry src/ tests/
+
+      - name: Every locked package ships a wheel
+        run: uv run python scripts/check_wheels.py
+
   test:
     runs-on: ubuntu-latest
     strategy:
