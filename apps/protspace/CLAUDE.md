@@ -106,10 +106,20 @@ protspace bundle -p project_dir -a annotations.parquet -s statistics.parquet --s
 | `ankh_base` | ElnaggarLab/ankh-base | 768 | CC-BY-NC-SA-4.0 |
 | `ankh_large` | ElnaggarLab/ankh-large | 1536 | CC-BY-NC-SA-4.0 |
 | `ankh3_large` | ElnaggarLab/ankh3-large | 1536 | CC-BY-NC-SA-4.0 |
-| `esmc_300m` | Synthyra/ESMplusplus_small | 960 | Cambrian Open |
-| `esmc_600m` | Synthyra/ESMplusplus_large | 1152 | Cambrian Non-Commercial |
+| `esmc_300m` | Synthyra/ESMplusplus_small | 960 | MIT |
+| `esmc_600m` | Synthyra/ESMplusplus_large | 1152 | MIT |
 
-Ankh models, ankh3_large, and esmc_600m are non-commercial only. ESMC models use Synthyra's HuggingFace-compatible reimplementation of EvolutionaryScale's ESM-C (near-identical embeddings, MSE ~7.74e-10).
+Ankh models and ankh3_large are non-commercial only (CC-BY-NC-SA-4.0); everything else is
+permissive. ESM-C was relicensed to MIT on 2026-05-27 when it moved to Chan Zuckerberg
+Biohub, retroactively covering the Dec-2024 checkpoints, and Synthyra's derivatives passed
+that grant through on 2026-06-02 — so `esmc_600m` is no longer restricted.
+
+ESM-C still goes through Synthyra's HuggingFace-compatible reimplementation (near-identical
+embeddings, MSE ~7.74e-10) for a purely technical reason, not a licensing one: `transformers`
+has no `esmc` model type (the port, huggingface/transformers#46419, is still open) and the
+`biohub/ESMC-*` repos ship no remote code, so loading the official weights would require the
+`esm` SDK — which pins `transformers<4.48.2` and Python `<3.13`. Revisit if #46419 merges;
+dims already match exactly (960 / 1152).
 
 Model shortcuts are defined in `MODEL_SHORT_KEYS` (CommonEmbedder models) and `EXTRA_SHORT_KEYS` (additional HuggingFace models) in `src/protspace/data/embedding/biocentral.py`. Display names are in `src/protspace/data/loaders/embedding_set.py`.
 
