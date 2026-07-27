@@ -18,6 +18,7 @@ import { bigIntReplacer } from './bigint-utils';
 import { isNumericAnnotation } from '../visualization/numeric-binning.js';
 import { getProteinAnnotationIndices } from '../visualization/annotation-data-access.js';
 import { getEatCompanionColumn, getPredictedCellValues } from '../visualization/eat-overlay.js';
+import { isNAValue } from '../visualization/missing-values.js';
 import { encodeAnnotationField } from './annotation-codec.js';
 
 const ANNOTATION_FORMAT_VERSION = '2';
@@ -85,7 +86,12 @@ function createAnnotationsParquet(data: VisualizationData): ArrayBuffer {
       const cellValues = getProteinAnnotationIndices(annotationIndices, i).flatMap(
         (valueIndex, cellIndex) => {
           const value = annotation.values[valueIndex];
-          if (value == null) return [];
+          // `__NA__` is the in-memory sentinel appendSyntheticNACategory materialises for a
+          // missing cell, never a value any bundle holds. Drop it so the cell round-trips as
+          // NULL — writing it verbatim would re-import as a real, frequency-sorted category
+          // (it is not a MISSING_VALUE_TOKEN) and leak into downstream `protspace` tooling.
+          // Mirrors the read side's readCategoricalStorageValues.
+          if (value == null || isNAValue(value)) return [];
           const evidence = data.annotation_evidence?.[annotationName]?.[i]?.[cellIndex];
           const scores = data.annotation_scores?.[annotationName]?.[i]?.[cellIndex];
           return [serializeCategoricalValue(value, evidence, scores)];
