@@ -24,11 +24,47 @@ import { encodeAnnotationField } from './annotation-codec.js';
 const ANNOTATION_FORMAT_VERSION = '2';
 const ANNOTATION_FORMAT_VERSION_KEY = 'protspace_format_version';
 
+/**
+ * Key-value metadata key carrying `{column: 'int'|'float'}` for every numeric
+ * annotation written. Parquet alone cannot express this: a numeric column whose
+ * visible rows are all null (an isolation/query-filtered export) carries no
+ * values to re-infer from, so it would reload as a categorical column holding a
+ * single `__NA__` category. The reader restores the declared kind from this key.
+ */
+const NUMERIC_COLUMNS_KEY = 'protspace_numeric_columns';
+
 /** Column data format for parquetWriteBuffer */
 interface ColumnData {
   name: string;
-  data: (string | number | boolean | null)[];
+  data: (string | number | boolean | bigint | null)[];
   type?: 'STRING' | 'INT32' | 'INT64' | 'DOUBLE' | 'FLOAT' | 'BOOLEAN';
+}
+
+/**
+ * Physical parquet encoding for one numeric annotation.
+ *
+ * An integral column must not be widened to DOUBLE: Python keys legends, styles
+ * and value-frequency tables off `str(value)`, so a round trip through DOUBLE
+ * turns the style key `'100'` into `'100.0'` and makes a previously valid
+ * `protspace style` template fail validation. hyparquet-writer requires bigint
+ * for INT64, and rejects a non-integral or unsafe value outright — so fall back
+ * to DOUBLE unless every value is a safe integer.
+ */
+function encodeNumericColumn(
+  name: string,
+  values: readonly (number | null)[],
+  numericType: 'int' | 'float',
+): ColumnData {
+  const writeAsInteger =
+    numericType === 'int' && values.every((value) => value == null || Number.isSafeInteger(value));
+  if (!writeAsInteger) {
+    return { name, data: values as (number | null)[], type: 'DOUBLE' };
+  }
+  return {
+    name,
+    data: values.map((value) => (value == null ? null : BigInt(value))),
+    type: 'INT64',
+  };
 }
 
 function serializeCategoricalValue(
@@ -47,6 +83,7 @@ function serializeCategoricalValue(
  * Contains identifier column + all annotation columns.
  */
 function createAnnotationsParquet(data: VisualizationData): ArrayBuffer {
+  const numericColumnTypes: Record<string, 'int' | 'float'> = {};
   const columnData: ColumnData[] = [
     {
       name: 'identifier',
@@ -62,11 +99,9 @@ function createAnnotationsParquet(data: VisualizationData): ArrayBuffer {
 
     if (isNumericAnnotation(annotation)) {
       const values = data.numeric_annotation_data?.[annotationName] ?? [];
-      columnData.push({
-        name: annotationName,
-        data: values,
-        type: 'DOUBLE',
-      });
+      const numericType = annotation.numericType ?? 'float';
+      numericColumnTypes[annotationName] = numericType;
+      columnData.push(encodeNumericColumn(annotationName, values, numericType));
       continue;
     }
 
@@ -139,10 +174,12 @@ function createAnnotationsParquet(data: VisualizationData): ArrayBuffer {
     }
   }
 
-  return parquetWriteBuffer({
-    columnData,
-    kvMetadata: [{ key: ANNOTATION_FORMAT_VERSION_KEY, value: ANNOTATION_FORMAT_VERSION }],
-  });
+  const kvMetadata = [{ key: ANNOTATION_FORMAT_VERSION_KEY, value: ANNOTATION_FORMAT_VERSION }];
+  if (Object.keys(numericColumnTypes).length > 0) {
+    kvMetadata.push({ key: NUMERIC_COLUMNS_KEY, value: JSON.stringify(numericColumnTypes) });
+  }
+
+  return parquetWriteBuffer({ columnData, kvMetadata });
 }
 
 /**

@@ -642,6 +642,61 @@ function buildCoordinateMap(
   return coordMap;
 }
 
+/**
+ * Re-apply the numeric identity the writer declared in `protspace_numeric_columns`.
+ *
+ * `inferAnnotationType` derives kind/numericType from the values alone, which is
+ * correct for any bundle that carries values but has two blind spots on a
+ * frontend re-export:
+ *  - a numeric column whose visible rows are all missing (isolation mode or an
+ *    active query filter) has nothing to infer from, so it reloads as a
+ *    categorical column holding one `__NA__` category and loses its gradient
+ *    legend and its `>`/`<`/`between` operators;
+ *  - a 'float' column whose surviving rows all happen to be integral reloads as
+ *    'int', changing bin-label formatting.
+ *
+ * Bundles without the key (Python-written, legacy) keep pure inference.
+ */
+function restoreDeclaredNumericAnnotations(
+  data: VisualizationData,
+  declared: Readonly<Record<string, 'int' | 'float'>>,
+): VisualizationData {
+  for (const [column, numericType] of Object.entries(declared)) {
+    const annotation = data.annotations[column];
+    if (!annotation) continue;
+
+    if (annotation.kind === 'numeric') {
+      // Values survived; only the int/float identity can have drifted.
+      if (annotation.numericType !== numericType) {
+        data.annotations[column] = { ...annotation, numericType };
+      }
+      continue;
+    }
+
+    // Only rescue the genuinely ambiguous case — a column that carries no value
+    // at all. Anything with a real category was legitimately inferred as
+    // categorical and must not be reinterpreted.
+    if (annotation.values.some((value) => value != null && !isNAValue(value))) continue;
+
+    data.annotations[column] = {
+      kind: 'numeric',
+      numericType,
+      values: [],
+      colors: [],
+      shapes: [],
+      ...(annotation.runtime ? { runtime: annotation.runtime } : {}),
+    };
+    data.numeric_annotation_data = {
+      ...data.numeric_annotation_data,
+      [column]: new Array<number | null>(data.protein_ids.length).fill(null),
+    };
+    delete data.annotation_data[column];
+    delete data.annotation_scores?.[column];
+    delete data.annotation_evidence?.[column];
+  }
+  return data;
+}
+
 export function convertParquetToVisualizationData(
   input: BundleExtractionResult | Rows,
   projectionsMetadata?: Rows,
@@ -655,6 +710,7 @@ export function convertParquetToVisualizationData(
   // `BundleExtractionResult` carries the version detected from the bundle's parquet
   // key-value metadata by `extractRowsFromParquetBundle` (bundle.ts).
   const formatVersion = Array.isArray(input) ? 1 : input.formatVersion;
+  const declaredNumeric = Array.isArray(input) ? {} : (input.numericColumnTypes ?? {});
 
   validateRowsBasic(rows);
 
@@ -662,12 +718,14 @@ export function convertParquetToVisualizationData(
   const hasProjectionName = columnNames.includes('projection_name');
   const hasXY = columnNames.includes('x') && columnNames.includes('y');
 
-  if (hasProjectionName && hasXY) {
-    return normalizeEatCompanionColumns(
-      convertBundleFormatData(rows, columnNames, meta, formatVersion),
-    );
-  }
-  return normalizeEatCompanionColumns(convertLegacyFormatData(rows, columnNames, formatVersion));
+  const converted =
+    hasProjectionName && hasXY
+      ? convertBundleFormatData(rows, columnNames, meta, formatVersion)
+      : convertLegacyFormatData(rows, columnNames, formatVersion);
+  return restoreDeclaredNumericAnnotations(
+    normalizeEatCompanionColumns(converted),
+    declaredNumeric,
+  );
 }
 
 export function convertParquetToVisualizationDataOptimized(
@@ -691,7 +749,9 @@ export function convertParquetToVisualizationDataOptimized(
   if (numProjectionRows < 10000) {
     return Promise.resolve(convertParquetToVisualizationData(input));
   }
-  return convertLargeDatasetOptimized(input).then(normalizeEatCompanionColumns);
+  return convertLargeDatasetOptimized(input)
+    .then(normalizeEatCompanionColumns)
+    .then((data) => restoreDeclaredNumericAnnotations(data, input.numericColumnTypes ?? {}));
 }
 
 async function convertLargeDatasetOptimizedRaw(

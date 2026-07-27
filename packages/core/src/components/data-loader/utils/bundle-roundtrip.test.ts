@@ -3,7 +3,13 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { extractRowsFromParquetBundle } from './bundle';
 import { convertParquetToVisualizationData } from './conversion';
-import { createParquetBundle, countBundleDelimiters, isParquetBundle } from '@protspace/utils';
+import {
+  createParquetBundle,
+  countBundleDelimiters,
+  findBundleDelimiterPositions,
+  isParquetBundle,
+} from '@protspace/utils';
+import { parquetMetadata } from 'hyparquet';
 
 function loadArrayBuffer(filePath: string): ArrayBuffer {
   const buffer = readFileSync(filePath);
@@ -413,5 +419,165 @@ describe('numeric annotation round-trip', () => {
     expect(reimported.annotation_data.length).toBeUndefined();
     expect(reimported.annotations.family.kind).toBe('categorical');
     expect(reimported.annotation_data.family).toEqual([[0], [1], [0]]);
+  });
+});
+
+/**
+ * tsenoner/protspace#303 follow-ups: the numeric half of the export contract.
+ *
+ * Parquet stores values, not intent. Two things the writer previously threw
+ * away — the physical integer type, and the numeric kind of a column with no
+ * surviving values — are re-asserted here.
+ */
+describe('numeric annotation type fidelity', () => {
+  const baseData = (
+    annotations: Record<string, unknown>,
+    numeric: Record<string, (number | null)[]>,
+  ) => ({
+    protein_ids: ['P1', 'P2', 'P3'],
+    projections: [{ name: 'UMAP', data: Float32Array.of(0, 0, 1, 1, 2, 2), dimension: 2 as const }],
+    annotations,
+    annotation_data: {},
+    numeric_annotation_data: numeric,
+    annotation_scores: {},
+    annotation_evidence: {},
+  });
+
+  function physicalType(buffer: ArrayBuffer, column: string): string | undefined {
+    // Part 1 ends at the first delimiter; parquetMetadata needs exactly that slice.
+    const bytes = new Uint8Array(buffer);
+    const end = findBundleDelimiterPositions(bytes)[0];
+    const part1 = bytes.subarray(0, end).slice().buffer;
+    return parquetMetadata(part1).schema.find((field) => field.name === column)?.type;
+  }
+
+  it('writes an integer annotation as INT64, not a widened DOUBLE', async () => {
+    // Python keys legends/styles off str(value), so a DOUBLE round trip turns the
+    // style key '100' into '100.0' and breaks a previously valid style template.
+    const original = baseData(
+      {
+        residues: {
+          kind: 'numeric' as const,
+          numericType: 'int' as const,
+          values: [],
+          colors: [],
+          shapes: [],
+        },
+      },
+      { residues: [100, 250, null] },
+    );
+
+    const exported = createParquetBundle(original);
+    expect(physicalType(exported, 'residues')).toBe('INT64');
+
+    const reimported = convertParquetToVisualizationData(
+      await extractRowsFromParquetBundle(exported),
+    );
+    expect(reimported.annotations.residues.kind).toBe('numeric');
+    expect(reimported.annotations.residues.numericType).toBe('int');
+    expect(reimported.numeric_annotation_data?.residues).toEqual([100, 250, null]);
+  });
+
+  it('keeps a fractional annotation on DOUBLE', async () => {
+    const original = baseData(
+      {
+        score: {
+          kind: 'numeric' as const,
+          numericType: 'float' as const,
+          values: [],
+          colors: [],
+          shapes: [],
+        },
+      },
+      { score: [0.5, 1.25, null] },
+    );
+
+    const exported = createParquetBundle(original);
+    expect(physicalType(exported, 'score')).toBe('DOUBLE');
+    const reimported = convertParquetToVisualizationData(
+      await extractRowsFromParquetBundle(exported),
+    );
+    expect(reimported.numeric_annotation_data?.score).toEqual([0.5, 1.25, null]);
+  });
+
+  it('falls back to DOUBLE for an integral value too large to encode as INT64', async () => {
+    const original = baseData(
+      {
+        huge: {
+          kind: 'numeric' as const,
+          numericType: 'int' as const,
+          values: [],
+          colors: [],
+          shapes: [],
+        },
+      },
+      { huge: [Number.MAX_SAFE_INTEGER * 4, 1, null] },
+    );
+    const exported = createParquetBundle(original);
+    expect(physicalType(exported, 'huge')).toBe('DOUBLE');
+  });
+
+  it('keeps an all-missing numeric column numeric instead of flipping it categorical', async () => {
+    // Reachable from a real export: isolation mode / an active query filter can
+    // leave a numeric column with no surviving values (sliceVisualizationDataByIndices).
+    const original = baseData(
+      {
+        length: {
+          kind: 'numeric' as const,
+          numericType: 'int' as const,
+          values: [],
+          colors: [],
+          shapes: [],
+        },
+      },
+      { length: [null, null, null] },
+    );
+
+    const reimported = convertParquetToVisualizationData(
+      await extractRowsFromParquetBundle(createParquetBundle(original)),
+    );
+
+    expect(reimported.annotations.length.kind).toBe('numeric');
+    expect(reimported.annotations.length.numericType).toBe('int');
+    expect(reimported.numeric_annotation_data?.length).toEqual([null, null, null]);
+    expect(reimported.annotation_data.length).toBeUndefined();
+  });
+
+  it('keeps a float column float when its surviving values are all integral', async () => {
+    const original = baseData(
+      {
+        ratio: {
+          kind: 'numeric' as const,
+          numericType: 'float' as const,
+          values: [],
+          colors: [],
+          shapes: [],
+        },
+      },
+      { ratio: [1, 2, null] },
+    );
+
+    const reimported = convertParquetToVisualizationData(
+      await extractRowsFromParquetBundle(createParquetBundle(original)),
+    );
+    expect(reimported.annotations.ratio.numericType).toBe('float');
+  });
+
+  it('leaves a genuinely categorical column alone even if it is declared numeric', async () => {
+    // Guard against the restore pass hijacking a column that carries real values.
+    const original = baseData(
+      {
+        mixed: {
+          kind: 'numeric' as const,
+          numericType: 'int' as const,
+          values: [],
+          colors: [],
+          shapes: [],
+        },
+      },
+      { mixed: [1, 2, 3] },
+    );
+    const extraction = await extractRowsFromParquetBundle(createParquetBundle(original));
+    expect(extraction.numericColumnTypes).toEqual({ mixed: 'int' });
   });
 });

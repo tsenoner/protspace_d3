@@ -13,6 +13,12 @@ import { sanitizePublishState } from '../../publish/publish-state-validator';
 const FORMAT_VERSION_KEY = 'protspace_format_version';
 
 /**
+ * Key-value metadata key the frontend writer stamps with `{column: 'int'|'float'}`
+ * for each numeric annotation. Absent on Python-written and legacy bundles.
+ */
+const NUMERIC_COLUMNS_KEY = 'protspace_numeric_columns';
+
+/**
  * Result of extracting data from a parquetbundle.
  */
 export interface BundleExtractionResult {
@@ -34,6 +40,12 @@ export interface BundleExtractionResult {
    * legacy v1 behavior — plain-string labels, raw `;`-delimited multi-hit cells).
    */
   formatVersion: number;
+  /**
+   * Numeric annotation columns the writer declared, with their int/float
+   * identity. Empty when the bundle predates the key or came from Python, in
+   * which case the type is inferred from the values as before.
+   */
+  numericColumnTypes: Readonly<Record<string, 'int' | 'float'>>;
 }
 
 /**
@@ -51,6 +63,27 @@ function readFormatVersion(metadata: FileMetaData): number {
   const entry = kv.find((k) => k.key === FORMAT_VERSION_KEY);
   const v = entry?.value ? Number(entry.value) : 1;
   return Number.isFinite(v) ? v : 1;
+}
+
+/**
+ * Reads the writer-declared numeric annotation columns. Returns `{}` for any
+ * bundle that doesn't carry the key, or whose value isn't a well-formed
+ * `{column: 'int'|'float'}` map — the reader then falls back to value inference.
+ */
+function readNumericColumnTypes(metadata: FileMetaData): Record<string, 'int' | 'float'> {
+  const entry = (metadata.key_value_metadata ?? []).find((k) => k.key === NUMERIC_COLUMNS_KEY);
+  if (!entry?.value) return {};
+  try {
+    const parsed: unknown = JSON.parse(entry.value);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>).filter(
+        (pair): pair is [string, 'int' | 'float'] => pair[1] === 'int' || pair[1] === 'float',
+      ),
+    );
+  } catch {
+    return {};
+  }
 }
 
 /**
@@ -110,9 +143,11 @@ export async function extractRowsFromParquetBundle(
   // re-attempt the parse itself, surfacing the same error it would have before.
   let part1Metadata: FileMetaData | null = null;
   let formatVersion = 1;
+  let numericColumnTypes: Readonly<Record<string, 'int' | 'float'>> = {};
   try {
     part1Metadata = parquetMetadata(part1);
     formatVersion = readFormatVersion(part1Metadata);
+    numericColumnTypes = readNumericColumnTypes(part1Metadata);
   } catch {
     formatVersion = 1;
   }
@@ -178,6 +213,7 @@ export async function extractRowsFromParquetBundle(
     projectionsMetadata: projectionsMetadataData,
     settings,
     formatVersion,
+    numericColumnTypes,
   };
 }
 
