@@ -133,6 +133,20 @@ describe('getAnnotationHeaderType', () => {
   it('returns "evidence" when at least one entry has evidence among nulls', () => {
     expect(getAnnotationHeaderType([null, null], [null, 'IDA'])).toBe('evidence');
   });
+
+  it('returns "silhouette" for auto-cluster membership columns', () => {
+    // Both K-selections score each point by silhouette confidence, not by a bit score.
+    expect(getAnnotationHeaderType([[0.497]], [null], 'cluster_silhouette_ProtT5 — PCA 2')).toBe(
+      'silhouette',
+    );
+    expect(getAnnotationHeaderType([[0.601]], [null], 'cluster_elbow_ProtT5 — PCA 2')).toBe(
+      'silhouette',
+    );
+  });
+
+  it('returns "bitscore" for a scored column that is not a cluster column', () => {
+    expect(getAnnotationHeaderType([[42]], [null], 'interpro')).toBe('bitscore');
+  });
 });
 
 describe('formatRawNumericTooltipValue', () => {
