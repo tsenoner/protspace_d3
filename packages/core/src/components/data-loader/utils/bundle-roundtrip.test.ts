@@ -2,7 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { extractRowsFromParquetBundle } from './bundle';
-import { convertParquetToVisualizationData } from './conversion';
+import {
+  convertParquetToVisualizationData,
+  convertParquetToVisualizationDataOptimized,
+} from './conversion';
 import {
   createParquetBundle,
   countBundleDelimiters,
@@ -633,5 +636,37 @@ describe('numeric annotation type fidelity', () => {
     const data = convertParquetToVisualizationData(extraction);
     expect(Object.keys(data.annotations).filter((key) => key.includes('__pred_'))).toEqual([]);
     expect(data.numeric_annotation_data?.ec__pred_confidence).toBeUndefined();
+  });
+
+  it('restores the numeric kind on the >=10k optimized path production uses at scale', async () => {
+    // convertParquetToVisualizationDataOptimized branches on projection-row count:
+    // below 10k it delegates to the small-dataset converter (covered above), at or
+    // above it takes convertLargeDatasetOptimized. Swiss-Prot-scale bundles only
+    // ever take the second branch, so the restore pass must be wired into both.
+    const count = 10_001;
+    const proteinIds = Array.from({ length: count }, (_, i) => `P${i}`);
+    const coords = new Float32Array(count * 2);
+    for (let i = 0; i < count; i++) {
+      coords[i * 2] = i;
+      coords[i * 2 + 1] = i;
+    }
+
+    const original: VisualizationData = {
+      protein_ids: proteinIds,
+      projections: [{ name: 'UMAP', data: coords, dimension: 2 }],
+      annotations: { length: numeric('int') },
+      annotation_data: {},
+      numeric_annotation_data: { length: new Array<number | null>(count).fill(null) },
+      annotation_scores: {},
+      annotation_evidence: {},
+    };
+
+    const extraction = await extractRowsFromParquetBundle(createParquetBundle(original));
+    expect(extraction.projections.length).toBeGreaterThanOrEqual(10_000);
+
+    const reimported = await convertParquetToVisualizationDataOptimized(extraction);
+    expect(reimported.annotations.length.kind).toBe('numeric');
+    expect(reimported.annotations.length.numericType).toBe('int');
+    expect(reimported.annotation_data.length).toBeUndefined();
   });
 });
