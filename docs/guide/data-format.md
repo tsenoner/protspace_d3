@@ -34,7 +34,7 @@ Contains metadata and biological annotations for each protein.
 | `identifier` | string        | Protein ID (e.g., P12345)  |
 | _others_     | string/number | Any biological annotations |
 
-The columns `gene_name`, `protein_name`, and `uniprot_kb_id` are **tooltip-only** — shown on hover but excluded from the annotation dropdown.
+The columns `gene_name`, `protein_name`, and `uniprot_kb_id` are **tooltip-only**, shown on hover but excluded from the annotation dropdown.
 
 ### 2. Projections Metadata
 
@@ -57,7 +57,7 @@ The columns `gene_name`, `protein_name`, and `uniprot_kb_id` are **tooltip-only*
 ### Statistics (Optional, 5th Part)
 
 The optional fifth part, `statistics.parquet`, holds projection quality metrics. It is a tidy
-long-format table — one row per space, annotation, label kind and metric:
+long-format table, one row per space, annotation, label kind and metric:
 
 | Column        | Type   | Description                                        |
 | ------------- | ------ | -------------------------------------------------- |
@@ -82,7 +82,7 @@ protspace stats -i embeddings.h5 -p project_dir -o statistics.parquet
 ```
 
 Because the parts are positional, a bundle that carries statistics **without** settings still writes
-the settings slot — as zero bytes — so the statistics table stays at position five.
+the settings slot, as zero bytes, so the statistics table stays at position five.
 
 ::: warning Five-part bundles do not open in the web app
 The web app currently rejects five-part bundles, so a `--stats` bundle will fail to open at
@@ -117,7 +117,7 @@ that fails to parse makes the whole column categorical. If every parsed value is
 column is an integer column; if any value has a fractional part it is a float column. A column with
 no numeric value at all stays categorical.
 
-A value fails to parse — and therefore forces the column categorical — when it is:
+A value fails to parse, and therefore forces the column categorical, when it is:
 
 - anything containing `;`, such as semicolon-separated multi-value fields
 - anything containing `|`, such as pipe-coded score or evidence fields (`PF00001|1.5e-10`)
@@ -131,7 +131,7 @@ There is no density, cardinality, or sparsity heuristic.
 
 ::: warning Identifier-style number columns become numeric
 A column of cluster IDs or numeric codes stored as strings (`"1"`, `"2"`, `"17"`) parses cleanly as
-numbers, so it **is** treated as numeric and binned with a gradient — even if it is sparse and you
+numbers, so it **is** treated as numeric and binned with a gradient, even if it is sparse and you
 meant it as a label. To keep such a column categorical, give every value a non-numeric form before
 bundling, for example `cluster_1` / `cluster_2` instead of `1` / `2`.
 :::
@@ -206,12 +206,12 @@ As of bundle format v2, annotation values containing special characters use perc
 
 **Encoding rules:**
 
-- Reserved characters — `%`, `;`, `|`, and control characters (0x00–0x1F, 0x7F) — are percent-encoded as `%XX` (uppercase hex)
+- Reserved characters (`%`, `;`, `|`, and control characters 0x00–0x1F and 0x7F) are percent-encoded as `%XX` (uppercase hex)
   - `%` → `%25`
   - `;` (field separator) → `%3B`
   - `|` (score/evidence separator) → `%7C`
   - control chars (including newline, tab) → `%0A`, `%09`, etc.
-- Literal characters — `,` (score separator in suffix; literal in names), `(`, `)` — stay unencoded for readability
+- Literal characters `,` (score separator in suffix; literal in names), `(`, and `)` stay unencoded for readability
 
 **Example:**
 

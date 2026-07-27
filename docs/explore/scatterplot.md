@@ -103,13 +103,13 @@ without projection metadata show no icon at all.
 The panel lists the parameters the dimensionality-reduction method was run with, taken from the
 bundle's projection metadata table. The exact rows depend on the method:
 
-- **PCA** — `N Components`, plus `Explained Variance Ratio` (one value per component)
-- **UMAP** — `N Neighbors`, `Min Dist`, `Metric`, `Random State`, and the rest of the UMAP
+- **PCA**, `N Components`, plus `Explained Variance Ratio` (one value per component)
+- **UMAP**, `N Neighbors`, `Min Dist`, `Metric`, `Random State`, and the rest of the UMAP
   parameter set
-- **Source** — the name of the embedding the projection was computed from, useful when a bundle
+- **Source**, the name of the embedding the projection was computed from, useful when a bundle
   contains projections from several embeddings
 
-The projection name and its dimension count are omitted from the panel — you already pick those in
+The projection name and its dimension count are omitted from the panel, you already pick those in
 the [Projection selector](/explore/control-bar).
 
 Values are formatted for readability: whole numbers print as-is, other numbers are rounded to three
@@ -118,7 +118,7 @@ comma-separated, and a missing value shows as `N/A`.
 
 #### Quality metrics
 
-If the bundle carries faithfulness metrics, the panel also includes a **Quality** row — how well the
+If the bundle carries faithfulness metrics, the panel also includes a **Quality** row, how well the
 2D or 3D layout preserves the structure of the original high-dimensional embedding:
 
 | Metric              | Meaning                                                                    |
@@ -129,7 +129,7 @@ If the bundle carries faithfulness metrics, the panel also includes a **Quality*
 | `random_triplet`    | Fraction of random point triplets whose relative ordering survives         |
 | `spearman_distance` | Rank correlation between high-dimensional and projected pairwise distances |
 
-Each metric carries its value plus provenance — the neighborhood size `k`, the high-dimensional
+Each metric carries its value plus provenance, the neighborhood size `k`, the high-dimensional
 distance metric, the source embedding, and whether the computation was sampled. Metrics that could
 not be computed (for example on very large datasets) are recorded with a skip marker instead of a
 value.

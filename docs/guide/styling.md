@@ -4,9 +4,9 @@ Custom colors, shapes, and legend settings for annotation categories.
 
 **Two approaches:**
 
-- **Web UI** — interactive editing in the [legend panel](/explore/legend), then save to download the
+- **Web UI**, interactive editing in the [legend panel](/explore/legend), then save to download the
   updated bundle
-- **CLI** — programmatic via `protspace style` (see [Using Python CLI](/guide/python-cli))
+- **CLI**, programmatic via `protspace style` (see [Using Python CLI](/guide/python-cli))
 
 ## Workflow
 
@@ -14,7 +14,7 @@ Custom colors, shapes, and legend settings for annotation categories.
 # 1. Generate a styles template (values listed in frequency order)
 protspace style data.parquetbundle --generate-template > styles.json
 
-# 2. Edit styles.json — fill in colors, adjust settings
+# 2. Edit styles.json, fill in colors, adjust settings
 
 # 3. Apply styles to produce a new bundle
 protspace style data.parquetbundle styled.parquetbundle --annotation-styles styles.json
@@ -29,7 +29,7 @@ protspace style styled.parquetbundle --dump-settings
 workflow above is meant for categorical columns (e.g. `major_group`, `ec`, `superfamily`). Applying
 it to a **numeric** column (`length`, pLDDT, a score) does not do what you expect:
 
-- `--generate-template` lists **every distinct number as its own category** — hundreds to thousands
+- `--generate-template` lists **every distinct number as its own category**, hundreds to thousands
   of rows to hand-color.
 - `colors` / `shapes` / `pinnedValues` only match values by exact string, so a range like
   `"200-300"` or an interpolated `"3.5"` raises `Value '…' does not exist`.
@@ -40,16 +40,15 @@ distinct-value count.
 
 ::: tip What makes a column numeric
 The web app decides per column, not per cell: a column is numeric only if **every** non-missing
-value parses as a plain finite number. Any non-missing value that is not a plain finite number —
-including anything containing `;` or `|` — makes the whole column categorical.
+value parses as a plain finite number. Any non-missing value that is not a plain finite number,including anything containing `;` or `|`, makes the whole column categorical.
 :::
 
 **Two ways to color a numeric column instead:**
 
-1. **Pre-bin into categorical strings** before styling — turn the numbers into range-label strings
+1. **Pre-bin into categorical strings** before styling, turn the numbers into range-label strings
    (e.g. `"100-200"`, or fixed/quantile buckets), then style the binned column like any other
    categorical.
-2. **Use the web app's continuous gradient** — ProtSpace content-sniffs numeric columns and bins
+2. **Use the web app's continuous gradient**, ProtSpace content-sniffs numeric columns and bins
    them client-side into a sequential gradient (`batlow` default; also viridis / cividis / inferno /
    plasma). The binning strategy and reverse-gradient toggle live in the UI only.
 
@@ -57,20 +56,20 @@ including anything containing `;` or `|` — makes the whole column categorical.
 
 If you _do_ pass CLI styling keys for a numeric column, the web frontend reinterprets them:
 
-| Key                 | What happens on a numeric column                                                                                                                                                                 |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `colors`            | **Ignored** — legend entries are bin IDs, which never match your per-value keys.                                                                                                                 |
-| `shapes`            | **Ignored** — numeric markers are always circles.                                                                                                                                                |
-| `pinnedValues`      | **Never reaches the app** — a processing-only key that is not written to the bundle.                                                                                                             |
-| `zOrderSort`        | **Never reaches the app** — processing-only, like `pinnedValues`; not written to the bundle.                                                                                                     |
-| `hiddenValues`      | **Ignored** — a bin ID looks like `num:<strategy>:<lower>:<upper>`, so a list of raw values can never match one. Silent no-op.                                                                   |
-| `sortMode`          | Only `alpha-asc`, `alpha-desc`, `manual` and `manual-reverse` survive. Anything else — **including the default `size-desc`** — is coerced to `alpha-asc`, shown in the UI as `By numeric value`. |
-| `maxVisibleValues`  | Becomes the **target bin count** rather than a legend-entry cap.                                                                                                                                 |
-| `selectedPaletteId` | Reset to `batlow` unless it is one of the five gradient IDs.                                                                                                                                     |
+| Key                 | What happens on a numeric column                                                                                                                                                               |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `colors`            | **Ignored**, legend entries are bin IDs, which never match your per-value keys.                                                                                                                |
+| `shapes`            | **Ignored**, numeric markers are always circles.                                                                                                                                               |
+| `pinnedValues`      | **Never reaches the app**, a processing-only key that is not written to the bundle.                                                                                                            |
+| `zOrderSort`        | **Never reaches the app**, processing-only, like `pinnedValues`; not written to the bundle.                                                                                                    |
+| `hiddenValues`      | **Ignored**, a bin ID looks like `num:<strategy>:<lower>:<upper>`, so a list of raw values can never match one. Silent no-op.                                                                  |
+| `sortMode`          | Only `alpha-asc`, `alpha-desc`, `manual` and `manual-reverse` survive. Anything else, **including the default `size-desc`**, is coerced to `alpha-asc`, shown in the UI as `By numeric value`. |
+| `maxVisibleValues`  | Becomes the **target bin count** rather than a legend-entry cap.                                                                                                                               |
+| `selectedPaletteId` | Reset to `batlow` unless it is one of the five gradient IDs.                                                                                                                                   |
 
 ::: warning
 Per-category state is not persisted at all for numeric annotations, so CLI-authored per-value keys
-have no landing place in the bundle — they are dropped rather than applied incorrectly.
+have no landing place in the bundle, they are dropped rather than applied incorrectly.
 :::
 
 See [Using the Legend](/explore/legend) for how the numeric legend, binning strategies and gradients
@@ -80,24 +79,24 @@ behave in the app.
 
 Top-level keys are annotation names. Each annotation accepts the keys below.
 
-| Key                 | Type     | Default       | Stored | Description                                                                                                                                                                            |
-| ------------------- | -------- | ------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `colors`            | `{}`     | —             | yes    | `{value: color}` — hex (`#FF0000`) or rgb (`rgb(255,0,0)`). Empty strings are ignored.                                                                                                 |
-| `shapes`            | `{}`     | —             | yes    | `{value: shape}` — one of `circle`, `square`, `diamond`, `triangle-up`, `triangle-down`, `plus`.                                                                                       |
-| `sortMode`          | string   | `"size-desc"` | yes    | Legend sort: `size-desc`, `size-asc`, `alpha-asc`, `alpha-desc`, `manual`, `manual-reverse`.                                                                                           |
-| `maxVisibleValues`  | int      | `10`          | yes    | Legend entries shown before the "Other" bucket.                                                                                                                                        |
-| `shapeSize`         | int      | `30`          | yes    | Marker size in the scatter plot.                                                                                                                                                       |
-| `hiddenValues`      | string[] | `[]`          | yes    | Categories hidden from the plot.                                                                                                                                                       |
-| `selectedPaletteId` | string   | `"kellys"`    | yes    | **Categorical** palette for categories without explicit colors — one of the six IDs in [Color palettes](#color-palettes). A gradient or unknown value silently falls back to `kellys`. |
-| `pinnedValues`      | string[] | —             | no     | Ordered list of values for legend positions 0..N-1. See [Legend ordering](#legend-ordering).                                                                                           |
-| `zOrderSort`        | string   | —             | no     | Sort mode for zOrder assignment only (overrides `sortMode` for zOrder computation).                                                                                                    |
+| Key                 | Type     | Default       | Stored | Description                                                                                                                                                                           |
+| ------------------- | -------- | ------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `colors`            | `{}`     | -             | yes    | `{value: color}`, hex (`#FF0000`) or rgb (`rgb(255,0,0)`). Empty strings are ignored.                                                                                                 |
+| `shapes`            | `{}`     | -             | yes    | `{value: shape}`, one of `circle`, `square`, `diamond`, `triangle-up`, `triangle-down`, `plus`.                                                                                       |
+| `sortMode`          | string   | `"size-desc"` | yes    | Legend sort: `size-desc`, `size-asc`, `alpha-asc`, `alpha-desc`, `manual`, `manual-reverse`.                                                                                          |
+| `maxVisibleValues`  | int      | `10`          | yes    | Legend entries shown before the "Other" bucket.                                                                                                                                       |
+| `shapeSize`         | int      | `30`          | yes    | Marker size in the scatter plot.                                                                                                                                                      |
+| `hiddenValues`      | string[] | `[]`          | yes    | Categories hidden from the plot.                                                                                                                                                      |
+| `selectedPaletteId` | string   | `"kellys"`    | yes    | **Categorical** palette for categories without explicit colors, one of the six IDs in [Color palettes](#color-palettes). A gradient or unknown value silently falls back to `kellys`. |
+| `pinnedValues`      | string[] | -             | no     | Ordered list of values for legend positions 0..N-1. See [Legend ordering](#legend-ordering).                                                                                          |
+| `zOrderSort`        | string   | -             | no     | Sort mode for zOrder assignment only (overrides `sortMode` for zOrder computation).                                                                                                   |
 
 **Stored** keys are persisted in the output bundle. **Non-stored** (processing-only) keys are
-consumed during generation — only their effects (the resulting categories with `zOrder`, `color`,
+consumed during generation, only their effects (the resulting categories with `zOrder`, `color`,
 `shape`) are written.
 
 > **Value keys are display values.** In `colors`/`shapes`/`pinnedValues`/`hiddenValues`, a _value_ is
-> the human-readable category as `--generate-template` lists it and as the legend shows it — the
+> the human-readable category as `--generate-template` lists it and as the legend shows it, the
 > percent-decoded name with any `|score` suffix trimmed, not the raw wire cell. A template therefore
 > round-trips even when a name legitimately contains `;`, `|`, or `%` (bundle format v2
 > percent-encodes those on the wire; see
@@ -105,7 +104,7 @@ consumed during generation — only their effects (the resulting categories with
 
 ### N/A values
 
-Missing values (`""`, `"<NA>"`, `"NaN"`) are normalized automatically — use any form in the styles
+Missing values (`""`, `"<NA>"`, `"NaN"`) are normalized automatically, use any form in the styles
 file. In the output bundle N/A is stored with the key `__NA__` (the frontend's internal format).
 
 ### Example: custom colors and shapes
@@ -131,7 +130,7 @@ file. In the output bundle N/A is stored with the key `__NA__` (the frontend's i
 
 ProtSpace ships eleven built-in palettes, split by data type: **six categorical** palettes (discrete
 colors, one per category) and **five numeric gradients** (a continuous sequential scale). The two
-sets do not overlap and are not interchangeable — a numeric column can only use a gradient, and a
+sets do not overlap and are not interchangeable, a numeric column can only use a gradient, and a
 categorical column can only use a categorical palette.
 
 The palettes are defined in the web frontend, the single source of truth:
@@ -172,7 +171,7 @@ the numbers and colors the bins along the gradient.
 > **numeric** column the frontend instead reads `selectedPaletteId` as the gradient: a gradient ID
 > (`batlow` / `viridis` / `cividis` / `inferno` / `plasma`) is used as-is, and a categorical or
 > unknown ID resets to `batlow`. What `protspace style` cannot set for a numeric column is the
-> **binning** — the strategy and reverse-gradient toggle live in the per-annotation `numericSettings`
+> **binning**, the strategy and reverse-gradient toggle live in the per-annotation `numericSettings`
 > object, which is UI-only. `protspace style` warns when `selectedPaletteId` is a gradient or unknown
 > ID **on a categorical column** (where it would reset to `kellys`).
 
@@ -185,7 +184,7 @@ with `sortMode: "manual"`.
 ### How `pinnedValues` works
 
 - Each value in the list receives a `zOrder` starting from 0. **Only pinned values** are written into
-  the bundle's categories — the frontend treats everything else as "Other".
+  the bundle's categories, the frontend treats everything else as "Other".
 - `sortMode: "manual"` tells the frontend to sort legend items by `zOrder` (i.e., the order you
   defined).
 - `maxVisibleValues` must match the number of pinned values. Example: 12 families + N/A = 13 entries
@@ -238,10 +237,10 @@ order. Without `zOrderSort`, zOrder assignment falls back to `sortMode`.
 Raw annotation values are preprocessed to match the ProtSpace web frontend **before** settings are
 applied. **All settings (including `pinnedValues`) must use display names** (after preprocessing).
 
-| Delimiter     | Behavior                                                                                                                                          | Example                                           |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| Pipe `\|`     | Part after `\|` is a source tag — trimmed for display. Multiple raw variants with the same display name merge into one entry with combined count. | `"familyA\|IC"` → `"familyA"`                     |
-| Semicolon `;` | Multi-label split — each part becomes a separate entry. The protein counts toward all resulting categories.                                       | `"familyA;familyB"` → `"familyA"` and `"familyB"` |
+| Delimiter     | Behavior                                                                                                                                         | Example                                           |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
+| Pipe `\|`     | Part after `\|` is a source tag, trimmed for display. Multiple raw variants with the same display name merge into one entry with combined count. | `"familyA\|IC"` → `"familyA"`                     |
+| Semicolon `;` | Multi-label split, each part becomes a separate entry. The protein counts toward all resulting categories.                                       | `"familyA;familyB"` → `"familyA"` and `"familyB"` |
 
 Combined: `"familyA|IC;familyB|SAM"` → split by `;` → `"familyA|IC"`, `"familyB|SAM"` → trim `|` →
 `"familyA"`, `"familyB"`.

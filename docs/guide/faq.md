@@ -13,7 +13,7 @@ No. ProtSpace is designed for biologists and researchers - you only need protein
 It depends on what you import.
 
 - **`.parquetbundle` files stay local.** Loading, exploring, filtering and exporting a bundle all
-  run in your browser — the file never leaves your computer.
+  run in your browser, the file never leaves your computer.
 - **FASTA files are uploaded.** Dropping a `.fasta` / `.fa` / `.fna` file sends your sequences to
   the ProtSpace prep backend, which computes embeddings and projections and returns a
   `.parquetbundle`. If you need your sequences to stay on your machine, prepare the bundle
@@ -28,9 +28,9 @@ it stores per-dataset settings locally in browser storage. See
 
 Two:
 
-- **`.parquetbundle`** — the standard ProtSpace format, loaded entirely in your browser. See
+- **`.parquetbundle`**, the standard ProtSpace format, loaded entirely in your browser. See
   [Data Preparation](/guide/data-preparation) for how to generate one.
-- **FASTA (`.fasta`, `.fa`, `.fna`)** — on deployments that run the prep backend, dropping a FASTA
+- **FASTA (`.fasta`, `.fa`, `.fna`)**, on deployments that run the prep backend, dropping a FASTA
   file uploads it, builds a bundle, and opens it automatically. Sequence counts must be between 20
   and 1500, and the file must be 8 MB or smaller.
 
@@ -130,8 +130,8 @@ Three to five Parquet tables bundled together:
 1. Annotation data (protein metadata)
 2. Projection metadata (methods, parameters)
 3. Projection coordinates (x, y, z)
-4. Settings (optional — legend colors, shapes, export options)
-5. Statistics (optional — projection quality metrics from `protspace stats`)
+4. Settings (optional, legend colors, shapes, export options)
+5. Statistics (optional, projection quality metrics from `protspace stats`)
 
 The optional settings table is included when you export with "Include legend/export settings" enabled. See [Data Format](/guide/data-format) for details.
 

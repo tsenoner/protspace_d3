@@ -1,7 +1,7 @@
 # Contributing
 
-The contribution guide for the whole repository — issue reporting, setup, quality gates, commit
-conventions, pull requests and the release process — lives in one place:
+The contribution guide for the whole repository, issue reporting, setup, quality gates, commit
+conventions, pull requests and the release process, lives in one place:
 
 **→ [CONTRIBUTING.md on GitHub](https://github.com/tsenoner/protspace/blob/main/CONTRIBUTING.md)**
 
@@ -58,7 +58,7 @@ Components stay decoupled by talking through custom events. Use `bubbles: true` 
 `composed: true` so the event escapes the shadow root and reaches the host app.
 
 ```typescript
-// Dispatch — this is how the scatter plot emits a box/lasso selection
+// Dispatch, this is how the scatter plot emits a box/lasso selection
 this.dispatchEvent(
   new CustomEvent('brush-selection', {
     detail: { proteinIds: selectedIds, isMultiple: true },
@@ -84,6 +84,6 @@ Event names and payloads are a public contract. When you change one, update
 
 ## See also
 
-- [Architecture](/developers/architecture) — how the packages fit together
-- [Style Architecture](/developers/style-architecture) — CSS and theming conventions
-- [Installation](/developers/installation) — local setup
+- [Architecture](/developers/architecture), how the packages fit together
+- [Style Architecture](/developers/style-architecture), CSS and theming conventions
+- [Installation](/developers/installation), local setup

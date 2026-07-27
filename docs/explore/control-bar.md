@@ -48,13 +48,13 @@ The selected annotation is also stored in the page URL together with the current
 
 ::: info ⚡ Predicted badge
 A ⚡ badge next to an annotation name marks a **computational prediction** rather than curated or
-experimental data. Hover it for the tooltip "Predicted — computational, not experimentally
+experimental data. Hover it for the tooltip "Predicted, computational, not experimentally
 curated". The same badge appears next to the legend title when a predicted annotation is active.
 
 Flagged annotations are:
 
-- **Signal peptide (Phobius)** — de-novo topology predictor
-- **TED domains** — domains parsed from predicted AlphaFold structures
+- **Signal peptide (Phobius)**, de-novo topology predictor
+- **TED domains**, domains parsed from predicted AlphaFold structures
 - All **Biocentral** columns: Subcellular location, Membrane, Signal peptide, Transmembrane
 - Any other column whose name starts with `predicted_`
 
@@ -84,8 +84,8 @@ Paste multiple IDs at once (newline or space separated) and all matching protein
 
 Click **Select** to enter selection mode. A tool picker appears with two options:
 
-- **Rectangle** (default) — drag to draw a box around proteins
-- **Lasso** — draw a freeform outline around proteins
+- **Rectangle** (default), drag to draw a box around proteins
+- **Lasso**, draw a freeform outline around proteins
 
 See [Box Selection](/explore/scatterplot#box-selection) and [Lasso Selection](/explore/scatterplot#lasso-selection) for details.
 
@@ -108,7 +108,7 @@ Isolate is useful for examining relationships within a specific protein subset -
 
 ## 7. Filter Button
 
-![Filter Query modal with a single condition: protein_families equal to "phospholipase A2 family" or "three-finger toxin family" — a live counter shows 1082 of 7831 proteins matched](./images/filter-query-builder.png)
+![Filter Query modal with a single condition: protein_families equal to "phospholipase A2 family" or "three-finger toxin family", a live counter shows 1082 of 7831 proteins matched](./images/filter-query-builder.png)
 
 **Filter** opens a query builder modal for building complex annotation-based filters:
 
@@ -122,7 +122,7 @@ Isolate is useful for examining relationships within a specific protein subset -
 ### Numeric range conditions
 
 Some annotations hold numbers rather than categories (for example `length`). When you pick a
-numeric annotation, the row **switches to numeric mode automatically** — the **+** value picker is
+numeric annotation, the row **switches to numeric mode automatically**, the **+** value picker is
 replaced by a range input. There is no query text to type; you choose an operator and fill in the
 bound(s):
 
@@ -138,7 +138,7 @@ new operator does not use, so a hidden value cannot silently re-constrain the fi
 For example, `length` `between` `100` and `300` matches proteins with 100 ≤ length ≤ 300 (both ends
 included), while `length` `>` `500` excludes a protein of exactly length 500.
 
-Comparisons use the **raw numeric value**, not the legend's bin labels — so the bin settings in the
+Comparisons use the **raw numeric value**, not the legend's bin labels, so the bin settings in the
 [legend](/explore/legend) do not affect which proteins a numeric condition matches.
 
 A condition with a missing bound matches nothing, and the live match count only appears once the

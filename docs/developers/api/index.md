@@ -4,7 +4,7 @@ ProtSpace ships its UI as Lit custom elements in `@protspace/core`. This page do
 it exists on `main`.
 
 ::: warning
-`@protspace/core` is **not published to npm** yet. Consume it from the monorepo workspace — see
+`@protspace/core` is **not published to npm** yet. Consume it from the monorepo workspace, see
 [Embedding Components](/developers/embedding).
 :::
 
@@ -24,7 +24,7 @@ Importing `@protspace/core` registers all of them as side effects.
 
 Every component is a Lit element, so **every public property is settable from JavaScript**. Lit also
 derives an HTML attribute for each reactive property: properties declared with an explicit
-`attribute` name get that kebab-case attribute, and the rest get an implicit all-lowercase one — for
+`attribute` name get that kebab-case attribute, and the rest get an implicit all-lowercase one, for
 example `selectedAnnotation` is settable as `selectedannotation="family"`. Only properties declared
 `attribute: false` are JavaScript-only, such as the data loader's `loadFromFileHandler`. Object and
 array properties are parsed from JSON strings in markup, so set those from JavaScript.
@@ -159,8 +159,8 @@ Category filtering and color mapping with automatic settings persistence.
 | `annotationValues`   | `(string \| null)[]`      | `[]`    | Values in the annotation column         |
 | `proteinIds`         | `string[]`                | `[]`    | Protein IDs backing the counts          |
 | `selectedItems`      | `string[]`                | `[]`    | Selected legend entries                 |
-| `maxVisibleValues`   | `number`                  | —       | Max categories (or target numeric bins) |
-| `shapeSize`          | `number`                  | —       | Size of legend symbols                  |
+| `maxVisibleValues`   | `number`                  | -       | Max categories (or target numeric bins) |
+| `shapeSize`          | `number`                  | -       | Size of legend symbols                  |
 | `isolationMode`      | `boolean`                 | `false` | Reflects the plot's isolation state     |
 | `isolationHistory`   | `string[][]`              | `[]`    | Isolation stack from the plot           |
 
@@ -300,10 +300,10 @@ File-picker and drag/drop loading component used by the Explore app.
 | `autoLoad`            | `boolean` | `false` | Load automatically when `src` is set                 |
 | `allowDrop`           | `boolean` | `true`  | Accept drag and drop                                 |
 | `columnMappings`      | `object`  | `{}`    | Override protein-id / coordinate column names        |
-| `loadFromFileHandler` | function  | —       | Host hook that can intercept or replace file loading |
+| `loadFromFileHandler` | function  | -       | Host hook that can intercept or replace file loading |
 
 The file input accepts `.parquetbundle`, `.fasta`, `.fa` and `.fna`. FASTA files are only usable if
-the host installs a `loadFromFileHandler` that prepares them — see
+the host installs a `loadFromFileHandler` that prepares them, see
 [Importing Data](/explore/importing-data).
 
 ### HTML attributes

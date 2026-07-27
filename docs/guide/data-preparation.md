@@ -39,7 +39,7 @@ FASTA headers are normalized before embedding, so `sp|P12345|NAME_HUMAN` becomes
 :::
 
 ::: warning Self-hosting
-There is no feature flag or capability probe — the drop zone always posts to `/api/prepare`. To
+There is no feature flag or capability probe, the drop zone always posts to `/api/prepare`. To
 enable this path on your own deployment you must run the
 [prep service](https://github.com/tsenoner/protspace/blob/main/apps/prep/README.md) and build the
 web app with `VITE_PREP_API_BASE` pointing at it. Without both, a FASTA drop fails with an upload
@@ -87,7 +87,7 @@ For advanced users with custom embeddings, save them as an HDF5 file where each 
 
 ### Annotations
 
-Choose which annotations to include. They come from five sources — UniProt, InterPro, Taxonomy, TED,
+Choose which annotations to include. They come from five sources, UniProt, InterPro, Taxonomy, TED,
 and Biocentral (predicted).
 
 See the [Annotations reference](/guide/annotations) for the complete per-column catalogue: what each

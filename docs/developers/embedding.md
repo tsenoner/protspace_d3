@@ -77,10 +77,10 @@ Then `pnpm install` and import it from your entry module.
 ::: tip
 Every component is a Lit element, so every public property is settable from JavaScript. Lit also
 derives an HTML attribute for each reactive property: properties declared with an explicit
-`attribute` name get that kebab-case attribute, and the rest get an implicit all-lowercase one — for
+`attribute` name get that kebab-case attribute, and the rest get an implicit all-lowercase one, for
 example `selectedAnnotation` is settable as `selectedannotation="family"`. Only properties declared
 `attribute: false` are JavaScript-only, such as the data loader's `loadFromFileHandler`. Object and
-array properties are parsed from JSON strings in markup, so set those from JavaScript — which is why
+array properties are parsed from JSON strings in markup, so set those from JavaScript, which is why
 `data` is assigned in the script above. See the [API Reference](/developers/api/).
 :::
 
@@ -184,7 +184,7 @@ export default function ProtSpaceViewer() {
       const bundle = await extractRowsFromParquetBundle(arrayBuffer);
       const data = await convertParquetToVisualizationDataOptimized(bundle);
 
-      // Object props must be assigned imperatively — JSX would stringify them.
+      // Object props must be assigned imperatively, JSX would stringify them.
       plotRef.current.data = data;
       plotRef.current.selectedProjectionIndex = 0;
       plotRef.current.selectedAnnotation = Object.keys(data.annotations)[0];
@@ -258,7 +258,7 @@ const dataLoader = document.querySelector('protspace-data-loader');
 const legend = document.querySelector('protspace-legend');
 const viewer = document.querySelector('protspace-structure-viewer');
 
-// Point click — modifierKeys is { ctrl, meta, shift, alt }
+// Point click, modifierKeys is { ctrl, meta, shift, alt }
 plot.addEventListener('protein-click', (e) => {
   console.log('Clicked:', e.detail.proteinId, e.detail.modifierKeys);
 });

@@ -12,7 +12,7 @@ Use transient notifications for recoverable warnings and errors that affect the 
 - Example: a dataset import failed
 - Example: selection mode was auto-disabled after the filtered dataset became too small
 
-In `apps/web` — the deployed web application — `apps/web/src/lib/notify.ts` is the only supported transient notification
+In `apps/web`, the deployed web application, `apps/web/src/lib/notify.ts` is the only supported transient notification
 entry point. It wraps the toast layer, applies per-severity durations, and de-duplicates repeat
 messages within a 5-second window via `dedupeKey`. `apps/web/src/explore/notifications.ts` maps
 normalized component events onto those `notify` calls.

@@ -171,7 +171,7 @@ If an imported bundle or saved browser state references an unsupported numeric g
 
 ### Shapes
 
-Every category renders as a circle by default. To assign a different shape (square, diamond, plus, triangle-up, triangle-down) to an individual category, click the category's color/shape swatch in the legend — the popover has a Shape section underneath the color picker.
+Every category renders as a circle by default. To assign a different shape (square, diamond, plus, triangle-up, triangle-down) to an individual category, click the category's color/shape swatch in the legend, the popover has a Shape section underneath the color picker.
 
 Numeric and multi-label annotations always render as circles; per-category shape assignment is not available for those.
 
@@ -191,8 +191,7 @@ a numeric annotation the web app reinterprets or ignores them:
 
 - `colors`, `shapes` and `hiddenValues` are stored in the bundle but have no effect here. Numeric
   legend entries are bin IDs such as `num:quantile:150:200`, so per-value keys never match anything.
-- `pinnedValues` and `zOrderSort` never reach the app at all. They are processing-only CLI keys —
-  consumed while the bundle is generated and never written to it, for any annotation type.
+- `pinnedValues` and `zOrderSort` never reach the app at all. They are processing-only CLI keys, consumed while the bundle is generated and never written to it, for any annotation type.
 - `maxVisibleValues` becomes the target bin count (`Max legend items`). When the column has missing
   values, one slot is reserved for `N/A`.
 - `selectedPaletteId` is normalized to `batlow` unless it is one of the five numeric gradient IDs.

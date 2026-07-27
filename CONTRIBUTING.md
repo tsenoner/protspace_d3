@@ -334,15 +334,15 @@ test(core): add integration tests for data loader
 
 ## Release Process
 
-Releases are automated — there is no manual version bump to make. The root `package.json` is private
+Releases are automated, there is no manual version bump to make. The root `package.json` is private
 and has no `version` field; versions live per package.
 
-- **Python CLI (`apps/protspace`, PyPI: `protspace`)** — `.github/workflows/protspace-release.yml`
+- **Python CLI (`apps/protspace`, PyPI: `protspace`)**, `.github/workflows/protspace-release.yml`
   runs semantic-release on pushes to `main` that touch `apps/protspace/**`. It derives the next
   version from your [conventional commit](#commit-message-guidelines) messages, updates
   `apps/protspace/pyproject.toml` and the changelog, tags the release, then dispatches
   `protspace-publish.yml` to publish to PyPI. Writing accurate commit types is what drives this.
-- **Web app** — `.github/workflows/deploy.yml` deploys to GitHub Pages on every push to `main` that
+- **Web app**, `.github/workflows/deploy.yml` deploys to GitHub Pages on every push to `main` that
   touches anything outside `apps/protspace/` and `apps/prep/`. No tagging involved.
 
 > **Note:** `@protspace/core` and `@protspace/utils` are versioned in their own `package.json` files
@@ -370,4 +370,4 @@ Report unacceptable behavior to project maintainers.
 
 ## License
 
-MIT — see [LICENSE](https://github.com/tsenoner/protspace/blob/main/LICENSE).
+MIT, see [LICENSE](https://github.com/tsenoner/protspace/blob/main/LICENSE).
