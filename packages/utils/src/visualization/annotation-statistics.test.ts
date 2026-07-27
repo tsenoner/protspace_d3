@@ -191,6 +191,47 @@ describe('annotationStatSummary', () => {
 
     expect(summary!.agreement.map((group) => group.label)).toEqual(['elbow K', 'silhouette K']);
   });
+
+  it('reports what the scores cover, from the validity row‘s provenance', () => {
+    const summary = annotationStatSummary(
+      [row({ extra_json: '{"n_categories": 5, "n_labels": 1427, "sampled": false, "seed": 42}' })],
+      'major_group',
+      'UMAP 2',
+    );
+
+    expect(summary!.categories).toBe(5);
+    expect(summary!.scored).toBe(1427);
+  });
+
+  it('leaves the coverage unknown when the provenance is missing or broken', () => {
+    const unknown = (over: Partial<ProjectionStatisticRow>) =>
+      annotationStatSummary([row(over)], 'major_group', 'UMAP 2')!;
+
+    expect(unknown({}).categories).toBeNull();
+    expect(unknown({ extra_json: 'not json' }).scored).toBeNull();
+    expect(unknown({ extra_json: '{"n_categories": "five"}' }).categories).toBeNull();
+  });
+
+  it('falls back to an agreement row when the annotation has no validity row', () => {
+    // Agreement rows carry the protein count but never a category count.
+    const summary = annotationStatSummary(
+      [
+        row({
+          stat_family: 'cluster_agreement',
+          label_kind: 'kmeans_elbow',
+          metric: 'adjusted_rand',
+          metric_kind: 'agreement',
+          value: 0.362,
+          extra_json: '{"n_labels": 1427, "seed": 42}',
+        }),
+      ],
+      'major_group',
+      'UMAP 2',
+    );
+
+    expect(summary!.scored).toBe(1427);
+    expect(summary!.categories).toBeNull();
+  });
 });
 
 describe('formatStatValue', () => {

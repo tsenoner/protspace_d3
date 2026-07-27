@@ -60,6 +60,24 @@ export interface AnnotationStatSummary {
   validity: AnnotationStatMetric[];
   /** How well each auto-clustering of this projection recovers the annotation. */
   agreement: AnnotationAgreementGroup[];
+  /** Categories the scores were computed over; `null` when the bundle omits the provenance. */
+  categories: number | null;
+  /** Proteins the scores were computed over, which can be fewer than the dataset holds. */
+  scored: number | null;
+}
+
+/**
+ * A count from a row's `extra_json` provenance. That column is written by a separate toolchain, so
+ * a missing, malformed or non-numeric entry means "unknown", never an exception.
+ */
+function extraCount(row: ProjectionStatisticRow | undefined, key: string): number | null {
+  if (!row?.extra_json) return null;
+  try {
+    const value = (JSON.parse(row.extra_json) as Record<string, unknown>)[key];
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 function toMetric(
@@ -154,7 +172,18 @@ export function annotationStatSummary(
     }));
 
   if (validity.length === 0 && agreement.length === 0) return null;
-  return { validity, agreement };
+
+  // What the scores cover. `statistics.parquet` has no per-category rows, so these two counts are
+  // the only category-level facts in the bundle; validity rows carry both, agreement rows only
+  // the protein count.
+  const scopeRow =
+    inProjection.find((row) => row.stat_family === 'annotation_validity') ?? inProjection[0];
+  return {
+    validity,
+    agreement,
+    categories: extraCount(scopeRow, 'n_categories'),
+    scored: extraCount(scopeRow, 'n_labels'),
+  };
 }
 
 /**
