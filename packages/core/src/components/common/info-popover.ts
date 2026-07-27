@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing } from 'lit';
+import { LitElement, html, css, nothing, svg } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { customElement } from '../../utils/safe-custom-element';
 import { handleDropdownEscape } from '../../utils/dropdown-helpers';
@@ -192,6 +192,12 @@ class ProtspaceInfoPopover extends LitElement {
    * the icon with an arrow (annotation dropdown), so it never covers the row below.
    */
   @property({ type: String }) placement: 'bottom' | 'side' = 'bottom';
+  /**
+   * Which glyph the trigger shows. `'stats'` marks a popover that carries projection-quality
+   * numbers rather than prose, so a row whose ⓘ only explains its labels stays distinguishable
+   * from one whose popover holds statistics.
+   */
+  @property({ type: String }) icon: 'info' | 'stats' = 'info';
 
   /** Pointer is over the icon or the popover. */
   @state() private hovering = false;
@@ -521,7 +527,14 @@ class ProtspaceInfoPopover extends LitElement {
       this.description.length > 0 || this.docsUrl.length > 0 || this.childElementCount > 0;
     if (!hasContent) return nothing;
 
-    const ariaLabel = this.label ? `Information about ${this.label}` : 'Annotation information';
+    const stats = this.icon === 'stats';
+    const ariaLabel = stats
+      ? this.label
+        ? `Quality statistics for ${this.label}`
+        : 'Quality statistics'
+      : this.label
+        ? `Information about ${this.label}`
+        : 'Annotation information';
     const open = this.isOpen;
     const side = this.placement === 'side';
 
@@ -563,9 +576,18 @@ class ProtspaceInfoPopover extends LitElement {
           stroke-linejoin="round"
           aria-hidden="true"
         >
-          <circle cx="12" cy="12" r="10" />
-          <path d="M12 16v-4" />
-          <path d="M12 8h.01" />
+          <!-- Same bar-chart glyph the projection-metadata panel uses for its statistics. Both
+               branches need lit's svg tag: an html fragment nested in an svg element builds its
+               nodes in the HTML namespace, so they sit in the DOM and never paint. -->
+          ${stats
+            ? svg`<path d="M3 3v18h18" />
+                <path d="M7 14v4" />
+                <path d="M11 10v8" />
+                <path d="M15 6v12" />
+                <path d="M19 8v10" />`
+            : svg`<circle cx="12" cy="12" r="10" />
+                <path d="M12 16v-4" />
+                <path d="M12 8h.01" />`}
         </svg>
       </button>
       ${open

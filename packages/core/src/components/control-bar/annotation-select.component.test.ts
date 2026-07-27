@@ -251,8 +251,40 @@ describe('protspace-annotation-select statistics info icon', () => {
 
     // The ↓ glyph alone reaches neither screen readers nor touch users.
     const stats = getRowFor(el, 'major_group').querySelector('.annotation-stats') as HTMLElement;
-    expect(stats.querySelector('.stat-lower-better')?.getAttribute('aria-hidden')).toBe('true');
+    expect(stats.querySelector('.stat-direction')?.getAttribute('aria-hidden')).toBe('true');
+    expect(stats.querySelector('.stat-direction')?.textContent).toBe('↓');
     expect(stats.textContent).toContain('lower is better');
+  });
+
+  it('marks higher-is-better metrics with an up arrow', async () => {
+    const el = await setup({
+      annotations: CUSTOM_ANNOTATIONS,
+      statistics: [statRow()],
+      selectedProjection: 'umap',
+    });
+    await openDropdown(el);
+
+    const stats = getRowFor(el, 'major_group').querySelector('.annotation-stats') as HTMLElement;
+    expect(stats.querySelector('.stat-direction')?.textContent).toBe('↑');
+    expect(stats.textContent).toContain('higher is better');
+  });
+
+  it('marks rows that carry statistics with a badge and a chart icon', async () => {
+    const el = await setup({
+      annotations: [...CUSTOM_ANNOTATIONS, 'gene_name'],
+      statistics: [statRow()],
+      selectedProjection: 'umap',
+    });
+    await openDropdown(el);
+
+    expect(getRowFor(el, 'major_group').querySelector('.stats-badge')?.textContent).toBe('STATS');
+    expect(getRowFor(el, 'gene_name').querySelector('.stats-badge')).toBeNull();
+
+    // `gene_name` has a description but no statistics, so its ⓘ must stay the plain info glyph.
+    const withStats = getRowFor(el, 'major_group').querySelector('protspace-info-popover')!;
+    const withoutStats = getRowFor(el, 'gene_name').querySelector('protspace-info-popover')!;
+    expect(withStats.getAttribute('icon')).toBe('stats');
+    expect(withoutStats.getAttribute('icon')).toBe('info');
   });
 
   it('renders a clickable ⓘ button for a stats-only annotation', async () => {
@@ -299,6 +331,19 @@ describe('protspace-annotation-select statistics info icon', () => {
     expect(stats.querySelector('.stat-caveat')!.textContent).toContain(
       'Computed on the full dataset',
     );
+  });
+
+  it('states how many categories and proteins the scores cover', async () => {
+    // The bundle has no per-category scores; these two counts are its only category-level facts.
+    const el = await setup({
+      annotations: CUSTOM_ANNOTATIONS,
+      statistics: [statRow({ extra_json: '{"n_categories": 5, "n_labels": 1427}' })],
+      selectedProjection: 'umap',
+    });
+    await openDropdown(el);
+
+    const stats = getRowFor(el, 'major_group').querySelector('.annotation-stats') as HTMLElement;
+    expect(stats.textContent).toContain('5 categories · 1,427 proteins scored');
   });
 
   it('widens only the popovers that carry stats', async () => {

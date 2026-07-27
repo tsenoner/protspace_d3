@@ -242,19 +242,20 @@ class ProtspaceAnnotationSelect extends LitElement {
   }
 
   /**
-   * One metric row: name (with a "lower is better" marker where that applies), its value in the
+   * One metric row: name (with an arrow for the direction that counts as better), its value in the
    * selected projection, and (for annotation-validity metrics) the same metric in the source
    * embedding, which is the separability ceiling the projection is measured against.
    */
   private renderStatMetric(metric: AnnotationStatMetric) {
+    // Marked on every metric, not only on the one that inverts: an arrow that shows up on
+    // Davies-Bouldin alone reads as a warning about that row rather than as a direction.
+    const better = metric.higherIsBetter ? 'Higher' : 'Lower';
     return html`
       <div class="stat-metric">
         <span class="stat-metric-label">
-          ${metric.label}${metric.higherIsBetter
-            ? ''
-            : html`<span class="stat-lower-better" aria-hidden="true" title="Lower is better"
-                  >↓</span
-                ><span class="sr-only"> (lower is better)</span>`}
+          ${metric.label}<span class="stat-direction" aria-hidden="true" title="${better} is better"
+            >${metric.higherIsBetter ? '↑' : '↓'}</span
+          ><span class="sr-only"> (${better.toLowerCase()} is better)</span>
         </span>
         <span class="stat-metric-value">${formatStatValue(metric.value)}</span>
         <!-- The cell stays even when empty: \`.stat-metric\` is \`display: contents\`, so dropping
@@ -266,8 +267,26 @@ class ProtspaceAnnotationSelect extends LitElement {
     `;
   }
 
+  /**
+   * What the scores cover: "5 categories · 1,427 proteins scored", dropping whichever count the
+   * bundle left out. An annotation rarely labels every protein, so the second number is also the
+   * closest thing the bundle has to per-category coverage.
+   */
+  private statScopeLine(summary: AnnotationStatSummary): string {
+    const parts: string[] = [];
+    const { categories, scored } = summary;
+    if (categories !== null) {
+      parts.push(`${categories} ${categories === 1 ? 'category' : 'categories'}`);
+    }
+    if (scored !== null) {
+      parts.push(`${scored.toLocaleString()} ${scored === 1 ? 'protein' : 'proteins'} scored`);
+    }
+    return parts.join(' · ');
+  }
+
   /** Projection-quality statistics for one annotation, projected into its ⓘ popover. */
   private renderStats(summary: AnnotationStatSummary) {
+    const scope = this.statScopeLine(summary);
     return html`
       <div class="annotation-stats">
         ${summary.validity.length > 0
@@ -287,6 +306,7 @@ class ProtspaceAnnotationSelect extends LitElement {
               )}
             `
           : ''}
+        ${scope ? html`<div class="stat-caveat">${scope}</div>` : ''}
         <!-- Stated unconditionally: isolation, query filters, legend hides and the reliability
              threshold all narrow the view, and these scores are computed once over the whole
              dataset regardless. A flag tracking "is the view a subset?" cannot stay correct. -->
@@ -382,6 +402,7 @@ class ProtspaceAnnotationSelect extends LitElement {
                                       ? html`<protspace-info-popover
                                           class="annotation-info ${stats ? 'has-stats' : ''}"
                                           placement="side"
+                                          icon=${stats ? 'stats' : 'info'}
                                           .description=${meta.description}
                                           docs-url=${meta.docsUrl ?? ''}
                                           label=${annotationLabel(annotation, definition)}
@@ -400,6 +421,14 @@ class ProtspaceAnnotationSelect extends LitElement {
                                           title="Embedding Annotation Transfer predictions available"
                                           aria-label="EAT predictions available"
                                           >EAT</span
+                                        >`
+                                      : ''}
+                                    ${stats
+                                      ? html`<span
+                                          class="stats-badge"
+                                          title="Projection quality statistics available"
+                                          aria-label="Quality statistics available"
+                                          >STATS</span
                                         >`
                                       : ''}
                                     ${isPredictedAnnotation(annotation)

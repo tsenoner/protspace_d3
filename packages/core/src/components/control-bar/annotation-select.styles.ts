@@ -151,7 +151,8 @@ export const annotationSelectStyles = [
       user-select: none;
     }
 
-    .eat-badge {
+    .eat-badge,
+    .stats-badge {
       flex: 0 0 auto;
       padding: 0.1rem 0.3rem;
       border: var(--border-width) solid var(--primary);
@@ -234,7 +235,7 @@ export const annotationSelectStyles = [
       min-width: 0;
     }
 
-    .stat-lower-better {
+    .stat-direction {
       margin-left: 0.15rem;
       color: var(--muted);
     }

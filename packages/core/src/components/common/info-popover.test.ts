@@ -10,6 +10,7 @@ type PopoverEl = HTMLElement & {
   label: string;
   align: 'left' | 'right';
   placement: 'bottom' | 'side';
+  icon: 'info' | 'stats';
   updateComplete: Promise<unknown>;
 };
 
@@ -20,6 +21,7 @@ async function setup(props: Partial<PopoverEl> = {}): Promise<PopoverEl> {
   el.label = props.label ?? 'Test annotation';
   if (props.align) el.align = props.align;
   if (props.placement) el.placement = props.placement;
+  if (props.icon) el.icon = props.icon;
   document.body.appendChild(el);
   await el.updateComplete;
   return el;
@@ -44,6 +46,26 @@ describe('protspace-info-popover', () => {
     const el = await setup({ description: '', docsUrl: '' });
     expect(button(el)).toBeNull();
     expect(popover(el)).toBeNull();
+  });
+
+  it('distinguishes a statistics popover from a description one', async () => {
+    // Same row, two very different payloads: prose about the labels vs projection-quality numbers.
+    const info = await setup();
+    const stats = await setup({ icon: 'stats' });
+
+    expect(info.shadowRoot!.querySelector('circle')).not.toBeNull();
+    expect(stats.shadowRoot!.querySelector('circle')).toBeNull();
+    expect(info.shadowRoot!.querySelectorAll('path')).toHaveLength(2);
+    expect(stats.shadowRoot!.querySelectorAll('path')).toHaveLength(5);
+
+    // Glyph nodes built in the HTML namespace exist in the DOM but never paint, which no
+    // querySelector assertion above would notice.
+    for (const el of [info, stats]) {
+      expect(el.shadowRoot!.querySelector('path')!.namespaceURI).toBe('http://www.w3.org/2000/svg');
+    }
+    expect(button(stats)!.getAttribute('aria-label')).toBe(
+      'Quality statistics for Test annotation',
+    );
   });
 
   it('opens on hover and closes after the pointer leaves (with grace)', async () => {
