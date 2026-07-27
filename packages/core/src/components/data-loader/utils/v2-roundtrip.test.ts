@@ -11,6 +11,12 @@ import {
 import { extractRowsFromParquetBundle } from './bundle';
 import { convertParquetToVisualizationDataOptimized } from './conversion';
 
+async function loadGoldenBundle(): Promise<VisualizationData> {
+  const file = readFileSync(new URL('./__fixtures__/v2-sample.parquetbundle', import.meta.url));
+  const buffer = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength);
+  return convertParquetToVisualizationDataOptimized(await extractRowsFromParquetBundle(buffer));
+}
+
 function perProteinAnnotationSets(
   data: VisualizationData,
   annotationNames: readonly string[],
@@ -116,11 +122,7 @@ describe('v2 bundle round-trip (cross-repo golden fixture)', () => {
   });
 
   it('writes and reloads golden v2 categorical structure plus every EAT companion', async () => {
-    const file = readFileSync(new URL('./__fixtures__/v2-sample.parquetbundle', import.meta.url));
-    const goldenBuffer = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength);
-    const golden = await convertParquetToVisualizationDataOptimized(
-      await extractRowsFromParquetBundle(goldenBuffer),
-    );
+    const golden = await loadGoldenBundle();
     const p2Index = golden.protein_ids.indexOf('P2');
     golden.annotation_predicted = {
       go_bp: golden.protein_ids.map((_, proteinIndex) =>
@@ -182,11 +184,7 @@ describe('v2 bundle round-trip (cross-repo golden fixture)', () => {
    * branch, which is why that test cannot catch this.
    */
   it('writes a missing categorical cell as NULL, not the internal __NA__ sentinel', async () => {
-    const file = readFileSync(new URL('./__fixtures__/v2-sample.parquetbundle', import.meta.url));
-    const goldenBuffer = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength);
-    const golden = await convertParquetToVisualizationDataOptimized(
-      await extractRowsFromParquetBundle(goldenBuffer),
-    );
+    const golden = await loadGoldenBundle();
 
     // Precondition: import really did synthesise the sentinel for P2's empty cell.
     expect(golden.annotations.go_bp.values).toContain(NA_VALUE);

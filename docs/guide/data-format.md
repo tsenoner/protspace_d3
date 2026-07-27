@@ -170,11 +170,11 @@ When displayed in ProtSpace, the decoded names render as "Superfamily; old" and 
 - v1 bundles (no version key present, or version < 2) render using the legacy parser, which does not decode percent-encoded sequences
 - This ensures backward compatibility: existing v1 bundles load unchanged without requiring special-case handling
 
-**Numeric column declarations:**
+**Numeric column typing:**
 
-- Bundles exported from the web app also carry `protspace_numeric_columns` in the same key-value metadata: a JSON object mapping each numeric annotation to `"int"` or `"float"`
-- Parquet stores values, not intent, so a numeric column whose exported rows are all missing (for example an isolation-mode or query-filtered export) would otherwise reload as a categorical column with a single N/A category. This key preserves the column's numeric identity and its integer/float distinction
-- The key is optional and additive: bundles written by the Python CLI, and bundles predating it, fall back to inferring the type from the values
+- When an annotation is stored with a numeric Parquet type, that type carries its identity: `INT32`/`INT64` mean an integer annotation, `FLOAT`/`DOUBLE` a fractional one. The reader takes `numericType` straight from the schema rather than re-deriving it from the values
+- This matters for a column whose rows are all missing — for example an isolation-mode or query-filtered export — which has no values left to infer from and would otherwise reload as a categorical column with a single N/A category
+- Bundles that store annotations as text (the `protspace` CLI writes its annotation frame stringified) carry no such type, and fall back to inferring numeric-ness from the values as before
 
 **Known formatting:**
 

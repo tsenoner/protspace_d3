@@ -65,14 +65,9 @@ def _rgba_to_hex(rgba_str: str) -> str:
 LEGEND_SETTINGS_KEY = "legendSettings"
 
 
-# Keys that only ever appear inside ONE annotation's legend entry. Their presence
-# means the candidate is an entry, not a map of entries.
-_ENTRY_MARKER_KEYS = frozenset(
-    {"categories", "sortMode", "maxVisibleValues", "shapeSize", "hiddenValues"}
-)
 # Envelope siblings of "legendSettings" in the frontend shape. "exportOptions" is a
-# required field of the frontend's BundleSettings, so a genuine envelope always has
-# at least one of these.
+# required field of the frontend's BundleSettings, so a genuine envelope always
+# carries at least one of these.
 _ENVELOPE_SIBLING_KEYS = frozenset(
     {"exportOptions", "publishState", "eatOverlayEnabled", "eatConfidenceThreshold"}
 )
@@ -85,19 +80,14 @@ def _is_frontend_envelope(settings: object) -> bool:
     user CSV headers, so a **flat** Python map can legitimately hold a column
     literally called ``legendSettings``. Unwrapping that would hand back one
     annotation's own entry as if it were the whole map and blank every legend.
-    Mirrors the structural check the frontend reader does in
+    Requiring a sibling mirrors the frontend reader's own two-field check in
     ``settings-validation.ts`` (``isNormalizedBundleSettings``).
     """
-    if not isinstance(settings, dict):
-        return False
-    inner = settings.get(LEGEND_SETTINGS_KEY)
-    if not isinstance(inner, dict):
-        return False
-    if _ENTRY_MARKER_KEYS & inner.keys():
-        # `inner` looks like a single legend entry — only an envelope sibling
-        # can prove this is really the nested shape.
-        return bool(_ENVELOPE_SIBLING_KEYS & settings.keys())
-    return True
+    return (
+        isinstance(settings, dict)
+        and isinstance(settings.get(LEGEND_SETTINGS_KEY), dict)
+        and bool(_ENVELOPE_SIBLING_KEYS & settings.keys())
+    )
 
 
 def unwrap_settings(settings: dict) -> dict:
@@ -234,14 +224,12 @@ def visualization_state_to_settings(
             from the user's styles input.
 
     Returns:
-        Settings dict keyed by annotation name.
+        Settings in the same bundle shape *existing_settings* was given in —
+        keyed by annotation name, or wrapped back into the frontend envelope.
     """
     annotation_colors = viz_state.get("annotation_colors", {})
     marker_shapes = viz_state.get("marker_shapes", {})
-    settings_template = existing_settings
-    existing_settings = (
-        unwrap_settings(existing_settings) if existing_settings else existing_settings
-    )
+    existing = unwrap_settings(existing_settings) if existing_settings else None
 
     # Collect all annotation names referenced in colors, shapes, or style_overrides
     all_annotations = set(annotation_colors.keys()) | set(marker_shapes.keys())
@@ -254,8 +242,8 @@ def visualization_state_to_settings(
         shapes = marker_shapes.get(annotation_name, {})
 
         # Start from existing settings if available
-        if existing_settings and annotation_name in existing_settings:
-            ann_settings = dict(existing_settings[annotation_name])
+        if existing and annotation_name in existing:
+            ann_settings = dict(existing[annotation_name])
             existing_categories = dict(ann_settings.get("categories", {}))
         else:
             ann_settings = {
@@ -394,4 +382,4 @@ def visualization_state_to_settings(
 
         settings[annotation_name] = ann_settings
 
-    return rewrap_settings(settings, settings_template)
+    return rewrap_settings(settings, existing_settings)

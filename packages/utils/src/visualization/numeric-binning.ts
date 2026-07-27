@@ -617,9 +617,10 @@ export function materializeNumericAnnotation(
     return {
       annotation: {
         kind: 'categorical',
-        values: hasRows ? [NA_VALUE] : [],
-        colors: hasRows ? [NA_DEFAULT_COLOR] : [],
-        shapes: hasRows ? ['circle'] : [],
+        // With no rows there is nothing to label; otherwise every row is N/A.
+        ...(hasRows
+          ? { values: [NA_VALUE], colors: [NA_DEFAULT_COLOR], shapes: ['circle'] }
+          : { values: [], colors: [], shapes: [] }),
         sourceKind: 'numeric',
         numericType: resolvedNumericType,
         numericMetadata: {
@@ -632,7 +633,8 @@ export function materializeNumericAnnotation(
           bins: [],
         },
       },
-      annotationData: new Int32Array(values.length).fill(hasRows ? 0 : -1),
+      // Int32Array is zero-initialized, so every row already points at the N/A slot.
+      annotationData: new Int32Array(values.length),
     };
   }
 

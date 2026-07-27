@@ -678,18 +678,11 @@ function restoreDeclaredNumericAnnotations(
     // categorical and must not be reinterpreted.
     if (annotation.values.some((value) => value != null && !isNAValue(value))) continue;
 
-    data.annotations[column] = {
-      kind: 'numeric',
-      numericType,
-      values: [],
-      colors: [],
-      shapes: [],
-      ...(annotation.runtime ? { runtime: annotation.runtime } : {}),
-    };
-    data.numeric_annotation_data = {
-      ...data.numeric_annotation_data,
-      [column]: new Array<number | null>(data.protein_ids.length).fill(null),
-    };
+    data.annotations[column] = createNumericAnnotation(numericType, annotation.runtime);
+    data.numeric_annotation_data ??= {};
+    data.numeric_annotation_data[column] = new Array<number | null>(data.protein_ids.length).fill(
+      null,
+    );
     delete data.annotation_data[column];
     delete data.annotation_scores?.[column];
     delete data.annotation_evidence?.[column];

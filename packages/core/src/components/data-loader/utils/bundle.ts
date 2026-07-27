@@ -12,11 +12,9 @@ import { sanitizePublishState } from '../../publish/publish-state-validator';
 /** Key-value metadata key the Python writer stamps with the bundle's annotation format version. */
 const FORMAT_VERSION_KEY = 'protspace_format_version';
 
-/**
- * Key-value metadata key the frontend writer stamps with `{column: 'int'|'float'}`
- * for each numeric annotation. Absent on Python-written and legacy bundles.
- */
-const NUMERIC_COLUMNS_KEY = 'protspace_numeric_columns';
+/** Parquet physical types that identify a stored annotation column as numeric. */
+const INTEGER_PARQUET_TYPES = new Set(['INT32', 'INT64']);
+const FLOAT_PARQUET_TYPES = new Set(['FLOAT', 'DOUBLE']);
 
 /**
  * Result of extracting data from a parquetbundle.
@@ -41,11 +39,11 @@ export interface BundleExtractionResult {
    */
   formatVersion: number;
   /**
-   * Numeric annotation columns the writer declared, with their int/float
-   * identity. Empty when the bundle predates the key or came from Python, in
-   * which case the type is inferred from the values as before.
+   * Stored numeric columns with their int/float identity, read from the
+   * annotations part's parquet schema. Empty for bundles that store their
+   * annotations as text, where the type is inferred from the values instead.
    */
-  numericColumnTypes: Readonly<Record<string, 'int' | 'float'>>;
+  numericColumnTypes?: Readonly<Record<string, 'int' | 'float'>>;
 }
 
 /**
@@ -66,24 +64,24 @@ function readFormatVersion(metadata: FileMetaData): number {
 }
 
 /**
- * Reads the writer-declared numeric annotation columns. Returns `{}` for any
- * bundle that doesn't carry the key, or whose value isn't a well-formed
- * `{column: 'int'|'float'}` map — the reader then falls back to value inference.
+ * Derives each stored numeric column's int/float identity from the annotations
+ * part's own parquet schema.
+ *
+ * The physical type is the wire record of what the writer meant, and it is the
+ * only one that survives everywhere: it holds for a column whose rows are all
+ * null (nothing left to infer from), and it rides through the Python rewrite
+ * paths, which rebuild the table with pyarrow and drop key-value metadata.
+ * Columns stored as text (the `protspace` CLI stringifies its annotation frame)
+ * are absent here, so those keep falling back to value inference.
  */
 function readNumericColumnTypes(metadata: FileMetaData): Record<string, 'int' | 'float'> {
-  const entry = (metadata.key_value_metadata ?? []).find((k) => k.key === NUMERIC_COLUMNS_KEY);
-  if (!entry?.value) return {};
-  try {
-    const parsed: unknown = JSON.parse(entry.value);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-    return Object.fromEntries(
-      Object.entries(parsed as Record<string, unknown>).filter(
-        (pair): pair is [string, 'int' | 'float'] => pair[1] === 'int' || pair[1] === 'float',
-      ),
-    );
-  } catch {
-    return {};
+  const numericColumns: Record<string, 'int' | 'float'> = {};
+  for (const field of metadata.schema) {
+    if (!field.name || !field.type) continue;
+    if (INTEGER_PARQUET_TYPES.has(field.type)) numericColumns[field.name] = 'int';
+    else if (FLOAT_PARQUET_TYPES.has(field.type)) numericColumns[field.name] = 'float';
   }
+  return numericColumns;
 }
 
 /**

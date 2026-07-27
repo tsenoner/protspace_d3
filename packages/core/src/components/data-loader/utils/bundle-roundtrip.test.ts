@@ -8,6 +8,8 @@ import {
   countBundleDelimiters,
   findBundleDelimiterPositions,
   isParquetBundle,
+  type Annotation,
+  type VisualizationData,
 } from '@protspace/utils';
 import { parquetMetadata } from 'hyparquet';
 
@@ -430,15 +432,23 @@ describe('numeric annotation round-trip', () => {
  * surviving values — are re-asserted here.
  */
 describe('numeric annotation type fidelity', () => {
+  const numeric = (numericType: 'int' | 'float'): Annotation => ({
+    kind: 'numeric',
+    numericType,
+    values: [],
+    colors: [],
+    shapes: [],
+  });
+
   const baseData = (
-    annotations: Record<string, unknown>,
-    numeric: Record<string, (number | null)[]>,
-  ) => ({
+    annotations: VisualizationData['annotations'],
+    numericData: Record<string, (number | null)[]>,
+  ): VisualizationData => ({
     protein_ids: ['P1', 'P2', 'P3'],
     projections: [{ name: 'UMAP', data: Float32Array.of(0, 0, 1, 1, 2, 2), dimension: 2 as const }],
     annotations,
     annotation_data: {},
-    numeric_annotation_data: numeric,
+    numeric_annotation_data: numericData,
     annotation_scores: {},
     annotation_evidence: {},
   });
@@ -451,24 +461,15 @@ describe('numeric annotation type fidelity', () => {
     return parquetMetadata(part1).schema.find((field) => field.name === column)?.type;
   }
 
-  it('writes an integer annotation as INT64, not a widened DOUBLE', async () => {
+  it('writes an integer annotation as INT32, not a widened DOUBLE', async () => {
     // Python keys legends/styles off str(value), so a DOUBLE round trip turns the
     // style key '100' into '100.0' and breaks a previously valid style template.
-    const original = baseData(
-      {
-        residues: {
-          kind: 'numeric' as const,
-          numericType: 'int' as const,
-          values: [],
-          colors: [],
-          shapes: [],
-        },
-      },
-      { residues: [100, 250, null] },
-    );
+    // INT32 covers every realistic protein annotation and passes values through
+    // untouched — no per-protein bigint array.
+    const original = baseData({ residues: numeric('int') }, { residues: [100, 250, null] });
 
     const exported = createParquetBundle(original);
-    expect(physicalType(exported, 'residues')).toBe('INT64');
+    expect(physicalType(exported, 'residues')).toBe('INT32');
 
     const reimported = convertParquetToVisualizationData(
       await extractRowsFromParquetBundle(exported),
@@ -478,19 +479,21 @@ describe('numeric annotation type fidelity', () => {
     expect(reimported.numeric_annotation_data?.residues).toEqual([100, 250, null]);
   });
 
-  it('keeps a fractional annotation on DOUBLE', async () => {
-    const original = baseData(
-      {
-        score: {
-          kind: 'numeric' as const,
-          numericType: 'float' as const,
-          values: [],
-          colors: [],
-          shapes: [],
-        },
-      },
-      { score: [0.5, 1.25, null] },
+  it('widens to INT64 for an integer beyond the int32 range', async () => {
+    const original = baseData({ big: numeric('int') }, { big: [2 ** 40, 1, null] });
+
+    const exported = createParquetBundle(original);
+    expect(physicalType(exported, 'big')).toBe('INT64');
+
+    const reimported = convertParquetToVisualizationData(
+      await extractRowsFromParquetBundle(exported),
     );
+    expect(reimported.annotations.big.numericType).toBe('int');
+    expect(reimported.numeric_annotation_data?.big).toEqual([2 ** 40, 1, null]);
+  });
+
+  it('keeps a fractional annotation on DOUBLE', async () => {
+    const original = baseData({ score: numeric('float') }, { score: [0.5, 1.25, null] });
 
     const exported = createParquetBundle(original);
     expect(physicalType(exported, 'score')).toBe('DOUBLE');
@@ -502,15 +505,7 @@ describe('numeric annotation type fidelity', () => {
 
   it('falls back to DOUBLE for an integral value too large to encode as INT64', async () => {
     const original = baseData(
-      {
-        huge: {
-          kind: 'numeric' as const,
-          numericType: 'int' as const,
-          values: [],
-          colors: [],
-          shapes: [],
-        },
-      },
+      { huge: numeric('int') },
       { huge: [Number.MAX_SAFE_INTEGER * 4, 1, null] },
     );
     const exported = createParquetBundle(original);
@@ -520,18 +515,7 @@ describe('numeric annotation type fidelity', () => {
   it('keeps an all-missing numeric column numeric instead of flipping it categorical', async () => {
     // Reachable from a real export: isolation mode / an active query filter can
     // leave a numeric column with no surviving values (sliceVisualizationDataByIndices).
-    const original = baseData(
-      {
-        length: {
-          kind: 'numeric' as const,
-          numericType: 'int' as const,
-          values: [],
-          colors: [],
-          shapes: [],
-        },
-      },
-      { length: [null, null, null] },
-    );
+    const original = baseData({ length: numeric('int') }, { length: [null, null, null] });
 
     const reimported = convertParquetToVisualizationData(
       await extractRowsFromParquetBundle(createParquetBundle(original)),
@@ -544,18 +528,7 @@ describe('numeric annotation type fidelity', () => {
   });
 
   it('keeps a float column float when its surviving values are all integral', async () => {
-    const original = baseData(
-      {
-        ratio: {
-          kind: 'numeric' as const,
-          numericType: 'float' as const,
-          values: [],
-          colors: [],
-          shapes: [],
-        },
-      },
-      { ratio: [1, 2, null] },
-    );
+    const original = baseData({ ratio: numeric('float') }, { ratio: [1, 2, null] });
 
     const reimported = convertParquetToVisualizationData(
       await extractRowsFromParquetBundle(createParquetBundle(original)),
@@ -563,21 +536,40 @@ describe('numeric annotation type fidelity', () => {
     expect(reimported.annotations.ratio.numericType).toBe('float');
   });
 
-  it('leaves a genuinely categorical column alone even if it is declared numeric', async () => {
-    // Guard against the restore pass hijacking a column that carries real values.
-    const original = baseData(
-      {
-        mixed: {
-          kind: 'numeric' as const,
-          numericType: 'int' as const,
-          values: [],
-          colors: [],
-          shapes: [],
+  it('leaves a column carrying real categories alone even when a numeric type is declared', async () => {
+    // Guard against the restore pass hijacking a column that carries real values:
+    // a STRING column is never in numericColumnTypes, so it must stay categorical.
+    const original: VisualizationData = {
+      ...baseData({}, {}),
+      annotations: {
+        family: {
+          kind: 'categorical',
+          values: ['A', 'B'],
+          colors: ['#1F77B4', '#FF7F0E'],
+          shapes: ['circle', 'circle'],
         },
       },
-      { mixed: [1, 2, 3] },
-    );
+      annotation_data: { family: [[0], [1], [0]] },
+    };
+
     const extraction = await extractRowsFromParquetBundle(createParquetBundle(original));
-    expect(extraction.numericColumnTypes).toEqual({ mixed: 'int' });
+    expect(extraction.numericColumnTypes).not.toHaveProperty('family');
+
+    const reimported = convertParquetToVisualizationData(extraction);
+    expect(reimported.annotations.family.kind).toBe('categorical');
+    expect(reimported.annotation_data.family).toEqual([[0], [1], [0]]);
+  });
+
+  it('derives the declared types from the parquet schema, with no bespoke metadata key', async () => {
+    const original = baseData(
+      { residues: numeric('int'), score: numeric('float') },
+      {
+        residues: [1, 2, 3],
+        score: [0.5, 1.5, 2.5],
+      },
+    );
+
+    const extraction = await extractRowsFromParquetBundle(createParquetBundle(original));
+    expect(extraction.numericColumnTypes).toMatchObject({ residues: 'int', score: 'float' });
   });
 });
