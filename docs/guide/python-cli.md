@@ -132,12 +132,12 @@ given without `-e`, `prot_t5` is used.
 | `--no-log`                   | Skip writing `run.log` to the output directory.                                                                                                                              | off     |
 | `-v, --verbose`              | Verbosity: `-v` = INFO, `-vv` = DEBUG.                                                                                                                                       | -       |
 
-::: warning `--stats` bundles do not open in the web app
-A bundle written with statistics has five parts, and the web app currently rejects five-part
-bundles, so a `--stats` bundle will not open in the web app today.
+::: info Statistics table is not yet shown in the web app
+A `--stats` bundle has five parts and **opens** in the web app: the loader reads the core data and
+settings and ignores the trailing statistics table. Rendering that table in-app is a separate
+follow-up.
 
-To get projection quality metrics that **do** display, run `protspace stats` standalone and then
-`protspace bundle` **without** `-s`. The faithfulness metrics travel in the projection metadata
+The faithfulness metrics show regardless: they travel in the projection metadata
 (`info_json.quality`) and render in the Projection Metadata panel. See
 [Data Format Reference](/guide/data-format#statistics-optional-5th-part) for the bundle-parts
 details.
@@ -420,10 +420,9 @@ Score the quality of the projections in an existing project directory and write 
 `statistics.parquet`, the optional fifth part of a
 [`.parquetbundle`](/guide/data-format).
 
-Do not fold it in with `bundle -s` if you want to open the result in the web app, the web app
-currently rejects five-part bundles. Run `protspace bundle` **without** `-s` instead: the
-faithfulness metrics ride in the projection metadata (`info_json.quality`) and render in the
-Projection Metadata panel. See
+Folding it in with `bundle -s` produces a five-part bundle that **opens** in the web app: the loader
+ignores the statistics table, which is not rendered in-app yet. The faithfulness metrics ride in the
+projection metadata (`info_json.quality`) and render in the Projection Metadata panel either way. See
 [Data Format Reference](/guide/data-format#statistics-optional-5th-part).
 
 ```bash
@@ -494,9 +493,9 @@ protspace bundle -p projections/ -a annotations.parquet \
 | `-s, --statistics`  | Projection-statistics parquet → fifth bundle part.               | -       |
 | `--settings`        | Settings JSON (for example cluster legend styles) → fourth part. | -       |
 
-::: warning `-s` makes the bundle unopenable in the web app
-A bundle written with statistics has five parts, and the web app currently rejects five-part
-bundles. Omit `-s` to keep the bundle loadable: the projection faithfulness metrics computed by
+::: info `-s` adds a statistics table not yet shown in the web app
+A bundle written with statistics has five parts and **opens** in the web app: the loader ignores the
+statistics table, which is not rendered in-app yet. The projection faithfulness metrics computed by
 `protspace stats` ride in the projection metadata (`info_json.quality`) and render in the
 Projection Metadata panel either way. See
 [Data Format Reference](/guide/data-format#statistics-optional-5th-part).

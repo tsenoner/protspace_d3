@@ -84,21 +84,14 @@ protspace stats -i embeddings.h5 -p project_dir -o statistics.parquet
 Because the parts are positional, a bundle that carries statistics **without** settings still writes
 the settings slot, as zero bytes, so the statistics table stays at position five.
 
-::: warning Five-part bundles do not open in the web app
-The web app currently rejects five-part bundles, so a `--stats` bundle will fail to open at
-[protspace.app](https://protspace.app).
+::: info Statistics table is not yet shown in the web app
+Five-part `--stats` bundles **open** in the web app: the loader reads the core data and settings and
+ignores the trailing statistics table. Rendering that table in-app is a separate follow-up.
 
-To get projection quality metrics that **do** display, run `protspace stats` standalone and then
-`protspace bundle` **without** `-s`. The faithfulness metrics travel in the projection metadata
-(`info_json.quality`) rather than in the statistics table, so they ride along in a four-part bundle
-and render in the [Projection Metadata panel](/explore/scatterplot#quality-metrics):
-
-```bash
-protspace stats -i embeddings.h5 -p project_dir -o statistics.parquet
-protspace bundle -p project_dir -a annotations.parquet -o out.parquetbundle
-```
-
-The full `statistics.parquet` table is still readable with the Python CLI or any Parquet reader.
+The faithfulness metrics do not depend on it: they travel in the projection metadata
+(`info_json.quality`) and render in the [Projection Metadata panel](/explore/scatterplot#quality-metrics)
+for both four- and five-part bundles. The full `statistics.parquet` table is also readable with the
+Python CLI or any Parquet reader.
 :::
 
 ## Annotation Types
