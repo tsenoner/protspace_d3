@@ -1,6 +1,6 @@
 import { css } from 'lit';
 import { tokens } from '../../styles/tokens';
-import { buttonMixin, inputMixin, dropdownMixin, srOnlyMixin } from '../../styles/mixins';
+import { buttonMixin, inputMixin, dropdownMixin } from '../../styles/mixins';
 
 /**
  * Annotation Select Component Styles
@@ -14,7 +14,6 @@ export const annotationSelectStyles = [
   buttonMixin,
   inputMixin,
   dropdownMixin,
-  srOnlyMixin,
   css`
     :host {
       display: inline-flex;
@@ -168,76 +167,6 @@ export const annotationSelectStyles = [
     .annotation-info {
       flex: 0 0 auto;
       align-items: center;
-    }
-
-    /* Only the stats grid needs more room than the popover's text-only default. Widening every
-       popover moves the viewport threshold at which a side popover flips to the other side of
-       the panel, so description-only tooltips would change placement for nothing. */
-    .annotation-info.has-stats {
-      --info-popover-max-width: 320px;
-    }
-
-    /* Projection-quality statistics, projected into the ⓘ popover's slot. Styled here (not in
-       the popover) because the markup lives in this component's shadow root. */
-    /* One grid for the whole block (rows are display: contents) so every metric row shares the
-       same column widths; a grid per row would size each row's columns to its own content and
-       leave the values visibly ragged. minmax(0, 1fr) lets the label column shrink instead of
-       pushing the value columns past the popover's max-width at large text sizes. */
-    .annotation-stats {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto auto;
-      gap: 0.15rem 0.5rem;
-      margin-top: 0.4rem;
-    }
-
-    .stat-heading,
-    .stat-group-label,
-    .stat-caveat {
-      grid-column: 1 / -1;
-    }
-
-    .stat-heading {
-      margin-top: 0.35rem;
-      font-weight: var(--font-semibold);
-      overflow-wrap: anywhere;
-    }
-
-    .stat-heading:first-child {
-      margin-top: 0;
-    }
-
-    .stat-group-label {
-      margin-top: 0.2rem;
-      color: var(--muted);
-      font-size: 0.72rem;
-    }
-
-    .stat-caveat {
-      margin-top: 0.35rem;
-      color: var(--muted);
-      font-size: 0.72rem;
-    }
-
-    .stat-metric {
-      display: contents;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .stat-metric-embedding {
-      min-width: 4.5rem;
-      color: var(--muted);
-      text-align: right;
-    }
-
-    /* Agreement metrics never have a ceiling, and neither does a bundle prepared without an
-       embedding, and reserving 4.5rem for a blank cell steals it from the label column. */
-    .stat-metric-embedding.is-empty {
-      min-width: 0;
-    }
-
-    .stat-direction {
-      margin-left: 0.15rem;
-      color: var(--muted);
     }
 
     .tooltip-toggle-slot {

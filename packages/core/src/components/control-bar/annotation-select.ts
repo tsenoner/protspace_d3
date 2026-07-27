@@ -7,12 +7,9 @@ import { groupAnnotations, type GroupedAnnotation } from './annotation-categorie
 import {
   annotationLabel,
   annotationStatSummary,
-  formatStatValue,
   getAnnotationMeta,
   isPredictedAnnotation,
   type Annotation,
-  type AnnotationStatMetric,
-  type AnnotationStatSummary,
   type ProjectionStatisticRow,
 } from '@protspace/utils';
 import '../common/info-popover';
@@ -220,99 +217,26 @@ class ProtspaceAnnotationSelect extends LitElement {
   }
 
   /**
-   * Per-annotation summaries, rebuilt only when their inputs change: render() re-runs on every
-   * search keystroke and arrow press while the dropdown is open, and deriving each row's
-   * summary there re-scans the whole statistics table per row for identical output.
+   * Which annotations the bundle scored in this projection, rebuilt only when those inputs
+   * change: render() re-runs on every search keystroke and arrow press while the dropdown is
+   * open, and deriving each row's answer there re-scans the whole statistics table per row.
+   * The scores themselves live in the projection-metadata panel; the badge only says they exist.
    */
-  private statSummaries = new Map<string, AnnotationStatSummary | null>();
+  private hasStats = new Map<string, boolean>();
 
   willUpdate(changed: PropertyValues<this>) {
     if (changed.has('statistics') || changed.has('selectedProjection')) {
-      this.statSummaries.clear();
+      this.hasStats.clear();
     }
   }
 
-  private getStatSummary(annotation: string): AnnotationStatSummary | null {
-    let summary = this.statSummaries.get(annotation);
-    if (summary === undefined) {
-      summary = annotationStatSummary(this.statistics, annotation, this.selectedProjection);
-      this.statSummaries.set(annotation, summary);
+  private hasStatistics(annotation: string): boolean {
+    let scored = this.hasStats.get(annotation);
+    if (scored === undefined) {
+      scored = annotationStatSummary(this.statistics, annotation, this.selectedProjection) !== null;
+      this.hasStats.set(annotation, scored);
     }
-    return summary;
-  }
-
-  /**
-   * One metric row: name (with an arrow for the direction that counts as better), its value in the
-   * selected projection, and (for annotation-validity metrics) the same metric in the source
-   * embedding, which is the separability ceiling the projection is measured against.
-   */
-  private renderStatMetric(metric: AnnotationStatMetric) {
-    // Marked on every metric, not only on the one that inverts: an arrow that shows up on
-    // Davies-Bouldin alone reads as a warning about that row rather than as a direction.
-    const better = metric.higherIsBetter ? 'Higher' : 'Lower';
-    return html`
-      <div class="stat-metric">
-        <span class="stat-metric-label">
-          ${metric.label}<span class="stat-direction" aria-hidden="true" title="${better} is better"
-            >${metric.higherIsBetter ? '↑' : '↓'}</span
-          ><span class="sr-only"> (${better.toLowerCase()} is better)</span>
-        </span>
-        <span class="stat-metric-value">${formatStatValue(metric.value)}</span>
-        <!-- The cell stays even when empty: \`.stat-metric\` is \`display: contents\`, so dropping
-             it would shift every following row one column across the shared grid. -->
-        <span class="stat-metric-embedding ${metric.embedding === null ? 'is-empty' : ''}">
-          ${metric.embedding === null ? '' : `emb ${formatStatValue(metric.embedding)}`}
-        </span>
-      </div>
-    `;
-  }
-
-  /**
-   * What the scores cover: "5 categories · 1,427 proteins scored", dropping whichever count the
-   * bundle left out. An annotation rarely labels every protein, so the second number is also the
-   * closest thing the bundle has to per-category coverage.
-   */
-  private statScopeLine(summary: AnnotationStatSummary): string {
-    const parts: string[] = [];
-    const { categories, scored } = summary;
-    if (categories !== null) {
-      parts.push(`${categories} ${categories === 1 ? 'category' : 'categories'}`);
-    }
-    if (scored !== null) {
-      parts.push(`${scored.toLocaleString()} ${scored === 1 ? 'protein' : 'proteins'} scored`);
-    }
-    return parts.join(' · ');
-  }
-
-  /** Projection-quality statistics for one annotation, projected into its ⓘ popover. */
-  private renderStats(summary: AnnotationStatSummary) {
-    const scope = this.statScopeLine(summary);
-    return html`
-      <div class="annotation-stats">
-        ${summary.validity.length > 0
-          ? html`
-              <div class="stat-heading">Separation in ${this.selectedProjection}</div>
-              ${summary.validity.map((metric) => this.renderStatMetric(metric))}
-            `
-          : ''}
-        ${summary.agreement.length > 0
-          ? html`
-              <div class="stat-heading">Auto-cluster agreement</div>
-              ${summary.agreement.map(
-                (group) => html`
-                  <div class="stat-group-label">${group.label}</div>
-                  ${group.metrics.map((metric) => this.renderStatMetric(metric))}
-                `,
-              )}
-            `
-          : ''}
-        ${scope ? html`<div class="stat-caveat">${scope}</div>` : ''}
-        <!-- Stated unconditionally: isolation, query filters, legend hides and the reliability
-             threshold all narrow the view, and these scores are computed once over the whole
-             dataset regardless. A flag tracking "is the view a subset?" cannot stay correct. -->
-        <div class="stat-caveat">Computed on the full dataset.</div>
-      </div>
-    `;
+    return scored;
   }
 
   render() {
@@ -371,9 +295,8 @@ class ProtspaceAnnotationSelect extends LitElement {
                             <div class="annotation-section-items">
                               ${group.annotations.map((annotation) => {
                                 // Hover styling comes from `dropdownMixin`'s `.dropdown-item:hover`.
-                                // Mirroring it into `highlightIndex` re-rendered every row (and
-                                // rebuilt every popover's stats block) per row the pointer crossed.
-                                // The index is for keyboard navigation only.
+                                // Mirroring it into `highlightIndex` re-rendered every row per row
+                                // the pointer crossed. The index is for keyboard navigation only.
                                 const itemIndex = currentIndex++;
                                 const isHighlighted = itemIndex === this.highlightIndex;
                                 const isSelected = annotation === this.selectedAnnotation;
@@ -382,7 +305,7 @@ class ProtspaceAnnotationSelect extends LitElement {
                                 const definition = this.annotationDefinitions[annotation];
                                 const meta = getAnnotationMeta(annotation, definition);
                                 const hasDocs = meta.description.length > 0 || !!meta.docsUrl;
-                                const stats = this.getStatSummary(annotation);
+                                const stats = this.hasStatistics(annotation);
                                 return html`
                                   <div
                                     class="dropdown-item ${isHighlighted
@@ -398,19 +321,15 @@ class ProtspaceAnnotationSelect extends LitElement {
                                     >
                                       ${isSelected ? html`<span class="primary-dot"></span>` : ''}
                                     </span>
-                                    ${hasDocs || stats
+                                    ${hasDocs
                                       ? html`<protspace-info-popover
-                                          class="annotation-info ${stats ? 'has-stats' : ''}"
+                                          class="annotation-info"
                                           placement="side"
-                                          icon=${stats ? 'stats' : 'info'}
                                           .description=${meta.description}
                                           docs-url=${meta.docsUrl ?? ''}
                                           label=${annotationLabel(annotation, definition)}
                                           @click=${(e: Event) => e.stopPropagation()}
-                                          >${stats
-                                            ? this.renderStats(stats)
-                                            : ''}</protspace-info-popover
-                                        >`
+                                        ></protspace-info-popover>`
                                       : ''}
                                     <span class="dropdown-item-label"
                                       >${annotationLabel(annotation, definition)}</span
@@ -426,7 +345,7 @@ class ProtspaceAnnotationSelect extends LitElement {
                                     ${stats
                                       ? html`<span
                                           class="stats-badge"
-                                          title="Projection quality statistics available"
+                                          title="Quality statistics available: select this annotation and open the projection metadata panel"
                                           aria-label="Quality statistics available"
                                           >STATS</span
                                         >`
