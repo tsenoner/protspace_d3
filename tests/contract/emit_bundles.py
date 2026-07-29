@@ -53,6 +53,12 @@ PROTEIN_COUNT = 10
 # the contract covers both implementations rather than only the small-data one.
 LARGE_PROTEIN_COUNT = 6_000
 
+# One 2D and one 3D projection, so the reader's dimension handling is covered.
+PROJECTIONS = [("PCA_2", 2), ("PCA_3", 3)]
+
+# The protein whose `length` is null, distinguishing "missing" from 0 and NaN.
+NULL_LENGTH_INDEX = 3
+
 
 def protein_ids(count: int) -> list[str]:
     return [f"P{i:05d}" for i in range(1, count + 1)]
@@ -88,7 +94,7 @@ def build_annotations_table(ids: list[str]) -> pa.Table:
     # from NaN across the language boundary. Real bundles carry both string-typed
     # and double-typed numeric annotations; the double form is the stricter case.
     length = [float(100 + i * 10) for i in range(len(ids))]
-    length[3] = None
+    length[NULL_LENGTH_INDEX] = None
 
     return pa.table(
         {
@@ -107,7 +113,7 @@ def build_projection_tables(ids: list[str]) -> tuple[pa.Table, pa.Table]:
     (so it reaches the reader as a BigInt), x/y are float32, and z is a nullable
     double that is null for every row of a 2D projection.
     """
-    projections = [("PCA_2", 2), ("PCA_3", 3)]
+    projections = PROJECTIONS
 
     metadata = pa.table(
         {
@@ -291,6 +297,22 @@ def main(out_dir: Path) -> None:
     # including the SystemExit from `run_bundle`.
     with ThreadPoolExecutor(max_workers=len(variants)) as pool:
         list(pool.map(emit, variants.items()))
+
+    # The consumer reads its expectations from here rather than restating them.
+    # A hand-mirrored constant fails in the reader when the generator is what
+    # changed, pointing the reader at the wrong half of the seam.
+    (out_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "proteinCount": PROTEIN_COUNT,
+                "largeProteinCount": LARGE_PROTEIN_COUNT,
+                "projectionCount": len(PROJECTIONS),
+                "labelWithReservedChar": LABEL_WITH_RESERVED_CHAR,
+                "nullLengthIndex": NULL_LENGTH_INDEX,
+            }
+        ),
+        encoding="utf-8",
+    )
 
     print(f"wrote {len(variants)} bundles to {out_dir}")
 

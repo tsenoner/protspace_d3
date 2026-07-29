@@ -38,6 +38,9 @@ jobs:
   contract:
     name: Bundle format contract
     runs-on: ubuntu-latest
+    # ~1 minute in practice. Without this a hung step takes GitHub's 6-hour
+    # default, and a required check that never reports blocks every open PR.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
 

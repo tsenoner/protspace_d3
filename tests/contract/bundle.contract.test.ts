@@ -29,15 +29,22 @@ import {
 import { BUNDLE_DELIMITER_BYTES } from '../../packages/utils/src/parquet/constants';
 
 const REPO_ROOT = resolve(__dirname, '../..');
-const PROTEIN_COUNT = 10;
-const PROJECTION_COUNT = 2;
-/** Mirrors LARGE_PROTEIN_COUNT in emit_bundles.py. */
-const LARGE_PROTEIN_COUNT = 6_000;
 
-/** Mirrors emit_bundles.py — the value the producer percent-encodes. */
-const LABEL_WITH_RESERVED_CHAR = 'Kinase (EC 2.7.11.1); regulatory subunit';
+/**
+ * What the generator says it wrote, read from the manifest it emits alongside
+ * the bundles — so the producer stays the single source of these values instead
+ * of being mirrored here, where a drift fails in the consumer.
+ */
+interface Manifest {
+  proteinCount: number;
+  largeProteinCount: number;
+  projectionCount: number;
+  labelWithReservedChar: string;
+  nullLengthIndex: number;
+}
 
 let outDir: string;
+let manifest: Manifest;
 
 function loadBundle(variant: string): ArrayBuffer {
   const buffer = readFileSync(join(outDir, `${variant}.parquetbundle`));
@@ -70,7 +77,11 @@ beforeAll(() => {
         'tests/contract/emit_bundles.py',
         outDir,
       ],
-      { cwd: REPO_ROOT, encoding: 'utf-8' },
+      // vitest's hookTimeout cannot fire while the main thread is blocked in
+      // spawnSync, and the workflow's job timeout is the only other backstop —
+      // so bound the child itself. maxBuffer: the 1 MiB default truncates the
+      // producer traceback in exactly the failure you need to read.
+      { cwd: REPO_ROOT, encoding: 'utf-8', timeout: 240_000, maxBuffer: 16 * 1024 * 1024 },
     );
 
     // Without this the suite would fail later on a missing file, hiding the real
@@ -85,6 +96,7 @@ beforeAll(() => {
           `--- stdout ---\n${result.stdout}\n--- stderr ---\n${result.stderr}`,
       );
     }
+    manifest = JSON.parse(readFileSync(join(outDir, 'manifest.json'), 'utf-8'));
   } catch (error) {
     rmSync(outDir, { recursive: true, force: true });
     throw error;
@@ -101,9 +113,9 @@ describe('bundle layouts the producer can write', () => {
     expect(extraction.annotationIdColumn).toBe('protein_id');
     expect(extraction.projectionIdColumn).toBe('identifier');
 
-    expect(extraction.annotationsById.size).toBe(PROTEIN_COUNT);
-    expect(extraction.projections).toHaveLength(PROTEIN_COUNT * PROJECTION_COUNT);
-    expect(extraction.projectionsMetadata).toHaveLength(PROJECTION_COUNT);
+    expect(extraction.annotationsById.size).toBe(manifest.proteinCount);
+    expect(extraction.projections).toHaveLength(manifest.proteinCount * manifest.projectionCount);
+    expect(extraction.projectionsMetadata).toHaveLength(manifest.projectionCount);
 
     // Fails if `stamp_format_version` stops being applied by the bundle CLI.
     expect(extraction.formatVersion).toBe(2);
@@ -121,13 +133,18 @@ describe('bundle layouts the producer can write', () => {
     });
   });
 
-  it('reads a 5-part bundle, keeping settings and ignoring statistics', async () => {
+  it('reads a 5-part bundle, keeping settings and carrying statistics', async () => {
     const extraction = await extractRowsFromParquetBundle(loadBundle('with_stats'));
 
     // The statistics part must not leak into the settings slot: the reader used
     // to slice part 4 to end-of-file, which glued statistics onto settings.
     expect(extraction.settings?.legendSettings.family).toMatchObject({ sortMode: 'size-desc' });
-    expect(extraction.projections).toHaveLength(PROTEIN_COUNT * PROJECTION_COUNT);
+    expect(extraction.projections).toHaveLength(manifest.proteinCount * manifest.projectionCount);
+
+    // Unparsed but preserved, so re-exporting the bundle doesn't drop it. Assert
+    // the magic bytes: a part sliced with the wrong bounds is still non-null.
+    expect(extraction.statistics).not.toBeNull();
+    expect(new TextDecoder().decode(new Uint8Array(extraction.statistics!, 0, 4))).toBe('PAR1');
   });
 
   it('reads a 5-part bundle whose settings slot is the zero-byte sentinel', async () => {
@@ -141,8 +158,8 @@ describe('bundle layouts the producer can write', () => {
       const extraction = await extractRowsFromParquetBundle(loadBundle('stats_no_settings'));
 
       expect(extraction.settings).toBeNull();
-      expect(extraction.annotationsById.size).toBe(PROTEIN_COUNT);
-      expect(extraction.projections).toHaveLength(PROTEIN_COUNT * PROJECTION_COUNT);
+      expect(extraction.annotationsById.size).toBe(manifest.proteinCount);
+      expect(extraction.projections).toHaveLength(manifest.proteinCount * manifest.projectionCount);
       expect(warn).not.toHaveBeenCalled();
     } finally {
       warn.mockRestore();
@@ -181,7 +198,7 @@ describe('annotation encoding across the language boundary', () => {
   it('decodes a percent-encoded label back to its literal characters', () => {
     // The producer encodes the reserved ';' as %3B; a v1 reader would surface
     // the escape sequence verbatim.
-    expect(data.annotations.family.values).toContain(LABEL_WITH_RESERVED_CHAR);
+    expect(data.annotations.family.values).toContain(manifest.labelWithReservedChar);
     expect(data.annotations.family.values.join('|')).not.toContain('%3B');
   });
 
@@ -195,16 +212,18 @@ describe('annotation encoding across the language boundary', () => {
     const lengths = data.numeric_annotation_data?.length;
     // Assert the length first: an out-of-range index yields `undefined`, which
     // would satisfy the null check below even if the reader dropped a protein.
-    expect(lengths).toHaveLength(PROTEIN_COUNT);
-    // emit_bundles.py nulls the 4th protein's length.
-    expect(lengths?.[3] == null || Number.isNaN(lengths?.[3])).toBe(true);
+    expect(lengths).toHaveLength(manifest.proteinCount);
+    expect(
+      lengths?.[manifest.nullLengthIndex] == null ||
+        Number.isNaN(lengths?.[manifest.nullLengthIndex]),
+    ).toBe(true);
     expect(lengths?.[0]).toBe(100);
   });
 
   it('exposes the third dimension of a 3D projection', () => {
     const projection3d = data.projections.find((p) => p.name === 'PCA_3');
     expect(projection3d?.dimension).toBe(3);
-    expect(projection3d?.data.length).toBe(PROTEIN_COUNT * 3);
+    expect(projection3d?.data.length).toBe(manifest.proteinCount * 3);
 
     const projection2d = data.projections.find((p) => p.name === 'PCA_2');
     expect(projection2d?.dimension).toBe(2);
@@ -233,8 +252,8 @@ describe('the optimized conversion path real datasets take', () => {
   // threshold is raised above what emit_bundles.py generates, this block silently
   // degrades into a duplicate of the small-data tests above — the one way this
   // suite can stop protecting without going red. Asserted below against the
-  // generated bundle rather than against LARGE_PROTEIN_COUNT, because that
-  // constant is a hand-maintained mirror of emit_bundles.py and can itself drift.
+  // generated bundle rather than against the manifest, so a generator that stops
+  // clearing the threshold fails here rather than quietly agreeing with itself.
   it('decodes the same annotation contract as the small-data path', async () => {
     const extraction = await extractRowsFromParquetBundle(loadBundle('large'));
     expect(extraction.projections.length).toBeGreaterThanOrEqual(OPTIMIZED_PATH_ROW_THRESHOLD);
@@ -242,16 +261,19 @@ describe('the optimized conversion path real datasets take', () => {
 
     const data = await convertParquetToVisualizationDataOptimized(extraction);
 
-    expect(data.protein_ids).toHaveLength(LARGE_PROTEIN_COUNT);
+    expect(data.protein_ids).toHaveLength(manifest.largeProteinCount);
     // The same positional payload as `minimal`, now through the other decoder.
-    expect(data.annotations.family.values).toContain(LABEL_WITH_RESERVED_CHAR);
+    expect(data.annotations.family.values).toContain(manifest.labelWithReservedChar);
     expect(data.annotations.family.values.join('|')).not.toContain('%3B');
     expect(data.annotations.domains.values).toContain('DomA');
     expect(data.annotations.domains.values).toContain('DomB');
 
     const lengths = data.numeric_annotation_data?.length;
-    expect(lengths).toHaveLength(LARGE_PROTEIN_COUNT);
-    expect(lengths?.[3] == null || Number.isNaN(lengths?.[3])).toBe(true);
+    expect(lengths).toHaveLength(manifest.largeProteinCount);
+    expect(
+      lengths?.[manifest.nullLengthIndex] == null ||
+        Number.isNaN(lengths?.[manifest.nullLengthIndex]),
+    ).toBe(true);
 
     expect(() => structuredClone(data)).not.toThrow();
   });
