@@ -662,13 +662,36 @@ export function convertParquetToVisualizationData(
   const hasProjectionName = columnNames.includes('projection_name');
   const hasXY = columnNames.includes('x') && columnNames.includes('y');
 
-  if (hasProjectionName && hasXY) {
-    return normalizeEatCompanionColumns(
-      convertBundleFormatData(rows, columnNames, meta, formatVersion),
-    );
-  }
-  return normalizeEatCompanionColumns(convertLegacyFormatData(rows, columnNames, formatVersion));
+  const converted =
+    hasProjectionName && hasXY
+      ? convertBundleFormatData(rows, columnNames, meta, formatVersion)
+      : convertLegacyFormatData(rows, columnNames, formatVersion);
+  return carryStatistics(normalizeEatCompanionColumns(converted), input);
 }
+
+/**
+ * Attach the bundle's unparsed statistics part so an export can re-emit it.
+ * Raw `Rows` input never carries one.
+ */
+function carryStatistics(
+  data: VisualizationData,
+  input: BundleExtractionResult | Rows,
+): VisualizationData {
+  if (!Array.isArray(input) && input.statistics) {
+    data.statistics = input.statistics;
+  }
+  return data;
+}
+
+/**
+ * Row count at or above which the optimized entry point uses the separated
+ * decoder instead of delegating to the small-data implementation.
+ *
+ * Exported so tests can size fixtures from the real threshold rather than
+ * restating it — a hardcoded fixture size silently stops exercising the
+ * optimized path the moment this number moves.
+ */
+export const OPTIMIZED_PATH_ROW_THRESHOLD = 10_000;
 
 export function convertParquetToVisualizationDataOptimized(
   input: BundleExtractionResult | Rows,
@@ -678,7 +701,7 @@ export function convertParquetToVisualizationDataOptimized(
     // Legacy path: raw rows passed directly (e.g. from tests or plain parquet files)
     validateRowsBasic(input);
     const dataSize = input.length;
-    if (dataSize < 10000) {
+    if (dataSize < OPTIMIZED_PATH_ROW_THRESHOLD) {
       return Promise.resolve(convertParquetToVisualizationData(input, projectionsMetadata));
     }
     return convertLargeDatasetOptimizedRaw(input, projectionsMetadata).then(
@@ -688,10 +711,12 @@ export function convertParquetToVisualizationDataOptimized(
 
   // New path: separated extraction shape from extractRowsFromParquetBundle
   const numProjectionRows = input.projections.length;
-  if (numProjectionRows < 10000) {
+  if (numProjectionRows < OPTIMIZED_PATH_ROW_THRESHOLD) {
     return Promise.resolve(convertParquetToVisualizationData(input));
   }
-  return convertLargeDatasetOptimized(input).then(normalizeEatCompanionColumns);
+  return convertLargeDatasetOptimized(input)
+    .then(normalizeEatCompanionColumns)
+    .then((data) => carryStatistics(data, input));
 }
 
 async function convertLargeDatasetOptimizedRaw(

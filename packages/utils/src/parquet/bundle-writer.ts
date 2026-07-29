@@ -8,12 +8,16 @@
  * - Delimiter: ---PARQUET_DELIMITER---
  * - Part 3: projections_data.parquet (projection_name, identifier, x, y, z)
  * - Delimiter: ---PARQUET_DELIMITER--- (optional, only if settings included)
- * - Part 4: settings.parquet (optional, settings_json column)
+ * - Part 4: settings.parquet (optional, settings_json column; zero bytes when a
+ *   statistics part follows but there are no settings)
+ * - Delimiter: ---PARQUET_DELIMITER--- (optional, only if statistics carried)
+ * - Part 5: statistics.parquet (optional, copied verbatim from the source bundle)
  */
 
 import { parquetWriteBuffer } from 'hyparquet-writer';
 import type { VisualizationData, BundleSettings } from '../types';
 import { BUNDLE_DELIMITER_BYTES } from './constants';
+import { assertNoBundleDelimiter } from './delimiter-utils';
 import { bigIntReplacer } from './bigint-utils';
 import { isNumericAnnotation } from '../visualization/numeric-binning.js';
 import { getProteinAnnotationIndices } from '../visualization/annotation-data-access.js';
@@ -287,15 +291,37 @@ export function createParquetBundle(
   const metadataBuffer = createProjectionsMetadataParquet(data);
   const projectionsBuffer = createProjectionsDataParquet(data);
 
-  const buffers: ArrayBuffer[] = [annotationsBuffer, metadataBuffer, projectionsBuffer];
+  const parts: [string, ArrayBuffer][] = [
+    ['annotations', annotationsBuffer],
+    ['projections metadata', metadataBuffer],
+    ['projections data', projectionsBuffer],
+  ];
 
   // Optionally add settings as 4th part
   if (includeSettings && hasBundleSettings(settings)) {
-    const settingsBuffer = createSettingsParquet(settings);
-    buffers.push(settingsBuffer);
+    parts.push(['settings', createSettingsParquet(settings)]);
   }
 
-  return concatenateBuffers(buffers, BUNDLE_DELIMITER_BYTES);
+  // Carry a statistics part read from the source bundle back out as part 5,
+  // mirroring `write_bundle`: a zero-byte settings slot keeps it at that
+  // position when the export has no settings of its own.
+  if (data.statistics) {
+    if (parts.length === 3) parts.push(['settings', new ArrayBuffer(0)]);
+    parts.push(['statistics', data.statistics]);
+  }
+
+  // The delimiter is in-band and unescaped, so a part containing it would split
+  // into two on read-back. The Python producer guards every part it writes; do
+  // the same here or the invariant holds in only one direction. Annotation text
+  // and legend category names are user-authored, so this is reachable.
+  for (const [name, buffer] of parts) {
+    assertNoBundleDelimiter(buffer, name);
+  }
+
+  return concatenateBuffers(
+    parts.map(([, buffer]) => buffer),
+    BUNDLE_DELIMITER_BYTES,
+  );
 }
 
 /**
