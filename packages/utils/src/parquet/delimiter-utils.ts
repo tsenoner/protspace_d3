@@ -9,9 +9,11 @@ import { BUNDLE_DELIMITER, BUNDLE_DELIMITER_BYTES } from './constants';
  * Find all positions of the bundle delimiter in a Uint8Array.
  *
  * @param uint8Array - The binary data to search
+ * @param limit - Stop after this many matches (callers that only need "is there one"
+ *   pass 1 and avoid a full pass over hundreds of MB)
  * @returns Array of byte positions where delimiters start
  */
-export function findBundleDelimiterPositions(uint8Array: Uint8Array): number[] {
+export function findBundleDelimiterPositions(uint8Array: Uint8Array, limit = Infinity): number[] {
   const positions: number[] = [];
   const len = BUNDLE_DELIMITER_BYTES.length;
 
@@ -23,7 +25,10 @@ export function findBundleDelimiterPositions(uint8Array: Uint8Array): number[] {
         break;
       }
     }
-    if (match) positions.push(i);
+    if (match) {
+      positions.push(i);
+      if (positions.length >= limit) break;
+    }
   }
 
   return positions;
@@ -41,12 +46,13 @@ export function findBundleDelimiterPositions(uint8Array: Uint8Array): number[] {
  * this or the format's invariants hold only in one direction.
  *
  * @param arrayBuffer - The serialized part to check
+ * @param partName - Which part this is, so the message points at the offending data
  * @throws If the part contains the reserved delimiter byte string
  */
-export function assertNoBundleDelimiter(arrayBuffer: ArrayBuffer): void {
+export function assertNoBundleDelimiter(arrayBuffer: ArrayBuffer, partName = 'parquet'): void {
   if (isParquetBundle(arrayBuffer)) {
     throw new Error(
-      `Serialized parquet part contains the bundle delimiter "${BUNDLE_DELIMITER}"; ` +
+      `Serialized ${partName} part contains the bundle delimiter "${BUNDLE_DELIMITER}"; ` +
         'a value includes this reserved byte string and would corrupt the bundle on read.',
     );
   }
@@ -60,7 +66,7 @@ export function assertNoBundleDelimiter(arrayBuffer: ArrayBuffer): void {
  */
 export function isParquetBundle(arrayBuffer: ArrayBuffer): boolean {
   const uint8Array = new Uint8Array(arrayBuffer);
-  return findBundleDelimiterPositions(uint8Array).length > 0;
+  return findBundleDelimiterPositions(uint8Array, 1).length > 0;
 }
 
 /**
