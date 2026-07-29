@@ -662,12 +662,25 @@ export function convertParquetToVisualizationData(
   const hasProjectionName = columnNames.includes('projection_name');
   const hasXY = columnNames.includes('x') && columnNames.includes('y');
 
-  if (hasProjectionName && hasXY) {
-    return normalizeEatCompanionColumns(
-      convertBundleFormatData(rows, columnNames, meta, formatVersion),
-    );
+  const converted =
+    hasProjectionName && hasXY
+      ? convertBundleFormatData(rows, columnNames, meta, formatVersion)
+      : convertLegacyFormatData(rows, columnNames, formatVersion);
+  return carryStatistics(normalizeEatCompanionColumns(converted), input);
+}
+
+/**
+ * Attach the bundle's unparsed statistics part so an export can re-emit it.
+ * Raw `Rows` input never carries one.
+ */
+function carryStatistics(
+  data: VisualizationData,
+  input: BundleExtractionResult | Rows,
+): VisualizationData {
+  if (!Array.isArray(input) && input.statistics) {
+    data.statistics = input.statistics;
   }
-  return normalizeEatCompanionColumns(convertLegacyFormatData(rows, columnNames, formatVersion));
+  return data;
 }
 
 /**
@@ -701,7 +714,9 @@ export function convertParquetToVisualizationDataOptimized(
   if (numProjectionRows < OPTIMIZED_PATH_ROW_THRESHOLD) {
     return Promise.resolve(convertParquetToVisualizationData(input));
   }
-  return convertLargeDatasetOptimized(input).then(normalizeEatCompanionColumns);
+  return convertLargeDatasetOptimized(input)
+    .then(normalizeEatCompanionColumns)
+    .then((data) => carryStatistics(data, input));
 }
 
 async function convertLargeDatasetOptimizedRaw(

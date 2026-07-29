@@ -27,6 +27,8 @@ export interface BundleExtractionResult {
   projectionsMetadata: Rows;
   /** Settings loaded from bundle (null if not present) */
   settings: BundleSettings | null;
+  /** Raw projection-statistics part (part 5), unparsed, null if not present. */
+  statistics: ArrayBuffer | null;
   /**
    * Bundle annotation format version, read from the `protspace_format_version`
    * parquet key-value metadata on the annotations part (part 1). `1` when the
@@ -61,9 +63,10 @@ function readFormatVersion(metadata: FileMetaData): number {
  * - 2 delimiters (3 parts): Original format without settings
  * - 3 delimiters (4 parts): Extended format with settings
  * - 4 delimiters (5 parts): Settings plus a projection-statistics part, which the
- *   web reader does not consume. The settings slot may be zero bytes when the
- *   producer wrote statistics without settings — it exists only to keep the
- *   statistics part at a fixed position.
+ *   web reader does not parse but returns verbatim so an export can re-emit it.
+ *   The settings slot may be zero bytes when the producer wrote statistics
+ *   without settings — it exists only to keep the statistics part at a fixed
+ *   position.
  */
 export async function extractRowsFromParquetBundle(
   arrayBuffer: ArrayBuffer,
@@ -101,6 +104,9 @@ export async function extractRowsFromParquetBundle(
     delimiterPositions.length >= 3
       ? partBetween(delimiterPositions[2] + delimiterLength, delimiterPositions[3])
       : null;
+  // The statistics part is never parsed here — only carried so re-export is non-lossy.
+  const part5: ArrayBuffer | null =
+    delimiterPositions.length === 4 ? partBetween(delimiterPositions[3] + delimiterLength) : null;
 
   // Validate parquet magic for each part before parsing
   assertValidParquetMagic(part1);
@@ -184,6 +190,7 @@ export async function extractRowsFromParquetBundle(
     annotationIdColumn: finalAnnotationIdColumn,
     projectionsMetadata: projectionsMetadataData,
     settings,
+    statistics: part5,
     formatVersion,
   };
 }
