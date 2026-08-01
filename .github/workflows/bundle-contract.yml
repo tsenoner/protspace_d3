@@ -46,21 +46,16 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: 'uv.lock'
+          # Bind uv sync/run to the repository's supported Python floor. Keep
+          # this explicit per job: the repository intentionally has no
+          # .python-version file, so interpreter selection cannot drift through
+          # an implicit, shared version source.
+          python-version: '3.12'
           # setup-uv defaults to `uv cache prune --ci`, which discards prebuilt
           # wheels and keeps only source builds. This dependency tree is all
           # wheels, so pruning leaves the cache near-empty and every run
           # re-downloads numpy/scipy/pandas/pyarrow/scikit-learn.
           prune-cache: false
-
-      # Pin to .python-version (3.12), NOT pyproject.toml. pyproject declares
-      # `requires-python = ">=3.10"`, from which setup-python installs the newest
-      # satisfying release — it picked 3.14.6, a version no other job in this repo
-      # tests. For a required check that means the interpreter floats with the
-      # runner image, and a new release with lagging numba/llvmlite/pyarrow wheels
-      # would block every merge with no code change.
-      - uses: actions/setup-python@v6
-        with:
-          python-version-file: 'apps/protspace/.python-version'
 
       # pnpm/action-setup must precede setup-node so `cache: 'pnpm'` can resolve
       # the store path. setup-node's built-in cache replaces the hand-rolled
