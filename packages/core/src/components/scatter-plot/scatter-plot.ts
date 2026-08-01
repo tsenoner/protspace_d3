@@ -161,6 +161,7 @@ export class ProtspaceScatterplot extends LitElement {
   @state() private _canvasKey = 0;
   @state() private _numericRecomputeRunning = false;
   @state() private _connectorStatus: ProvenanceConnectorStatus | null = null;
+  @state() private _isZoomedIn = false;
 
   // Queries
   @query('canvas') private _canvas?: HTMLCanvasElement;
@@ -1225,6 +1226,10 @@ export class ProtspaceScatterplot extends LitElement {
       resolveSlotsToIds: (slots) => this._slotsToInteractiveIds(slots),
       onTransform: (t) => {
         this._transform = t;
+        const isZoomedIn = t.k > 1;
+        if (isZoomedIn !== this._isZoomedIn) {
+          this._isZoomedIn = isZoomedIn;
+        }
         this._connectorOverlay.updateZoomScale(t.k);
       },
       onSelect: (ids, clearVisual) => this._commitSelection(ids, clearVisual),
@@ -1980,7 +1985,14 @@ export class ProtspaceScatterplot extends LitElement {
             `
           : ''}
         ${this.data
-          ? html` <div class="plot-indicator">${this._getVisiblePointCount()} points</div> `
+          ? html`
+              <div class="plot-indicator">
+                ${this._getVisiblePointCount()} points
+                ${this._isZoomedIn
+                  ? html`&nbsp;· <span class="zoom-indicator">Zoomed in</span>`
+                  : ''}
+              </div>
+            `
           : ''}
         ${this._numericRecomputeRunning
           ? html`
