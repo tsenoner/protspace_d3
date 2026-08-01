@@ -132,6 +132,7 @@ class ProteinAnnotationManager:
             if self.sources_to_fetch["uniprot"]
             else cached_uniprot
         )
+        uniprot_annotations = self._fill_missing_fasta_lengths(uniprot_annotations)
         taxonomy_annotations = (
             self._fetch_taxonomy(uniprot_annotations, failed_sources)
             if self.sources_to_fetch["taxonomy"]
@@ -198,6 +199,31 @@ class ProteinAnnotationManager:
             return df[columns_to_keep]
 
         return df
+
+    def _fill_missing_fasta_lengths(
+        self, proteins: list[ProteinAnnotations]
+    ) -> list[ProteinAnnotations]:
+        """Fill empty sequence lengths from matching local FASTA sequences."""
+        if not self.sequences:
+            return proteins
+
+        result = []
+        for protein in proteins:
+            sequence = self.sequences.get(protein.identifier, "")
+            if protein.annotations.get("length") or not sequence:
+                result.append(protein)
+                continue
+
+            result.append(
+                ProteinAnnotations(
+                    identifier=protein.identifier,
+                    annotations={
+                        **protein.annotations,
+                        "length": str(len(sequence)),
+                    },
+                )
+            )
+        return result
 
     def _fetch_uniprot(self, failed_sources: list) -> list[ProteinAnnotations]:
         """Fetch UniProt annotations."""
