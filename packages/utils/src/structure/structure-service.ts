@@ -8,11 +8,22 @@ interface AlphaFoldPrediction {
   modelVersion: string;
 }
 
+interface TedDomainApiEntry {
+  ted_domain_no?: number | string;
+  segments?: unknown;
+}
+
+interface TedDomainApiSegment {
+  af_start?: number | string;
+  af_end?: number | string;
+}
+
 /**
  * Service for handling protein structure loading from various sources
  */
 export class StructureService {
   private static readonly ALPHAFOLD_API_URL = 'https://www.alphafold.ebi.ac.uk/api/prediction';
+  private static readonly TED_DOMAINS_API_URL = 'https://alphafold.ebi.ac.uk/api/domains';
   private static readonly THREE_D_BEACONS_SUMMARY_URL =
     'https://www.ebi.ac.uk/pdbe/pdbe-kb/3dbeacons/api/uniprot/summary';
   private static readonly alphaFoldModelPageCache: Map<string, string | null> = new Map();
@@ -24,6 +35,7 @@ export class StructureService {
    */
   public static async loadStructure(proteinId: string): Promise<StructureData> {
     const formattedId = this.formatProteinId(proteinId);
+    const tedDomainsPromise = this.loadTedDomains(formattedId);
 
     // Fetch prediction data from AlphaFold API
     const apiUrl = `${this.ALPHAFOLD_API_URL}/${formattedId}`;
@@ -76,6 +88,7 @@ export class StructureService {
         type: isBinary ? 'application/octet-stream' : 'text/plain',
       });
       const blobUrl = URL.createObjectURL(blob);
+      const tedDomains = await tedDomainsPromise;
 
       return {
         proteinId: formattedId,
@@ -83,6 +96,7 @@ export class StructureService {
         url: blobUrl,
         format,
         isBinary,
+        tedDomains,
         metadata: {
           confidence: 'high',
           method: 'predicted',
@@ -99,6 +113,45 @@ export class StructureService {
       }
       throw new Error(`AlphaFold structure not available for ${formattedId}`);
     }
+  }
+
+  private static async loadTedDomains(proteinId: string): Promise<TedDomain[]> {
+    try {
+      const response = await fetch(`${this.TED_DOMAINS_API_URL}/${proteinId}`);
+      if (!response.ok) return [];
+
+      const payload: unknown = await response.json();
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return [];
+      const annotations = (payload as { annotations?: unknown }).annotations;
+      if (!Array.isArray(annotations)) return [];
+
+      return annotations
+        .map((entry) => this.parseTedDomain(entry))
+        .filter((domain): domain is TedDomain => domain !== null)
+        .sort((left, right) => left.domainNumber - right.domainNumber);
+    } catch {
+      return [];
+    }
+  }
+
+  private static parseTedDomain(value: unknown): TedDomain | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+
+    const entry = value as TedDomainApiEntry;
+    const domainNumber = Number(entry.ted_domain_no);
+    if (!Number.isInteger(domainNumber) || domainNumber < 1 || !Array.isArray(entry.segments)) {
+      return null;
+    }
+
+    const segments = entry.segments
+      .filter(
+        (segment): segment is TedDomainApiSegment =>
+          !!segment && typeof segment === 'object' && !Array.isArray(segment),
+      )
+      .map((segment) => ({ start: Number(segment.af_start), end: Number(segment.af_end) }))
+      .filter(({ start, end }) => start > 0 && start <= end);
+
+    return segments.length > 0 ? { domainNumber, segments } : null;
   }
 
   /**
@@ -181,11 +234,22 @@ export interface StructureData {
   url: string | null;
   format: 'pdb' | 'mmcif';
   isBinary: boolean;
+  tedDomains: TedDomain[];
   metadata: {
     confidence: 'high' | 'medium' | 'low' | 'experimental';
     method: 'predicted' | 'experimental';
     version: string;
   };
+}
+
+export interface TedDomainSegment {
+  start: number;
+  end: number;
+}
+
+export interface TedDomain {
+  domainNumber: number;
+  segments: TedDomainSegment[];
 }
 
 /**
