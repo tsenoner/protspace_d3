@@ -216,7 +216,9 @@ class BiocentralPredictionRetriever(BaseAnnotationRetriever):
         """
         for pred in predictions:
             if pred.model_name == "TMbed":
-                topology = str(pred.value) if pred.value else ""
+                if pred.value is None or pred.value == "":
+                    return ""
+                topology = str(pred.value)
                 has_helix = bool(re.search(r"[Hh]", topology))
                 has_beta = bool(re.search(r"[Bb]", topology))
                 if has_helix and has_beta:

@@ -9,7 +9,8 @@ N/A and cannot be distinguished from proteins whose prediction is actually absen
 
 - Encode successful TMbed predictions with no membrane-spanning segment using a
   non-reserved categorical label.
-- Preserve genuinely absent Biocentral predictions as missing values.
+- Preserve genuinely absent Biocentral predictions, including TMbed prediction
+  objects whose optional payload is `None` or empty, as missing values.
 - Add regression coverage across the Python annotation producer and TypeScript
   bundle consumer boundary.
 - Update generated annotation documentation to describe the corrected category.

@@ -52,16 +52,20 @@ Alternatives considered:
 
 ### Preserve empty-string output for an absent TMbed result
 
-The adapter will continue returning an empty string when Biocentral provides no TMbed
-prediction. This retains the current distinction at the producer: a completed negative
-prediction is `non-transmembrane`, while an unavailable prediction remains missing.
+The adapter will return an empty string when Biocentral provides no TMbed prediction or
+provides a TMbed prediction object whose optional `value` payload is `None` or empty.
+The payload guard runs before topology labels are scanned. This retains the distinction
+at the producer: a completed, non-empty topology with no membrane segment is
+`non-transmembrane`, while an unavailable topology remains missing.
 
 ### Cover both the adapter and the cross-language seam
 
-A focused Python regression will assert the adapter vocabulary. The generated bundle
-contract will derive its transmembrane fixture value from the real adapter and assert
-that the TypeScript visualization data contains the category. This avoids a duplicated
-hand-written constant that could allow producer and contract fixtures to drift apart.
+Focused Python regressions will construct the real Biocentral `Prediction` model and
+assert the adapter vocabulary for completed and absent payloads. The generated bundle
+contract will derive both its negative and missing transmembrane fixture values from the
+real adapter and assert that TypeScript preserves the former as a category and the latter
+as `N/A`. This avoids duplicated hand-written constants that could allow producer and
+contract fixtures to drift apart.
 
 ## Risks / Trade-offs
 

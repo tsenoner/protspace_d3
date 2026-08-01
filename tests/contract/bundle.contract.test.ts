@@ -27,6 +27,7 @@ import {
 // working tree, not built package output. (The vitest config still aliases
 // `@protspace/utils` — packages/core's own sources import it that way.)
 import { BUNDLE_DELIMITER_BYTES } from '../../packages/utils/src/parquet/constants';
+import { getProteinAnnotationValues } from '../../packages/utils/src/visualization/plot-data-accessors';
 
 const REPO_ROOT = resolve(__dirname, '../..');
 
@@ -41,6 +42,7 @@ interface Manifest {
   projectionCount: number;
   labelWithReservedChar: string;
   negativeTransmembraneCategory: string;
+  missingTransmembraneIndex: number;
   nullLengthIndex: number;
 }
 
@@ -213,6 +215,16 @@ describe('annotation encoding across the language boundary', () => {
     expect(data.annotations.predicted_transmembrane.values).toContain(
       manifest.negativeTransmembraneCategory,
     );
+  });
+
+  it('preserves a missing TMbed payload as N/A', () => {
+    expect(
+      getProteinAnnotationValues(
+        data,
+        manifest.missingTransmembraneIndex,
+        'predicted_transmembrane',
+      ),
+    ).toEqual(['__NA__']);
   });
 
   it('reports a missing numeric value as missing rather than zero', () => {

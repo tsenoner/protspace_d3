@@ -19,3 +19,12 @@ normalizing to missing data.
 - **WHEN** Biocentral returns no TMbed prediction for a protein
 - **THEN** the producer emits the established missing representation
 - **AND** the TypeScript visualization data does not invent a transmembrane category
+
+#### Scenario: Empty TMbed payload remains missing
+
+- **WHEN** Biocentral returns a TMbed prediction object whose optional `value` payload
+  is `None` or an empty string
+- **THEN** the producer emits the established missing representation before scanning
+  topology labels
+- **AND** the TypeScript visualization data exposes the protein as `N/A` rather than
+  `non-transmembrane`

@@ -37,10 +37,10 @@ import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from types import SimpleNamespace
 
 import pyarrow as pa
 import pyarrow.parquet as pq
+from biocentral_api._generated import Prediction
 
 from protspace.data.annotations.encoding import encode_field
 from protspace.data.annotations.retrievers.biocentral_retriever import (
@@ -80,7 +80,29 @@ MULTI_HIT_CELL = f"{encode_field('DomA')}|0.91;{encode_field('DomB')}|0.82"
 # its vocabulary into the contract test. A topology with only inside/outside
 # labels is a completed TMbed prediction with no membrane-spanning segment.
 NEGATIVE_TMBED_CATEGORY = BiocentralPredictionRetriever._extract_transmembrane(
-    [SimpleNamespace(model_name="TMbed", value="oooooiiiii")]
+    [
+        Prediction(
+            model_name="TMbed",
+            prediction_name="topology",
+            protocol="per_residue",
+            value="oooooiiiii",
+        )
+    ]
+)
+
+# Keep one explicit missing-payload row separate from the fixture's other empty
+# rows. This catches an adapter that invents a negative biological result before
+# the bundle reader has a chance to normalize the missing representation.
+MISSING_TMBED_INDEX = 1
+MISSING_TMBED_VALUE = BiocentralPredictionRetriever._extract_transmembrane(
+    [
+        Prediction(
+            model_name="TMbed",
+            prediction_name="topology",
+            protocol="per_residue",
+            value=None,
+        )
+    ]
 )
 
 
@@ -100,7 +122,9 @@ def build_annotations_table(ids: list[str]) -> pa.Table:
         encode_field("Hydrolase")
     ] * rest
     domains = [MULTI_HIT_CELL] + [f"{encode_field('DomB')}|0.75"] * rest
-    predicted_transmembrane = [NEGATIVE_TMBED_CATEGORY] + [""] * rest
+    predicted_transmembrane = [NEGATIVE_TMBED_CATEGORY, MISSING_TMBED_VALUE] + [""] * (
+        rest - 1
+    )
 
     # A genuine double column with a null -- distinguishes "missing" from 0 and
     # from NaN across the language boundary. Real bundles carry both string-typed
@@ -113,9 +137,7 @@ def build_annotations_table(ids: list[str]) -> pa.Table:
             "identifier": pa.array(ids, pa.string()),
             "family": pa.array(family, pa.string()),
             "domains": pa.array(domains, pa.string()),
-            "predicted_transmembrane": pa.array(
-                predicted_transmembrane, pa.string()
-            ),
+            "predicted_transmembrane": pa.array(predicted_transmembrane, pa.string()),
             "length": pa.array(length, pa.float64()),
         }
     )
@@ -324,6 +346,7 @@ def main(out_dir: Path) -> None:
                 "projectionCount": len(PROJECTIONS),
                 "labelWithReservedChar": LABEL_WITH_RESERVED_CHAR,
                 "negativeTransmembraneCategory": NEGATIVE_TMBED_CATEGORY,
+                "missingTransmembraneIndex": MISSING_TMBED_INDEX,
                 "nullLengthIndex": NULL_LENGTH_INDEX,
             }
         ),

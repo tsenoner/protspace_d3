@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock, patch
 
+from biocentral_api._generated import Prediction
+
 from src.protspace.data.annotations.retrievers.biocentral_retriever import (
     BIOCENTRAL_ANNOTATIONS,
     BiocentralPredictionRetriever,
@@ -14,6 +16,16 @@ def _make_prediction(model_name, value):
     pred.model_name = model_name
     pred.value = value
     return pred
+
+
+def _make_real_tmbed_prediction(value):
+    """Build the generated model returned by biocentral-api."""
+    return Prediction(
+        model_name="TMbed",
+        prediction_name="topology",
+        protocol="per_residue",
+        value=value,
+    )
 
 
 class TestBiocentralConstants:
@@ -68,6 +80,16 @@ class TestTransmembraneExtraction:
         preds = [_make_prediction("TMbed", "oooooooooiiiiiiiiiii")]
         result = BiocentralPredictionRetriever._extract_transmembrane(preds)
         assert result == "non-transmembrane"
+
+    def test_none_payload_is_missing(self):
+        preds = [_make_real_tmbed_prediction(None)]
+        result = BiocentralPredictionRetriever._extract_transmembrane(preds)
+        assert result == ""
+
+    def test_empty_payload_is_missing(self):
+        preds = [_make_real_tmbed_prediction("")]
+        result = BiocentralPredictionRetriever._extract_transmembrane(preds)
+        assert result == ""
 
     def test_lowercase_labels(self):
         """TMbed uses lowercase h/b for non-TM side of helix/strand."""
