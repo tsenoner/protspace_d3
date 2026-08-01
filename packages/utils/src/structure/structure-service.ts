@@ -24,6 +24,7 @@ interface TedDomainApiSegment {
 export class StructureService {
   private static readonly ALPHAFOLD_API_URL = 'https://www.alphafold.ebi.ac.uk/api/prediction';
   private static readonly TED_DOMAINS_API_URL = 'https://alphafold.ebi.ac.uk/api/domains';
+  private static readonly TED_DOMAINS_TIMEOUT_MS = 5_000;
   private static readonly THREE_D_BEACONS_SUMMARY_URL =
     'https://www.ebi.ac.uk/pdbe/pdbe-kb/3dbeacons/api/uniprot/summary';
   private static readonly alphaFoldModelPageCache: Map<string, string | null> = new Map();
@@ -116,8 +117,29 @@ export class StructureService {
   }
 
   private static async loadTedDomains(proteinId: string): Promise<TedDomain[]> {
+    const abortController = new AbortController();
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<TedDomain[]>((resolve) => {
+      timeoutId = setTimeout(() => {
+        abortController.abort();
+        resolve([]);
+      }, this.TED_DOMAINS_TIMEOUT_MS);
+    });
+
+    const requestPromise = this.requestTedDomains(proteinId, abortController.signal);
     try {
-      const response = await fetch(`${this.TED_DOMAINS_API_URL}/${proteinId}`);
+      return await Promise.race([requestPromise, timeoutPromise]);
+    } finally {
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
+    }
+  }
+
+  private static async requestTedDomains(
+    proteinId: string,
+    signal: AbortSignal,
+  ): Promise<TedDomain[]> {
+    try {
+      const response = await fetch(`${this.TED_DOMAINS_API_URL}/${proteinId}`, { signal });
       if (!response.ok) return [];
 
       const payload: unknown = await response.json();

@@ -25,9 +25,9 @@ The change crosses the shared data service, the Mol\* adapter, and the Lit struc
 
 ### Treat TED annotations as optional sidecar structure data
 
-`StructureService.loadStructure` will start a request to the AlphaFold DB `/api/domains/{accession}` endpoint while it loads the existing prediction and structure file. It will parse valid domain numbers and inclusive residue intervals into typed data attached to `StructureData`. TED request, shape, or segment failures produce an empty domain list while structure failures retain their current error behavior.
+`StructureService.loadStructure` will start a request to the AlphaFold DB `/api/domains/{accession}` endpoint while it loads the existing prediction and structure file. It will parse valid domain numbers and inclusive residue intervals into typed data attached to `StructureData`. The optional request has a five-second client timeout backed by an `AbortSignal`; timeout, request, shape, or segment failures produce an empty domain list while structure failures retain their current error behavior.
 
-This keeps the component on one data-loading path and avoids a second UI-owned network lifecycle. Making TED a required request was rejected because annotation availability must not regress structure viewing.
+This keeps the component on one data-loading path and avoids a second UI-owned network lifecycle. Racing the sidecar request against the bound ensures even a non-settling transport cannot gate the primary result; aborting also releases a conforming fetch implementation. Making TED a required or unbounded request was rejected because annotation availability must not regress structure viewing.
 
 ### Encapsulate Mol\* theme details in the existing adapter
 
@@ -49,7 +49,7 @@ The control remains visible when TED is unavailable so users can distinguish una
 
 ## Risks / Trade-offs
 
-- **[TED endpoint latency delays complete structure data]** → Start the optional request in parallel with existing structure work and keep parsing small; failures are absorbed into an empty list.
+- **[TED endpoint latency delays complete structure data]** → Start the optional request in parallel with existing structure work, cap it at five seconds, abort on timeout, and absorb failures into an empty list.
 - **[Mol* global API changes]** → Keep all untyped CDN integration in `molstar-loader.ts`, pin the existing 3.44 version, and cover the adapter contract with focused tests.
 - **[Residue numbering mismatch]** → Use `label_seq_id`, which matches AlphaFold model residue numbering and TED segment coordinates; color unmapped residues neutrally.
 - **[More domains than palette colors]** → Cycle the fixed palette deterministically by domain number; distinct adjacent domains can repeat only after the palette is exhausted.

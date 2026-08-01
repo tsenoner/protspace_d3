@@ -3,6 +3,8 @@
 - [x] 1.1 Add a failing StructureService regression test for valid TED domains and discontinuous segments
 - [x] 1.2 Parse optional TED domains into typed StructureData without failing structure loading
 - [x] 1.3 Cover unavailable and malformed TED responses
+- [x] 1.4 Add a failing regression for a TED request that never settles
+- [x] 1.5 Bound the optional TED request and fall back to no domains on timeout
 
 ## 2. Mol\* Color Themes
 
@@ -18,3 +20,4 @@
 
 - [x] 4.1 Re-run focused unit tests and the original browser reproduction
 - [x] 4.2 Run the repository test suite and mandated `pnpm precommit` gate
+- [x] 4.3 Re-run strict OpenSpec, focused and broad tests, browser proof, and bundle contract

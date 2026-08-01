@@ -12,7 +12,7 @@ The structure viewer SHALL display each newly loaded AlphaFold structure with th
 
 ### Requirement: TED domain annotations are optional
 
-The system SHALL request TED domain annotations for the displayed accession and SHALL NOT fail structure loading when the TED request fails, returns no domains, or contains no valid residue segments.
+The system SHALL request TED domain annotations for the displayed accession and SHALL NOT fail or indefinitely delay structure loading when the TED request fails, stalls, returns no domains, or contains no valid residue segments.
 
 #### Scenario: TED annotations are available
 
@@ -25,6 +25,12 @@ The system SHALL request TED domain annotations for the displayed accession and 
 - **WHEN** the TED request fails or produces no valid domain segments
 - **THEN** the AlphaFold structure still loads normally
 - **AND** the TED domain color option is disabled
+
+#### Scenario: TED annotation request stalls
+
+- **WHEN** the TED request does not settle within five seconds
+- **THEN** the system aborts the optional request
+- **AND** the AlphaFold structure still loads normally with no TED domains
 
 ### Requirement: User can switch structure color modes
 

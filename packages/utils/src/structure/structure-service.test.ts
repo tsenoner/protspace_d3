@@ -15,6 +15,7 @@ describe('StructureService TED domains', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -66,7 +67,9 @@ describe('StructureService TED domains', () => {
       },
       { domainNumber: 2, segments: [{ start: 194, end: 396 }] },
     ]);
-    expect(fetchMock).toHaveBeenCalledWith('https://alphafold.ebi.ac.uk/api/domains/A0A0B4U9L8');
+    expect(fetchMock).toHaveBeenCalledWith('https://alphafold.ebi.ac.uk/api/domains/A0A0B4U9L8', {
+      signal: expect.any(AbortSignal),
+    });
   });
 
   it.each([
@@ -102,5 +105,35 @@ describe('StructureService TED domains', () => {
       url: 'blob:structure',
       tedDomains: [],
     });
+  });
+
+  it('keeps the structure available when the TED request never settles', async () => {
+    vi.useFakeTimers();
+    let tedSignal: AbortSignal | null = null;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/api/prediction/')) {
+        return Promise.resolve(Response.json([prediction]));
+      }
+      if (url.includes('/api/domains/')) {
+        tedSignal = init?.signal instanceof AbortSignal ? init.signal : null;
+        return new Promise<Response>(() => {});
+      }
+      if (url === prediction.cifUrl) {
+        return Promise.resolve(new Response('data_AFDB_model'));
+      }
+      return Promise.resolve(new Response(null, { status: 404 }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    let result: Awaited<ReturnType<typeof StructureService.loadStructure>> | undefined;
+    void StructureService.loadStructure('A0A0B4U9L8').then((value) => {
+      result = value;
+    });
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(result).toMatchObject({ url: 'blob:structure', tedDomains: [] });
+    expect(tedSignal?.aborted).toBe(true);
   });
 });
