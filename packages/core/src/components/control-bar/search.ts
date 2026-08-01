@@ -70,7 +70,7 @@ class ProtspaceProteinSearch extends LitElement {
           : this.searchQuery.trim() && this.searchSuggestions.length === 0
             ? html`
                 <div class="search-suggestions">
-                  <div class="no-results">No matching protein IDs found</div>
+                  <div class="no-results">${this._getEmptyStateMessage()}</div>
                 </div>
               `
             : ''}
@@ -218,6 +218,17 @@ class ProtspaceProteinSearch extends LitElement {
       this.isInputFocused,
     );
     this.highlightedSuggestionIndex = this.searchSuggestions.length > 0 ? 0 : -1;
+  }
+
+  private _getEmptyStateMessage(): string {
+    const normalizedQuery = this.searchQuery.trim().toLowerCase();
+    const matchingProteinId = this.availableProteinIds.find(
+      (proteinId) => proteinId.toLowerCase() === normalizedQuery,
+    );
+
+    return matchingProteinId && this.selectedProteinIds.includes(matchingProteinId)
+      ? 'Protein ID is already selected'
+      : 'No matching protein IDs found';
   }
 
   private _addSelection(id: string) {
