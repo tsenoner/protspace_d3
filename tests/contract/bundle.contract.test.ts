@@ -40,6 +40,7 @@ interface Manifest {
   largeProteinCount: number;
   projectionCount: number;
   labelWithReservedChar: string;
+  negativeTransmembraneCategory: string;
   nullLengthIndex: number;
 }
 
@@ -206,6 +207,12 @@ describe('annotation encoding across the language boundary', () => {
     // "DomA|0.91;DomB|0.82" — a reader that splits on '|' before ';' loses DomB.
     expect(data.annotations.domains.values).toContain('DomA');
     expect(data.annotations.domains.values).toContain('DomB');
+  });
+
+  it('preserves a negative TMbed prediction as a category', () => {
+    expect(data.annotations.predicted_transmembrane.values).toContain(
+      manifest.negativeTransmembraneCategory,
+    );
   });
 
   it('reports a missing numeric value as missing rather than zero', () => {

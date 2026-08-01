@@ -197,7 +197,7 @@ Per-protein predictions from the [Biocentral API](https://biocentral.rostlab.org
 | `predicted_subcellular_location` | LightAttention                       | 10-class subcellular localization          |
 | `predicted_membrane`             | LightAttention                       | Membrane / Soluble                         |
 | `predicted_signal_peptide`       | TMbed                                | True / False (derived from topology)       |
-| `predicted_transmembrane`        | TMbed                                | none / alpha-helical / beta-barrel         |
+| `predicted_transmembrane`        | TMbed                                | non-transmembrane / alpha-helical / beta-barrel |
 
 **Data source**: Batch predictions via Biocentral API (`api.predict()`). TMbed provides per-residue topology labels (`H`=TM helix, `B`=TM beta strand, `S`=signal peptide); signal peptide and transmembrane type are summarized from these labels.
 

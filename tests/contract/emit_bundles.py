@@ -37,11 +37,15 @@ import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from types import SimpleNamespace
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 
 from protspace.data.annotations.encoding import encode_field
+from protspace.data.annotations.retrievers.biocentral_retriever import (
+    BiocentralPredictionRetriever,
+)
 
 # Small enough to eyeball a failure, big enough for a category to have members.
 PROTEIN_COUNT = 10
@@ -72,6 +76,13 @@ LABEL_WITH_RESERVED_CHAR = "Kinase (EC 2.7.11.1); regulatory subunit"
 # swallows the second hit, which is exactly the bug the grammar exists to avoid.
 MULTI_HIT_CELL = f"{encode_field('DomA')}|0.91;{encode_field('DomB')}|0.82"
 
+# Derive this fixture value from the real annotation adapter rather than copying
+# its vocabulary into the contract test. A topology with only inside/outside
+# labels is a completed TMbed prediction with no membrane-spanning segment.
+NEGATIVE_TMBED_CATEGORY = BiocentralPredictionRetriever._extract_transmembrane(
+    [SimpleNamespace(model_name="TMbed", value="oooooiiiii")]
+)
+
 
 def build_annotations_table(ids: list[str]) -> pa.Table:
     """Mimic ``protspace annotate`` output: an ``identifier`` column plus annotations.
@@ -89,6 +100,7 @@ def build_annotations_table(ids: list[str]) -> pa.Table:
         encode_field("Hydrolase")
     ] * rest
     domains = [MULTI_HIT_CELL] + [f"{encode_field('DomB')}|0.75"] * rest
+    predicted_transmembrane = [NEGATIVE_TMBED_CATEGORY] + [""] * rest
 
     # A genuine double column with a null -- distinguishes "missing" from 0 and
     # from NaN across the language boundary. Real bundles carry both string-typed
@@ -101,6 +113,9 @@ def build_annotations_table(ids: list[str]) -> pa.Table:
             "identifier": pa.array(ids, pa.string()),
             "family": pa.array(family, pa.string()),
             "domains": pa.array(domains, pa.string()),
+            "predicted_transmembrane": pa.array(
+                predicted_transmembrane, pa.string()
+            ),
             "length": pa.array(length, pa.float64()),
         }
     )
@@ -308,6 +323,7 @@ def main(out_dir: Path) -> None:
                 "largeProteinCount": LARGE_PROTEIN_COUNT,
                 "projectionCount": len(PROJECTIONS),
                 "labelWithReservedChar": LABEL_WITH_RESERVED_CHAR,
+                "negativeTransmembraneCategory": NEGATIVE_TMBED_CATEGORY,
                 "nullLengthIndex": NULL_LENGTH_INDEX,
             }
         ),

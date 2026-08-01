@@ -67,7 +67,7 @@ class TestTransmembraneExtraction:
     def test_no_transmembrane(self):
         preds = [_make_prediction("TMbed", "oooooooooiiiiiiiiiii")]
         result = BiocentralPredictionRetriever._extract_transmembrane(preds)
-        assert result == "none"
+        assert result == "non-transmembrane"
 
     def test_lowercase_labels(self):
         """TMbed uses lowercase h/b for non-TM side of helix/strand."""
