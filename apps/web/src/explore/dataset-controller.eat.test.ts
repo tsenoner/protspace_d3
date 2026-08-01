@@ -135,4 +135,67 @@ describe('dataset controller EAT settings restore', () => {
       DEFAULT_EAT_CONFIDENCE_THRESHOLD,
     );
   });
+
+  it('preserves settings on initial default load and clears them on explicit reset', async () => {
+    const controlBar = {
+      clearForNewDataset: vi.fn(),
+      hasFileSettings: false,
+    };
+    const legendElement = {
+      clearForNewDataset: vi.fn(),
+      setFileSettings: vi.fn(),
+      applyEatSettings: vi.fn(),
+    };
+    const viewController = {
+      subscribeToViewChanges: vi.fn(() => () => {}),
+      resolveLatestView: vi.fn(),
+      getLatestViewRequest: vi.fn(() => createEmptyExploreViewRequest()),
+      applyLatestViewForDatasetLoad: vi.fn(),
+      setRequestedView: vi.fn(),
+    };
+    const options = {
+      controlBar,
+      dataLoader: {},
+      defaultDatasetName: 'default.parquetbundle',
+      getIsDisposed: () => false,
+      interactionController: {},
+      legendElement,
+      loadQueue: {
+        registerFileLoad: vi.fn(),
+        getLoadMetaForFile: vi.fn(),
+        getRunningLoadMeta: () => null,
+        getLatestSequence: () => 0,
+        resolvePendingLoadFinalization: mocks.resolvePendingLoadFinalization,
+      },
+      overlayController: { update: vi.fn() },
+      plotElement: { eatOverlayEnabled: true },
+      setCurrentDatasetIsDemo: vi.fn(),
+      setCurrentDatasetName: vi.fn(),
+      structureViewer: {},
+      viewController,
+    } as unknown as Parameters<typeof createDatasetController>[0];
+    const controller = createDatasetController(options);
+    const event = {
+      detail: {
+        data,
+        settings: {
+          legendSettings: {},
+          exportOptions: {},
+        },
+        source: 'auto',
+      },
+    } as unknown as Event;
+
+    await controller.handleDataLoaded(event);
+
+    expect(legendElement.clearForNewDataset).toHaveBeenNthCalledWith(1, expect.any(String), false);
+    expect(controlBar.clearForNewDataset).toHaveBeenNthCalledWith(1, expect.any(String), false);
+    expect(legendElement.setFileSettings).toHaveBeenNthCalledWith(1, {}, expect.any(String), false);
+
+    await controller.handleDataLoaded(event);
+
+    expect(legendElement.clearForNewDataset).toHaveBeenNthCalledWith(2, expect.any(String), true);
+    expect(controlBar.clearForNewDataset).toHaveBeenNthCalledWith(2, expect.any(String), true);
+    expect(legendElement.setFileSettings).toHaveBeenNthCalledWith(2, {}, expect.any(String), true);
+  });
 });

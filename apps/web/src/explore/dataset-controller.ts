@@ -133,7 +133,8 @@ export function createDatasetController({
 
       const datasetHash = generateDatasetHash(data);
       const shouldClearPersistedState =
-        loadMeta.kind === 'default' || (loadMeta.kind === 'user' && settings != null);
+        (loadMeta.kind === 'default' && currentDatasetHash !== null) ||
+        (loadMeta.kind === 'user' && settings != null);
 
       legendElement.clearForNewDataset(datasetHash, shouldClearPersistedState);
       controlBar.clearForNewDataset(datasetHash, shouldClearPersistedState);
@@ -141,7 +142,11 @@ export function createDatasetController({
       await loadData(data);
 
       if (settings && loadMeta.kind !== 'opfs') {
-        legendElement.setFileSettings(settings.legendSettings, datasetHash, true);
+        legendElement.setFileSettings(
+          settings.legendSettings,
+          datasetHash,
+          shouldClearPersistedState,
+        );
       }
       if (settings) {
         const eatOverlayEnabled = settings.eatOverlayEnabled ?? true;

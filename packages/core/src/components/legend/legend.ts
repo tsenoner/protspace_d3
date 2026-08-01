@@ -945,6 +945,8 @@ export class ProtspaceLegend extends LitElement {
    * @param settings - All annotation settings from the file, or null to clear
    * @param datasetHash - Optional dataset hash for localStorage keys (required when
    *                      the component's hash isn't yet computed from the new data)
+   * @param clearExistingStorage - Whether file settings replace existing dataset settings. When
+   *                               false, existing annotation settings retain precedence.
    */
   public setFileSettings(
     settings: LegendSettingsMap | null,
