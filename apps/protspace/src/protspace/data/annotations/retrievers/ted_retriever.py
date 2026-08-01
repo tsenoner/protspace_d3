@@ -90,7 +90,7 @@ class TedRetriever(BaseAnnotationRetriever):
                 else:
                     parts.append(f"{cath_label}|{plddt:.1f}")
             else:
-                parts.append(f"unclassified|{plddt:.1f}")
+                parts.append(f"-|{plddt:.1f}")
 
         return ";".join(parts)
 
