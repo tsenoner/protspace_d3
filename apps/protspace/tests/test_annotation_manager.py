@@ -439,6 +439,42 @@ class TestUniProtTransformer:
 class TestIntegration:
     """Integration tests for complete workflows."""
 
+    def test_cached_pdb_states_survive_manager_round_trip(self, tmp_path):
+        """Canonical PDB states should remain stable when loaded from cache."""
+        cache_path = tmp_path / "all_annotations.parquet"
+        pd.DataFrame(
+            {
+                "identifier": [
+                    "unresolved",
+                    "resolved_without_pdb",
+                    "resolved_with_pdb",
+                ],
+                "xref_pdb": ["", "False", "True"],
+                "uniprot_kb_id": ["", "NO_PDB", "HAS_PDB"],
+            }
+        ).to_parquet(cache_path, index=False)
+
+        manager = ProteinAnnotationManager(
+            headers=[
+                "unresolved",
+                "resolved_without_pdb",
+                "resolved_with_pdb",
+            ],
+            annotations=["xref_pdb"],
+            cached_data=pd.read_parquet(cache_path),
+            sources_to_fetch={
+                "uniprot": False,
+                "taxonomy": False,
+                "interpro": False,
+                "ted": False,
+                "biocentral": False,
+            },
+        )
+
+        result = manager.to_pd()
+
+        assert result["xref_pdb"].tolist() == ["", "False", "True"]
+
     @patch("src.protspace.data.annotations.manager.TaxonomyRetriever")
     @patch("src.protspace.data.annotations.manager.UniProtRetriever")
     def test_to_pd_complete_workflow(

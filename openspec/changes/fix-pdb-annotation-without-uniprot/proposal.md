@@ -7,6 +7,7 @@ ProtSpace currently converts an empty PDB cross-reference into `False` even when
 - Preserve an empty `xref_pdb` value for proteins without a resolved UniProt identifier.
 - Continue emitting `False` for resolved UniProt entries that have no PDB cross-reference.
 - Continue emitting `True` for resolved UniProt entries with one or more PDB cross-references.
+- Preserve all three canonical values when transformed annotations are loaded from cache.
 - Add regression coverage for all three states without changing unrelated annotation behavior.
 
 ## Capabilities

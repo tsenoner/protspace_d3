@@ -19,3 +19,9 @@ ProtSpace SHALL emit the UniProt-derived PDB availability annotation as `True` o
 - **WHEN** a protein identifier does not resolve to a UniProt entry
 - **THEN** ProtSpace emits an empty value for `xref_pdb`
 - **AND** downstream missing-value handling can present the annotation as `N/A`
+
+#### Scenario: Cached PDB availability is loaded again
+
+- **WHEN** ProtSpace loads persisted `xref_pdb` values containing the canonical empty, `False`, and `True` states
+- **THEN** the annotation manager emits those same three states unchanged
+- **AND** a cached `False` value does not become `True` during transformation

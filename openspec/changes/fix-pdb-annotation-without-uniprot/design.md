@@ -28,10 +28,17 @@ This keeps provenance at the point where both fields are already available. The 
 
 The producer will emit `""` rather than a new sentinel such as `None` or `N/A`. Existing bundle creation normalizes missing cells to empty strings, and the TypeScript ingestion boundary already converts empty strings to its canonical N/A category. This avoids a wire-format or frontend change.
 
+### Make PDB canonicalization idempotent across cache reads
+
+Persisted annotations already contain the canonical strings `""`, `"False"`, and `"True"`, but cached and freshly retrieved sources share the same merge-and-transform pipeline. The PDB transformation will therefore preserve canonical boolean strings before applying raw PDB-ID truthiness conversion. This keeps mixed cache/fetch runs on one transformation path without allowing a cached `"False"` string to become `"True"`.
+
+Skipping transformations for all cached UniProt data was rejected because the manager can merge cached annotations with newly fetched sources in the same run, and bypassing the shared transformation stage would require broader provenance tracking.
+
 ## Risks / Trade-offs
 
 - **[Risk] A malformed resolved record could omit `uniprot_kb_id`.** → Treat it as unavailable rather than asserting a potentially false negative; this is the conservative evidence interpretation.
 - **[Risk] Existing consumers may have counted unmapped values as `False`.** → The change intentionally corrects that semantic category while leaving mapped entries unchanged.
+- **[Risk] A raw retriever value could resemble a canonical boolean string.** → UniProt PDB cross-references use PDB identifiers, so exact `"True"` and `"False"` values are reserved for ProtSpace's persisted representation.
 
 ## Migration Plan
 
