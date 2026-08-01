@@ -14,3 +14,12 @@
 - [x] 3.1 Re-run the original unmapped-protein reproduction and confirm the output contains the FASTA-derived length.
 - [x] 3.2 Run the affected Python package's lint, format, and non-slow test checks.
 - [x] 3.3 Run the repository-mandated `pnpm precommit` gate before publishing.
+
+## 4. Review Follow-up: Complete Cache Hits
+
+- [x] 4.1 Add a warm-cache pipeline regression for an empty cached length with
+      a matching FASTA sequence and record the expected RED failure.
+- [x] 4.2 Apply the same missing-only FASTA fallback on the complete-cache path
+      without refetching annotations or rewriting the cache.
+- [x] 4.3 Prove that a non-empty cached length remains authoritative.
+- [x] 4.4 Run strict OpenSpec validation and all affected/full verification gates.

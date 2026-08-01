@@ -19,6 +19,19 @@ provide a sequence length.
   FASTA sequence
 - **THEN** the output retains the UniProt sequence length
 
+#### Scenario: Complete annotation cache has a missing sequence length
+
+- **WHEN** a complete annotation cache has an empty sequence length and a
+  matching non-empty FASTA sequence is available
+- **THEN** the warm-cache output length equals the number of residues in that
+  FASTA sequence without refetching annotations
+
+#### Scenario: Complete annotation cache has an existing sequence length
+
+- **WHEN** a complete annotation cache has a non-empty sequence length and a
+  matching FASTA sequence is available
+- **THEN** the warm-cache output retains the cached sequence length
+
 #### Scenario: No source provides a sequence length
 
 - **WHEN** a protein's UniProt annotation has an empty sequence length and no

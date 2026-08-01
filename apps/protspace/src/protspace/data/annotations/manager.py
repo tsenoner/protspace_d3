@@ -39,6 +39,16 @@ from protspace.data.io.writers import AnnotationWriter
 logger = logging.getLogger(__name__)
 
 
+def _resolve_fasta_sequence_length(
+    identifier: str,
+    length: object,
+    sequences: dict[str, str] | None,
+) -> object:
+    """Return a FASTA-derived length only when the existing value is empty."""
+    sequence = sequences.get(identifier, "") if sequences else ""
+    return length if length or not sequence else str(len(sequence))
+
+
 class ProteinAnnotationManager:
     """Orchestrator for protein annotation extraction workflow."""
 
@@ -209,8 +219,13 @@ class ProteinAnnotationManager:
 
         result = []
         for protein in proteins:
-            sequence = self.sequences.get(protein.identifier, "")
-            if protein.annotations.get("length") or not sequence:
+            length = protein.annotations.get("length")
+            resolved_length = _resolve_fasta_sequence_length(
+                protein.identifier,
+                length,
+                self.sequences,
+            )
+            if resolved_length == length:
                 result.append(protein)
                 continue
 
@@ -219,7 +234,7 @@ class ProteinAnnotationManager:
                     identifier=protein.identifier,
                     annotations={
                         **protein.annotations,
-                        "length": str(len(sequence)),
+                        "length": resolved_length,
                     },
                 )
             )

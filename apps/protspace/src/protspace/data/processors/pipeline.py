@@ -350,7 +350,10 @@ class ReductionPipeline:
         self, headers: list[str], embedding_sets: list[EmbeddingSet] = None
     ) -> pd.DataFrame:
         """Fetch annotations from APIs with incremental caching support."""
-        from protspace.data.annotations.manager import ProteinAnnotationManager
+        from protspace.data.annotations.manager import (
+            ProteinAnnotationManager,
+            _resolve_fasta_sequence_length,
+        )
 
         # Extract sequences from FASTA files (if available) to avoid re-fetching
         sequences = self._extract_sequences(embedding_sets) if embedding_sets else {}
@@ -418,6 +421,22 @@ class ReductionPipeline:
                         api_df = cached_df[cols]
                     else:
                         api_df = cached_df
+
+                    if "length" in api_df.columns and sequences:
+                        identifier_col = api_df.columns[0]
+                        api_df = api_df.copy()
+                        api_df["length"] = [
+                            _resolve_fasta_sequence_length(
+                                identifier,
+                                length,
+                                sequences,
+                            )
+                            for identifier, length in zip(
+                                api_df[identifier_col],
+                                api_df["length"],
+                                strict=True,
+                            )
+                        ]
 
                     # Warn if cached annotations are all empty
                     data_cols = [c for c in api_df.columns if c != "identifier"]

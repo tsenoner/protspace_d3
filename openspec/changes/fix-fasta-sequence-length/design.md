@@ -7,6 +7,11 @@ Biocentral requests. Its primary annotation rows still come from UniProt, so an
 unmapped identifier retains UniProt's empty `length` value through merge,
 transformation, and bundle output.
 
+When every requested annotation column is present in `all_annotations.parquet`,
+the reduction pipeline returns that cached DataFrame before constructing the
+manager. Therefore the manager-only fallback does not repair empty lengths on
+normal warm-cache reruns.
+
 The fix must remain scoped to missing length metadata. Existing UniProt values
 are authoritative, and the annotation manager must continue to work when no
 FASTA sequence is available.
@@ -18,6 +23,7 @@ FASTA sequence is available.
 - Fill an empty sequence length from the matching local FASTA sequence.
 - Preserve non-empty UniProt sequence lengths.
 - Apply the fallback before annotation rows are merged and formatted.
+- Apply the fallback to complete cache hits without refetching API annotations.
 - Protect both fallback and precedence behavior with focused tests.
 
 **Non-Goals:**
@@ -54,6 +60,20 @@ Any non-empty UniProt `length` value remains unchanged, even if it differs from
 the local sequence length. The issue concerns unmapped proteins; defining
 canonical-versus-construct reconciliation is outside this change.
 
+### Enrich complete cache hits before returning them
+
+When the cache contains all requested columns and annotation refetching is not
+requested, the pipeline will apply the same missing-only length rule to the
+selected cached DataFrame before merging custom CSV annotations. This preserves
+the cache-hit fast path and avoids API calls while ensuring warm-cache output
+matches cold-cache output.
+
+The manager and pipeline cache branch will share the scalar precedence rule so
+that an empty value is filled from a matching non-empty sequence and every
+non-empty cached or UniProt value is retained. The cached Parquet file itself is
+not rewritten on a read-only complete-cache hit; the derived value is local to
+the current output, preserving existing cache lifecycle semantics.
+
 ## Risks / Trade-offs
 
 - **[Identifier mismatch prevents fallback]** → Continue using the pipeline's
@@ -62,7 +82,10 @@ canonical-versus-construct reconciliation is outside this change.
 - **[Mutation leaks into retriever or cache data]** → Return copied
   `ProteinAnnotations` values only for rows that receive the fallback.
 - **[Mapped lengths are accidentally overwritten]** → Add a focused
-  precedence test alongside the regression test.
+  precedence test alongside the regression test, including a warm-cache row.
+- **[Warm-cache fix triggers network work or rewrites cache]** → Keep the
+  complete-cache early-return branch and enrich a copy of its selected DataFrame
+  without constructing the annotation manager or persisting the derived value.
 
 ## Migration Plan
 
