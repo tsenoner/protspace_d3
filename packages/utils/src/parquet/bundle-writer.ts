@@ -11,10 +11,10 @@
  * - Delimiter: ---PARQUET_DELIMITER--- (present when a 4th part follows)
  * - Part 4: settings.parquet (settings_json column) — present whenever settings are
  *   included; also written as a MANDATORY ZERO-BYTE placeholder when statistics are
- *   included without settings, so the statistics part keeps a fixed slot (5)
+ *   carried without settings, so the statistics part keeps a fixed slot (5)
  * - Delimiter: ---PARQUET_DELIMITER--- (present when a 5th part follows)
- * - Part 5: statistics.parquet (tidy annotation/cluster stat rows), only when statistics
- *   are included
+ * - Part 5: statistics.parquet — copied verbatim from the source bundle, never
+ *   re-serialized. See `createParquetBundle` for why.
  *
  * Resulting layouts: 3 parts (no settings, no statistics), 4 parts (settings only), or
  * 5 parts (statistics present, with part 4 either real settings or the zero-byte
@@ -22,8 +22,9 @@
  */
 
 import { parquetWriteBuffer } from 'hyparquet-writer';
-import type { VisualizationData, BundleSettings, ProjectionStatisticRow } from '../types';
+import type { VisualizationData, BundleSettings } from '../types';
 import { BUNDLE_DELIMITER_BYTES } from './constants';
+import { assertNoBundleDelimiter } from './delimiter-utils';
 import { bigIntReplacer } from './bigint-utils';
 import { isNumericAnnotation } from '../visualization/numeric-binning.js';
 import { getProteinAnnotationIndices } from '../visualization/annotation-data-access.js';
@@ -228,28 +229,6 @@ function createSettingsParquet(settings: BundleSettings): ArrayBuffer {
   return parquetWriteBuffer({ columnData });
 }
 
-/**
- * Serialize the tidy statistics table (5th part). Column names and order mirror the backend's
- * `STATS_SCHEMA`, so a re-exported bundle reads back exactly like the original.
- */
-function createStatisticsParquet(rows: readonly ProjectionStatisticRow[]): ArrayBuffer {
-  const columnData: ColumnData[] = [
-    { name: 'space_kind', data: rows.map((row) => row.space_kind), type: 'STRING' },
-    { name: 'space_name', data: rows.map((row) => row.space_name), type: 'STRING' },
-    { name: 'annotation', data: rows.map((row) => row.annotation), type: 'STRING' },
-    { name: 'stat_family', data: rows.map((row) => row.stat_family), type: 'STRING' },
-    { name: 'label_kind', data: rows.map((row) => row.label_kind), type: 'STRING' },
-    { name: 'metric', data: rows.map((row) => row.metric), type: 'STRING' },
-    { name: 'metric_kind', data: rows.map((row) => row.metric_kind), type: 'STRING' },
-    { name: 'value', data: rows.map((row) => row.value), type: 'DOUBLE' },
-    // `?? null` (not ''): the column is OPTIONAL in parquet, and a NULL provenance cell must
-    // survive a re-export as NULL, not decay into an empty string.
-    { name: 'extra_json', data: rows.map((row) => row.extra_json ?? null), type: 'STRING' },
-  ];
-
-  return parquetWriteBuffer({ columnData });
-}
-
 function hasBundleSettings(settings: BundleSettings | undefined): settings is BundleSettings {
   if (!settings) {
     return false;
@@ -306,16 +285,18 @@ export interface CreateBundleOptions {
   includeSettings?: boolean;
   /** Persisted settings to include (required if includeSettings is true) */
   settings?: BundleSettings;
-  /**
-   * Include `data.statistics` as the 5th part. Defaults to true. Pass false when the exported
-   * data is a subset of what the statistics were scored on — whole-dataset scores attached to a
-   * slice read as describing the slice.
-   */
-  includeStatistics?: boolean;
 }
 
 /**
  * Create a .parquetbundle ArrayBuffer from VisualizationData.
+ *
+ * Parts 1-3 are rebuilt from `data`; part 5 is copied verbatim. That asymmetry is
+ * deliberate — the browser authored the annotations and projections, but not the
+ * statistics, and it cannot faithfully rewrite them: hyparquet-writer infers a schema
+ * from decoded JS values, which narrows INT64 to INT32, degrades an all-null column to
+ * BYTE_ARRAY, and drops the `ARROW:schema` metadata pyarrow writes by default. Re-serializing
+ * would also silently discard any column added by a newer `protspace stats` release.
+ * Copying the bytes is the only way this stays lossless as the producer's schema grows.
  *
  * @param data - The visualization data to export
  * @param options - Options for bundle creation
@@ -325,28 +306,46 @@ export function createParquetBundle(
   data: VisualizationData,
   options: CreateBundleOptions = {},
 ): ArrayBuffer {
-  const { includeSettings = false, settings, includeStatistics = true } = options;
+  const { includeSettings = false, settings } = options;
 
   // Create the three required parts
   const annotationsBuffer = createAnnotationsParquet(data);
   const metadataBuffer = createProjectionsMetadataParquet(data);
   const projectionsBuffer = createProjectionsDataParquet(data);
 
-  const buffers: ArrayBuffer[] = [annotationsBuffer, metadataBuffer, projectionsBuffer];
+  const parts: [string, ArrayBuffer][] = [
+    ['annotations', annotationsBuffer],
+    ['projections metadata', metadataBuffer],
+    ['projections data', projectionsBuffer],
+  ];
 
-  const settingsBuffer =
-    includeSettings && hasBundleSettings(settings) ? createSettingsParquet(settings) : null;
-  const statistics = includeStatistics ? (data.statistics ?? []) : [];
-
-  if (statistics.length > 0) {
-    // Part order is fixed, so a bundle with statistics but no settings still needs the 4th slot —
-    // a zero-byte placeholder, exactly what the Python writer emits.
-    buffers.push(settingsBuffer ?? new ArrayBuffer(0), createStatisticsParquet(statistics));
-  } else if (settingsBuffer) {
-    buffers.push(settingsBuffer);
+  // Optionally add settings as 4th part
+  if (includeSettings && hasBundleSettings(settings)) {
+    parts.push(['settings', createSettingsParquet(settings)]);
   }
 
-  return concatenateBuffers(buffers, BUNDLE_DELIMITER_BYTES);
+  // Carry a statistics part read from the source bundle back out as part 5,
+  // mirroring `write_bundle`: a zero-byte settings slot keeps it at that
+  // position when the export has no settings of its own. A subset export drops the
+  // part upstream in `sliceVisualizationDataByIndices` — whole-dataset scores attached
+  // to a slice would read as describing the slice.
+  if (data.statistics) {
+    if (parts.length === 3) parts.push(['settings', new ArrayBuffer(0)]);
+    parts.push(['statistics', data.statistics]);
+  }
+
+  // The delimiter is in-band and unescaped, so a part containing it would split
+  // into two on read-back. The Python producer guards every part it writes; do
+  // the same here or the invariant holds in only one direction. Annotation text
+  // and legend category names are user-authored, so this is reachable.
+  for (const [name, buffer] of parts) {
+    assertNoBundleDelimiter(buffer, name);
+  }
+
+  return concatenateBuffers(
+    parts.map(([, buffer]) => buffer),
+    BUNDLE_DELIMITER_BYTES,
+  );
 }
 
 /**

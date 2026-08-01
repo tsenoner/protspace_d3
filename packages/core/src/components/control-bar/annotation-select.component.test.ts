@@ -13,7 +13,7 @@ type AnnotationSelectElement = HTMLElement & {
   selectedProjection: string;
   tooltipAnnotations: string[];
   eatAnnotations: string[];
-  statistics: readonly ProjectionStatisticRow[];
+  statisticsRows: readonly ProjectionStatisticRow[];
   updateComplete: Promise<unknown>;
 };
 
@@ -24,7 +24,7 @@ async function setup(initial: Partial<AnnotationSelectElement> = {}) {
   el.selectedProjection = initial.selectedProjection ?? '';
   el.tooltipAnnotations = initial.tooltipAnnotations ?? [];
   el.eatAnnotations = initial.eatAnnotations ?? [];
-  el.statistics = initial.statistics ?? [];
+  el.statisticsRows = initial.statisticsRows ?? [];
   document.body.appendChild(el);
   await el.updateComplete;
   return el;
@@ -190,7 +190,7 @@ describe('protspace-annotation-select statistics badge', () => {
     // The numbers live in the projection-metadata panel now; the badge only says they exist.
     const el = await setup({
       annotations: [...CUSTOM_ANNOTATIONS, 'gene_name'],
-      statistics: [statRow()],
+      statisticsRows: [statRow()],
       selectedProjection: 'umap',
     });
     await openDropdown(el);
@@ -207,7 +207,7 @@ describe('protspace-annotation-select statistics badge', () => {
   it('drops the badge when the statistics are for a different projection', async () => {
     const el = await setup({
       annotations: CUSTOM_ANNOTATIONS,
-      statistics: [statRow()],
+      statisticsRows: [statRow()],
       selectedProjection: 'pca',
     });
     await openDropdown(el);
@@ -218,7 +218,7 @@ describe('protspace-annotation-select statistics badge', () => {
   it('does not rebuild the list when the pointer crosses a row', async () => {
     const el = await setup({
       annotations: CUSTOM_ANNOTATIONS,
-      statistics: [statRow()],
+      statisticsRows: [statRow()],
       selectedProjection: 'umap',
     });
     await openDropdown(el);

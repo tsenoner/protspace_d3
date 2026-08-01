@@ -19,7 +19,7 @@ import { projectionMetadataStyles } from './projection-metadata.styles';
 class ProtspaceProjectionMetadata extends LitElement {
   @property({ type: Object }) projection: Projection | null = null;
   /** Rows of the optional `statistics.parquet` part; absent unless prepared with `--stats`. */
-  @property({ type: Array }) statistics?: readonly ProjectionStatisticRow[];
+  @property({ type: Array }) statisticsRows?: readonly ProjectionStatisticRow[];
   /** Annotation currently coloring the plot, which the quality section is scored on. */
   @property({ type: String, attribute: 'selected-annotation' }) selectedAnnotation = '';
 
@@ -29,7 +29,7 @@ class ProtspaceProjectionMetadata extends LitElement {
     const metadata = this._getProjectionMetadata();
     // Only this projection's own scores: the section is scoped by the panel it sits in.
     const stats = annotationStatSummary(
-      this.statistics,
+      this.statisticsRows,
       this.selectedAnnotation,
       this.projection?.name ?? '',
     );

@@ -33,7 +33,12 @@ export function sliceVisualizationDataByIndices(
     // Statistics are scored over the whole dataset; carried onto a slice they would claim to
     // describe the subset. Dropping them here makes every subset self-describing, so no
     // exporter or consumer of sliced data has to re-derive that rule.
+    //
+    // Both representations must go together: `statistics` is what an export re-emits and
+    // `statisticsRows` is what the UI renders, so keeping either one would leave a slice
+    // that lies in one of the two directions. This is the only place they are cleared.
     statistics: undefined,
+    statisticsRows: undefined,
     protein_ids: keptIndices.map((index) => data.protein_ids[index]),
     projections: data.projections.map((projection) => {
       const dim = projection.dimension;

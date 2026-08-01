@@ -136,8 +136,6 @@ export const PROJECTION_STATISTIC_COLUMNS = [
 export interface VisualizationData {
   protein_ids: string[];
   projections: Projection[];
-  /** Rows of the optional `statistics.parquet` bundle part; absent when not prepared with `--stats`. */
-  statistics?: readonly ProjectionStatisticRow[];
   annotations: Record<string, Annotation>;
   annotation_data: Record<string, AnnotationData>;
   numeric_annotation_data?: Record<string, (number | null)[]>;
@@ -145,6 +143,19 @@ export interface VisualizationData {
   annotation_predicted?: AnnotationPredictedData;
   annotation_scores?: Record<string, (number[] | null)[][]>;
   annotation_evidence?: Record<string, (string | null)[][]>;
+  /**
+   * Raw projection-statistics parquet part (bundle part 5) as read, carried
+   * unparsed so an export re-emits it instead of dropping it. This is the
+   * authoritative copy — a column the reader below does not model still survives
+   * a load/export round trip, because nothing re-serializes this part.
+   */
+  statistics?: ArrayBuffer;
+  /**
+   * The same part parsed for rendering, derived from `statistics` at load and never
+   * written back to it. The two must be cleared together whenever the underlying data
+   * changes; `sliceVisualizationDataByIndices` is the one place that happens.
+   */
+  statisticsRows?: readonly ProjectionStatisticRow[];
 }
 
 export interface PlotDataPoint {

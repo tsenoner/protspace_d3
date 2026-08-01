@@ -615,7 +615,7 @@ export class ProtspaceControlBar extends LitElement {
               .eatAnnotations=${this._eatAnnotationKeys}
               .selectedAnnotation=${this.selectedAnnotation}
               .selectedProjection=${this.selectedProjection}
-              .statistics=${this._currentData?.statistics ?? NO_STATISTICS}
+              .statisticsRows=${this._currentData?.statisticsRows ?? NO_STATISTICS}
               .tooltipAnnotations=${this.tooltipAnnotations}
               @annotation-select=${this.handleAnnotationSelected}
               @tooltip-annotation-toggle=${this.handleTooltipAnnotationToggle}

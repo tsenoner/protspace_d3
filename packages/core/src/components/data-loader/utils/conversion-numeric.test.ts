@@ -712,6 +712,7 @@ describe('annotation_data storage shape', () => {
       annotationIdColumn: 'identifier',
       projectionsMetadata: [{ projection_name: 'UMAP', dimensions: 2 }],
       settings: null,
+      statistics: null,
       formatVersion: 2,
     };
 

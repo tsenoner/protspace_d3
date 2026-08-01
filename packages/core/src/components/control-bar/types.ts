@@ -52,7 +52,7 @@ export interface ProtspaceData {
   protein_ids?: string[];
   annotation_predicted?: AnnotationPredictedData;
   /** Rows of the bundle's optional statistics part (backend `--stats`); absent otherwise. */
-  statistics?: readonly ProjectionStatisticRow[];
+  statisticsRows?: readonly ProjectionStatisticRow[];
 }
 
 export interface DataChangeDetail {

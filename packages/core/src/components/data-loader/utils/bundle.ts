@@ -30,11 +30,18 @@ export interface BundleExtractionResult {
   /** Settings loaded from bundle (null if not present) */
   settings: BundleSettings | null;
   /**
-   * Rows of the optional statistics part (5th); null when the bundle has none. Optional so
-   * callers that build this shape by hand — chiefly tests — need not restate it, matching how
-   * `VisualizationData.statistics` is declared.
+   * Raw projection-statistics part (part 5), unparsed, null if not present. This is the
+   * authoritative copy: an export re-emits these bytes verbatim, so a column this reader
+   * does not model still survives the round trip.
    */
-  statistics?: readonly ProjectionStatisticRow[] | null;
+  statistics: ArrayBuffer | null;
+  /**
+   * The same part parsed for rendering, derived once from `statistics` and never written
+   * back to it; null when the bundle has none or the part was unreadable. Optional so
+   * callers that build this shape by hand — chiefly tests — need not restate it, matching
+   * how `VisualizationData.statisticsRows` is declared.
+   */
+  statisticsRows?: readonly ProjectionStatisticRow[] | null;
   /**
    * Bundle annotation format version, read from the `protspace_format_version`
    * parquet key-value metadata on the annotations part (part 1). `1` when the
@@ -64,10 +71,16 @@ function readFormatVersion(metadata: FileMetaData): number {
 /**
  * Extract rows and optional settings from a parquetbundle.
  *
- * Supports three formats:
+ * Supports every layout the Python producer can write (see `_parse_bundle` in
+ * `apps/protspace/src/protspace/data/io/bundle.py`, which bounds itself to 3-5 parts):
  * - 2 delimiters (3 parts): Original format without settings
  * - 3 delimiters (4 parts): Extended format with settings
- * - 4 delimiters (5 parts): With projection-quality statistics (backend `--stats`)
+ * - 4 delimiters (5 parts): Settings plus a projection-statistics part (backend `--stats`).
+ *   The part is returned verbatim so an export can re-emit it byte for byte, and
+ *   separately parsed into rows for rendering — the parse is a derived view and never
+ *   the source of the re-emitted bytes. The settings slot may be zero bytes when the
+ *   producer wrote statistics without settings — it exists only to keep the statistics
+ *   part at a fixed position.
  */
 export async function extractRowsFromParquetBundle(
   arrayBuffer: ArrayBuffer,
@@ -75,7 +88,7 @@ export async function extractRowsFromParquetBundle(
   const uint8Array = new Uint8Array(arrayBuffer);
   const delimiterPositions = findBundleDelimiterPositions(uint8Array);
 
-  // 2 delimiters (core only), 3 (with settings) or 4 (with settings + statistics)
+  // 2 delimiters (core only), 3 (with settings), or 4 (settings + statistics).
   if (delimiterPositions.length < 2 || delimiterPositions.length > 4) {
     throw new Error(
       `Expected 2 to 4 delimiters in parquetbundle, found ${delimiterPositions.length}`,
@@ -86,8 +99,10 @@ export async function extractRowsFromParquetBundle(
    * Copy out part `index` — part 0 starts at byte 0, every later part right after the
    * preceding delimiter, and the final part runs to the end of the buffer. Order is
    * fixed by the writer: annotations, projections metadata, projections, settings,
-   * statistics. Returns null for a zero-byte slot (an empty settings placeholder when
-   * a bundle carries statistics but no settings).
+   * statistics. Bounding each part by the *next* delimiter is what keeps a trailing part
+   * from being glued onto its predecessor's tail — without it, a 5-part bundle would hand
+   * the settings parser the statistics part too. Returns null for a zero-byte slot (an
+   * empty settings placeholder when a bundle carries statistics but no settings).
    */
   const partAt = (index: number): ArrayBuffer | null => {
     // Out of range must be null, not a slice: `delimiterPositions[index - 1]` is undefined,
@@ -143,16 +158,20 @@ export async function extractRowsFromParquetBundle(
   part1 = null;
   const projectionsMetadataData = await parquetReadObjects({ file: part2 });
   part2 = null;
-  const projectionsData = await parquetReadObjects({ file: part3! });
+  const projectionsData = await parquetReadObjects({ file: part3 });
   part3 = null;
 
   // Parse settings if present
   let settings: BundleSettings | null = null;
-  if (part4) {
+  // A zero-byte settings part is the producer's sentinel for "no settings, but
+  // statistics follow" — absent settings, not a corrupt part, so don't warn.
+  if (part4 && part4.byteLength > 0) {
     settings = await extractSettings(part4);
   }
 
-  const statistics = part5 ? await extractStatistics(part5) : null;
+  // Derived view only. `part5` itself is what gets re-exported, so a parse failure here
+  // costs the charts, never the bytes.
+  const statisticsRows = part5 ? await extractStatistics(part5) : null;
 
   // Validate projection rows for expected bundle shape
   validateProjectionRows(projectionsData);
@@ -194,7 +213,8 @@ export async function extractRowsFromParquetBundle(
     annotationIdColumn: finalAnnotationIdColumn,
     projectionsMetadata: projectionsMetadataData,
     settings,
-    statistics,
+    statistics: part5,
+    statisticsRows,
     formatVersion,
   };
 }
@@ -205,6 +225,10 @@ export async function extractRowsFromParquetBundle(
  *
  * Returns null when the part is unreadable or doesn't look like the statistics table:
  * statistics are supplementary, so a malformed part must never fail the whole load.
+ *
+ * This is a render-only view. The caller keeps the original bytes and re-exports those, so
+ * nothing here — a failed parse, an unmodelled column, a coerced type — can reach a file the
+ * user saves.
  */
 async function extractStatistics(
   statisticsBuffer: ArrayBuffer,
@@ -217,8 +241,8 @@ async function extractStatistics(
     // Guard against a future/renamed schema landing in this slot. `annotationStatSummary`
     // branches on all three `*_kind` columns, so a rename there yields zero ⓘ icons and no
     // warning at all — indistinguishable from a bundle prepared without `--stats`.
-    // The shared column list is `satisfies`-tied to ProjectionStatisticRow; only the
-    // provenance column is optional.
+    // Deliberately a subset check, not an equality one: a newer backend adding a column
+    // must still render here, and it rides out on the verbatim bytes regardless.
     const columns = Object.keys(rows[0]);
     const required = PROJECTION_STATISTIC_COLUMNS.filter((column) => column !== 'extra_json');
     if (!required.every((column) => columns.includes(column))) {
@@ -226,9 +250,9 @@ async function extractStatistics(
       return null;
     }
 
-    // hyparquet yields BigInt for INT64 columns. The official writer types `value` DOUBLE,
-    // but a third-party part with an all-integer value column must still render as numbers
-    // and survive a re-export (the DOUBLE writer throws on BigInt).
+    // hyparquet yields BigInt for INT64 columns, which `formatStatValue` cannot render.
+    // The official writer types `value` DOUBLE, but a third-party part with an all-integer
+    // value column must still display as numbers.
     for (const row of rows) {
       if (typeof row.value === 'bigint') row.value = Number(row.value);
     }

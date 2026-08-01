@@ -29,7 +29,7 @@ class ProtspaceAnnotationSelect extends LitElement {
   @property({ type: Array }) tooltipAnnotations: string[] = [];
   @property({ type: String }) placeholder: string = 'Select annotation';
   /** Rows of the bundle's optional statistics part; empty when it was prepared without `--stats`. */
-  @property({ type: Array }) statistics: readonly ProjectionStatisticRow[] = [];
+  @property({ type: Array }) statisticsRows: readonly ProjectionStatisticRow[] = [];
   /** Projection the statistics are reported for; statistics are scored per projection. */
   @property({ type: String, attribute: 'selected-projection' }) selectedProjection: string = '';
 
@@ -225,7 +225,7 @@ class ProtspaceAnnotationSelect extends LitElement {
   private hasStats = new Map<string, boolean>();
 
   willUpdate(changed: PropertyValues<this>) {
-    if (changed.has('statistics') || changed.has('selectedProjection')) {
+    if (changed.has('statisticsRows') || changed.has('selectedProjection')) {
       this.hasStats.clear();
     }
   }
@@ -233,7 +233,8 @@ class ProtspaceAnnotationSelect extends LitElement {
   private hasStatistics(annotation: string): boolean {
     let scored = this.hasStats.get(annotation);
     if (scored === undefined) {
-      scored = annotationStatSummary(this.statistics, annotation, this.selectedProjection) !== null;
+      scored =
+        annotationStatSummary(this.statisticsRows, annotation, this.selectedProjection) !== null;
       this.hasStats.set(annotation, scored);
     }
     return scored;

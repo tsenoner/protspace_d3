@@ -50,8 +50,9 @@ describe('statistics part of a parquetbundle', () => {
     const extraction = await extractRowsFromParquetBundle(bundleWith(SETTINGS, STATISTICS));
 
     expect(extraction.settings).not.toBeNull();
-    expect(extraction.statistics).not.toBeNull();
-    expect(extraction.statistics!.length).toBeGreaterThan(0);
+    // Both representations: the bytes an export re-emits, and the rows the UI renders.
+    expect(new Uint8Array(extraction.statistics!)).toEqual(STATISTICS);
+    expect(extraction.statisticsRows!.length).toBeGreaterThan(0);
   });
 
   it('reads the statistics part when the settings slot is empty', async () => {
@@ -60,7 +61,7 @@ describe('statistics part of a parquetbundle', () => {
     );
 
     expect(extraction.settings).toBeNull();
-    expect(extraction.statistics!.length).toBeGreaterThan(0);
+    expect(extraction.statisticsRows!.length).toBeGreaterThan(0);
   });
 
   it('keeps 3- and 4-part bundles working, with no statistics', async () => {
@@ -68,19 +69,21 @@ describe('statistics part of a parquetbundle', () => {
     expect((await extractRowsFromParquetBundle(bundleWith(SETTINGS))).statistics).toBeNull();
   });
 
-  it('ignores a statistics part that is not a parquet file', async () => {
+  it('ignores a statistics part that is not a parquet file, but still carries it', async () => {
     const notParquet = new TextEncoder().encode('definitely not parquet');
     const extraction = await extractRowsFromParquetBundle(bundleWith(SETTINGS, notParquet));
 
-    // Supplementary data must never fail the load.
-    expect(extraction.statistics).toBeNull();
+    // Supplementary data must never fail the load: the rows are dropped...
+    expect(extraction.statisticsRows).toBeNull();
     expect(extraction.projections.length).toBeGreaterThan(0);
+    // ...but the bytes are not. Parsing is a render concern; carriage is not conditional on it.
+    expect(new Uint8Array(extraction.statistics!)).toEqual(notParquet);
   });
 
   it('preserves the tidy row schema the UI keys off', async () => {
-    const { statistics } = await extractRowsFromParquetBundle(bundleWith(SETTINGS, STATISTICS));
+    const { statisticsRows } = await extractRowsFromParquetBundle(bundleWith(SETTINGS, STATISTICS));
 
-    expect(Object.keys(statistics![0]).sort()).toEqual([
+    expect(Object.keys(statisticsRows![0]).sort()).toEqual([
       'annotation',
       'extra_json',
       'label_kind',
@@ -93,16 +96,17 @@ describe('statistics part of a parquetbundle', () => {
     ]);
   });
 
-  it('carries statistics through conversion onto VisualizationData', async () => {
+  it('carries both statistics representations through conversion onto VisualizationData', async () => {
     const extraction = await extractRowsFromParquetBundle(bundleWith(SETTINGS, STATISTICS));
     const data = await convertParquetToVisualizationDataOptimized(extraction);
 
     expect(data.statistics).toBe(extraction.statistics);
+    expect(data.statisticsRows).toBe(extraction.statisticsRows);
   });
 
   it('summarises a real annotation against the projection it was scored in', async () => {
-    const { statistics } = await extractRowsFromParquetBundle(bundleWith(SETTINGS, STATISTICS));
-    const summary = annotationStatSummary(statistics!, 'major_group', 'ProtT5 — UMAP 2');
+    const { statisticsRows } = await extractRowsFromParquetBundle(bundleWith(SETTINGS, STATISTICS));
+    const summary = annotationStatSummary(statisticsRows!, 'major_group', 'ProtT5 — UMAP 2');
 
     // Values from the fixture run: UMAP separates `major_group` better than the raw ProtT5
     // embedding does (0.326 vs 0.095), and the auto-clusters partly recover it.
@@ -117,9 +121,9 @@ describe('statistics part of a parquetbundle', () => {
   });
 
   it('reports no statistics for an annotation the run did not score', async () => {
-    const { statistics } = await extractRowsFromParquetBundle(bundleWith(SETTINGS, STATISTICS));
+    const { statisticsRows } = await extractRowsFromParquetBundle(bundleWith(SETTINGS, STATISTICS));
 
-    expect(annotationStatSummary(statistics!, 'not_scored', 'ProtT5 — UMAP 2')).toBeNull();
+    expect(annotationStatSummary(statisticsRows!, 'not_scored', 'ProtT5 — UMAP 2')).toBeNull();
   });
 
   it('ignores a statistics part whose kind columns were renamed', async () => {
@@ -143,13 +147,16 @@ describe('statistics part of a parquetbundle', () => {
 
     const extraction = await extractRowsFromParquetBundle(bundleWith(SETTINGS, drifted));
 
-    expect(extraction.statistics).toBeNull();
+    expect(extraction.statisticsRows).toBeNull();
     expect(warn).toHaveBeenCalledWith('Statistics parquet has an unexpected schema, ignoring it');
+    // Unrenderable is not the same as unwanted: the drifted part still exports intact, so a
+    // rename in the producer costs the ⓘ icons and nothing on disk.
+    expect(new Uint8Array(extraction.statistics!)).toEqual(drifted);
   });
 
   it('coerces an INT64 value column to numbers', async () => {
     // pyarrow types an all-integer column int64 by default; hyparquet reads that as BigInt,
-    // which would render every metric as '—' and crash the DOUBLE writer on re-export.
+    // which `formatStatValue` would render as '—' for every metric.
     const int64Stats = new Uint8Array(
       parquetWriteBuffer({
         columnData: [
@@ -166,14 +173,28 @@ describe('statistics part of a parquetbundle', () => {
       }),
     );
 
-    const { statistics } = await extractRowsFromParquetBundle(bundleWith(SETTINGS, int64Stats));
+    const { statisticsRows } = await extractRowsFromParquetBundle(bundleWith(SETTINGS, int64Stats));
 
-    expect(statistics![0].value).toBe(7);
-    expect(typeof statistics![0].value).toBe('number');
+    expect(statisticsRows![0].value).toBe(7);
+    expect(typeof statisticsRows![0].value).toBe('number');
   });
 
-  it('keeps a NULL extra_json cell NULL across a re-export', async () => {
-    const withNullExtra = new Uint8Array(
+  it('re-exports the statistics part byte for byte', async () => {
+    const extraction = await extractRowsFromParquetBundle(bundleWith(SETTINGS, STATISTICS));
+    const data = convertParquetToVisualizationData(extraction);
+
+    const exported = await extractRowsFromParquetBundle(createParquetBundle(data));
+
+    // Byte equality, not row equality. Row equality is what the deleted re-serializer used to
+    // assert, and it passed while silently dropping every column the matcher didn't name.
+    expect(new Uint8Array(exported.statistics!)).toEqual(STATISTICS);
+  });
+
+  it('re-exports a column the reader does not model', async () => {
+    // The forward-compatibility case, and the reason the part is carried rather than rebuilt:
+    // `protspace stats` gains columns over time (per-category scores are next). A reader that
+    // re-serialized from its own typed rows would drop this one with no error anywhere.
+    const withFutureColumn = new Uint8Array(
       parquetWriteBuffer({
         columnData: [
           { name: 'space_kind', data: ['projection'], type: 'STRING' },
@@ -185,34 +206,22 @@ describe('statistics part of a parquetbundle', () => {
           { name: 'metric_kind', data: ['validity'], type: 'STRING' },
           { name: 'value', data: [0.5], type: 'DOUBLE' },
           { name: 'extra_json', data: [null], type: 'STRING' },
+          { name: 'not_a_column_this_reader_knows', data: ['snake toxins'], type: 'STRING' },
         ],
       }),
     );
-    const extraction = await extractRowsFromParquetBundle(bundleWith(SETTINGS, withNullExtra));
-    const data = convertParquetToVisualizationData(extraction);
+    const extraction = await extractRowsFromParquetBundle(bundleWith(SETTINGS, withFutureColumn));
+    // The subset schema guard must admit it rather than reject the whole part.
+    expect(extraction.statisticsRows).toHaveLength(1);
 
+    const data = convertParquetToVisualizationData(extraction);
     const exported = await extractRowsFromParquetBundle(createParquetBundle(data));
 
-    // '' would be a lossy rewrite: absent provenance must read back as absent.
-    expect(exported.statistics![0].extra_json ?? null).toBeNull();
-  });
-
-  it('round-trips the statistics part through an export', async () => {
-    const extraction = await extractRowsFromParquetBundle(bundleWith(SETTINGS, STATISTICS));
-    const data = convertParquetToVisualizationData(extraction);
-    expect(data.statistics!.length).toBeGreaterThan(0);
-
-    const exported = await extractRowsFromParquetBundle(createParquetBundle(data));
-
-    expect(exported.statistics).not.toBeNull();
-    expect(exported.statistics!.length).toBe(data.statistics!.length);
-    expect(exported.statistics![0]).toMatchObject({
-      space_kind: data.statistics![0].space_kind,
-      space_name: data.statistics![0].space_name,
-      annotation: data.statistics![0].annotation,
-      metric: data.statistics![0].metric,
-      value: data.statistics![0].value,
-    });
+    expect(new Uint8Array(exported.statistics!)).toEqual(withFutureColumn);
+    expect(exported.statisticsRows![0]).toHaveProperty(
+      'not_a_column_this_reader_knows',
+      'snake toxins',
+    );
   });
 
   it('round-trips settings alongside statistics (full 5-part bundle)', async () => {
@@ -226,19 +235,7 @@ describe('statistics part of a parquetbundle', () => {
 
     expect(exported.settings).not.toBeNull();
     expect(exported.settings!.eatConfidenceThreshold).toBe(0.75);
-    expect(exported.statistics).not.toBeNull();
-    expect(exported.statistics!.length).toBe(data.statistics!.length);
-  });
-
-  it('omits the statistics part when the caller opts out', async () => {
-    const extraction = await extractRowsFromParquetBundle(bundleWith(SETTINGS, STATISTICS));
-    const data = convertParquetToVisualizationData(extraction);
-
-    const exported = await extractRowsFromParquetBundle(
-      createParquetBundle(data, { includeStatistics: false }),
-    );
-
-    expect(exported.statistics).toBeNull();
+    expect(new Uint8Array(exported.statistics!)).toEqual(STATISTICS);
   });
 
   it('does not misparse the settings slot from a 3-part bundle (partAt range guard)', async () => {

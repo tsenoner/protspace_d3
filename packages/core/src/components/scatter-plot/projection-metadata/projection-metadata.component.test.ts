@@ -7,7 +7,7 @@ import type { Projection, ProjectionStatisticRow } from '@protspace/utils';
 
 type ProjectionMetadataElement = HTMLElement & {
   projection: Projection | null;
-  statistics?: readonly ProjectionStatisticRow[];
+  statisticsRows?: readonly ProjectionStatisticRow[];
   selectedAnnotation: string;
   updateComplete: Promise<unknown>;
 };
@@ -37,7 +37,7 @@ async function setup(
   const el = document.createElement('protspace-projection-metadata') as ProjectionMetadataElement;
   el.projection = { name: 'ProtT5 — UMAP 2', metadata };
   if (stats) {
-    el.statistics = stats.statistics;
+    el.statisticsRows = stats.statistics;
     el.selectedAnnotation = stats.selectedAnnotation;
   }
   document.body.appendChild(el);
