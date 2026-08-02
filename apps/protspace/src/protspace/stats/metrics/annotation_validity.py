@@ -41,6 +41,8 @@ def _per_category_davies_bouldin(
     and mean intra-cluster distances ``s``. scikit-learn's ``davies_bouldin_score``
     is the mean of exactly these, and exposes only that mean.
     """
+    from sklearn.metrics import pairwise_distances
+
     k = len(cat_names)
     centroids = np.array([Xa[labels == j].mean(axis=0) for j in range(k)])
     intra = np.array(
@@ -49,7 +51,10 @@ def _per_category_davies_bouldin(
             for j in range(k)
         ]
     )
-    separation = np.linalg.norm(centroids[:, None, :] - centroids[None, :, :], axis=-1)
+    # k x k, not k x k x d: a broadcast (centroids[:, None] - centroids[None])
+    # norm materialises a k x k x d tensor, which is unbounded on both axes (d is
+    # the full pLM dim, k is unbounded for an explicit --stats-annotation).
+    separation = pairwise_distances(centroids)
     # Mirrors sklearn: coincident centroids (and the whole diagonal) become inf so
     # their ratio is 0 and cannot win the row max. Without this the diagonal would
     # divide by zero and every score would be inf.
@@ -146,21 +151,23 @@ class AnnotationValidityStatistic:
                     from sklearn.metrics import silhouette_samples
 
                     samples = silhouette_samples(Xa, labels)
+                    # Compute the parts BEFORE emitting the aggregate: if the
+                    # decomposition raises, the except below must discard the
+                    # whole attempt, not leave an aggregate row with zero parts.
+                    per_cat = _per_category_silhouette(samples, labels, cat_names)
                     _emit("silhouette", samples.mean())
-                    for name, value in _per_category_silhouette(
-                        samples, labels, cat_names
-                    ).items():
-                        _emit("silhouette", value, name)
+                    for cat, value in per_cat.items():
+                        _emit("silhouette", value, cat)
                 except Exception:  # noqa: BLE001 - best-effort
                     pass
 
             if not bool((counts < 2).any()):
                 try:
+                    # Same ordering constraint as the silhouette block above.
+                    per_cat = _per_category_davies_bouldin(Xa, labels, cat_names)
                     _emit("davies_bouldin", davies_bouldin_score(Xa, labels))
-                    for name, value in _per_category_davies_bouldin(
-                        Xa, labels, cat_names
-                    ).items():
-                        _emit("davies_bouldin", value, name)
+                    for cat, value in per_cat.items():
+                        _emit("davies_bouldin", value, cat)
                 except Exception:  # noqa: BLE001 - best-effort
                     pass
 

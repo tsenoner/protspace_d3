@@ -94,10 +94,10 @@ class StatRow:
     """One statistic value.
 
     ``destination`` routes the row to a bundle part at carriage time:
-    ``statistics_part`` (the tidy 10-column table — the default), ``projection_metadata``
-    (folded into a projection's ``info_json``), or ``annotation`` (a per-protein
-    column). It is carriage metadata, not a tidy-table column, so ``to_record``
-    never emits it.
+    ``statistics_part`` (the tidy 10-column table, the default),
+    ``projection_metadata`` (folded into a projection's ``info_json``), or
+    ``annotation`` (a per-protein column). It is carriage metadata, not a
+    tidy-table column, so ``to_record`` never emits it.
     """
 
     space_kind: str

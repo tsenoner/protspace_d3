@@ -133,6 +133,7 @@ def test_per_category_davies_bouldin_averages_to_the_aggregate():
     ]
 
     assert len(per_cat) == 4
+    assert {r.category for r in per_cat} == {"g0", "g1", "g2", "g3"}
     assert np.mean([r.value for r in per_cat]) == pytest.approx(aggregate.value)
 
 
