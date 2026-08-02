@@ -13,6 +13,7 @@ import {
   annotationStatSummary,
   clusterAgreement,
   formatStatValue,
+  hasAnnotationStats,
   prettifyAnnotationName,
 } from '@protspace/utils';
 import { projectionMetadataStyles } from './projection-metadata.styles';
@@ -29,7 +30,12 @@ class ProtspaceProjectionMetadata extends LitElement {
 
   render() {
     const { parameters, quality } = this._splitMetadata();
-    // Only this projection's own scores: the section is scoped by the panel it sits in.
+    // `stats`: validity scored for this exact projection, so it is scoped by the panel it sits
+    // in. `agreement` (below) is deliberately not scoped that way: ARI/NMI describe the
+    // clustering itself, not whichever projection the panel happens to be open on, and the
+    // stats header already names the clustering via the selected `cluster_*` column. Filtering
+    // it to `this.projection` would leave a user who just selected, say, `cluster_elbow_ProtT5
+    // — PCA 2` while viewing `ProtT5 — UMAP 2` staring at nothing instead of PCA 2's numbers.
     const stats = annotationStatSummary(
       this.statisticsRows,
       this.selectedAnnotation,
@@ -37,7 +43,7 @@ class ProtspaceProjectionMetadata extends LitElement {
     );
     // Non-empty only when the selected annotation is itself a `cluster_elbow_*` /
     // `cluster_silhouette_*` column; see `clusterAgreement`'s doc for why this can never
-    // overlap with `stats` on real data (cluster columns are never scored annotations).
+    // overlap with `stats.validity` on real data (cluster columns are never scored annotations).
     const agreement = clusterAgreement(this.statisticsRows, this.selectedAnnotation);
 
     if (parameters.length === 0 && quality.length === 0) {
@@ -65,7 +71,9 @@ class ProtspaceProjectionMetadata extends LitElement {
         <div class="header">Projection Metadata</div>
         ${this._renderSection('Parameters', 'parameters', parameters)}
         ${this._renderSection('Projection quality', 'quality', quality)}
-        ${stats || agreement.length > 0 ? this._renderAnnotationStats(stats, agreement) : nothing}
+        ${hasAnnotationStats(stats, agreement)
+          ? this._renderAnnotationStats(stats, agreement)
+          : nothing}
       </div>
     `;
   }
@@ -92,9 +100,11 @@ class ProtspaceProjectionMetadata extends LitElement {
    * How well the selected annotation separates in this projection (`summary`), and/or how well
    * the selected auto-clustering recovers every annotation it was compared against
    * (`agreement`). The two never both carry content for real data: a `cluster_elbow_*` /
-   * `cluster_silhouette_*` column is never itself a scored annotation, so `summary` is always
-   * null exactly when `agreement` is non-empty. Still, each is rendered independently rather
-   * than assumed exclusive, matching this file's existing defensive posture.
+   * `cluster_silhouette_*` column is never itself a scored annotation, so a non-empty
+   * `agreement` always means `summary` is null. The reverse does not hold: `summary` is also
+   * null for any annotation the run simply did not score, where `agreement` is empty too.
+   * Still, each is rendered independently rather than assumed exclusive, matching this file's
+   * existing defensive posture.
    */
   private _renderAnnotationStats(
     summary: AnnotationStatSummary | null,

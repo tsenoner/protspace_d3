@@ -171,7 +171,7 @@ describe('protspace-projection-metadata annotation quality section', () => {
     expect(statsBlock(el)!.textContent).toContain('lower is better');
   });
 
-  it('collapses the ceiling column on metrics that never have one', async () => {
+  it('collapses the ceiling column for a metric missing its embedding row', async () => {
     const el = await setup(
       { n_components: 2 },
       {
@@ -326,6 +326,19 @@ describe('auto-cluster agreement placement', () => {
     const text = el.shadowRoot!.querySelector('.annotation-stats')!.textContent!;
     expect(text).toContain('Separation in this projection');
     expect(text).not.toContain('Recovers');
+  });
+
+  it('renders no stats block for an ordinary annotation with agreement but no validity', async () => {
+    // A category can vanish from validity under subsampling while the (unsampled) agreement
+    // pass still recovers it (annotation_validity.py:117): annotationStatSummary stays non-null
+    // on the agreement row alone, but a summary with zero validity rows is not itself a metric
+    // row worth a block for.
+    const el = await setup(
+      { n_neighbors: 15 },
+      { statistics: [agreementRow()], selectedAnnotation: 'major_group' },
+    );
+
+    expect(statsBlock(el)).toBeNull();
   });
 
   it('shows one group per recovered annotation when the clustering itself is selected', async () => {

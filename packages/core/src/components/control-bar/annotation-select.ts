@@ -7,7 +7,9 @@ import { groupAnnotations, type GroupedAnnotation } from './annotation-categorie
 import {
   annotationLabel,
   annotationStatSummary,
+  clusterAgreement,
   getAnnotationMeta,
+  hasAnnotationStats,
   isPredictedAnnotation,
   type Annotation,
   type ProjectionStatisticRow,
@@ -217,10 +219,11 @@ class ProtspaceAnnotationSelect extends LitElement {
   }
 
   /**
-   * Which annotations the bundle scored in this projection, rebuilt only when those inputs
-   * change: render() re-runs on every search keystroke and arrow press while the dropdown is
-   * open, and deriving each row's answer there re-scans the whole statistics table per row.
-   * The scores themselves live in the projection-metadata panel; the badge only says they exist.
+   * Which annotations the panel would show at least one metric row for in this projection,
+   * rebuilt only when those inputs change: render() re-runs on every search keystroke and arrow
+   * press while the dropdown is open, and deriving each row's answer there re-scans the whole
+   * statistics table per row. The scores themselves live in the projection-metadata panel; the
+   * badge only says they exist.
    */
   private hasStats = new Map<string, boolean>();
 
@@ -230,11 +233,23 @@ class ProtspaceAnnotationSelect extends LitElement {
     }
   }
 
+  /**
+   * Shares `hasAnnotationStats` with the projection-metadata panel's render gate rather than
+   * re-deriving "has stats" from `annotationStatSummary` alone: that would go stale for an
+   * ordinary annotation with agreement rows but no validity rows (badges something the panel
+   * renders empty) and for a `cluster_*` column, which never has a `summary` of its own but does
+   * have agreement rows naming it (would badge nothing for something the panel does render).
+   */
   private hasStatistics(annotation: string): boolean {
     let scored = this.hasStats.get(annotation);
     if (scored === undefined) {
-      scored =
-        annotationStatSummary(this.statisticsRows, annotation, this.selectedProjection) !== null;
+      const summary = annotationStatSummary(
+        this.statisticsRows,
+        annotation,
+        this.selectedProjection,
+      );
+      const agreement = clusterAgreement(this.statisticsRows, annotation);
+      scored = hasAnnotationStats(summary, agreement);
       this.hasStats.set(annotation, scored);
     }
     return scored;

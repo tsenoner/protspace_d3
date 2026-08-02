@@ -243,14 +243,20 @@ describe('clusterAgreement', () => {
   // One clustering's agreement row against one recovered annotation, shaped exactly as
   // `ClusterValidityStatistic` emits it (validity.py): filed under the *recovered* annotation's
   // own name, never under the cluster column's name.
-  const agreementRow = (
-    over: Partial<ProjectionStatisticRow> & { labelKind: string; recovers: string },
-  ): ProjectionStatisticRow =>
+  type AgreementRowOverrides = Partial<ProjectionStatisticRow> & {
+    labelKind: string;
+    recovers: string;
+  };
+  const agreementRow = ({
+    labelKind,
+    recovers,
+    ...over
+  }: AgreementRowOverrides): ProjectionStatisticRow =>
     row({
       space_name: 'UMAP 2',
       stat_family: 'cluster_agreement',
-      label_kind: over.labelKind,
-      annotation: over.recovers,
+      label_kind: labelKind,
+      annotation: recovers,
       metric: 'adjusted_rand',
       metric_kind: 'agreement',
       value: 0.62,

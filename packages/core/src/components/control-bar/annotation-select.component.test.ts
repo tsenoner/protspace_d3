@@ -186,6 +186,17 @@ describe('protspace-annotation-select statistics badge', () => {
   // Neither annotation ships built-in docs, so neither row has an ⓘ of its own.
   const CUSTOM_ANNOTATIONS = ['major_group', 'seq_start'];
 
+  /** A `cluster_agreement` row for the elbow-K clustering on `umap`, recovering `major_group`. */
+  const agreementRow = (over: Partial<ProjectionStatisticRow> = {}): ProjectionStatisticRow =>
+    statRow({
+      stat_family: 'cluster_agreement',
+      label_kind: 'kmeans_elbow',
+      metric: 'adjusted_rand',
+      metric_kind: 'agreement',
+      value: 0.62,
+      ...over,
+    });
+
   it('badges only the annotations the bundle scored, without adding an icon', async () => {
     // The numbers live in the projection-metadata panel now; the badge only says they exist.
     const el = await setup({
@@ -213,6 +224,36 @@ describe('protspace-annotation-select statistics badge', () => {
     await openDropdown(el);
 
     expect(getRowFor(el, 'major_group').querySelector('.stats-badge')).toBeNull();
+  });
+
+  it('drops the badge for an ordinary annotation whose only score is an agreement row', async () => {
+    // A category can vanish from validity under subsampling while the (unsampled) agreement
+    // pass still recovers it. annotationStatSummary alone stays non-null on that agreement row,
+    // but the panel renders no block for it (no validity, and this isn't a cluster_* column),
+    // so the badge must not claim otherwise.
+    const el = await setup({
+      annotations: CUSTOM_ANNOTATIONS,
+      statisticsRows: [agreementRow()],
+      selectedProjection: 'umap',
+    });
+    await openDropdown(el);
+
+    expect(getRowFor(el, 'major_group').querySelector('.stats-badge')).toBeNull();
+  });
+
+  it('badges a cluster_* column from the agreement rows naming its own clustering', async () => {
+    // annotationStatSummary is always null for a cluster_* column (cluster columns are never
+    // scored annotations), so the badge must come from clusterAgreement instead.
+    const el = await setup({
+      annotations: [...CUSTOM_ANNOTATIONS, 'cluster_elbow_umap'],
+      statisticsRows: [agreementRow()],
+      selectedProjection: 'umap',
+    });
+    await openDropdown(el);
+
+    expect(getRowFor(el, 'cluster_elbow_umap').querySelector('.stats-badge')?.textContent).toBe(
+      'STATS',
+    );
   });
 
   it('does not rebuild the list when the pointer crosses a row', async () => {

@@ -254,6 +254,21 @@ export function clusterAgreement(
 }
 
 /**
+ * Whether an (annotation, projection) pair has at least one metric row worth rendering: the one
+ * test the dropdown's "has stats" badge and the panel's render gate must share, so the two
+ * cannot drift the way `annotationStatSummary(...) !== null` and `stats || agreement.length > 0`
+ * once did. `summary` can be non-null with zero validity rows (a category a subsampled validity
+ * pass drops while the unsampled agreement pass still recovers it), which is content-free on its
+ * own; `agreement` (from `clusterAgreement`) is what makes a `cluster_*` column count instead.
+ */
+export function hasAnnotationStats(
+  summary: AnnotationStatSummary | null,
+  agreement: ClusterAgreementEntry[],
+): boolean {
+  return (summary?.validity.length ?? 0) > 0 || agreement.length > 0;
+}
+
+/**
  * Format a statistic for display. Calinski–Harabasz is unbounded and runs into the hundreds or
  * thousands, so it would waste the popover's width at 3 decimals; bounded scores keep them.
  */

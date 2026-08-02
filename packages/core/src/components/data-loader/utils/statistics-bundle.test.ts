@@ -5,6 +5,7 @@ import { parquetWriteBuffer } from 'hyparquet-writer';
 import {
   BUNDLE_DELIMITER_BYTES,
   annotationStatSummary,
+  clusterAgreement,
   concatenateBuffers,
   createParquetBundle,
 } from '@protspace/utils';
@@ -118,6 +119,18 @@ describe('statistics part of a parquetbundle', () => {
     expect(summary!.validity[0].value).toBeCloseTo(0.326, 3);
     expect(summary!.validity[0].embedding).toBeCloseTo(0.095, 3);
     expect(summary!.agreement.map((group) => group.label)).toEqual(['elbow K', 'silhouette K']);
+  });
+
+  it('pins clusterAgreement to what the real fixture actually wrote', async () => {
+    const { statisticsRows } = await extractRowsFromParquetBundle(bundleWith(SETTINGS, STATISTICS));
+
+    // Same run as the summary test above, read through the other door: every annotation the
+    // elbow-K clustering on ProtT5 — UMAP 2 was compared against, in the order the parquet rows
+    // arrived in. A backend rename of the cluster columns or a `label_kind` drift would silently
+    // empty this out with nothing else in the suite to catch it.
+    expect(
+      clusterAgreement(statisticsRows!, 'cluster_elbow_ProtT5 — UMAP 2').map((e) => e.annotation),
+    ).toEqual(['group', 'major_group', 'membran_prediction', 'seq_start']);
   });
 
   it('reports no statistics for an annotation the run did not score', async () => {
