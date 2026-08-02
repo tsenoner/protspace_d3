@@ -149,7 +149,7 @@ describe('protspace-projection-metadata annotation quality section', () => {
     const text = statsBlock(el)!.textContent!;
     expect(text).toContain('Separation in this projection');
     expect(text).toContain('0.326');
-    expect(text).toContain('0.095');
+    expect(statsBlock(el)!.querySelector('.stat-metric-embedding')!.textContent).toContain('0.095');
     expect(text).not.toContain('emb 0.095');
     expect(text).toContain('5 categories · 1,427 proteins scored');
     expect(text).toContain('Computed on the full dataset');
@@ -198,6 +198,14 @@ describe('protspace-projection-metadata annotation quality section', () => {
 });
 
 describe('metadata sections', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
   it('separates reduction parameters from projection quality', async () => {
     const el = await setup({
       n_neighbors: 15,
@@ -246,6 +254,47 @@ describe('metadata sections', () => {
     const headings = Array.from(el.shadowRoot!.querySelectorAll('.section-heading')).map((node) =>
       node.textContent!.trim(),
     );
+    expect(headings).toContain('Parameters');
     expect(headings).not.toContain('Projection quality');
+  });
+
+  it('shows the embedding column header only when some metric has a ceiling', async () => {
+    const withoutCeiling = await setup(
+      { n_neighbors: 15 },
+      { statistics: [statRow()], selectedAnnotation: 'major_group' },
+    );
+    expect(statsBlock(withoutCeiling)!.querySelector('.stat-columns')).toBeNull();
+    expect(statsBlock(withoutCeiling)!.querySelector('.stat-metric-label')!.textContent).toContain(
+      'Silhouette',
+    );
+
+    const withCeiling = await setup(
+      { n_neighbors: 15 },
+      {
+        statistics: [
+          statRow(),
+          statRow({ space_kind: 'embedding', space_name: 'prot_t5', value: 0.095 }),
+        ],
+        selectedAnnotation: 'major_group',
+      },
+    );
+    expect(statsBlock(withCeiling)!.querySelector('.stat-columns')).not.toBeNull();
+  });
+
+  it('expands a nested quality object inside a JSON field, keeping siblings as parameters', async () => {
+    const el = await setup({
+      info: JSON.stringify({
+        n_neighbors: 15,
+        quality: { trustworthiness: qualityEntry(0.94, 'local') },
+      }),
+    });
+
+    const parameters = el.shadowRoot!.querySelector('[data-section="parameters"]')!;
+    expect(parameters.textContent).toContain('N Neighbors');
+    expect(parameters.textContent).not.toContain('Trustworthiness');
+
+    const quality = el.shadowRoot!.querySelector('[data-section="quality"]')!;
+    expect(quality.textContent).toContain('Trustworthiness');
+    expect(quality.textContent).not.toContain('N Neighbors');
   });
 });

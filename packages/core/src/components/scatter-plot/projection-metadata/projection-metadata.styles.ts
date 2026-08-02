@@ -211,6 +211,7 @@ export const projectionMetadataStyles = [
     }
 
     .section-heading {
+      padding: 0 0.75rem;
       font-size: 0.6875rem;
       font-weight: 600;
       text-transform: uppercase;

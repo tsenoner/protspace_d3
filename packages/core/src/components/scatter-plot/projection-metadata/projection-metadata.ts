@@ -89,17 +89,24 @@ class ProtspaceProjectionMetadata extends LitElement {
    */
   private _renderAnnotationStats(summary: AnnotationStatSummary) {
     const scope = this._statScopeLine(summary);
+    // A bundle prepared without an embedding pass has every ceiling null: naming a column
+    // of entirely blank cells would only take width back from the label column for nothing.
+    const hasEmbeddingCeiling = summary.validity.some((metric) => metric.embedding !== null);
     return html`
       <div class="header stats-header">${prettifyAnnotationName(this.selectedAnnotation)}</div>
       <div class="annotation-stats">
         ${summary.validity.length > 0
           ? html`
               <div class="stat-heading">Separation in this projection</div>
-              <div class="stat-columns">
-                <span></span>
-                <span>This projection</span>
-                <span>In embedding</span>
-              </div>
+              ${hasEmbeddingCeiling
+                ? html`
+                    <div class="stat-columns">
+                      <span></span>
+                      <span>This projection</span>
+                      <span>In embedding</span>
+                    </div>
+                  `
+                : ''}
               ${summary.validity.map((metric) => this._renderStatMetric(metric))}
             `
           : ''}
@@ -143,7 +150,9 @@ class ProtspaceProjectionMetadata extends LitElement {
         <!-- The cell stays even when empty: \`.stat-metric\` is \`display: contents\`, so dropping
              it would shift every following row one column across the shared grid. -->
         <span class="stat-metric-embedding ${metric.embedding === null ? 'is-empty' : ''}">
-          ${metric.embedding === null ? '' : formatStatValue(metric.embedding)}
+          ${metric.embedding === null
+            ? ''
+            : html`<span class="sr-only">in embedding </span>${formatStatValue(metric.embedding)}`}
         </span>
       </div>
     `;
@@ -194,7 +203,8 @@ class ProtspaceProjectionMetadata extends LitElement {
             if (
               innerKey.toLowerCase() === 'quality' &&
               !!innerValue &&
-              typeof innerValue === 'object'
+              typeof innerValue === 'object' &&
+              !Array.isArray(innerValue)
             ) {
               qualityEntries.push(...this._qualityEntries(innerValue as Record<string, unknown>));
             } else {
