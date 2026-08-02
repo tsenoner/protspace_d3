@@ -23,9 +23,10 @@ def _per_category_silhouette(
 ) -> dict[str, float]:
     """Mean silhouette per category.
 
-    ``silhouette_score`` is defined as ``silhouette_samples(...).mean()``, so the
-    aggregate is exactly the mean of these values and no extra work is done: the
-    per-point array is retained instead of being collapsed and discarded.
+    ``silhouette_score`` is ``silhouette_samples(...).mean()``, a mean over POINTS,
+    so the aggregate is the size-weighted mean of these per-category values, not
+    their plain mean. No extra work is done either way: the per-point array is
+    retained instead of being collapsed and discarded.
     """
     return {
         name: float(sample_values[labels == j].mean())

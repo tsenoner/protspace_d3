@@ -100,7 +100,7 @@ def test_subsample_path_flags_sampled_and_is_deterministic():
     assert sil_again.extra == sil.extra
 
 
-def test_per_category_silhouette_averages_to_the_aggregate():
+def test_per_category_silhouette_size_weighted_averages_to_the_aggregate():
     # UNBALANCED category sizes on purpose: silhouette_score(X, y) is defined
     # as silhouette_samples(X, y).mean(), a mean over POINTS, not categories.
     # The per-category rows are per-CATEGORY means, so recovering the
@@ -126,6 +126,10 @@ def test_per_category_silhouette_averages_to_the_aggregate():
     labels, counts = np.unique(y, return_counts=True)
     cat_size = {f"g{int(c)}": int(n) for c, n in zip(labels, counts, strict=True)}
     total = len(y)
+    # The weights come from the full y, the values from the post-subsample labels.
+    # That only agrees below DEFAULT_SAMPLE_THRESHOLD; pin it, or growing this
+    # fixture past the threshold would fail here looking like a decomposition bug.
+    assert aggregate.extra["sampled"] is False
     weighted_mean = sum(cat_size[r.category] * r.value for r in per_cat) / total
     assert weighted_mean == pytest.approx(aggregate.value)
 
