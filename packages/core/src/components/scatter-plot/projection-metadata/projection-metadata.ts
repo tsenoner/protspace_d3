@@ -14,9 +14,11 @@ import {
   clusterAgreement,
   formatStatValue,
   hasAnnotationStats,
+  metricDescription,
   prettifyAnnotationName,
 } from '@protspace/utils';
 import { projectionMetadataStyles } from './projection-metadata.styles';
+import '../../common/info-popover';
 
 @customElement('protspace-projection-metadata')
 class ProtspaceProjectionMetadata extends LitElement {
@@ -161,12 +163,23 @@ class ProtspaceProjectionMetadata extends LitElement {
     // Marked on every metric, not only on the one that inverts: an arrow that shows up on
     // Davies-Bouldin alone reads as a warning about that row rather than as a direction.
     const better = metric.higherIsBetter ? 'Higher' : 'Lower';
+    const description = metricDescription(metric.metric);
     return html`
       <div class="stat-metric">
         <span class="stat-metric-label">
           ${metric.label}<span class="stat-direction" aria-hidden="true" title="${better} is better"
             >${metric.higherIsBetter ? '↑' : '↓'}</span
           ><span class="sr-only"> (${better.toLowerCase()} is better)</span>
+          <!-- info-popover already renders nothing without a description; the guard here
+               still avoids constructing an element per metric row that would render nothing
+               anyway (every non-empty metric list runs through this once per row). -->
+          ${description
+            ? html`<protspace-info-popover
+                .description=${description}
+                label=${metric.label}
+                align="right"
+              ></protspace-info-popover>`
+            : nothing}
         </span>
         <span class="stat-metric-value">${formatStatValue(metric.value)}</span>
         <!-- The cell stays even when empty: \`.stat-metric\` is \`display: contents\`, so dropping

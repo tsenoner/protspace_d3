@@ -11,7 +11,11 @@ import type { ProjectionStatisticRow } from '../types.js';
  * === 'meta'`, e.g. `n_clusters`) are never surfaced.
  */
 
-/** Display name + optimisation direction per metric, and the render order within a group. */
+/**
+ * Display name + optimisation direction per metric, and the render order within a group.
+ * Must cover the same keys as `METRIC_DESCRIPTIONS` in `metric-descriptions.ts`; nothing
+ * enforces that automatically, so a metric added here needs a description there too.
+ */
 const METRIC_DISPLAY: Record<string, { label: string; higherIsBetter: boolean }> = {
   silhouette: { label: 'Silhouette', higherIsBetter: true },
   davies_bouldin: { label: 'Davies–Bouldin', higherIsBetter: false },
