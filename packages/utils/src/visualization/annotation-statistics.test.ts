@@ -234,6 +234,53 @@ describe('annotationStatSummary', () => {
   });
 });
 
+describe('per-category rows', () => {
+  const aggregate: ProjectionStatisticRow = {
+    space_kind: 'projection',
+    space_name: 'UMAP 2',
+    annotation: 'major_group',
+    stat_family: 'annotation_validity',
+    label_kind: 'annotation',
+    metric: 'silhouette',
+    metric_kind: 'validity',
+    value: 0.326,
+  };
+
+  it('ignores per-category rows when summarising the aggregate', () => {
+    const withCategories: ProjectionStatisticRow[] = [
+      aggregate,
+      { ...aggregate, category: 'Elapidae', value: 0.81 },
+      { ...aggregate, category: 'Viperidae', value: -0.15 },
+    ];
+
+    const bare = annotationStatSummary([aggregate], 'major_group', 'UMAP 2');
+    const mixed = annotationStatSummary(withCategories, 'major_group', 'UMAP 2');
+
+    // Adding per-category rows must not change the aggregate block at all.
+    expect(mixed).toEqual(bare);
+    expect(mixed!.validity).toHaveLength(1);
+    expect(mixed!.validity[0].value).toBeCloseTo(0.326, 3);
+  });
+
+  it('does not let a per-category embedding row become the ceiling', () => {
+    const rows: ProjectionStatisticRow[] = [
+      aggregate,
+      { ...aggregate, space_kind: 'embedding', space_name: 'prot_t5', value: 0.095 },
+      {
+        ...aggregate,
+        space_kind: 'embedding',
+        space_name: 'prot_t5',
+        category: 'Elapidae',
+        value: 0.99,
+      },
+    ];
+
+    const summary = annotationStatSummary(rows, 'major_group', 'UMAP 2');
+
+    expect(summary!.validity[0].embedding).toBeCloseTo(0.095, 3);
+  });
+});
+
 describe('formatStatValue', () => {
   it('keeps three decimals for bounded scores and drops them for unbounded ones', () => {
     expect(formatStatValue(0.326)).toBe('0.326');

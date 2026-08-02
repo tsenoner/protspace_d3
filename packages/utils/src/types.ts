@@ -92,7 +92,7 @@ export interface Projection {
 }
 
 /**
- * One row of the optional `statistics.parquet` bundle part (tidy long format, 9 columns).
+ * One row of the optional `statistics.parquet` bundle part (tidy long format, 10 columns).
  * Emitted by the backend's `--stats` flag; absent from bundles prepared without it.
  *
  * Rows are keyed by `space_name` (a projection name, or the source embedding name when
@@ -112,6 +112,14 @@ export interface ProjectionStatisticRow {
   /** `'meta'` rows (e.g. `n_clusters`) are information, not scores. */
   metric_kind: 'validity' | 'agreement' | 'meta';
   value: number;
+  /**
+   * One category of `annotation` when the metric was decomposed per category;
+   * absent on the aggregate row, and absent entirely on bundles written before
+   * the column existed. Deliberately NOT in `PROJECTION_STATISTIC_COLUMNS`:
+   * that list is the required set the reader's schema guard checks, so adding
+   * it would reject every bundle already prepared with `--stats`.
+   */
+  category?: string;
   /** Per-metric provenance as a JSON string (sample size, seed, …). */
   extra_json?: string;
 }

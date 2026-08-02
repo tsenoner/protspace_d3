@@ -121,9 +121,14 @@ export function annotationStatSummary(
 
   // A non-finite value (NaN/null from a foreign writer) is not a score: it must not switch
   // the ⓘ icon on, and a NaN ceiling would defeat the `embedding === null` column collapse.
+  // Per-category rows are excluded here rather than at each use: this summary is the
+  // whole-annotation view, and `annotationCategoryScores` is the per-category one.
   const forAnnotation = statistics.filter(
     (row) =>
-      row.annotation === annotation && row.metric_kind !== 'meta' && Number.isFinite(row.value),
+      row.annotation === annotation &&
+      row.metric_kind !== 'meta' &&
+      row.category == null &&
+      Number.isFinite(row.value),
   );
   if (forAnnotation.length === 0) return null;
 
@@ -173,9 +178,9 @@ export function annotationStatSummary(
 
   if (validity.length === 0 && agreement.length === 0) return null;
 
-  // What the scores cover. `statistics.parquet` has no per-category rows, so these two counts are
-  // the only category-level facts in the bundle; validity rows carry both, agreement rows only
-  // the protein count.
+  // What the scores cover. `inProjection` only ever holds aggregate rows (per-category rows were
+  // already filtered out of `forAnnotation` above), so these two counts come from the aggregate's
+  // provenance; validity rows carry both, agreement rows only the protein count.
   const scopeRow =
     inProjection.find((row) => row.stat_family === 'annotation_validity') ?? inProjection[0];
   return {
