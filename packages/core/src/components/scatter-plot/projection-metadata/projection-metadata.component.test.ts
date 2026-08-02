@@ -181,9 +181,15 @@ describe('protspace-projection-metadata annotation quality section', () => {
     );
 
     const labels = statsBlock(el)!.querySelectorAll('.stat-metric-label');
-    const popovers = statsBlock(el)!.querySelectorAll('.stat-metric-label protspace-info-popover');
+    const popovers = statsBlock(el)!.querySelectorAll<HTMLElement & { description: string }>(
+      '.stat-metric-label protspace-info-popover',
+    );
+    expect(labels).toHaveLength(2);
     expect(popovers).toHaveLength(labels.length);
     expect(customElements.get('protspace-info-popover')).toBeDefined();
+    // Counting elements alone would survive a broken binding: info-popover keeps its host element
+    // and merely renders nothing when it has no copy, so check the copy actually arrived.
+    expect(popovers[0].description.length).toBeGreaterThan(20);
   });
 
   it('collapses the ceiling column for a metric missing its embedding row', async () => {
