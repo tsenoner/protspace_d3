@@ -59,6 +59,7 @@ export class ScatterplotSyncController implements ReactiveController {
   private _controlBarElement: Element | null = null;
   private _boundHandleDataChange: (e: Event) => void;
   private _boundHandleAnnotationChange: (e: Event) => void;
+  private _boundHandleProjectionChange: () => void;
   private _discoveryRetryCount = 0;
   private _discoveryTimeoutId: number | null = null;
   private _mutationObserver: MutationObserver | null = null;
@@ -74,6 +75,7 @@ export class ScatterplotSyncController implements ReactiveController {
 
     this._boundHandleDataChange = this._handleDataChange.bind(this);
     this._boundHandleAnnotationChange = this._handleAnnotationChange.bind(this);
+    this._boundHandleProjectionChange = this._handleProjectionChange.bind(this);
   }
 
   hostConnected(): void {
@@ -291,6 +293,10 @@ export class ScatterplotSyncController implements ReactiveController {
         LEGEND_EVENTS.ANNOTATION_CHANGE,
         this._boundHandleAnnotationChange,
       );
+      this._controlBarElement.addEventListener(
+        LEGEND_EVENTS.PROJECTION_CHANGE,
+        this._boundHandleProjectionChange,
+      );
     }
 
     this._syncWithScatterplot();
@@ -378,6 +384,17 @@ export class ScatterplotSyncController implements ReactiveController {
     this.callbacks.onAnnotationChange(annotation);
   }
 
+  /**
+   * Silhouette and Davies-Bouldin are scored per projection, but switching the
+   * projection alone changes neither `data` nor `filteredProteinIds`/`filtersActive`,
+   * so the scatterplot's own `data-change` dispatch (its geometry-inputs guard) never
+   * fires for it. Re-run the sync explicitly so the strips track the new projection
+   * instead of continuing to show the previous one.
+   */
+  private _handleProjectionChange(): void {
+    this._syncWithScatterplot();
+  }
+
   private _syncWithScatterplot(): void {
     if (!this._scatterplotElement) return;
 
@@ -409,6 +426,10 @@ export class ScatterplotSyncController implements ReactiveController {
       this._controlBarElement.removeEventListener(
         LEGEND_EVENTS.ANNOTATION_CHANGE,
         this._boundHandleAnnotationChange,
+      );
+      this._controlBarElement.removeEventListener(
+        LEGEND_EVENTS.PROJECTION_CHANGE,
+        this._boundHandleProjectionChange,
       );
     }
   }

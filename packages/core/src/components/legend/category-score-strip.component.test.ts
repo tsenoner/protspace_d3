@@ -45,13 +45,27 @@ describe('protspace-score-strip', () => {
 
   it('positions dots along the fixed domain, not the data range', async () => {
     // A [-1, 1] silhouette axis must not rescale to the data, or two datasets
-    // would not be comparable.
+    // would not be comparable. These are the exact percentages that domain produces
+    // for 0.81 and -0.15 (10% padding either side of a [-1, 1] span): if the domain
+    // were data-derived instead, both points would sit at the strip's outer edges
+    // regardless of their actual magnitude, and this would not catch it.
     const el = await setup();
 
     const dots = Array.from(el.shadowRoot!.querySelectorAll('circle'));
-    const [first, second] = dots.map((dot) => Number(dot.getAttribute('cx')));
-    // 0.81 sits far right of -0.15 on a [-1, 1] axis.
-    expect(first).toBeGreaterThan(second);
+    const [first, second] = dots.map((dot) => parseFloat(dot.getAttribute('cx')!));
+    expect(first).toBeCloseTo(82.4);
+    expect(second).toBeCloseTo(44);
+  });
+
+  it('renders the strip at a fixed height, not scaled by the panel width', async () => {
+    // No viewBox: an explicit `height` attribute is what keeps the strip ~44px tall
+    // regardless of how wide the (100%-width) panel is. A viewBox-driven height here
+    // would silently reintroduce the 3x oversized-strip regression.
+    const el = await setup();
+
+    const svg = el.shadowRoot!.querySelector('svg')!;
+    expect(svg.getAttribute('height')).toBe('44');
+    expect(svg.hasAttribute('viewBox')).toBe(false);
   });
 
   it('emits strip-hover with the category on pointer enter, and null on leave', async () => {
@@ -94,7 +108,7 @@ describe('protspace-score-strip', () => {
     await el.updateComplete;
 
     const cx = Array.from(el.shadowRoot!.querySelectorAll('circle')).map((dot) =>
-      Number(dot.getAttribute('cx')),
+      parseFloat(dot.getAttribute('cx')!),
     );
     expect(cx).toEqual([50, 50]);
   });

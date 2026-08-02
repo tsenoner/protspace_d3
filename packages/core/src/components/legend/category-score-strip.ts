@@ -93,6 +93,9 @@ class ProtspaceScoreStrip extends LitElement {
     const [min, max] = this.domain;
     // A degenerate domain (every category identical) would divide by zero; centre instead.
     const span = max - min;
+    // Percent of the SVG's own (fluid) width, not a viewBox coordinate: the strip has no
+    // viewBox, so an explicit `height` attribute alone fixes its height regardless of the
+    // panel width, and `%` keeps this positioning in step with that width unscaled.
     const position = (value: number): number =>
       span === 0 ? 50 : PADDING + ((value - min) / span) * (100 - PADDING * 2);
 
@@ -101,19 +104,14 @@ class ProtspaceScoreStrip extends LitElement {
         <span class="strip-label">${this.label}</span>
         <span>${this.higherIsBetter ? 'higher is better' : 'lower is better'}</span>
       </div>
-      <svg
-        viewBox="0 0 100 ${STRIP_HEIGHT}"
-        preserveAspectRatio="none"
-        role="img"
-        aria-label="${this.label} per category"
-      >
-        <line class="axis" x1="${PADDING}" y1="${AXIS_Y}" x2="${100 - PADDING}" y2="${AXIS_Y}" />
+      <svg height="${STRIP_HEIGHT}" role="img" aria-label="${this.label} per category">
+        <line class="axis" x1="${PADDING}%" y1="${AXIS_Y}" x2="${100 - PADDING}%" y2="${AXIS_Y}" />
         ${this.points.map(
           (point) =>
             svg`<circle
             class="${point.category === this.highlighted ? 'is-highlighted' : ''}"
             data-category="${point.category}"
-            cx="${position(point.value)}"
+            cx="${position(point.value)}%"
             cy="${AXIS_Y}"
             r="${DOT_RADIUS}"
             fill="${point.color}"
@@ -121,10 +119,10 @@ class ProtspaceScoreStrip extends LitElement {
             @mouseleave=${() => this._emitHover(null)}
           ><title>${point.category}: ${point.value.toFixed(3)}</title></circle>`,
         )}
-        <text class="bound" x="${PADDING}" y="${STRIP_HEIGHT - 4}" text-anchor="start">
+        <text class="bound" x="${PADDING}%" y="${STRIP_HEIGHT - 4}" text-anchor="start">
           ${this._formatBound(min)}
         </text>
-        <text class="bound" x="${100 - PADDING}" y="${STRIP_HEIGHT - 4}" text-anchor="end">
+        <text class="bound" x="${100 - PADDING}%" y="${STRIP_HEIGHT - 4}" text-anchor="end">
           ${this._formatBound(max)}
         </text>
       </svg>

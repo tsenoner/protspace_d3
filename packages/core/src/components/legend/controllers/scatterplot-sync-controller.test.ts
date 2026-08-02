@@ -231,6 +231,46 @@ describe('ScatterplotSyncController', () => {
     });
   });
 
+  describe('_selectedProjectionName (resolved via forceSync)', () => {
+    it.each([
+      [
+        'resolves the name at the current index',
+        1,
+        [{ name: 'UMAP 2' }, { name: 'PCA 2' }],
+        'PCA 2',
+      ],
+      [
+        'defaults to index 0 when selectedProjectionIndex is unset',
+        undefined,
+        [{ name: 'UMAP 2' }, { name: 'PCA 2' }],
+        'UMAP 2',
+      ],
+      ['falls back to an empty string when the index is out of range', 5, [{ name: 'UMAP 2' }], ''],
+    ] as const)('%s', (_label, selectedProjectionIndex, projections, expectedName) => {
+      document.body.appendChild(mockScatterplot as unknown as Node);
+      mockScatterplot.getCurrentData = vi.fn().mockReturnValue({
+        protein_ids: ['p1', 'p2'],
+        projections,
+        annotations: { 'test-feature': { values: ['a', 'b'] } },
+        annotation_data: { 'test-feature': ['a', 'b'] },
+      });
+      if (selectedProjectionIndex !== undefined) {
+        mockScatterplot.selectedProjectionIndex = selectedProjectionIndex;
+      }
+      controller = new ScatterplotSyncController(mockHost, mockCallbacks);
+      controller.hostConnected();
+      vi.mocked(mockCallbacks.onDataChange).mockClear();
+
+      controller.forceSync();
+
+      expect(mockCallbacks.onDataChange).toHaveBeenCalledWith(
+        expect.any(Object),
+        'test-feature',
+        expectedName,
+      );
+    });
+  });
+
   describe('syncHiddenValues', () => {
     beforeEach(() => {
       document.body.appendChild(mockScatterplot as unknown as Node);

@@ -2369,7 +2369,7 @@ export class ProtspaceLegend extends LitElement {
       <section class="score-strips" aria-label="Separation by category">
         <protspace-score-strip
           label="Silhouette"
-          higher-is-better
+          .higherIsBetter=${true}
           .points=${silhouette}
           .domain=${[-1, 1] as [number, number]}
           .highlighted=${this._hoveredCategory}
