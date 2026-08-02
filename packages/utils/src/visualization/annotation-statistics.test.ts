@@ -235,16 +235,7 @@ describe('annotationStatSummary', () => {
 });
 
 describe('per-category rows', () => {
-  const aggregate: ProjectionStatisticRow = {
-    space_kind: 'projection',
-    space_name: 'UMAP 2',
-    annotation: 'major_group',
-    stat_family: 'annotation_validity',
-    label_kind: 'annotation',
-    metric: 'silhouette',
-    metric_kind: 'validity',
-    value: 0.326,
-  };
+  const aggregate: ProjectionStatisticRow = row({});
 
   it('ignores per-category rows when summarising the aggregate', () => {
     const withCategories: ProjectionStatisticRow[] = [
@@ -265,7 +256,9 @@ describe('per-category rows', () => {
   it('does not let a per-category embedding row become the ceiling', () => {
     const rows: ProjectionStatisticRow[] = [
       aggregate,
-      { ...aggregate, space_kind: 'embedding', space_name: 'prot_t5', value: 0.095 },
+      // Per-category row listed BEFORE the aggregate embedding row: if the `category == null`
+      // filter were ever misplaced (e.g. applied to `inProjection` instead of `forAnnotation`),
+      // this row would win the ceiling map's first-write-wins race and the test would catch it.
       {
         ...aggregate,
         space_kind: 'embedding',
@@ -273,6 +266,7 @@ describe('per-category rows', () => {
         category: 'Elapidae',
         value: 0.99,
       },
+      { ...aggregate, space_kind: 'embedding', space_name: 'prot_t5', value: 0.095 },
     ];
 
     const summary = annotationStatSummary(rows, 'major_group', 'UMAP 2');
