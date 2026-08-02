@@ -113,6 +113,7 @@ function renderSettingsDialogToContainer(overrides = {}) {
         hasPersistedSettings: false,
         selectedPaletteId: 'viridis',
         reverseGradient: false,
+        hasCategoryScores: false,
         ...overrides,
       },
       callbacks,

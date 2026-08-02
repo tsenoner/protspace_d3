@@ -58,6 +58,7 @@ describe('settings-validation', () => {
       expect(isValidSortMode('alpha-desc')).toBe(true);
       expect(isValidSortMode('manual')).toBe(true);
       expect(isValidSortMode('manual-reverse')).toBe(true);
+      expect(isValidSortMode('silhouette-desc')).toBe(true);
     });
 
     it('rejects invalid sort modes', () => {

@@ -15,7 +15,8 @@ export type LegendSortModeLike =
   | 'alpha-asc'
   | 'alpha-desc'
   | 'manual'
-  | 'manual-reverse';
+  | 'manual-reverse'
+  | 'silhouette-desc';
 
 export interface ProtspaceData {
   projections?: Array<{ name: string; metadata?: { dimension?: 2 | 3 } }>;

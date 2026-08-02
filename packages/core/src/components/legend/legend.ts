@@ -678,6 +678,29 @@ export class ProtspaceLegend extends LitElement {
   }
 
   /**
+   * Display order for the legend list. Every mode but `silhouette-desc` has already been
+   * applied upstream and is carried by `zOrder`; scores arrive too late for that path, so
+   * they are applied here. Deliberately display-only: bucket membership stays size-driven,
+   * so switching sort never changes which categories are visible.
+   */
+  private _sortLegendItemsForDisplay(): LegendItem[] {
+    const items = [...this._legendItems];
+    if (this._currentSortMode !== 'silhouette-desc') {
+      return items.sort((a, b) => a.zOrder - b.zOrder);
+    }
+    const scoreOf = (value: string): number =>
+      this._categoryScores.find((score) => score.category === value)?.silhouette ??
+      Number.NEGATIVE_INFINITY;
+    return items.sort((a, b) => {
+      // "Other" is a bucket, not a category, so it has no score and stays last.
+      if (a.value === LEGEND_VALUES.OTHER) return 1;
+      if (b.value === LEGEND_VALUES.OTHER) return -1;
+      const diff = scoreOf(b.value) - scoreOf(a.value);
+      return diff !== 0 ? diff : a.zOrder - b.zOrder;
+    });
+  }
+
+  /**
    * Get the set of currently visible values (from legend items, excluding "Other").
    * Used to preserve membership when sort mode changes.
    * N/A items use '__NA__' as their value.
@@ -885,9 +908,9 @@ export class ProtspaceLegend extends LitElement {
       this._rebuildLegendItems();
     }
 
-    // Update sorted items cache when legend items change
-    if (changedProperties.has('_legendItems')) {
-      this._sortedLegendItems = [...this._legendItems].sort((a, b) => a.zOrder - b.zOrder);
+    // Update sorted items cache when legend items or their scores change
+    if (changedProperties.has('_legendItems') || changedProperties.has('_categoryScores')) {
+      this._sortedLegendItems = this._sortLegendItemsForDisplay();
     }
 
     // Initialize Sortable when container becomes available
@@ -2441,6 +2464,7 @@ export class ProtspaceLegend extends LitElement {
       otherCount,
       sortedIndex,
       this._canDragLegendItem(item),
+      this._categoryScores.find((score) => score.category === item.value)?.silhouette ?? null,
     );
   }
 
@@ -2495,6 +2519,7 @@ export class ProtspaceLegend extends LitElement {
       logBinningAvailable: this.annotationData.numericMetadata?.logSupported ?? true,
       hasPersistedSettings: this._persistenceController.hasPersistedSettings(),
       selectedPaletteId: this._dialogSettings.selectedPaletteId,
+      hasCategoryScores: this._categoryScores.length > 0,
     };
 
     const callbacks: SettingsDialogCallbacks = {

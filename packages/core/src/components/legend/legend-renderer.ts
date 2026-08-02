@@ -295,6 +295,7 @@ export class LegendRenderer {
     otherItemsCount?: number,
     itemIndex?: number,
     dragEnabled: boolean = true,
+    score?: number | null,
   ): TemplateResult {
     const displayLabel = item.displayValue ?? toDisplayValue(item.value);
 
@@ -329,6 +330,12 @@ export class LegendRenderer {
           ${this.renderItemActions(item, eventHandlers.onViewOther)}
         </div>
         <span class="legend-count" part="count">${item.count}</span>
+        <!-- Always present, even when empty: the row is a flex layout with
+             justify-content: space-between, so omitting the cell would shift the
+             spacing of every following row. -->
+        <span class="legend-score" part="score"
+          >${score === null || score === undefined ? '' : score.toFixed(2)}</span
+        >
       </div>
     `;
   }

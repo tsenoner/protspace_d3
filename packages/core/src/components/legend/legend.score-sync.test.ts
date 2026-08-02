@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { render } from 'lit';
 import type { ProjectionStatisticRow, VisualizationData } from '@protspace/utils';
 import './legend';
 import type { ProtspaceLegend } from './legend';
@@ -209,5 +210,125 @@ describe('legend score strip synchronisation', () => {
     await legend.updateComplete;
 
     expect(legend.shadowRoot!.querySelectorAll('.legend-item-score-hover')).toHaveLength(0);
+  });
+});
+
+describe('legend score column', () => {
+  beforeEach(() => {
+    // The persistence controller reads/writes real localStorage keyed by a hash of
+    // the dataset, and every test in this file shares one jsdom environment. Without
+    // this, an earlier test's saved sort mode or z-order leaks into these tests
+    // whenever the fixture hashes the same as theirs (plain makeData() does).
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('shows each category silhouette in its row', async () => {
+    const el = await setup(makeData());
+
+    const row = el.shadowRoot!.querySelector('[data-value="Elapidae"]')!;
+    expect(row.querySelector('.legend-score')!.textContent!.trim()).toBe('0.81');
+  });
+
+  it('leaves the score cell empty for a category with no score', async () => {
+    // The cell must still exist: the row is a flex layout with justify-content:
+    // space-between, so dropping it would shift the spacing of every other row.
+    //
+    // Viperidae has a score in the shared fixture (-0.15), so it cannot stand in for
+    // "no score". Instead, give the legend a third category, Colubridae, that has no
+    // matching statistics row.
+    const data = makeData();
+    const el = await setup({
+      ...data,
+      annotations: {
+        major_group: {
+          ...data.annotations.major_group,
+          values: ['Elapidae', 'Viperidae', 'Colubridae'],
+          colors: ['#ff0000', '#00ff00', '#0000ff'],
+          shapes: ['circle', 'circle', 'circle'],
+        },
+      },
+      annotation_data: {
+        major_group: new Int32Array([0, 1, 1, 2]),
+      },
+    });
+    const row = el.shadowRoot!.querySelector('[data-value="Colubridae"]')!;
+
+    expect(row.querySelector('.legend-score')).not.toBeNull();
+    expect(row.querySelector('.legend-score')!.textContent!.trim()).toBe('');
+  });
+
+  it('sorts rows best-separating-first when the sort mode is silhouette-desc', async () => {
+    // Viperidae outnumbers Elapidae here, so every mode but silhouette-desc puts it
+    // first: silhouette-desc has no upstream zOrder of its own and falls back to the
+    // size-desc default (see legend-data-processor.ts), even though Elapidae is the
+    // better-separated category (0.81 vs -0.15).
+    const el = await setup({
+      ...makeData(),
+      annotation_data: { major_group: new Int32Array([0, 1, 1, 1]) },
+    });
+    const rowOrder = () =>
+      [...el.shadowRoot!.querySelectorAll('[data-value]')].map((row) =>
+        row.getAttribute('data-value'),
+      );
+    // Confirms the fixture actually starts in the "wrong" order, so the assertion
+    // below cannot pass by coincidence.
+    expect(rowOrder().indexOf('Viperidae')).toBeLessThan(rowOrder().indexOf('Elapidae'));
+
+    const internals = el as unknown as {
+      _dialogSettings: { annotationSortModes: Record<string, string> } & Record<string, unknown>;
+      _handleSettingsSave: () => void;
+    };
+    internals._dialogSettings = {
+      ...internals._dialogSettings,
+      annotationSortModes: { major_group: 'silhouette-desc' },
+    };
+    internals._handleSettingsSave();
+    // Same two-cycle wait as the click-toggle test above: _handleSettingsSave sets
+    // _legendItems; _sortedLegendItems only re-derives from it in the next updated().
+    await el.updateComplete;
+    await el.updateComplete;
+
+    expect(rowOrder().indexOf('Elapidae')).toBeLessThan(rowOrder().indexOf('Viperidae'));
+  });
+});
+
+describe('legend settings dialog: sort by separation', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  function renderDialog(el: ProtspaceLegend): HTMLDivElement {
+    const internals = el as unknown as {
+      _showSettingsDialog: boolean;
+      _renderSettingsDialog: () => unknown;
+    };
+    internals._showSettingsDialog = true;
+    const container = document.createElement('div');
+    render(internals._renderSettingsDialog(), container);
+    return container;
+  }
+
+  function radioLabels(container: HTMLDivElement): (string | undefined)[] {
+    return [...container.querySelectorAll('label')].map((label) => label.textContent?.trim());
+  }
+
+  it('offers "By separation" sorting when the annotation has per-category scores', async () => {
+    const el = await setup(makeData());
+
+    expect(radioLabels(renderDialog(el))).toContain('By separation');
+  });
+
+  it('omits "By separation" sorting when the dataset has no statistics', async () => {
+    const el = await setup({ ...makeData(), statisticsRows: [] });
+
+    expect(radioLabels(renderDialog(el))).not.toContain('By separation');
   });
 });

@@ -235,7 +235,9 @@ export type LegendSortMode =
   | 'alpha-asc'
   | 'alpha-desc'
   | 'manual'
-  | 'manual-reverse';
+  | 'manual-reverse'
+  /** Best-separating category first. Display order only; the "Other" bucket stays size-driven. */
+  | 'silhouette-desc';
 
 export interface PersistedCategoryData {
   zOrder: number;
