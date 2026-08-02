@@ -171,6 +171,21 @@ describe('protspace-projection-metadata annotation quality section', () => {
     expect(statsBlock(el)!.textContent).toContain('lower is better');
   });
 
+  it('attaches a registered info popover to every rendered metric row', async () => {
+    const el = await setup(
+      { n_components: 2 },
+      {
+        statistics: [statRow(), statRow({ metric: 'davies_bouldin', value: 1.281 })],
+        selectedAnnotation: 'major_group',
+      },
+    );
+
+    const labels = statsBlock(el)!.querySelectorAll('.stat-metric-label');
+    const popovers = statsBlock(el)!.querySelectorAll('.stat-metric-label protspace-info-popover');
+    expect(popovers).toHaveLength(labels.length);
+    expect(customElements.get('protspace-info-popover')).toBeDefined();
+  });
+
   it('collapses the ceiling column for a metric missing its embedding row', async () => {
     const el = await setup(
       { n_components: 2 },

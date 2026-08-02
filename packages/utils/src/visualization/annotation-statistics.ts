@@ -12,17 +12,61 @@ import type { ProjectionStatisticRow } from '../types.js';
  */
 
 /**
- * Display name + optimisation direction per metric, and the render order within a group.
- * Must cover the same keys as `METRIC_DESCRIPTIONS` in `metric-descriptions.ts`; nothing
- * enforces that automatically, so a metric added here needs a description there too.
+ * Display name, optimisation direction and popover copy per metric, and the render order
+ * within a group. `description` is required by the type, so a metric added here without one
+ * is a compile error rather than a silently missing ⓘ icon.
  */
-const METRIC_DISPLAY: Record<string, { label: string; higherIsBetter: boolean }> = {
-  silhouette: { label: 'Silhouette', higherIsBetter: true },
-  davies_bouldin: { label: 'Davies–Bouldin', higherIsBetter: false },
-  calinski_harabasz: { label: 'Calinski–Harabasz', higherIsBetter: true },
-  adjusted_rand: { label: 'ARI', higherIsBetter: true },
-  normalized_mutual_info: { label: 'NMI', higherIsBetter: true },
+const METRIC_DISPLAY: Record<
+  string,
+  { label: string; higherIsBetter: boolean; description: string }
+> = {
+  silhouette: {
+    label: 'Silhouette',
+    higherIsBetter: true,
+    description:
+      'How well each protein sits inside its own group rather than a neighbouring one, ' +
+      'averaged. Runs from -1 to 1: above 0.5 is a clear separation, near 0 means the ' +
+      'groups overlap, and below 0 means proteins are typically closer to another group.',
+  },
+  davies_bouldin: {
+    label: 'Davies–Bouldin',
+    higherIsBetter: false,
+    description:
+      'The average overlap between each group and the group it is most confusable with. ' +
+      'Lower is better, and 0 would be perfect separation. It has no upper bound, so read ' +
+      'it by comparing projections rather than against a fixed threshold.',
+  },
+  calinski_harabasz: {
+    label: 'Calinski–Harabasz',
+    higherIsBetter: true,
+    description:
+      'The spread between groups divided by the spread within them. Higher is better. ' +
+      'It has no upper bound and grows with dataset size, so compare it only across ' +
+      'projections of the same data.',
+  },
+  adjusted_rand: {
+    label: 'ARI',
+    higherIsBetter: true,
+    description:
+      'How closely the automatic clustering reproduces this annotation, corrected for ' +
+      'agreement that chance alone would produce. 1 is an exact match, 0 is no better than ' +
+      'random, and it goes negative when the clustering disagrees with the annotation more ' +
+      'than chance would.',
+  },
+  normalized_mutual_info: {
+    label: 'NMI',
+    higherIsBetter: true,
+    description:
+      'How much knowing the automatic cluster tells you about the annotation, on a 0 to 1 ' +
+      'scale. Unlike ARI it is not corrected for chance, so it reads higher, and the gap ' +
+      'between the two widens as the cluster count grows.',
+  },
 };
+
+/** Explanation for a metric, shown behind the ⓘ icon, or '' when there is none (render no popover). */
+export function metricDescription(metric: string): string {
+  return METRIC_DISPLAY[metric]?.description ?? '';
+}
 
 /** Human name for a K-selection labelling (`label_kind`), falling back to the raw value. */
 const LABEL_KIND_DISPLAY: Record<string, string> = {
