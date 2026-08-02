@@ -101,8 +101,17 @@ def test_subsample_path_flags_sampled_and_is_deterministic():
 
 
 def test_per_category_silhouette_averages_to_the_aggregate():
-    X, y = _blobs(n=200, centers=4, dim=2, seed=3)
-    ids = [f"p{i}" for i in range(200)]
+    # UNBALANCED category sizes on purpose: silhouette_score(X, y) is defined
+    # as silhouette_samples(X, y).mean(), a mean over POINTS, not categories.
+    # The per-category rows are per-CATEGORY means, so recovering the
+    # aggregate from them requires weighting each part by its category size.
+    # A balanced fixture makes the unweighted and size-weighted means
+    # coincide and cannot tell the two apart.
+    from sklearn.datasets import make_blobs
+
+    sizes = [120, 50, 20, 10]
+    X, y = make_blobs(n_samples=sizes, n_features=2, random_state=3)
+    ids = [f"p{i}" for i in range(len(y))]
     ann = {"grp": {pid: f"g{int(c)}" for pid, c in zip(ids, y, strict=True)}}
     outs = AnnotationValidityStatistic().compute(
         StatContext("projection", "PCA_2", coords=X, ids=ids, annotations=ann)
@@ -114,13 +123,24 @@ def test_per_category_silhouette_averages_to_the_aggregate():
 
     assert len(per_cat) == 4
     assert {r.category for r in per_cat} == {"g0", "g1", "g2", "g3"}
-    # silhouette_score IS the mean of silhouette_samples, so this is exact.
-    assert np.mean([r.value for r in per_cat]) == pytest.approx(aggregate.value)
+    labels, counts = np.unique(y, return_counts=True)
+    cat_size = {f"g{int(c)}": int(n) for c, n in zip(labels, counts, strict=True)}
+    total = len(y)
+    weighted_mean = sum(cat_size[r.category] * r.value for r in per_cat) / total
+    assert weighted_mean == pytest.approx(aggregate.value)
 
 
 def test_per_category_davies_bouldin_averages_to_the_aggregate():
-    X, y = _blobs(n=200, centers=4, dim=2, seed=3)
-    ids = [f"p{i}" for i in range(200)]
+    # Same unbalanced fixture as the silhouette test above. Unlike silhouette,
+    # scikit-learn's davies_bouldin_score really is the unweighted mean of the
+    # per-cluster R_i values, so the plain mean is the correct identity here;
+    # exercising it on unbalanced categories is a strictly stronger check than
+    # a balanced fixture, since it also rules out an accidental match.
+    from sklearn.datasets import make_blobs
+
+    sizes = [120, 50, 20, 10]
+    X, y = make_blobs(n_samples=sizes, n_features=2, random_state=3)
+    ids = [f"p{i}" for i in range(len(y))]
     ann = {"grp": {pid: f"g{int(c)}" for pid, c in zip(ids, y, strict=True)}}
     outs = AnnotationValidityStatistic().compute(
         StatContext("projection", "PCA_2", coords=X, ids=ids, annotations=ann)

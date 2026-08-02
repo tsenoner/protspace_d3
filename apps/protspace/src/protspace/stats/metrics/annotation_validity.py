@@ -4,8 +4,9 @@ separate in a given space (embedding or projection).
 silhouette / Davies-Bouldin / Calinski-Harabasz are computed with the
 annotation's category labels (not auto-KMeans labels), on ``ctx.coords``.
 silhouette and Davies-Bouldin are additionally emitted per category (rows
-carrying ``category``); both aggregates are the mean of their per-category
-parts, so the decomposition is exact rather than an approximation.
+carrying ``category``). The silhouette aggregate is the size-weighted mean
+of its per-category parts (a mean over points, not categories); the
+Davies-Bouldin aggregate is the unweighted mean of its per-cluster values.
 Calinski-Harabasz stays aggregate-only. scikit-learn imports are function-local.
 """
 
