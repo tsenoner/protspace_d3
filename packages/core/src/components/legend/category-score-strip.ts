@@ -12,7 +12,12 @@ export interface ScoreStripPoint {
 const STRIP_HEIGHT = 44;
 const AXIS_Y = 22;
 const DOT_RADIUS = 5;
-/** Horizontal room for the dot radius plus its highlight ring at either end. */
+/**
+ * Percent inset at either end of the axis, so the extreme dots sit inside the strip
+ * rather than on its edge. A percentage of the rendered width, not pixels: the axis is
+ * fluid while the height is fixed, so this does not track `DOT_RADIUS`. Dots never clip
+ * regardless, because the svg is `overflow: visible`.
+ */
 const PADDING = 10;
 
 /**
