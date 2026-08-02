@@ -178,22 +178,15 @@ describe('protspace-projection-metadata annotation quality section', () => {
         statistics: [
           statRow(),
           statRow({ space_kind: 'embedding', space_name: 'prot_t5', value: 0.095 }),
-          statRow({
-            stat_family: 'cluster_agreement',
-            label_kind: 'kmeans_elbow',
-            metric: 'adjusted_rand',
-            metric_kind: 'agreement',
-            value: 0.362,
-          }),
+          statRow({ metric: 'davies_bouldin', value: 1.281 }),
         ],
         selectedAnnotation: 'major_group',
       },
     );
 
     const cells = Array.from(statsBlock(el)!.querySelectorAll('.stat-metric-embedding'));
-    // Silhouette has a ceiling; the agreement metric never does.
+    // Silhouette has an embedding-space row (a ceiling); Davies-Bouldin has none here.
     expect(cells.map((cell) => cell.classList.contains('is-empty'))).toEqual([false, true]);
-    expect(statsBlock(el)!.textContent).toContain('Auto-cluster agreement');
   });
 });
 
@@ -296,5 +289,79 @@ describe('metadata sections', () => {
     const quality = el.shadowRoot!.querySelector('[data-section="quality"]')!;
     expect(quality.textContent).toContain('Trustworthiness');
     expect(quality.textContent).not.toContain('N Neighbors');
+  });
+});
+
+describe('auto-cluster agreement placement', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  /**
+   * One clustering's agreement row against one recovered annotation, shaped exactly as the
+   * backend emits it: filed under the *recovered* annotation's own name (`major_group`), never
+   * under the cluster column's name (`cluster_elbow_...`). Selecting the cluster column is what
+   * the panel matches against, not the row's `annotation` field.
+   */
+  const agreementRow = (over: Partial<ProjectionStatisticRow> = {}) =>
+    statRow({
+      stat_family: 'cluster_agreement',
+      label_kind: 'kmeans_elbow',
+      metric: 'adjusted_rand',
+      metric_kind: 'agreement',
+      value: 0.62,
+      ...over,
+    });
+
+  it('hides agreement while an ordinary annotation is selected', async () => {
+    const el = await setup(
+      { n_neighbors: 15 },
+      { statistics: [statRow(), agreementRow()], selectedAnnotation: 'major_group' },
+    );
+
+    const text = el.shadowRoot!.querySelector('.annotation-stats')!.textContent!;
+    expect(text).toContain('Separation in this projection');
+    expect(text).not.toContain('Recovers');
+  });
+
+  it('shows one group per recovered annotation when the clustering itself is selected', async () => {
+    const rows = [
+      agreementRow({ annotation: 'major_group', metric: 'adjusted_rand', value: 0.62 }),
+      agreementRow({
+        annotation: 'major_group',
+        metric: 'normalized_mutual_info',
+        value: 0.58,
+      }),
+      agreementRow({ annotation: 'ec_number', metric: 'adjusted_rand', value: 0.31 }),
+      agreementRow({
+        annotation: 'ec_number',
+        metric: 'normalized_mutual_info',
+        value: 0.44,
+      }),
+    ];
+    const el = await setup(
+      { n_neighbors: 15 },
+      { statistics: rows, selectedAnnotation: 'cluster_elbow_ProtT5 — UMAP 2' },
+    );
+
+    const text = el.shadowRoot!.querySelector('.annotation-stats')!.textContent!;
+    expect(text).toContain('Recovers');
+    // Both recovered annotations get their own named group, not a bare "elbow K" label.
+    expect(text).toContain('Major group');
+    expect(text).toContain('Ec number');
+    // Both metrics rendered for each group, not just a stray heading string.
+    expect(text).toContain('0.620');
+    expect(text).toContain('0.580');
+    expect(text).toContain('0.310');
+    expect(text).toContain('0.440');
+
+    const groupLabels = Array.from(statsBlock(el)!.querySelectorAll('.stat-group-label')).map(
+      (node) => node.textContent,
+    );
+    expect(groupLabels).toEqual(['Major group', 'Ec number']);
   });
 });

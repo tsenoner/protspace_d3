@@ -3,6 +3,7 @@ import type { ProjectionStatisticRow } from '../types';
 import {
   annotationStatSummary,
   annotationCategoryScores,
+  clusterAgreement,
   formatStatValue,
 } from './annotation-statistics';
 
@@ -235,6 +236,121 @@ describe('annotationStatSummary', () => {
 
     expect(summary!.scored).toBe(1427);
     expect(summary!.categories).toBeNull();
+  });
+});
+
+describe('clusterAgreement', () => {
+  // One clustering's agreement row against one recovered annotation, shaped exactly as
+  // `ClusterValidityStatistic` emits it (validity.py): filed under the *recovered* annotation's
+  // own name, never under the cluster column's name.
+  const agreementRow = (
+    over: Partial<ProjectionStatisticRow> & { labelKind: string; recovers: string },
+  ): ProjectionStatisticRow =>
+    row({
+      space_name: 'UMAP 2',
+      stat_family: 'cluster_agreement',
+      label_kind: over.labelKind,
+      annotation: over.recovers,
+      metric: 'adjusted_rand',
+      metric_kind: 'agreement',
+      value: 0.62,
+      ...over,
+    });
+
+  it('returns an empty array for a column that is not a cluster column', () => {
+    const rows = [agreementRow({ labelKind: 'kmeans_elbow', recovers: 'major_group' })];
+    expect(clusterAgreement(rows, 'major_group')).toEqual([]);
+  });
+
+  it('returns an empty array when the bundle carries no statistics', () => {
+    expect(clusterAgreement(undefined, 'cluster_elbow_UMAP 2')).toEqual([]);
+    expect(clusterAgreement([], 'cluster_elbow_UMAP 2')).toEqual([]);
+  });
+
+  it('returns an empty array when no agreement row matches the selected clustering', () => {
+    // Cluster-shaped name, but nothing in the bundle backs this particular projection.
+    const rows = [agreementRow({ labelKind: 'kmeans_elbow', recovers: 'major_group' })];
+    expect(clusterAgreement(rows, 'cluster_elbow_PCA 2')).toEqual([]);
+  });
+
+  it('groups multiple recovered annotations under the selected clustering', () => {
+    const rows = [
+      agreementRow({ labelKind: 'kmeans_elbow', recovers: 'major_group', value: 0.62 }),
+      agreementRow({
+        labelKind: 'kmeans_elbow',
+        recovers: 'major_group',
+        metric: 'normalized_mutual_info',
+        value: 0.58,
+      }),
+      agreementRow({ labelKind: 'kmeans_elbow', recovers: 'ec_number', value: 0.31 }),
+    ];
+
+    const entries = clusterAgreement(rows, 'cluster_elbow_UMAP 2');
+
+    expect(entries.map((e) => e.annotation)).toEqual(['major_group', 'ec_number']);
+    expect(entries[0].metrics).toHaveLength(2);
+    expect(entries[1].metrics).toHaveLength(1);
+  });
+
+  it('orders ARI before NMI within a group', () => {
+    const rows = [
+      agreementRow({
+        labelKind: 'kmeans_elbow',
+        recovers: 'major_group',
+        metric: 'normalized_mutual_info',
+        value: 0.58,
+      }),
+      agreementRow({
+        labelKind: 'kmeans_elbow',
+        recovers: 'major_group',
+        metric: 'adjusted_rand',
+        value: 0.62,
+      }),
+    ];
+
+    const entries = clusterAgreement(rows, 'cluster_elbow_UMAP 2');
+
+    expect(entries[0].metrics.map((m) => m.metric)).toEqual([
+      'adjusted_rand',
+      'normalized_mutual_info',
+    ]);
+  });
+
+  it('matches the right clustering when a bundle carries both elbow and silhouette rows', () => {
+    // `--cluster-selection both` emits one agreement row per K-selection for the same
+    // annotation; a loose match (e.g. by space_name alone) would blend the two together.
+    const rows = [
+      agreementRow({ labelKind: 'kmeans_elbow', recovers: 'major_group', value: 0.2 }),
+      agreementRow({ labelKind: 'kmeans_silhouette', recovers: 'major_group', value: 0.9 }),
+    ];
+
+    expect(clusterAgreement(rows, 'cluster_elbow_UMAP 2')[0].metrics[0].value).toBe(0.2);
+    expect(clusterAgreement(rows, 'cluster_silhouette_UMAP 2')[0].metrics[0].value).toBe(0.9);
+  });
+
+  it('does not match a cluster column from a different projection', () => {
+    const rows = [
+      agreementRow({ labelKind: 'kmeans_elbow', recovers: 'major_group', space_name: 'PCA 2' }),
+    ];
+    expect(clusterAgreement(rows, 'cluster_elbow_UMAP 2')).toEqual([]);
+  });
+
+  it('ignores rows outside cluster_agreement and non-finite values', () => {
+    const rows = [
+      // Same label_kind/space_name, wrong stat_family: must not be mistaken for agreement.
+      row({
+        space_name: 'UMAP 2',
+        annotation: 'major_group',
+        stat_family: 'annotation_validity',
+        label_kind: 'kmeans_elbow',
+        metric: 'adjusted_rand',
+        metric_kind: 'validity',
+        value: 0.99,
+      }),
+      agreementRow({ labelKind: 'kmeans_elbow', recovers: 'major_group', value: Number.NaN }),
+    ];
+
+    expect(clusterAgreement(rows, 'cluster_elbow_UMAP 2')).toEqual([]);
   });
 });
 

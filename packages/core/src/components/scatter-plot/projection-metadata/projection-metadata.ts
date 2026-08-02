@@ -4,12 +4,14 @@ import { customElement } from '../../../utils/safe-custom-element';
 import type {
   AnnotationStatMetric,
   AnnotationStatSummary,
+  ClusterAgreementEntry,
   Projection,
   ProjectionStatisticRow,
 } from '@protspace/utils';
 import {
   NA_DISPLAY,
   annotationStatSummary,
+  clusterAgreement,
   formatStatValue,
   prettifyAnnotationName,
 } from '@protspace/utils';
@@ -33,6 +35,10 @@ class ProtspaceProjectionMetadata extends LitElement {
       this.selectedAnnotation,
       this.projection?.name ?? '',
     );
+    // Non-empty only when the selected annotation is itself a `cluster_elbow_*` /
+    // `cluster_silhouette_*` column; see `clusterAgreement`'s doc for why this can never
+    // overlap with `stats` on real data (cluster columns are never scored annotations).
+    const agreement = clusterAgreement(this.statisticsRows, this.selectedAnnotation);
 
     if (parameters.length === 0 && quality.length === 0) {
       return html``;
@@ -59,7 +65,7 @@ class ProtspaceProjectionMetadata extends LitElement {
         <div class="header">Projection Metadata</div>
         ${this._renderSection('Parameters', 'parameters', parameters)}
         ${this._renderSection('Projection quality', 'quality', quality)}
-        ${stats ? this._renderAnnotationStats(stats) : nothing}
+        ${stats || agreement.length > 0 ? this._renderAnnotationStats(stats, agreement) : nothing}
       </div>
     `;
   }
@@ -83,19 +89,25 @@ class ProtspaceProjectionMetadata extends LitElement {
   }
 
   /**
-   * How well the annotation currently coloring the plot separates in this projection. Absent
-   * whenever the bundle carries no score for this (annotation, projection) pair, so a dataset
-   * prepared without `--stats` sees the panel exactly as before.
+   * How well the selected annotation separates in this projection (`summary`), and/or how well
+   * the selected auto-clustering recovers every annotation it was compared against
+   * (`agreement`). The two never both carry content for real data: a `cluster_elbow_*` /
+   * `cluster_silhouette_*` column is never itself a scored annotation, so `summary` is always
+   * null exactly when `agreement` is non-empty. Still, each is rendered independently rather
+   * than assumed exclusive, matching this file's existing defensive posture.
    */
-  private _renderAnnotationStats(summary: AnnotationStatSummary) {
-    const scope = this._statScopeLine(summary);
+  private _renderAnnotationStats(
+    summary: AnnotationStatSummary | null,
+    agreement: ClusterAgreementEntry[],
+  ) {
+    const scope = summary ? this._statScopeLine(summary) : '';
     // A bundle prepared without an embedding pass has every ceiling null: naming a column
     // of entirely blank cells would only take width back from the label column for nothing.
-    const hasEmbeddingCeiling = summary.validity.some((metric) => metric.embedding !== null);
+    const hasEmbeddingCeiling = summary?.validity.some((metric) => metric.embedding !== null);
     return html`
       <div class="header stats-header">${prettifyAnnotationName(this.selectedAnnotation)}</div>
       <div class="annotation-stats">
-        ${summary.validity.length > 0
+        ${summary && summary.validity.length > 0
           ? html`
               <div class="stat-heading">Separation in this projection</div>
               ${hasEmbeddingCeiling
@@ -110,13 +122,13 @@ class ProtspaceProjectionMetadata extends LitElement {
               ${summary.validity.map((metric) => this._renderStatMetric(metric))}
             `
           : ''}
-        ${summary.agreement.length > 0
+        ${agreement.length > 0
           ? html`
-              <div class="stat-heading">Auto-cluster agreement</div>
-              ${summary.agreement.map(
-                (group) => html`
-                  <div class="stat-group-label">${group.label}</div>
-                  ${group.metrics.map((metric) => this._renderStatMetric(metric))}
+              <div class="stat-heading">Recovers</div>
+              ${agreement.map(
+                (entry) => html`
+                  <div class="stat-group-label">${prettifyAnnotationName(entry.annotation)}</div>
+                  ${entry.metrics.map((metric) => this._renderStatMetric(metric))}
                 `,
               )}
             `

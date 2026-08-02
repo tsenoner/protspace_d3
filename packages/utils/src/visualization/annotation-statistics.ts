@@ -192,6 +192,68 @@ export function annotationStatSummary(
 }
 
 /**
+ * The column name the backend gives one K-selection's auto-clustering, reconstructed (never
+ * parsed) from a `cluster_agreement` row's own `label_kind` + `space_name`
+ * (`ClusterValidityStatistic` in `apps/protspace/src/protspace/stats/metrics/validity.py`).
+ * A projection name can itself contain underscores, so splitting a column name apart is
+ * ambiguous; rebuilding the name and comparing for equality is exact. `null` for any other
+ * `label_kind`, so an unrecognised one can never accidentally match.
+ */
+function clusterColumnName(labelKind: string, spaceName: string): string | null {
+  if (labelKind === 'kmeans_elbow') return `cluster_elbow_${spaceName}`;
+  if (labelKind === 'kmeans_silhouette') return `cluster_silhouette_${spaceName}`;
+  return null;
+}
+
+/** One annotation, and how well the selected auto-clustering recovers it. */
+export interface ClusterAgreementEntry {
+  annotation: string;
+  metrics: AnnotationStatMetric[];
+}
+
+/**
+ * ARI/NMI agreement for the auto-clustering the caller has selected, against every annotation
+ * the backend compared it to, read in its natural direction: this clustering, at this K,
+ * recovers each annotation at this ARI and NMI.
+ *
+ * The backend never files a `cluster_agreement` row under the cluster column's own name: like
+ * every other stat, it's filed under the annotation being *scored* (`major_group`, `ec_number`,
+ * …; see `annotationStatSummary` above), and `cluster_*` columns are themselves excluded from
+ * ever being scored as an annotation (`annotation_select.py`). So the only way to find "this
+ * clustering"'s rows is to reconstruct each row's column name via `clusterColumnName` and test
+ * it against what's selected, never by filtering on `row.annotation`.
+ *
+ * Returns `[]` for anything that isn't one of the backend's `cluster_elbow_*` /
+ * `cluster_silhouette_*` shapes, which doubles as the "should the block render at all" test.
+ *
+ * @param statistics Rows from the bundle's statistics part, if any.
+ * @param clusterColumn Selected annotation column.
+ */
+export function clusterAgreement(
+  statistics: readonly ProjectionStatisticRow[] | undefined,
+  clusterColumn: string,
+): ClusterAgreementEntry[] {
+  if (!statistics?.length || !clusterColumn) return [];
+
+  const byAnnotation = new Map<string, AnnotationStatMetric[]>();
+  for (const row of statistics) {
+    if (row.stat_family !== 'cluster_agreement' || !Number.isFinite(row.value)) continue;
+    if (clusterColumnName(row.label_kind, row.space_name) !== clusterColumn) continue;
+    const metrics = byAnnotation.get(row.annotation) ?? [];
+    metrics.push(toMetric(row, null));
+    byAnnotation.set(row.annotation, metrics);
+  }
+
+  // Group order follows first-encounter order in `statistics`. Unlike the label-kind groups in
+  // `annotationStatSummary`, annotation names have no fixed small enum to sort against, so
+  // there's nothing more "deliberate" this module could impose than the order rows arrived in.
+  return [...byAnnotation.entries()].map(([annotation, metrics]) => ({
+    annotation,
+    metrics: metrics.sort(byMetricOrder),
+  }));
+}
+
+/**
  * Format a statistic for display. Calinski–Harabasz is unbounded and runs into the hundreds or
  * thousands, so it would waste the popover's width at 3 decimals; bounded scores keep them.
  */
