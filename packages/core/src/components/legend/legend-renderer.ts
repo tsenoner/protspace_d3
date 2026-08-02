@@ -330,12 +330,16 @@ export class LegendRenderer {
           ${this.renderItemActions(item, eventHandlers.onViewOther)}
         </div>
         <span class="legend-count" part="count">${item.count}</span>
-        <!-- Always present, even when empty: the row is a flex layout with
-             justify-content: space-between, so omitting the cell would shift the
-             spacing of every following row. -->
-        <span class="legend-score" part="score"
-          >${score === null || score === undefined ? '' : score.toFixed(2)}</span
-        >
+        ${score === undefined
+          ? nothing
+          : html`
+              <!-- Present because this legend has at least one scored category. Still
+                   rendered (empty) when this particular category has none (score === null),
+                   so the following columns in the flex row don't shift. -->
+              <span class="legend-score" part="score"
+                >${score === null ? '' : score.toFixed(2)}</span
+              >
+            `}
       </div>
     `;
   }

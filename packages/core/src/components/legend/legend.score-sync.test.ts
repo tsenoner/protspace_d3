@@ -233,6 +233,16 @@ describe('legend score column', () => {
     expect(row.querySelector('.legend-score')!.textContent!.trim()).toBe('0.81');
   });
 
+  it('renders no score cell at all when the dataset has no statistics', async () => {
+    // Most datasets have no --stats part. A cell that's always present (even empty)
+    // still gets flex-blockified and picks up .legend-score's min-width, shifting
+    // .legend-count left for no benefit. It must not render at all in this case.
+    const el = await setup({ ...makeData(), statisticsRows: [] });
+    const row = el.shadowRoot!.querySelector('[data-value="Viperidae"]')!;
+
+    expect(row.querySelector('.legend-score')).toBeNull();
+  });
+
   it('leaves the score cell empty for a category with no score', async () => {
     // The cell must still exist: the row is a flex layout with justify-content:
     // space-between, so dropping it would shift the spacing of every other row.
@@ -329,6 +339,10 @@ describe('legend settings dialog: sort by separation', () => {
   it('omits "By separation" sorting when the dataset has no statistics', async () => {
     const el = await setup({ ...makeData(), statisticsRows: [] });
 
-    expect(radioLabels(renderDialog(el))).not.toContain('By separation');
+    const labels = radioLabels(renderDialog(el));
+    // Proves the dialog actually rendered its other options (not an empty template
+    // that would vacuously satisfy the assertion below).
+    expect(labels).toContain('By category size');
+    expect(labels).not.toContain('By separation');
   });
 });

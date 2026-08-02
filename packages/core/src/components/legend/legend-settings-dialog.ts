@@ -306,7 +306,10 @@ function renderSortingSection(
         { checked: isSize, label: 'By category size', category: 'size' as const },
         { checked: isAlphabetic, label: 'Alphabetical', category: 'alpha' as const },
         { checked: isManual, label: 'Manual order', category: 'manual' as const },
-        ...(state.hasCategoryScores
+        // Keep the option present when it's already selected, even if this projection's
+        // statistics are absent (e.g. after a reload): otherwise the radio group would
+        // render with nothing checked.
+        ...(state.hasCategoryScores || isSilhouette
           ? [{ checked: isSilhouette, label: 'By separation', category: 'silhouette' as const }]
           : []),
       ];

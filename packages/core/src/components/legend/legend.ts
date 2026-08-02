@@ -696,7 +696,9 @@ export class ProtspaceLegend extends LitElement {
       if (a.value === LEGEND_VALUES.OTHER) return 1;
       if (b.value === LEGEND_VALUES.OTHER) return -1;
       const diff = scoreOf(b.value) - scoreOf(a.value);
-      return diff !== 0 ? diff : a.zOrder - b.zOrder;
+      // `||` (not `!== 0 ? … :`) so an unscored pair, where diff is NaN, also falls
+      // through to the zOrder tiebreak instead of coercing to a no-op comparator.
+      return diff || a.zOrder - b.zOrder;
     });
   }
 
@@ -2464,7 +2466,9 @@ export class ProtspaceLegend extends LitElement {
       otherCount,
       sortedIndex,
       this._canDragLegendItem(item),
-      this._categoryScores.find((score) => score.category === item.value)?.silhouette ?? null,
+      this._categoryScores.length === 0
+        ? undefined
+        : (this._categoryScores.find((score) => score.category === item.value)?.silhouette ?? null),
     );
   }
 

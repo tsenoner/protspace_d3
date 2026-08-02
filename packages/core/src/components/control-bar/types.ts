@@ -7,16 +7,10 @@ import type {
   AnnotationData,
   AnnotationPredictedData,
   ProjectionStatisticRow,
+  LegendSortMode,
 } from '@protspace/utils';
 
-export type LegendSortModeLike =
-  | 'size-asc'
-  | 'size-desc'
-  | 'alpha-asc'
-  | 'alpha-desc'
-  | 'manual'
-  | 'manual-reverse'
-  | 'silhouette-desc';
+export type LegendSortModeLike = LegendSortMode;
 
 export interface ProtspaceData {
   projections?: Array<{ name: string; metadata?: { dimension?: 2 | 3 } }>;
