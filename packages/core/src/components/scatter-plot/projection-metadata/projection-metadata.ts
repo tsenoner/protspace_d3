@@ -26,7 +26,7 @@ class ProtspaceProjectionMetadata extends LitElement {
   static styles = projectionMetadataStyles;
 
   render() {
-    const metadata = this._getProjectionMetadata();
+    const { parameters, quality } = this._splitMetadata();
     // Only this projection's own scores: the section is scoped by the panel it sits in.
     const stats = annotationStatSummary(
       this.statisticsRows,
@@ -34,7 +34,7 @@ class ProtspaceProjectionMetadata extends LitElement {
       this.projection?.name ?? '',
     );
 
-    if (metadata.length === 0) {
+    if (parameters.length === 0 && quality.length === 0) {
       return html``;
     }
 
@@ -57,18 +57,28 @@ class ProtspaceProjectionMetadata extends LitElement {
 
       <div class="content" id="projection-metadata-content" role="tooltip">
         <div class="header">Projection Metadata</div>
-        <dl>
-          ${metadata.map(
-            ([key, value]) => html`
-              <div class="item">
-                <dt>${key}</dt>
-                <dd>${value}</dd>
-              </div>
-            `,
-          )}
-        </dl>
+        ${this._renderSection('Parameters', 'parameters', parameters)}
+        ${this._renderSection('Projection quality', 'quality', quality)}
         ${stats ? this._renderAnnotationStats(stats) : nothing}
       </div>
+    `;
+  }
+
+  /** One labelled block. Absent rather than empty when the projection carries no such data. */
+  private _renderSection(title: string, id: string, entries: Array<[string, string]>) {
+    if (entries.length === 0) return nothing;
+    return html`
+      <div class="section-heading">${title}</div>
+      <dl data-section="${id}">
+        ${entries.map(
+          ([key, value]) => html`
+            <div class="item">
+              <dt>${key}</dt>
+              <dd>${value}</dd>
+            </div>
+          `,
+        )}
+      </dl>
     `;
   }
 
@@ -85,6 +95,11 @@ class ProtspaceProjectionMetadata extends LitElement {
         ${summary.validity.length > 0
           ? html`
               <div class="stat-heading">Separation in this projection</div>
+              <div class="stat-columns">
+                <span></span>
+                <span>This projection</span>
+                <span>In embedding</span>
+              </div>
               ${summary.validity.map((metric) => this._renderStatMetric(metric))}
             `
           : ''}
@@ -128,7 +143,7 @@ class ProtspaceProjectionMetadata extends LitElement {
         <!-- The cell stays even when empty: \`.stat-metric\` is \`display: contents\`, so dropping
              it would shift every following row one column across the shared grid. -->
         <span class="stat-metric-embedding ${metric.embedding === null ? 'is-empty' : ''}">
-          ${metric.embedding === null ? '' : `emb ${formatStatValue(metric.embedding)}`}
+          ${metric.embedding === null ? '' : formatStatValue(metric.embedding)}
         </span>
       </div>
     `;
@@ -152,48 +167,59 @@ class ProtspaceProjectionMetadata extends LitElement {
   }
 
   /**
-   * Get formatted projection metadata for display
+   * Reduction parameters and projection quality, kept apart. They answer different
+   * questions: the parameters are what was asked for, the quality is what came out, and
+   * a single flat list invites reading `n_neighbors` and `trustworthiness` as peers.
    */
-  private _getProjectionMetadata(): Array<[string, string]> {
-    if (!this.projection?.metadata) {
-      return [];
-    }
+  private _splitMetadata(): {
+    parameters: Array<[string, string]>;
+    quality: Array<[string, string]>;
+  } {
+    if (!this.projection?.metadata) return { parameters: [], quality: [] };
 
     const rawMetadata = this.projection.metadata;
-    const processedEntries: Array<[string, unknown]> = [];
+    const parameterEntries: Array<[string, unknown]> = [];
+    const qualityEntries: Array<[string, unknown]> = [];
 
-    // Filter and process metadata entries
     for (const [key, value] of Object.entries(rawMetadata)) {
-      // Skip internal fields
       const lowerKey = key.toLowerCase();
       if (lowerKey === 'dimension' || lowerKey === 'dimensions' || lowerKey === 'name') {
         continue;
       }
 
-      // Parse and flatten JSON fields
       if (this._isJsonField(lowerKey) && typeof value === 'string') {
         const parsed = this._tryParseJson(value);
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-          processedEntries.push(...Object.entries(parsed));
+          for (const [innerKey, innerValue] of Object.entries(parsed)) {
+            if (
+              innerKey.toLowerCase() === 'quality' &&
+              !!innerValue &&
+              typeof innerValue === 'object'
+            ) {
+              qualityEntries.push(...this._qualityEntries(innerValue as Record<string, unknown>));
+            } else {
+              parameterEntries.push([innerKey, innerValue]);
+            }
+          }
           continue;
         }
       }
 
-      // Faithfulness rides in as a nested `{metric: {value, scope, ...provenance}}` map, which the
-      // object branch of `_formatSingleValue` would print as one long JSON string.
       if (lowerKey === 'quality' && !!value && typeof value === 'object' && !Array.isArray(value)) {
-        processedEntries.push(...this._qualityEntries(value as Record<string, unknown>));
+        qualityEntries.push(...this._qualityEntries(value as Record<string, unknown>));
         continue;
       }
 
-      processedEntries.push([key, value]);
+      parameterEntries.push([key, value]);
     }
 
-    // Format all entries
-    return processedEntries.map(([key, value]) => [
-      this._formatMetadataKey(key),
-      this._formatMetadataValue(value, key),
-    ]);
+    const format = (entries: Array<[string, unknown]>): Array<[string, string]> =>
+      entries.map(([key, value]) => [
+        this._formatMetadataKey(key),
+        this._formatMetadataValue(value, key),
+      ]);
+
+    return { parameters: format(parameterEntries), quality: format(qualityEntries) };
   }
 
   /**

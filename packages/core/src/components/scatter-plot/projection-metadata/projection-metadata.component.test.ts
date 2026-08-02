@@ -149,7 +149,8 @@ describe('protspace-projection-metadata annotation quality section', () => {
     const text = statsBlock(el)!.textContent!;
     expect(text).toContain('Separation in this projection');
     expect(text).toContain('0.326');
-    expect(text).toContain('emb 0.095');
+    expect(text).toContain('0.095');
+    expect(text).not.toContain('emb 0.095');
     expect(text).toContain('5 categories · 1,427 proteins scored');
     expect(text).toContain('Computed on the full dataset');
   });
@@ -193,5 +194,58 @@ describe('protspace-projection-metadata annotation quality section', () => {
     // Silhouette has a ceiling; the agreement metric never does.
     expect(cells.map((cell) => cell.classList.contains('is-empty'))).toEqual([false, true]);
     expect(statsBlock(el)!.textContent).toContain('Auto-cluster agreement');
+  });
+});
+
+describe('metadata sections', () => {
+  it('separates reduction parameters from projection quality', async () => {
+    const el = await setup({
+      n_neighbors: 15,
+      min_dist: 0.1,
+      quality: {
+        trustworthiness: qualityEntry(0.94, 'local'),
+        continuity: qualityEntry(0.91, 'local'),
+      },
+    });
+
+    const headings = Array.from(el.shadowRoot!.querySelectorAll('.section-heading')).map((node) =>
+      node.textContent!.trim(),
+    );
+    expect(headings).toContain('Parameters');
+    expect(headings).toContain('Projection quality');
+
+    const parameters = el.shadowRoot!.querySelector('[data-section="parameters"]')!;
+    expect(parameters.textContent).toContain('N Neighbors');
+    expect(parameters.textContent).not.toContain('Trustworthiness');
+
+    const quality = el.shadowRoot!.querySelector('[data-section="quality"]')!;
+    expect(quality.textContent).toContain('Trustworthiness');
+    expect(quality.textContent).not.toContain('N Neighbors');
+  });
+
+  it('labels the embedding ceiling instead of abbreviating it', async () => {
+    const el = await setup(
+      { n_neighbors: 15 },
+      {
+        statistics: [
+          statRow(),
+          statRow({ space_kind: 'embedding', space_name: 'prot_t5', value: 0.095 }),
+        ],
+        selectedAnnotation: 'major_group',
+      },
+    );
+
+    const text = el.shadowRoot!.querySelector('.annotation-stats')!.textContent!;
+    expect(text).toContain('In embedding');
+    expect(text).not.toContain('emb 0.095');
+  });
+
+  it('omits the quality section entirely when there is no faithfulness', async () => {
+    const el = await setup({ n_neighbors: 15 });
+
+    const headings = Array.from(el.shadowRoot!.querySelectorAll('.section-heading')).map((node) =>
+      node.textContent!.trim(),
+    );
+    expect(headings).not.toContain('Projection quality');
   });
 });

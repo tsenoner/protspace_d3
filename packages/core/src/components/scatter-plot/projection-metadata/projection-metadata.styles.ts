@@ -209,5 +209,36 @@ export const projectionMetadataStyles = [
       margin-left: 0.15rem;
       color: #94a3b8;
     }
+
+    .section-heading {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-secondary, #666);
+      margin-top: 0.625rem;
+      margin-bottom: 0.25rem;
+    }
+
+    /* display: contents (not a nested grid) so these three spans land in \`.annotation-stats\`'s
+     own grid columns, the same way \`.stat-metric\`'s cells do. A nested grid here would size its
+     own "auto" columns from just these two header words, which would not match the value columns'
+     widths below and would only ever occupy the outer grid's first column besides. */
+    .stat-columns {
+      display: contents;
+    }
+
+    .stat-columns span {
+      font-size: 0.6875rem;
+      color: var(--text-secondary, #666);
+    }
+
+    .stat-columns span:not(:first-child) {
+      text-align: right;
+    }
+
+    .stat-metric-value {
+      text-align: right;
+    }
   `,
 ];
