@@ -46,7 +46,7 @@ def test_registry_returns_three_statistics():
     assert families == {"cluster_validity", "annotation_validity", "faithfulness"}
 
 
-def test_to_arrow_has_nine_column_schema():
+def test_to_arrow_has_ten_column_schema():
     report = StatsReport()
     report.add(
         [
@@ -73,10 +73,11 @@ def test_to_arrow_has_nine_column_schema():
         "metric",
         "metric_kind",
         "value",
+        "category",
         "extra_json",
     ]
     assert table.schema.names == names
-    assert len(names) == 9
+    assert len(names) == 10
     assert table.num_rows == 1
     assert table.column("value")[0].as_py() == pytest.approx(0.42)
 
@@ -602,9 +603,14 @@ def test_driver_emits_embedding_and_projection_annotation_validity():
     kinds = {(r.space_kind, r.annotation) for r in av}
     assert ("embedding", "grp") in kinds  # once-per-embedding pass
     assert ("projection", "grp") in kinds  # per-projection pass
-    # embedding is computed exactly once per (embedding, annotation, metric)
+    # embedding is computed exactly once per (embedding, annotation, metric);
+    # category is None selects the aggregate row, not its per-category parts.
     emb_sil = [
-        r for r in av if r.space_kind == "embedding" and r.metric == "silhouette"
+        r
+        for r in av
+        if r.space_kind == "embedding"
+        and r.metric == "silhouette"
+        and r.category is None
     ]
     assert len(emb_sil) == 1
 

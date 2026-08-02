@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from protspace.stats.base import StatContext, StatRow
 from protspace.stats.metrics.annotation_validity import AnnotationValidityStatistic
@@ -97,6 +98,106 @@ def test_subsample_path_flags_sampled_and_is_deterministic():
     sil_again = _run()
     assert sil_again.value == sil.value
     assert sil_again.extra == sil.extra
+
+
+def test_per_category_silhouette_averages_to_the_aggregate():
+    X, y = _blobs(n=200, centers=4, dim=2, seed=3)
+    ids = [f"p{i}" for i in range(200)]
+    ann = {"grp": {pid: f"g{int(c)}" for pid, c in zip(ids, y, strict=True)}}
+    outs = AnnotationValidityStatistic().compute(
+        StatContext("projection", "PCA_2", coords=X, ids=ids, annotations=ann)
+    )
+    aggregate = next(
+        r for r in outs if r.metric == "silhouette" and r.category is None
+    )
+    per_cat = [r for r in outs if r.metric == "silhouette" and r.category is not None]
+
+    assert len(per_cat) == 4
+    assert {r.category for r in per_cat} == {"g0", "g1", "g2", "g3"}
+    # silhouette_score IS the mean of silhouette_samples, so this is exact.
+    assert np.mean([r.value for r in per_cat]) == pytest.approx(aggregate.value)
+
+
+def test_per_category_davies_bouldin_averages_to_the_aggregate():
+    X, y = _blobs(n=200, centers=4, dim=2, seed=3)
+    ids = [f"p{i}" for i in range(200)]
+    ann = {"grp": {pid: f"g{int(c)}" for pid, c in zip(ids, y, strict=True)}}
+    outs = AnnotationValidityStatistic().compute(
+        StatContext("projection", "PCA_2", coords=X, ids=ids, annotations=ann)
+    )
+    aggregate = next(
+        r for r in outs if r.metric == "davies_bouldin" and r.category is None
+    )
+    per_cat = [
+        r for r in outs if r.metric == "davies_bouldin" and r.category is not None
+    ]
+
+    assert len(per_cat) == 4
+    assert np.mean([r.value for r in per_cat]) == pytest.approx(aggregate.value)
+
+
+def test_calinski_harabasz_stays_aggregate_only():
+    # CH is a global variance ratio with no accepted per-cluster form.
+    X, y = _blobs(n=200, centers=4, dim=2, seed=3)
+    ids = [f"p{i}" for i in range(200)]
+    ann = {"grp": {pid: f"g{int(c)}" for pid, c in zip(ids, y, strict=True)}}
+    outs = AnnotationValidityStatistic().compute(
+        StatContext("projection", "PCA_2", coords=X, ids=ids, annotations=ann)
+    )
+    ch = [r for r in outs if r.metric == "calinski_harabasz"]
+    assert len(ch) == 1
+    assert ch[0].category is None
+
+
+def test_per_category_rows_are_emitted_for_the_embedding_pass_too():
+    X, y = _blobs(n=120, centers=3, dim=8, seed=4)
+    ids = [f"p{i}" for i in range(120)]
+    ann = {"grp": {pid: f"g{int(c)}" for pid, c in zip(ids, y, strict=True)}}
+    outs = AnnotationValidityStatistic().compute(
+        StatContext("embedding", "prot_t5", coords=X, ids=ids, annotations=ann)
+    )
+    per_cat = [r for r in outs if r.category is not None]
+    assert per_cat
+    assert all(r.space_kind == "embedding" for r in per_cat)
+
+
+def test_singleton_category_emits_no_davies_bouldin_at_all():
+    # DBI is unstable with a singleton cluster, so neither the aggregate nor the
+    # per-category rows may appear; otherwise the mean invariant would compare a
+    # present aggregate against an incomplete set of parts.
+    X, _ = _blobs(n=60, centers=2, dim=2, seed=7)
+    ids = [f"p{i}" for i in range(60)]
+    cats = ["a"] * 30 + ["b"] * 29 + ["lonely"]
+    ann = {"grp": dict(zip(ids, cats, strict=True))}
+    outs = AnnotationValidityStatistic().compute(
+        StatContext("projection", "P", coords=X, ids=ids, annotations=ann)
+    )
+    assert [r for r in outs if r.metric == "davies_bouldin"] == []
+    assert [r for r in outs if r.metric == "silhouette"]
+
+
+def test_category_is_written_to_the_arrow_table():
+    from protspace.stats.base import StatsReport
+
+    report = StatsReport()
+    report.add(
+        [
+            StatRow(
+                space_kind="projection",
+                space_name="P",
+                annotation="grp",
+                stat_family="annotation_validity",
+                label_kind="annotation",
+                metric="silhouette",
+                metric_kind="validity",
+                value=0.5,
+                category="g0",
+            )
+        ]
+    )
+    table = report.to_arrow()
+    assert "category" in table.column_names
+    assert table.column("category").to_pylist() == ["g0"]
 
 
 def test_subsample_is_row_order_invariant():

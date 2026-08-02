@@ -2,9 +2,11 @@
 separate in a given space (embedding or projection).
 
 silhouette / Davies-Bouldin / Calinski-Harabasz are computed with the
-annotation's category labels (not auto-KMeans labels), on ``ctx.coords`` —
-the driver hands us the embedding for the once-per-embedding pass and the 2D
-projection for the per-projection pass. scikit-learn imports are function-local.
+annotation's category labels (not auto-KMeans labels), on ``ctx.coords``.
+silhouette and Davies-Bouldin are additionally emitted per category (rows
+carrying ``category``); both aggregates are the mean of their per-category
+parts, so the decomposition is exact rather than an approximation.
+Calinski-Harabasz stays aggregate-only. scikit-learn imports are function-local.
 """
 
 from __future__ import annotations
@@ -13,6 +15,47 @@ import numpy as np
 
 from protspace.stats._sampling import id_seed, sorted_subsample
 from protspace.stats.base import DEFAULT_SAMPLE_THRESHOLD, StatContext, StatRow
+
+
+def _per_category_silhouette(
+    sample_values: np.ndarray, labels: np.ndarray, cat_names: list[str]
+) -> dict[str, float]:
+    """Mean silhouette per category.
+
+    ``silhouette_score`` is defined as ``silhouette_samples(...).mean()``, so the
+    aggregate is exactly the mean of these values and no extra work is done: the
+    per-point array is retained instead of being collapsed and discarded.
+    """
+    return {
+        name: float(sample_values[labels == j].mean())
+        for j, name in enumerate(cat_names)
+    }
+
+
+def _per_category_davies_bouldin(
+    Xa: np.ndarray, labels: np.ndarray, cat_names: list[str]
+) -> dict[str, float]:
+    """Per-cluster Davies-Bouldin ``R_i``: overlap with the single worst rival.
+
+    ``R_i = max over j != i of (s_i + s_j) / ||c_i - c_j||`` for centroids ``c``
+    and mean intra-cluster distances ``s``. scikit-learn's ``davies_bouldin_score``
+    is the mean of exactly these, and exposes only that mean.
+    """
+    k = len(cat_names)
+    centroids = np.array([Xa[labels == j].mean(axis=0) for j in range(k)])
+    intra = np.array(
+        [
+            float(np.linalg.norm(Xa[labels == j] - centroids[j], axis=1).mean())
+            for j in range(k)
+        ]
+    )
+    separation = np.linalg.norm(centroids[:, None, :] - centroids[None, :, :], axis=-1)
+    # Mirrors sklearn: coincident centroids (and the whole diagonal) become inf so
+    # their ratio is 0 and cannot win the row max. Without this the diagonal would
+    # divide by zero and every score would be inf.
+    separation[separation == 0] = np.inf
+    per_cluster = ((intra[:, None] + intra[None, :]) / separation).max(axis=1)
+    return {name: float(per_cluster[j]) for j, name in enumerate(cat_names)}
 
 
 class AnnotationValidityStatistic:
@@ -28,7 +71,6 @@ class AnnotationValidityStatistic:
         from sklearn.metrics import (
             calinski_harabasz_score,
             davies_bouldin_score,
-            silhouette_score,
         )
 
         coords = np.asarray(ctx.coords)
@@ -81,26 +123,51 @@ class AnnotationValidityStatistic:
                 "sampled": sub is not None,
             }
 
-            # silhouette needs 2 <= k <= n-1; DBI/CH are unstable with singletons.
-            candidates: list = []
-            if 2 <= achieved <= n - 1:
-                candidates.append(("silhouette", silhouette_score))
-            if not bool((counts < 2).any()):
-                candidates += [
-                    ("davies_bouldin", davies_bouldin_score),
-                    ("calinski_harabasz", calinski_harabasz_score),
-                ]
-            for metric_name, fn in candidates:
-                try:
-                    rows.append(
-                        StatRow(
-                            metric=metric_name,
-                            metric_kind="validity",
-                            value=float(fn(Xa, labels)),
-                            extra=extra,
-                            **base,
-                        )
+            cat_names = sorted(cat_to_int, key=cat_to_int.get)
+
+            def _emit(metric_name: str, value: float, category: str | None = None):
+                # extra/base are reassigned each outer-loop iteration, but _emit is
+                # always called within the same iteration that defines it, before
+                # the next reassignment, so the closure never sees a stale value.
+                rows.append(
+                    StatRow(
+                        metric=metric_name,
+                        metric_kind="validity",
+                        value=float(value),
+                        category=category,
+                        extra=extra,  # noqa: B023
+                        **base,  # noqa: B023
                     )
+                )
+
+            # silhouette needs 2 <= k <= n-1; DBI/CH are unstable with singletons.
+            if 2 <= achieved <= n - 1:
+                try:
+                    from sklearn.metrics import silhouette_samples
+
+                    samples = silhouette_samples(Xa, labels)
+                    _emit("silhouette", samples.mean())
+                    for name, value in _per_category_silhouette(
+                        samples, labels, cat_names
+                    ).items():
+                        _emit("silhouette", value, name)
+                except Exception:  # noqa: BLE001 - best-effort
+                    pass
+
+            if not bool((counts < 2).any()):
+                try:
+                    _emit("davies_bouldin", davies_bouldin_score(Xa, labels))
+                    for name, value in _per_category_davies_bouldin(
+                        Xa, labels, cat_names
+                    ).items():
+                        _emit("davies_bouldin", value, name)
+                except Exception:  # noqa: BLE001 - best-effort
+                    pass
+
+                try:
+                    # Aggregate only: CH is a global variance ratio with no
+                    # accepted per-cluster decomposition.
+                    _emit("calinski_harabasz", calinski_harabasz_score(Xa, labels))
                 except Exception:  # noqa: BLE001 - best-effort
                     pass
         return rows
