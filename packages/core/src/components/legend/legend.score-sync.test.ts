@@ -198,4 +198,16 @@ describe('legend score strip synchronisation', () => {
 
     expect(onItemClick).not.toHaveBeenCalled();
   });
+
+  it('does not mark any row on hover when the dataset has no statistics', async () => {
+    const legend = await setup({ ...makeData(), statisticsRows: [] });
+    // No scores means no strips at all: this is the precondition the guard depends on.
+    expect(legend.shadowRoot!.querySelector('protspace-score-strip')).toBeNull();
+    const row = legend.shadowRoot!.querySelector('[data-value="Viperidae"]')!;
+
+    row.dispatchEvent(new Event('mouseenter', { bubbles: false }));
+    await legend.updateComplete;
+
+    expect(legend.shadowRoot!.querySelectorAll('.legend-item-score-hover')).toHaveLength(0);
+  });
 });

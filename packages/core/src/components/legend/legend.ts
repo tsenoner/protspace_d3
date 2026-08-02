@@ -2412,7 +2412,9 @@ export class ProtspaceLegend extends LitElement {
   private _renderLegendItem(item: LegendItem, sortedIndex: number) {
     const selected = isItemSelected(item, this.selectedItems);
     const classes = `${getItemClasses(item, selected, false)}${
-      item.value === this._hoveredCategory ? ' legend-item-score-hover' : ''
+      this._categoryScores.length > 0 && item.value === this._hoveredCategory
+        ? ' legend-item-score-hover'
+        : ''
     }`;
     const otherCount = item.value === LEGEND_VALUES.OTHER ? this._otherItems.length : undefined;
 

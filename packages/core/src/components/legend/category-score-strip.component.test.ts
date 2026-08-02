@@ -82,6 +82,19 @@ describe('protspace-score-strip', () => {
     expect(seen).toEqual(['Elapidae', null]);
   });
 
+  it('emits strip-click with the category on dot click', async () => {
+    const el = await setup();
+    const seen: Array<string> = [];
+    el.addEventListener('strip-click', (event) =>
+      seen.push((event as CustomEvent<{ category: string }>).detail.category),
+    );
+
+    const dot = el.shadowRoot!.querySelector('circle')!;
+    dot.dispatchEvent(new Event('click', { bubbles: false }));
+
+    expect(seen).toEqual(['Elapidae']);
+  });
+
   it('marks the highlighted dot so the legend can drive it', async () => {
     const el = await setup();
     el.highlighted = 'Viperidae';
