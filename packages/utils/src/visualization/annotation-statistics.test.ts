@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import type { ProjectionStatisticRow } from '../types';
-import { annotationStatSummary, formatStatValue } from './annotation-statistics';
+import {
+  annotationStatSummary,
+  annotationCategoryScores,
+  formatStatValue,
+} from './annotation-statistics';
 
 const row = (over: Partial<ProjectionStatisticRow>): ProjectionStatisticRow => ({
   space_kind: 'projection',
@@ -296,5 +300,124 @@ describe('formatStatValue', () => {
     expect(formatStatValue(-99.9996)).toBe('-100');
     expect(formatStatValue(99.9996)).toBe('100');
     expect(formatStatValue(99.4)).toBe('99.400');
+  });
+});
+
+describe('annotationCategoryScores', () => {
+  const base: ProjectionStatisticRow = {
+    space_kind: 'projection',
+    space_name: 'UMAP 2',
+    annotation: 'major_group',
+    stat_family: 'annotation_validity',
+    label_kind: 'annotation',
+    metric: 'silhouette',
+    metric_kind: 'validity',
+    value: 0,
+  };
+
+  it('returns one entry per scored category, with both metrics', () => {
+    const rows: ProjectionStatisticRow[] = [
+      { ...base, category: 'Elapidae', value: 0.81 },
+      { ...base, category: 'Viperidae', value: -0.15 },
+      { ...base, metric: 'davies_bouldin', category: 'Elapidae', value: 0.42 },
+      { ...base, metric: 'davies_bouldin', category: 'Viperidae', value: 3.9 },
+    ];
+
+    const scores = annotationCategoryScores(rows, 'major_group', 'UMAP 2');
+
+    expect(scores).toEqual([
+      {
+        category: 'Elapidae',
+        silhouette: 0.81,
+        silhouetteEmbedding: null,
+        daviesBouldin: 0.42,
+      },
+      {
+        category: 'Viperidae',
+        silhouette: -0.15,
+        silhouetteEmbedding: null,
+        daviesBouldin: 3.9,
+      },
+    ]);
+  });
+
+  it('picks up the embedding ceiling per category', () => {
+    const rows: ProjectionStatisticRow[] = [
+      { ...base, category: 'Elapidae', value: 0.44 },
+      {
+        ...base,
+        space_kind: 'embedding',
+        space_name: 'prot_t5',
+        category: 'Elapidae',
+        value: 0.9,
+      },
+    ];
+
+    const scores = annotationCategoryScores(rows, 'major_group', 'UMAP 2');
+
+    expect(scores[0].silhouetteEmbedding).toBe(0.9);
+  });
+
+  it('drops the ceiling when the bundle carries more than one embedding', () => {
+    // Nothing links a projection back to the embedding it came from, so a metric
+    // scored on two embeddings has no ceiling we can attribute to this projection.
+    const rows: ProjectionStatisticRow[] = [
+      { ...base, category: 'Elapidae', value: 0.44 },
+      {
+        ...base,
+        space_kind: 'embedding',
+        space_name: 'prot_t5',
+        category: 'Elapidae',
+        value: 0.9,
+      },
+      {
+        ...base,
+        space_kind: 'embedding',
+        space_name: 'esm2_650m',
+        category: 'Elapidae',
+        value: 0.2,
+      },
+    ];
+
+    const scores = annotationCategoryScores(rows, 'major_group', 'UMAP 2');
+
+    expect(scores[0].silhouetteEmbedding).toBeNull();
+  });
+
+  it('ignores aggregate rows, other projections and other annotations', () => {
+    const rows: ProjectionStatisticRow[] = [
+      { ...base, value: 0.326 },
+      { ...base, space_name: 'PCA 2', category: 'Elapidae', value: 0.1 },
+      { ...base, annotation: 'ec_number', category: 'Elapidae', value: 0.2 },
+      { ...base, category: 'Elapidae', value: 0.81 },
+    ];
+
+    const scores = annotationCategoryScores(rows, 'major_group', 'UMAP 2');
+
+    expect(scores).toHaveLength(1);
+    expect(scores[0].silhouette).toBe(0.81);
+  });
+
+  it('returns an empty array when there is nothing to plot', () => {
+    expect(annotationCategoryScores(undefined, 'major_group', 'UMAP 2')).toEqual([]);
+    expect(annotationCategoryScores([], 'major_group', 'UMAP 2')).toEqual([]);
+    // Aggregates only: a bundle from before per-category scoring existed.
+    expect(annotationCategoryScores([base], 'major_group', 'UMAP 2')).toEqual([]);
+  });
+
+  it('skips a category scored only in the embedding', () => {
+    // No projection value means no position on the projection axis, so no dot.
+    const rows: ProjectionStatisticRow[] = [
+      { ...base, category: 'Elapidae', value: 0.44 },
+      {
+        ...base,
+        space_kind: 'embedding',
+        space_name: 'prot_t5',
+        category: 'Ghost',
+        value: 0.7,
+      },
+    ];
+
+    expect(annotationCategoryScores(rows, 'major_group', 'UMAP 2')).toHaveLength(1);
   });
 });

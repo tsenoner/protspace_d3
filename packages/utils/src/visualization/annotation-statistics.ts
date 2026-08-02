@@ -204,3 +204,79 @@ export function formatStatValue(value: number): string {
   const text = Math.abs(rounded) >= 100 ? value.toFixed(0) : decimals;
   return rounded === 0 ? text.replace('-', '') : text;
 }
+
+/** One category's separation scores, as plotted on the legend's score strips. */
+export interface CategoryScore {
+  category: string;
+  /** Silhouette in the selected projection. Never null for a returned entry. */
+  silhouette: number | null;
+  /** The same metric on the source embedding: this category's ceiling. */
+  silhouetteEmbedding: number | null;
+  /** Per-cluster Davies-Bouldin: overlap with the single worst rival category. */
+  daviesBouldin: number | null;
+}
+
+/**
+ * Per-category scores for the legend strips, the counterpart to
+ * `annotationStatSummary`'s whole-annotation view.
+ *
+ * Returns an empty array whenever there is nothing to plot: no statistics part, an
+ * annotation the run did not score, or a bundle written before per-category rows
+ * existed. That emptiness is also the "should the strips render at all" test.
+ */
+export function annotationCategoryScores(
+  statistics: readonly ProjectionStatisticRow[] | undefined,
+  annotation: string,
+  projectionName: string,
+): CategoryScore[] {
+  if (!statistics?.length || !annotation) return [];
+
+  const rows = statistics.filter(
+    (row) =>
+      row.annotation === annotation &&
+      row.stat_family === 'annotation_validity' &&
+      typeof row.category === 'string' &&
+      row.category.length > 0 &&
+      Number.isFinite(row.value),
+  );
+  if (rows.length === 0) return [];
+
+  // Same rule as the aggregate summary: a bundle prepared from several embeddings
+  // carries one row per embedding, and nothing links a projection back to the one it
+  // came from, so no ceiling can be attributed rather than showing the wrong one.
+  const embeddingNames = new Set(
+    rows.filter((row) => row.space_kind === 'embedding').map((row) => row.space_name),
+  );
+  const ceilingUsable = embeddingNames.size === 1;
+
+  const byCategory = new Map<string, CategoryScore>();
+  const entryFor = (category: string): CategoryScore => {
+    let entry = byCategory.get(category);
+    if (!entry) {
+      entry = {
+        category,
+        silhouette: null,
+        silhouetteEmbedding: null,
+        daviesBouldin: null,
+      };
+      byCategory.set(category, entry);
+    }
+    return entry;
+  };
+
+  for (const row of rows) {
+    const entry = entryFor(row.category as string);
+    if (row.space_kind === 'embedding') {
+      if (ceilingUsable && row.metric === 'silhouette') {
+        entry.silhouetteEmbedding = row.value;
+      }
+      continue;
+    }
+    if (row.space_name !== projectionName) continue;
+    if (row.metric === 'silhouette') entry.silhouette = row.value;
+    else if (row.metric === 'davies_bouldin') entry.daviesBouldin = row.value;
+  }
+
+  // A category scored only in the embedding has no position on the projection axis.
+  return [...byCategory.values()].filter((entry) => entry.silhouette !== null);
+}

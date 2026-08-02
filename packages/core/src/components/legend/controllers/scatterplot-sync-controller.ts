@@ -32,7 +32,11 @@ const DISCOVERY_RETRY_DELAY = 100;
  * Callback interface for scatterplot sync events
  */
 export interface ScatterplotSyncCallbacks {
-  onDataChange: (data: ScatterplotData, selectedAnnotation: string) => void;
+  onDataChange: (
+    data: ScatterplotData,
+    selectedAnnotation: string,
+    selectedProjectionName: string,
+  ) => void;
   onAnnotationChange: (annotation: string) => void;
   getHiddenValues: () => string[];
   getOtherItems: () => OtherItem[];
@@ -345,6 +349,16 @@ export class ScatterplotSyncController implements ReactiveController {
     this._discoveryRetryCount = 0;
   }
 
+  /**
+   * Name of the projection the scatterplot is showing. Statistics are scored per
+   * projection, so the legend needs the name, but the scatterplot tracks position.
+   * Returns '' when the index is out of range, which reads downstream as "no scores".
+   */
+  private _selectedProjectionName(data: ScatterplotData): string {
+    const index = this._scatterplotElement?.selectedProjectionIndex ?? 0;
+    return data.projections?.[index]?.name ?? '';
+  }
+
   private _handleDataChange(event: Event): void {
     const customEvent = event as CustomEvent;
     const { data } = customEvent.detail;
@@ -353,7 +367,7 @@ export class ScatterplotSyncController implements ReactiveController {
       const selectedAnnotation = this._scatterplotElement.selectedAnnotation;
 
       if (selectedAnnotation) {
-        this.callbacks.onDataChange(data, selectedAnnotation);
+        this.callbacks.onDataChange(data, selectedAnnotation, this._selectedProjectionName(data));
       }
     }
   }
@@ -373,7 +387,11 @@ export class ScatterplotSyncController implements ReactiveController {
     if (!currentData || !selectedAnnotation) return;
 
     this.syncNumericAnnotationSettings();
-    this.callbacks.onDataChange(currentData, selectedAnnotation);
+    this.callbacks.onDataChange(
+      currentData,
+      selectedAnnotation,
+      this._selectedProjectionName(currentData),
+    );
   }
 
   private _cleanup(): void {

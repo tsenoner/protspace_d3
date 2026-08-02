@@ -222,4 +222,12 @@ export const layoutStyles = css`
     font-style: italic;
     padding: 1rem 0;
   }
+
+  .score-strips {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--legend-border);
+  }
 `;

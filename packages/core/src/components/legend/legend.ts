@@ -19,8 +19,10 @@ import {
   hasEatPredictionsForAnnotation,
   isPredictedAnnotation,
   getAnnotationMeta,
+  annotationCategoryScores,
   type NumericBinningStrategy,
   type NumericAnnotationDisplaySettingsMap,
+  type CategoryScore,
 } from '@protspace/utils';
 import type { LegendSettingsMap } from '@protspace/utils';
 
@@ -39,6 +41,8 @@ import {
 import type { PointShape } from '@protspace/utils';
 import { legendStyles } from './legend.styles';
 import '../common/info-popover';
+import './category-score-strip';
+import type { ScoreStripPoint } from './category-score-strip';
 
 // Controllers
 import { ScatterplotSyncController, PersistenceController, DragController } from './controllers';
@@ -163,6 +167,9 @@ export class ProtspaceLegend extends LitElement {
   @state() private _numericSettingsByAnnotation: NumericAnnotationDisplaySettingsMap = {};
   @state() private _numericManualOrderIdsByAnnotation: Record<string, string[]> = {};
   @state() private _eatCounts: EatPopulationCounts | null = null;
+  @state() private _categoryScores: CategoryScore[] = [];
+  /** Category under the pointer, in the legend rows or in a strip. Task 4 reads it. */
+  @state() private _hoveredCategory: string | null = null;
   @state() private _eatOverlayEnabled = true;
   @state() private _eatConfidenceThreshold = DEFAULT_EAT_CONFIDENCE_THRESHOLD;
   @state() private _keyboardDragValue: string | null = null;
@@ -227,7 +234,8 @@ export class ProtspaceLegend extends LitElement {
   // ─────────────────────────────────────────────────────────────────
 
   private _scatterplotController = new ScatterplotSyncController(this, {
-    onDataChange: (data, annotation) => this._handleScatterplotDataChange(data, annotation),
+    onDataChange: (data, annotation, projectionName) =>
+      this._handleScatterplotDataChange(data, annotation, projectionName),
     onAnnotationChange: (annotation) => this._handleAnnotationChange(annotation),
     getHiddenValues: () => this._hiddenValues,
     getOtherItems: () => this._otherItems,
@@ -1142,7 +1150,11 @@ export class ProtspaceLegend extends LitElement {
     }
   }
 
-  private _handleScatterplotDataChange(data: ScatterplotData, selectedAnnotation: string): void {
+  private _handleScatterplotDataChange(
+    data: ScatterplotData,
+    selectedAnnotation: string,
+    selectedProjectionName: string,
+  ): void {
     this._clearKeyboardReorderState();
     const scatterplot = this._scatterplotController.scatterplot;
     this._eatOverlayEnabled = scatterplot?.eatOverlayEnabled ?? true;
@@ -1168,6 +1180,11 @@ export class ProtspaceLegend extends LitElement {
     };
     this._updateAnnotationValues(data, selectedAnnotation);
     this._eatCounts = computeEatPopulationCounts(data, selectedAnnotation, this._eatOverlayEnabled);
+    this._categoryScores = annotationCategoryScores(
+      data.statisticsRows,
+      selectedAnnotation,
+      selectedProjectionName,
+    );
     this.proteinIds = data.protein_ids;
 
     // Sync isolation state
@@ -2306,12 +2323,69 @@ export class ProtspaceLegend extends LitElement {
               </section>
             `
           : ''}
+        ${this._renderScoreStrips()}
         ${LegendRenderer.renderLegendContent(this._sortedLegendItems, (item, index) =>
           this._renderLegendItem(item, index),
         )}
         ${this._renderColorPicker()}
       </div>
       ${this._renderOtherDialog()} ${this._renderSettingsDialog()}
+    `;
+  }
+
+  /**
+   * Dots for one metric, in the legend's own colours so the mapping to rows is legible
+   * before any hover happens. A category swept into the "Other" bucket still gets a dot,
+   * greyed: the scores are computed over the whole dataset regardless of what the legend
+   * chooses to show, and dropping those dots would misstate the distribution.
+   */
+  private _stripPoints(pick: (score: CategoryScore) => number | null): ScoreStripPoint[] {
+    const colorByValue = new Map(this._legendItems.map((item) => [item.value, item.color]));
+    const points: ScoreStripPoint[] = [];
+    for (const score of this._categoryScores) {
+      const value = pick(score);
+      if (value === null) continue;
+      points.push({
+        category: score.category,
+        value,
+        color: colorByValue.get(score.category) ?? '#888',
+      });
+    }
+    return points;
+  }
+
+  private _renderScoreStrips() {
+    if (this._categoryScores.length === 0) return '';
+
+    const silhouette = this._stripPoints((score) => score.silhouette);
+    const daviesBouldin = this._stripPoints((score) => score.daviesBouldin);
+    // Silhouette is bounded to [-1, 1], so its axis is fixed and comparable across
+    // datasets. Davies-Bouldin is unbounded above, so it scales to the data at hand.
+    const dbValues = daviesBouldin.map((point) => point.value);
+    const dbDomain: [number, number] =
+      dbValues.length > 0 ? [Math.min(...dbValues), Math.max(...dbValues)] : [0, 1];
+
+    return html`
+      <section class="score-strips" aria-label="Separation by category">
+        <protspace-score-strip
+          label="Silhouette"
+          higher-is-better
+          .points=${silhouette}
+          .domain=${[-1, 1] as [number, number]}
+          .highlighted=${this._hoveredCategory}
+        ></protspace-score-strip>
+        ${daviesBouldin.length > 0
+          ? html`
+              <protspace-score-strip
+                label="Davies-Bouldin"
+                .higherIsBetter=${false}
+                .points=${daviesBouldin}
+                .domain=${dbDomain}
+                .highlighted=${this._hoveredCategory}
+              ></protspace-score-strip>
+            `
+          : ''}
+      </section>
     `;
   }
 
