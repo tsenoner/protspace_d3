@@ -2334,6 +2334,16 @@ export class ProtspaceLegend extends LitElement {
   }
 
   /**
+   * Single source of truth for the score highlight, written by both the strips and the
+   * legend rows and read by both. A shared value rather than a pair of lookups is what
+   * keeps this O(1) as the category count grows.
+   */
+  private _setHoveredCategory(category: string | null): void {
+    if (this._hoveredCategory === category) return;
+    this._hoveredCategory = category;
+  }
+
+  /**
    * Dots for one metric, in the legend's own colours so the mapping to rows is legible
    * before any hover happens. A category swept into the "Other" bucket still gets a dot,
    * greyed: the scores are computed over the whole dataset regardless of what the legend
@@ -2366,7 +2376,17 @@ export class ProtspaceLegend extends LitElement {
       dbValues.length > 0 ? [Math.min(...dbValues), Math.max(...dbValues)] : [0, 1];
 
     return html`
-      <section class="score-strips" aria-label="Separation by category">
+      <section
+        class="score-strips"
+        aria-label="Separation by category"
+        @strip-hover=${(event: CustomEvent<{ category: string | null }>) =>
+          this._setHoveredCategory(event.detail.category)}
+        @strip-click=${(event: CustomEvent<{ category: string }>) => {
+          if (this._legendItems.some((item) => item.value === event.detail.category)) {
+            this._handleItemClick(event.detail.category);
+          }
+        }}
+      >
         <protspace-score-strip
           label="Silhouette"
           .higherIsBetter=${true}
@@ -2391,7 +2411,9 @@ export class ProtspaceLegend extends LitElement {
 
   private _renderLegendItem(item: LegendItem, sortedIndex: number) {
     const selected = isItemSelected(item, this.selectedItems);
-    const classes = getItemClasses(item, selected, false);
+    const classes = `${getItemClasses(item, selected, false)}${
+      item.value === this._hoveredCategory ? ' legend-item-score-hover' : ''
+    }`;
     const otherCount = item.value === LEGEND_VALUES.OTHER ? this._otherItems.length : undefined;
 
     return LegendRenderer.renderLegendItem(
@@ -2407,6 +2429,7 @@ export class ProtspaceLegend extends LitElement {
         },
         onKeyDown: (e: KeyboardEvent) => this._handleItemKeyDown(e, item, sortedIndex),
         onDragHandleKeyDown: (e: KeyboardEvent) => this._handleDragHandleKeyDown(e, item),
+        onHover: (category) => this._setHoveredCategory(category),
         onSymbolClick:
           item.value !== LEGEND_VALUES.OTHER && !this._isNumericAnnotation()
             ? (e: MouseEvent) => this._handleSymbolClick(item, e)

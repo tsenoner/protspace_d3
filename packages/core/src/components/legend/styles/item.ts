@@ -447,4 +447,9 @@ export const itemStyles = css`
     height: 100%;
     padding: 0 0 0 9px;
   }
+
+  .legend-item-score-hover {
+    background: var(--legend-hover-bg);
+    box-shadow: inset 2px 0 0 var(--legend-text-color, #222);
+  }
 `;

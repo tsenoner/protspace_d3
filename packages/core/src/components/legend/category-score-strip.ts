@@ -122,6 +122,7 @@ class ProtspaceScoreStrip extends LitElement {
             fill="${point.color}"
             @mouseenter=${() => this._emitHover(point.category)}
             @mouseleave=${() => this._emitHover(null)}
+            @click=${() => this._emitClick(point.category)}
           ><title>${point.category}: ${point.value.toFixed(3)}</title></circle>`,
         )}
         <text class="bound" x="${PADDING}%" y="${STRIP_HEIGHT - 4}" text-anchor="start">
@@ -142,6 +143,16 @@ class ProtspaceScoreStrip extends LitElement {
   private _emitHover(category: string | null): void {
     this.dispatchEvent(
       new CustomEvent<{ category: string | null }>('strip-hover', {
+        detail: { category },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  private _emitClick(category: string): void {
+    this.dispatchEvent(
+      new CustomEvent<{ category: string }>('strip-click', {
         detail: { category },
         bubbles: true,
         composed: true,
