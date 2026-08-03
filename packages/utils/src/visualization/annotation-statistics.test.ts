@@ -99,20 +99,9 @@ describe('annotationStatSummary', () => {
     });
   });
 
-  it('groups agreement metrics by K-selection with a readable label', () => {
-    const summary = annotationStatSummary(ROWS, 'major_group', 'UMAP 2');
-    expect(summary?.agreement).toHaveLength(1);
-    expect(summary?.agreement[0].label).toBe('elbow K');
-    expect(summary?.agreement[0].metrics.map((m) => m.metric)).toEqual([
-      'adjusted_rand',
-      'normalized_mutual_info',
-    ]);
-  });
-
   it('never surfaces meta rows such as n_clusters', () => {
     const metrics = annotationStatSummary(ROWS, 'major_group', 'UMAP 2')!;
-    const all = [...metrics.validity, ...metrics.agreement.flatMap((g) => g.metrics)];
-    expect(all.some((m) => m.metric === 'n_clusters')).toBe(false);
+    expect(metrics.validity.some((m) => m.metric === 'n_clusters')).toBe(false);
     // The n_clusters row alone must not be enough to claim the annotation has statistics.
     const metaOnly = ROWS.filter((r) => r.metric_kind === 'meta');
     expect(annotationStatSummary(metaOnly, '', 'UMAP 2')).toBeNull();
@@ -179,25 +168,6 @@ describe('annotationStatSummary', () => {
     expect(summary!.validity[0].embedding).toBeNull();
   });
 
-  it('orders agreement groups independently of parquet row order', async () => {
-    const agreementRow = (labelKind: string, value: number) =>
-      row({
-        stat_family: 'cluster_agreement',
-        label_kind: labelKind,
-        metric: 'adjusted_rand',
-        metric_kind: 'agreement',
-        value,
-      });
-    // silhouette-K rows first — the reverse of what the current writer happens to emit.
-    const summary = annotationStatSummary(
-      [agreementRow('kmeans_silhouette', 0.2), agreementRow('kmeans_elbow', 0.5)],
-      'major_group',
-      'UMAP 2',
-    );
-
-    expect(summary!.agreement.map((group) => group.label)).toEqual(['elbow K', 'silhouette K']);
-  });
-
   it('reports what the scores cover, from the validity row‘s provenance', () => {
     const summary = annotationStatSummary(
       [row({ extra_json: '{"n_categories": 5, "n_labels": 1427, "sampled": false, "seed": 42}' })],
@@ -218,8 +188,11 @@ describe('annotationStatSummary', () => {
     expect(unknown({ extra_json: '{"n_categories": "five"}' }).categories).toBeNull();
   });
 
-  it('falls back to an agreement row when the annotation has no validity row', () => {
-    // Agreement rows carry the protein count but never a category count.
+  it('returns null for an ordinary annotation with agreement rows but no validity row', () => {
+    // Cluster agreement is no longer read by this function at all: an ordinary annotation
+    // scored only by the (unsampled) agreement pass, with nothing in `validity`, must not
+    // produce a summary. `hasAnnotationStats` is what makes a bare cluster_* column count
+    // instead, by combining this result with `clusterAgreement` separately.
     const summary = annotationStatSummary(
       [
         row({
@@ -235,8 +208,7 @@ describe('annotationStatSummary', () => {
       'UMAP 2',
     );
 
-    expect(summary!.scored).toBe(1427);
-    expect(summary!.categories).toBeNull();
+    expect(summary).toBeNull();
   });
 });
 

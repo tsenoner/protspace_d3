@@ -118,7 +118,6 @@ describe('statistics part of a parquetbundle', () => {
     ]);
     expect(summary!.validity[0].value).toBeCloseTo(0.326, 3);
     expect(summary!.validity[0].embedding).toBeCloseTo(0.095, 3);
-    expect(summary!.agreement.map((group) => group.label)).toEqual(['elbow K', 'silhouette K']);
   });
 
   it('pins clusterAgreement to what the real fixture actually wrote', async () => {

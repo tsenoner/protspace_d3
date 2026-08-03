@@ -68,19 +68,12 @@ export function metricDescription(metric: string): string {
   return METRIC_DISPLAY[metric]?.description ?? '';
 }
 
-/** Human name for a K-selection labelling (`label_kind`), falling back to the raw value. */
-const LABEL_KIND_DISPLAY: Record<string, string> = {
-  kmeans_elbow: 'elbow K',
-  kmeans_silhouette: 'silhouette K',
-};
-
 /**
- * Render order, derived from the display maps rather than restated: a metric added to
+ * Render order, derived from the display map rather than restated: a metric added to
  * `METRIC_DISPLAY` alone would otherwise silently sort last. Validity and agreement metrics
  * never share a list, so one order covers both.
  */
 const METRIC_ORDER = Object.keys(METRIC_DISPLAY);
-const LABEL_KIND_ORDER = Object.keys(LABEL_KIND_DISPLAY);
 
 export interface AnnotationStatMetric {
   metric: string;
@@ -96,18 +89,9 @@ export interface AnnotationStatMetric {
   higherIsBetter: boolean;
 }
 
-export interface AnnotationAgreementGroup {
-  labelKind: string;
-  /** Human-readable K-selection name, e.g. "elbow K". */
-  label: string;
-  metrics: AnnotationStatMetric[];
-}
-
 export interface AnnotationStatSummary {
   /** How cleanly the annotation's own categories separate in this projection. */
   validity: AnnotationStatMetric[];
-  /** How well each auto-clustering of this projection recovers the annotation. */
-  agreement: AnnotationAgreementGroup[];
   /** Categories the scores were computed over; `null` when the bundle omits the provenance. */
   categories: number | null;
   /** Proteins the scores were computed over, which can be fewer than the dataset holds. */
@@ -206,34 +190,14 @@ export function annotationStatSummary(
     .map((row) => toMetric(row, ceilings.get(row.metric)?.value ?? null))
     .sort(byMetricOrder);
 
-  const agreementByLabelKind = new Map<string, AnnotationStatMetric[]>();
-  for (const row of inProjection) {
-    if (row.stat_family !== 'cluster_agreement') continue;
-    const metrics = agreementByLabelKind.get(row.label_kind) ?? [];
-    metrics.push(toMetric(row, null));
-    agreementByLabelKind.set(row.label_kind, metrics);
-  }
+  if (validity.length === 0) return null;
 
-  // Sorted here rather than inherited from parquet row order, so the popover's group order is
-  // this module's decision and not the Python writer's iteration order over K-selections.
-  const agreement = [...agreementByLabelKind.entries()]
-    .sort(([a], [b]) => orderIndex(LABEL_KIND_ORDER, a) - orderIndex(LABEL_KIND_ORDER, b))
-    .map(([labelKind, metrics]) => ({
-      labelKind,
-      label: LABEL_KIND_DISPLAY[labelKind] ?? labelKind,
-      metrics: metrics.sort(byMetricOrder),
-    }));
-
-  if (validity.length === 0 && agreement.length === 0) return null;
-
-  // What the scores cover. `inProjection` only ever holds aggregate rows (per-category rows were
-  // already filtered out of `forAnnotation` above), so these two counts come from the aggregate's
-  // provenance; validity rows carry both, agreement rows only the protein count.
-  const scopeRow =
-    inProjection.find((row) => row.stat_family === 'annotation_validity') ?? inProjection[0];
+  // What the scores cover, from the validity rows' own provenance. `inProjection` only ever
+  // holds aggregate rows (per-category rows were already filtered out of `forAnnotation`
+  // above), and `validity` is non-empty past the guard above, so this always finds a row.
+  const scopeRow = inProjection.find((row) => row.stat_family === 'annotation_validity');
   return {
     validity,
-    agreement,
     categories: extraCount(scopeRow, 'n_categories'),
     scored: extraCount(scopeRow, 'n_labels'),
   };
