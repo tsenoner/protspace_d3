@@ -190,6 +190,9 @@ describe('protspace-projection-metadata annotation quality section', () => {
     // Counting elements alone would survive a broken binding: info-popover keeps its host element
     // and merely renders nothing when it has no copy, so check the copy actually arrived.
     expect(popovers[0].description.length).toBeGreaterThan(20);
+    // A single shared description (e.g. every row bound to the same metric's copy) would
+    // survive the length check above; the two rows must actually describe different metrics.
+    expect(popovers[0].description).not.toBe(popovers[1].description);
   });
 
   it('collapses the ceiling column for a metric missing its embedding row', async () => {
@@ -397,5 +400,21 @@ describe('auto-cluster agreement placement', () => {
       (node) => node.textContent,
     );
     expect(groupLabels).toEqual(['Major group', 'Ec number']);
+  });
+
+  it('shows agreement for the selected clustering even from a different projection panel', async () => {
+    // An explicit human decision (projection-metadata.ts): agreement describes the
+    // clustering itself, never the panel it happens to be open on. `setup()` always opens
+    // the panel on "ProtT5 — UMAP 2"; the selected column here names PCA 2's clustering, so
+    // scoping agreement to `this.projection` would wrongly leave this block empty.
+    const rows = [agreementRow({ space_name: 'ProtT5 — PCA 2', annotation: 'major_group' })];
+    const el = await setup(
+      { n_neighbors: 15 },
+      { statistics: rows, selectedAnnotation: 'cluster_elbow_ProtT5 — PCA 2' },
+    );
+
+    const text = el.shadowRoot!.querySelector('.annotation-stats')!.textContent!;
+    expect(text).toContain('Recovers');
+    expect(text).toContain('Major group');
   });
 });

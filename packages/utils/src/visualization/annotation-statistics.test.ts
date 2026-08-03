@@ -482,9 +482,12 @@ describe('annotationCategoryScores', () => {
   it('ignores aggregate rows, other projections and other annotations', () => {
     const rows: ProjectionStatisticRow[] = [
       { ...base, value: 0.326 },
-      { ...base, space_name: 'PCA 2', category: 'Elapidae', value: 0.1 },
       { ...base, annotation: 'ec_number', category: 'Elapidae', value: 0.2 },
       { ...base, category: 'Elapidae', value: 0.81 },
+      // Listed AFTER the correct UMAP 2 row: if the `space_name !== projectionName` guard
+      // were ever dropped, this row would win the last-write race and the assertion below
+      // would catch it (a PCA 2 row before the UMAP 2 row cannot tell the two apart).
+      { ...base, space_name: 'PCA 2', category: 'Elapidae', value: 0.1 },
     ];
 
     const scores = annotationCategoryScores(rows, 'major_group', 'UMAP 2');

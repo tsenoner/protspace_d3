@@ -108,6 +108,30 @@ describe('ScatterplotSyncController', () => {
       );
     });
 
+    it('removes the control bar listeners, including projection-change, on disconnect', () => {
+      // The scatterplot-listener spy above cannot see this: the control bar is a separate
+      // element, discovered and listened to independently (`_onScatterplotDiscovered`).
+      // Never removing `PROJECTION_CHANGE` here would leak a listener on every legend
+      // disconnect/reconnect cycle.
+      document.body.appendChild(mockScatterplot as unknown as Node);
+      const controlBar = document.createElement('protspace-control-bar');
+      document.body.appendChild(controlBar);
+      controller = new ScatterplotSyncController(mockHost, mockCallbacks);
+      controller.hostConnected();
+
+      const removeEventListenerSpy = vi.spyOn(controlBar, 'removeEventListener');
+      controller.hostDisconnected();
+
+      expect(removeEventListenerSpy).toHaveBeenCalledWith(
+        LEGEND_EVENTS.ANNOTATION_CHANGE,
+        expect.any(Function),
+      );
+      expect(removeEventListenerSpy).toHaveBeenCalledWith(
+        LEGEND_EVENTS.PROJECTION_CHANGE,
+        expect.any(Function),
+      );
+    });
+
     it('stops discovery retries', () => {
       controller = new ScatterplotSyncController(mockHost, mockCallbacks);
       controller.hostConnected();
