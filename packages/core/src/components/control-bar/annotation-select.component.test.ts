@@ -226,6 +226,24 @@ describe('protspace-annotation-select statistics badge', () => {
     expect(getRowFor(el, 'major_group').querySelector('.stats-badge')).toBeNull();
   });
 
+  it('updates the badge when selectedProjection changes after the first render', async () => {
+    // The cold-cache case above (projection set before first render) cannot see a stale
+    // `hasStats` cache: willUpdate's `changed.has('selectedProjection')` clear is what makes
+    // a LIVE projection switch drop a badge that was already true for the old projection.
+    const el = await setup({
+      annotations: CUSTOM_ANNOTATIONS,
+      statisticsRows: [statRow()],
+      selectedProjection: 'umap',
+    });
+    await openDropdown(el);
+    expect(getRowFor(el, 'major_group').querySelector('.stats-badge')?.textContent).toBe('STATS');
+
+    el.selectedProjection = 'pca';
+    await el.updateComplete;
+
+    expect(getRowFor(el, 'major_group').querySelector('.stats-badge')).toBeNull();
+  });
+
   it('drops the badge for an ordinary annotation whose only score is an agreement row', async () => {
     // A category can vanish from validity under subsampling while the (unsampled) agreement
     // pass still recovers it. annotationStatSummary alone stays non-null on that agreement row,

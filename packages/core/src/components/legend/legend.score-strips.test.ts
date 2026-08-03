@@ -193,4 +193,52 @@ describe('legend score strips', () => {
     expect(silhouette.higherIsBetter).toBe(true);
     expect(daviesBouldin.higherIsBetter).toBe(false);
   });
+
+  it('re-sorts by separation after a projection switch, not just a data resync', async () => {
+    // _sortedLegendItems is only re-derived in updated() when _legendItems or
+    // _categoryScores changes. A projection switch changes only the scores (same
+    // two categories stay visible), so this is the one path that exercises the
+    // `|| changedProperties.has('_categoryScores')` half of that guard. Silhouette
+    // ranks A above B on UMAP 2 and B above A on PCA 2 (see makeData), so a stale
+    // sort would still show the UMAP 2 order after switching.
+    const { legend, plot, controlBar } = await setup();
+
+    const internals = legend as unknown as {
+      _dialogSettings: { annotationSortModes: Record<string, string> } & Record<string, unknown>;
+      _handleSettingsSave: () => void;
+    };
+    internals._dialogSettings = {
+      ...internals._dialogSettings,
+      annotationSortModes: { family: 'silhouette-desc' },
+    };
+    internals._handleSettingsSave();
+    // Same two-cycle wait legend.score-sync.test.ts documents: _handleSettingsSave
+    // sets _legendItems; _sortedLegendItems only re-derives from it in the next
+    // updated().
+    await legend.updateComplete;
+    await legend.updateComplete;
+
+    const rowOrder = () =>
+      [...legend.shadowRoot!.querySelectorAll('[data-value]')].map((row) =>
+        row.getAttribute('data-value'),
+      );
+    // UMAP 2: A (0.5) outranks B (0.2).
+    expect(rowOrder().indexOf('A')).toBeLessThan(rowOrder().indexOf('B'));
+
+    plot.selectedProjectionIndex = 1;
+    controlBar.dispatchEvent(
+      new CustomEvent('projection-change', {
+        detail: { projection: 'PCA 2' },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+    // Same two-cycle wait as above: _categoryScores changes in the first cycle,
+    // and updated() only re-derives _sortedLegendItems from it in the next one.
+    await legend.updateComplete;
+    await legend.updateComplete;
+
+    // PCA 2: B (-0.1) outranks A (-0.3) -- the ranking must invert, not stay stale.
+    expect(rowOrder().indexOf('B')).toBeLessThan(rowOrder().indexOf('A'));
+  });
 });
