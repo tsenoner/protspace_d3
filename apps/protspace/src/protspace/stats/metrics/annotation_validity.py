@@ -2,12 +2,14 @@
 separate in a given space (embedding or projection).
 
 silhouette / Davies-Bouldin / Calinski-Harabasz are computed with the
-annotation's category labels (not auto-KMeans labels), on ``ctx.coords``.
-silhouette and Davies-Bouldin are additionally emitted per category (rows
-carrying ``category``). The silhouette aggregate is the size-weighted mean
-of its per-category parts (a mean over points, not categories); the
-Davies-Bouldin aggregate is the unweighted mean of its per-cluster values.
-Calinski-Harabasz stays aggregate-only. scikit-learn imports are function-local.
+annotation's category labels (not auto-KMeans labels), on ``ctx.coords``: the
+driver hands us the embedding for the once-per-embedding pass and the 2D
+projection for the per-projection pass. silhouette and Davies-Bouldin are
+additionally emitted per category (rows carrying ``category``). The
+silhouette aggregate is the size-weighted mean of its per-category parts (a
+mean over points, not categories); the Davies-Bouldin aggregate is the
+unweighted mean of its per-cluster values. Calinski-Harabasz stays
+aggregate-only. scikit-learn imports are function-local.
 """
 
 from __future__ import annotations

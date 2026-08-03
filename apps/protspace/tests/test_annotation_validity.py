@@ -123,6 +123,12 @@ def test_per_category_silhouette_size_weighted_averages_to_the_aggregate():
 
     assert len(per_cat) == 4
     assert {r.category for r in per_cat} == {"g0", "g1", "g2", "g3"}
+    # A decomposition that just repeats the aggregate satisfies the mean identity
+    # vacuously; the parts must not all collapse to that one repeated value. Not
+    # asserting all 4 are pairwise distinct: nothing rules out two categories
+    # legitimately tying (see the Davies-Bouldin test below for a real example
+    # of that on this very fixture).
+    assert len({round(r.value, 9) for r in per_cat}) > 1
     labels, counts = np.unique(y, return_counts=True)
     cat_size = {f"g{int(c)}": int(n) for c, n in zip(labels, counts, strict=True)}
     total = len(y)
@@ -158,7 +164,36 @@ def test_per_category_davies_bouldin_averages_to_the_aggregate():
 
     assert len(per_cat) == 4
     assert {r.category for r in per_cat} == {"g0", "g1", "g2", "g3"}
+    # A decomposition that just repeats the aggregate satisfies the mean identity
+    # vacuously; the parts must not all collapse to that one repeated value. Not
+    # asserting all 4 are pairwise distinct: R_i = max_{j!=i} (s_i+s_j)/d_ij ties
+    # exactly for a mutual worst-rival pair, and g0/g1 do on this exact fixture
+    # (verified directly) -- a property of the metric, not a decomposition bug.
+    assert len({round(r.value, 9) for r in per_cat}) > 1
     assert np.mean([r.value for r in per_cat]) == pytest.approx(aggregate.value)
+
+
+def test_silhouette_emission_discards_the_whole_attempt_when_decomposition_fails(monkeypatch):
+    """571ecae7 fixed the emission order so a failing per-category decomposition
+    discards the whole attempt instead of leaving a bare aggregate row behind (the
+    aggregate is now emitted only after the per-category computation succeeds).
+    Pin that ordering directly: if `_per_category_silhouette` raises, no silhouette
+    row -- aggregate or per-category -- may survive."""
+    import protspace.stats.metrics.annotation_validity as mod
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(mod, "_per_category_silhouette", _boom)
+
+    X, y = _blobs(n=200, centers=4, dim=2, seed=3)
+    ids = [f"p{i}" for i in range(200)]
+    ann = {"grp": {pid: f"g{int(c)}" for pid, c in zip(ids, y, strict=True)}}
+    outs = AnnotationValidityStatistic().compute(
+        StatContext("projection", "PCA_2", coords=X, ids=ids, annotations=ann)
+    )
+
+    assert [r for r in outs if r.metric == "silhouette"] == []
 
 
 def test_calinski_harabasz_stays_aggregate_only():
@@ -184,6 +219,9 @@ def test_per_category_rows_are_emitted_for_the_embedding_pass_too():
     per_cat = [r for r in outs if r.category is not None]
     assert per_cat
     assert all(r.space_kind == "embedding" for r in per_cat)
+    # Not just "some per-category row survived": suppressing per-category silhouette
+    # alone, while leaving the Davies-Bouldin per-category rows, must also fail here.
+    assert any(r.metric == "silhouette" for r in per_cat)
 
 
 def test_singleton_category_emits_no_davies_bouldin_at_all():
