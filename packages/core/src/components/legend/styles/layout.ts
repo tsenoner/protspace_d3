@@ -230,4 +230,12 @@ export const layoutStyles = css`
     padding: 0.5rem 0.75rem;
     border-bottom: 1px solid var(--legend-border);
   }
+
+  .score-strips-note {
+    margin: 0;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.78rem;
+    color: var(--legend-text-secondary);
+    border-bottom: 1px solid var(--legend-border);
+  }
 `;

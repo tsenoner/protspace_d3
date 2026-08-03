@@ -133,4 +133,16 @@ describe('protspace-score-strip', () => {
 
     expect(el.shadowRoot!.textContent).toContain('lower is better');
   });
+
+  it('appends the embedding ceiling to the tooltip when the dot carries one', async () => {
+    const el = await setup([
+      { category: 'Elapidae', value: 0.81, color: '#ff0000', ceiling: 0.95 },
+      { category: 'Viperidae', value: -0.15, color: '#00ff00' },
+    ]);
+
+    const titles = Array.from(el.shadowRoot!.querySelectorAll('circle title')).map(
+      (title) => title.textContent,
+    );
+    expect(titles).toEqual(['Elapidae: 0.810 (embedding ceiling 0.950)', 'Viperidae: -0.150']);
+  });
 });

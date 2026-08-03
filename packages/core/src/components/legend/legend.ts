@@ -168,6 +168,13 @@ export class ProtspaceLegend extends LitElement {
   @state() private _numericManualOrderIdsByAnnotation: Record<string, string[]> = {};
   @state() private _eatCounts: EatPopulationCounts | null = null;
   @state() private _categoryScores: CategoryScore[] = [];
+  /**
+   * Whether the current annotation has ever shown category scores, so a filter/isolation
+   * view (which clears `statisticsRows`, see `sliceVisualizationDataByIndices`) can be told
+   * apart from an annotation that genuinely has none. Reset only on an annotation switch;
+   * see `_handleScatterplotDataChange`.
+   */
+  @state() private _hadCategoryScores = false;
   /** Category under the pointer, in the legend rows or in a strip. Task 4 reads it. */
   @state() private _hoveredCategory: string | null = null;
   @state() private _eatOverlayEnabled = true;
@@ -1181,6 +1188,10 @@ export class ProtspaceLegend extends LitElement {
     selectedProjectionName: string,
   ): void {
     this._clearKeyboardReorderState();
+    // Captured before `this.selectedAnnotation` is overwritten below, so `_hadCategoryScores`
+    // only resets on a genuine annotation switch, not on a filter/isolation resync that
+    // clears `statisticsRows` for the SAME annotation.
+    const annotationChanged = selectedAnnotation !== this.selectedAnnotation;
     const scatterplot = this._scatterplotController.scatterplot;
     this._eatOverlayEnabled = scatterplot?.eatOverlayEnabled ?? true;
     // The reliability slider position is legend-owned now (it drives the query
@@ -1210,6 +1221,13 @@ export class ProtspaceLegend extends LitElement {
       selectedAnnotation,
       selectedProjectionName,
     );
+    // Sticky per annotation: a filter/isolation view clears `statisticsRows`, which must not
+    // read as "this annotation was never scored" -- only a genuine annotation switch may.
+    if (this._categoryScores.length > 0) {
+      this._hadCategoryScores = true;
+    } else if (annotationChanged) {
+      this._hadCategoryScores = false;
+    }
     this.proteinIds = data.protein_ids;
 
     // Sync isolation state
@@ -2374,7 +2392,10 @@ export class ProtspaceLegend extends LitElement {
    * greyed: the scores are computed over the whole dataset regardless of what the legend
    * chooses to show, and dropping those dots would misstate the distribution.
    */
-  private _stripPoints(pick: (score: CategoryScore) => number | null): ScoreStripPoint[] {
+  private _stripPoints(
+    pick: (score: CategoryScore) => number | null,
+    pickCeiling?: (score: CategoryScore) => number | null,
+  ): ScoreStripPoint[] {
     const colorByValue = new Map(this._legendItems.map((item) => [item.value, item.color]));
     const points: ScoreStripPoint[] = [];
     for (const score of this._categoryScores) {
@@ -2384,15 +2405,31 @@ export class ProtspaceLegend extends LitElement {
         category: score.category,
         value,
         color: colorByValue.get(score.category) ?? '#888',
+        ceiling: pickCeiling?.(score) ?? null,
       });
     }
     return points;
   }
 
   private _renderScoreStrips() {
-    if (this._categoryScores.length === 0) return '';
+    if (this._categoryScores.length === 0) {
+      // `_hadCategoryScores` tells a filter/isolation view (which clears `statisticsRows`)
+      // apart from an annotation that genuinely has no scores: without it, a stats-less
+      // dataset that happens to be filtered would show the note too.
+      const sp = this._scatterplotController.scatterplot;
+      return this._hadCategoryScores && (this.isolationMode || sp?.filtersActive)
+        ? html`<p class="score-strips-note">
+            Separation scores are hidden while the view is filtered.
+          </p>`
+        : '';
+    }
 
-    const silhouette = this._stripPoints((score) => score.silhouette);
+    // Davies-Bouldin has no embedding-space counterpart on CategoryScore, so only the
+    // silhouette strip's tooltip carries a ceiling.
+    const silhouette = this._stripPoints(
+      (score) => score.silhouette,
+      (score) => score.silhouetteEmbedding,
+    );
     const daviesBouldin = this._stripPoints((score) => score.daviesBouldin);
     // Silhouette is bounded to [-1, 1], so its axis is fixed and comparable across
     // datasets. Davies-Bouldin is unbounded above, so it scales to the data at hand.

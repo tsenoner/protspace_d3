@@ -4,6 +4,7 @@ import type { ProjectionStatisticRow, VisualizationData } from '@protspace/utils
 import './legend';
 import type { ProtspaceLegend } from './legend';
 import type { ScoreStripPoint } from './category-score-strip';
+import { LEGEND_EVENTS } from './config';
 
 const STAT_BASE = {
   annotation: 'family',
@@ -97,6 +98,15 @@ function makeData(): VisualizationData {
         category: 'B',
         value: 1.5,
       },
+      // Source embedding: only A has a silhouette ceiling; B has none.
+      {
+        ...STAT_BASE,
+        space_kind: 'embedding',
+        space_name: 'prot_t5',
+        metric: 'silhouette',
+        category: 'A',
+        value: 0.42,
+      },
     ] satisfies ProjectionStatisticRow[],
   };
 }
@@ -122,8 +132,10 @@ type StripElement = HTMLElement & {
   points: ScoreStripPoint[];
 };
 
-async function setup() {
-  const data = makeData();
+async function setup(
+  overrides: { data?: Partial<VisualizationData>; plot?: Partial<MockScatterplot> } = {},
+) {
+  const data = { ...makeData(), ...overrides.data };
   const plot = document.createElement('protspace-scatterplot') as MockScatterplot;
   Object.assign(plot, {
     data,
@@ -138,6 +150,7 @@ async function setup() {
     getCurrentData: () => data,
     isIsolationMode: () => false,
     getIsolationHistory: () => [],
+    ...overrides.plot,
   });
   document.body.append(plot);
 
@@ -194,6 +207,22 @@ describe('legend score strips', () => {
     expect(daviesBouldin.higherIsBetter).toBe(false);
   });
 
+  it('wires the embedding ceiling into the silhouette strip only, from silhouetteEmbedding', async () => {
+    // Davies-Bouldin has no embedding-space counterpart on CategoryScore, so only the
+    // silhouette strip's dots may carry a ceiling for the tooltip.
+    const { legend } = await setup();
+
+    const strips = Array.from(
+      legend.shadowRoot!.querySelectorAll('protspace-score-strip'),
+    ) as StripElement[];
+    const silhouette = strips.find((strip) => strip.label === 'Silhouette')!;
+    const daviesBouldin = strips.find((strip) => strip.label === 'Davies-Bouldin')!;
+
+    expect(silhouette.points.find((point) => point.category === 'A')?.ceiling).toBe(0.42);
+    expect(silhouette.points.find((point) => point.category === 'B')?.ceiling).toBeNull();
+    expect(daviesBouldin.points.every((point) => point.ceiling == null)).toBe(true);
+  });
+
   it('re-sorts by separation after a projection switch, not just a data resync', async () => {
     // _sortedLegendItems is only re-derived in updated() when _legendItems or
     // _categoryScores changes. A projection switch changes only the scores (same
@@ -240,5 +269,36 @@ describe('legend score strips', () => {
 
     // PCA 2: B (-0.1) outranks A (-0.3) -- the ranking must invert, not stay stale.
     expect(rowOrder().indexOf('B')).toBeLessThan(rowOrder().indexOf('A'));
+  });
+
+  it('shows a note instead of the strips when filtering hides previously-visible scores', async () => {
+    const { legend, plot, data } = await setup();
+    expect(legend.shadowRoot!.querySelector('protspace-score-strip')).not.toBeNull();
+
+    // Mirrors what scatter-plot.ts's filtered-display path does: statisticsRows is
+    // cleared (sliceVisualizationDataByIndices), and filtersActive flips on.
+    plot.filtersActive = true;
+    plot.dispatchEvent(
+      new CustomEvent(LEGEND_EVENTS.DATA_CHANGE, {
+        detail: { data: { ...data, statisticsRows: undefined } },
+      }),
+    );
+    await legend.updateComplete;
+
+    expect(legend.shadowRoot!.querySelector('protspace-score-strip')).toBeNull();
+    const note = legend.shadowRoot!.querySelector('.score-strips-note');
+    expect(note?.textContent).toContain('hidden while the view is filtered');
+  });
+
+  it('stays silent when a stats-less dataset is filtered', async () => {
+    // The "silent case": _hadCategoryScores must never have flipped true, so the note
+    // must not appear just because filtersActive is true from the very first render.
+    const { legend } = await setup({
+      data: { statisticsRows: [] },
+      plot: { filtersActive: true, filteredProteinIds: ['p1'] },
+    });
+
+    expect(legend.shadowRoot!.querySelector('protspace-score-strip')).toBeNull();
+    expect(legend.shadowRoot!.querySelector('.score-strips-note')).toBeNull();
   });
 });

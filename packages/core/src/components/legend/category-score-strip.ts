@@ -7,6 +7,8 @@ export interface ScoreStripPoint {
   category: string;
   value: number;
   color: string;
+  /** The same metric on the source embedding, this category's ceiling, shown in the tooltip. */
+  ceiling?: number | null;
 }
 
 const STRIP_HEIGHT = 44;
@@ -123,7 +125,9 @@ class ProtspaceScoreStrip extends LitElement {
             @mouseenter=${() => this._emitHover(point.category)}
             @mouseleave=${() => this._emitHover(null)}
             @click=${() => this._emitClick(point.category)}
-          ><title>${point.category}: ${point.value.toFixed(3)}</title></circle>`,
+          ><title>${point.category}: ${point.value.toFixed(3)}${
+            point.ceiling == null ? '' : ` (embedding ceiling ${point.ceiling.toFixed(3)})`
+          }</title></circle>`,
         )}
         <text class="bound" x="${PADDING}%" y="${STRIP_HEIGHT - 4}" text-anchor="start">
           ${this._formatBound(min)}
