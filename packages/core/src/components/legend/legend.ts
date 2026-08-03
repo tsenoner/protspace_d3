@@ -2376,13 +2376,7 @@ export class ProtspaceLegend extends LitElement {
     `;
   }
 
-  /**
-   * Single source of truth for the score highlight, written by both the strips and the
-   * legend rows and read by both. A shared value rather than a pair of lookups is what
-   * keeps this O(1) as the category count grows.
-   */
   private _setHoveredCategory(category: string | null): void {
-    if (this._hoveredCategory === category) return;
     this._hoveredCategory = category;
   }
 

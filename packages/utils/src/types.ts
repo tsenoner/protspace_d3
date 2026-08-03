@@ -125,7 +125,7 @@ export interface ProjectionStatisticRow {
 }
 
 /**
- * Column names of the statistics part, in the writer's order. `satisfies` ties the list to
+ * Required column names of the statistics part, in the writer's order. `satisfies` ties the list to
  * `ProjectionStatisticRow`, so renaming a column in only one of them is a compile error
  * instead of a reader/type drift the schema guard can't see.
  */

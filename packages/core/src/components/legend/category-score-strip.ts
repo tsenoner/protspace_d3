@@ -149,7 +149,6 @@ class ProtspaceScoreStrip extends LitElement {
       new CustomEvent<{ category: string | null }>('strip-hover', {
         detail: { category },
         bubbles: true,
-        composed: true,
       }),
     );
   }
@@ -159,7 +158,6 @@ class ProtspaceScoreStrip extends LitElement {
       new CustomEvent<{ category: string }>('strip-click', {
         detail: { category },
         bubbles: true,
-        composed: true,
       }),
     );
   }

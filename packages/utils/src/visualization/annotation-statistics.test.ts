@@ -170,7 +170,14 @@ describe('annotationStatSummary', () => {
 
   it('reports what the scores cover, from the validity row‘s provenance', () => {
     const summary = annotationStatSummary(
-      [row({ extra_json: '{"n_categories": 5, "n_labels": 1427, "sampled": false, "seed": 42}' })],
+      [
+        // A per-category row with a different n_labels, listed BEFORE the aggregate: if the
+        // `category == null` filter that keeps per-category rows out of `forAnnotation` were
+        // ever misplaced, this row would win `scopeRow`'s first-match search and the
+        // assertions below would catch it.
+        { ...row({}), category: 'Elapidae', extra_json: '{"n_labels": 3}' },
+        row({ extra_json: '{"n_categories": 5, "n_labels": 1427, "sampled": false, "seed": 42}' }),
+      ],
       'major_group',
       'UMAP 2',
     );

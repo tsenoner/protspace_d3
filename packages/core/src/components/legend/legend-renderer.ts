@@ -337,7 +337,9 @@ export class LegendRenderer {
                    rendered (empty) when this particular category has none (score === null),
                    so the following columns in the flex row don't shift. -->
               <span class="legend-score" part="score"
-                >${score === null ? '' : score.toFixed(2)}</span
+                >${score === null
+                  ? ''
+                  : html`<span class="sr-only">Silhouette score </span>${score.toFixed(2)}`}</span
               >
             `}
       </div>

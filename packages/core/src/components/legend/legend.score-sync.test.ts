@@ -230,7 +230,12 @@ describe('legend score column', () => {
     const el = await setup(makeData());
 
     const row = el.shadowRoot!.querySelector('[data-value="Elapidae"]')!;
-    expect(row.querySelector('.legend-score')!.textContent!.trim()).toBe('0.81');
+    const scoreEl = row.querySelector('.legend-score')!;
+    expect(scoreEl.textContent!.trim()).toContain('0.81');
+    // The number alone reads as a bare "0.81" to a screen reader with no row context
+    // (the score sits outside the row's own labelled button); a sighted-only label is
+    // not enough.
+    expect(scoreEl.querySelector('.sr-only')?.textContent).toBe('Silhouette score ');
   });
 
   it('renders no score cell at all when the dataset has no statistics', async () => {
