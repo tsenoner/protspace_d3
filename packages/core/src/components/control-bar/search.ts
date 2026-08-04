@@ -3,7 +3,7 @@ import { property, state } from 'lit/decorators.js';
 import { customElement } from '../../utils/safe-custom-element';
 import { searchStyles } from './search.styles';
 import { isMacOrIos } from '@protspace/utils';
-import { computeSearchSuggestions } from './search-suggestions';
+import { computeSearchSuggestions, type SearchSuggestion } from './search-suggestions';
 
 const SEARCH_DEBOUNCE_MS = 120;
 
@@ -18,7 +18,7 @@ class ProtspaceProteinSearch extends LitElement {
   @property({ type: Array }) selectedProteinIds: string[] = [];
 
   @state() private searchQuery: string = '';
-  @state() private searchSuggestions: string[] = [];
+  @state() private searchSuggestions: SearchSuggestion[] = [];
   @state() private highlightedSuggestionIndex: number = -1;
   @state() private isInputFocused: boolean = false;
 
@@ -48,20 +48,23 @@ class ProtspaceProteinSearch extends LitElement {
 
         ${this.searchSuggestions.length > 0 && (this.searchQuery || this.isInputFocused)
           ? html`
-              <div class="search-suggestions">
+              <div class="search-suggestions" role="listbox">
                 ${this.searchSuggestions.map(
-                  (sid, i) => html`
+                  (suggestion, i) => html`
                     <div
                       class="search-suggestion ${i === this.highlightedSuggestionIndex
                         ? 'active'
-                        : ''}"
+                        : ''} ${suggestion.isSelected ? 'selected' : ''}"
+                      role="option"
+                      aria-selected=${suggestion.isSelected}
+                      title=${suggestion.isSelected ? 'Remove from selection' : ''}
                       @mousedown=${(e: Event) => {
                         // Use mousedown to avoid blur before click
                         e.preventDefault();
-                        this._addSelection(sid);
+                        this._addSelection(suggestion.id);
                       }}
                     >
-                      ${sid}
+                      ${suggestion.id}
                     </div>
                   `,
                 )}
@@ -70,7 +73,7 @@ class ProtspaceProteinSearch extends LitElement {
           : this.searchQuery.trim() && this.searchSuggestions.length === 0
             ? html`
                 <div class="search-suggestions">
-                  <div class="no-results">${this._getEmptyStateMessage()}</div>
+                  <div class="no-results">No matching protein IDs found</div>
                 </div>
               `
             : ''}
@@ -146,7 +149,7 @@ class ProtspaceProteinSearch extends LitElement {
         this.highlightedSuggestionIndex >= 0 &&
         this.highlightedSuggestionIndex < this.searchSuggestions.length
       ) {
-        this._addSelection(this.searchSuggestions[this.highlightedSuggestionIndex]);
+        this._addSelection(this.searchSuggestions[this.highlightedSuggestionIndex].id);
       } else if (this.searchQuery.trim()) {
         this._addSelection(this.searchQuery.trim());
       }
@@ -218,17 +221,6 @@ class ProtspaceProteinSearch extends LitElement {
       this.isInputFocused,
     );
     this.highlightedSuggestionIndex = this.searchSuggestions.length > 0 ? 0 : -1;
-  }
-
-  private _getEmptyStateMessage(): string {
-    const normalizedQuery = this.searchQuery.trim().toLowerCase();
-    const matchingProteinId = this.availableProteinIds.find(
-      (proteinId) => proteinId.toLowerCase() === normalizedQuery,
-    );
-
-    return matchingProteinId && this.selectedProteinIds.includes(matchingProteinId)
-      ? 'Protein ID is already selected'
-      : 'No matching protein IDs found';
   }
 
   private _addSelection(id: string) {

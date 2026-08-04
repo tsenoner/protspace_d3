@@ -117,6 +117,17 @@ export const searchStyles = [
       border-left-color: var(--primary);
     }
 
+    .search-suggestion.selected {
+      color: var(--muted);
+      opacity: 0.7;
+    }
+
+    .search-suggestion.selected::before {
+      content: '✓';
+      margin-right: var(--spacing-sm);
+      color: var(--primary);
+    }
+
     .no-results {
       padding: var(--spacing-md);
       text-align: center;
