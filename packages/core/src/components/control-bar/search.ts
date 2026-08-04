@@ -58,6 +58,9 @@ class ProtspaceProteinSearch extends LitElement {
                       role="option"
                       aria-selected=${suggestion.isSelected}
                       title=${suggestion.isSelected ? 'Remove from selection' : ''}
+                      aria-label=${suggestion.isSelected
+                        ? `${suggestion.id}, remove from selection`
+                        : suggestion.id}
                       @mousedown=${(e: Event) => {
                         // Use mousedown to avoid blur before click
                         e.preventDefault();

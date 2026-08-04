@@ -95,10 +95,15 @@ export const MAX_SELECTED_SUGGESTIONS = 10; // new — already-selected entries
 ```
 
 ```
+selectedSeen = 0   # selected IDs walked past, whether or not they match the query
+
 for each id in availableIds:
-  if selectableCount >= limit and selectedCount >= selectedLimit: break
+  if selectableCount >= limit and (selectedCount >= selectedLimit or selectedSeen >= selectedSet.size):
+    break
+  isSelected = selectedSet.has(id)
+  if isSelected: selectedSeen++
   if query and not id.toLowerCase().startsWith(query): continue
-  if selectedSet.has(id):
+  if isSelected:
     if selectedCount >= selectedLimit: continue
     push { id, isSelected: true }; selectedCount++
   else:
@@ -110,10 +115,16 @@ Separate budgets guarantee that addable proteins remain visible no matter how ma
 matches are already selected. A single shared cap of 50 would let 50+ selected matches
 fill the list and hide every addable entry.
 
-The early-exit that keeps this sub-millisecond on Swiss-Prot's 573K IDs is preserved; the
-exit condition now requires both counters to be satisfied. Worst case is unchanged from
-today: a query with fewer total matches than the budgets scans the full array, which is
-acceptable because this runs debounced at `SEARCH_DEBOUNCE_MS` and never from `render()`.
+The early-exit keeps this sub-millisecond on Swiss-Prot's 573K IDs. The exit condition
+needs the selectable budget full AND the selected budget either full or exhausted —
+exhausted meaning every currently-selected ID has been walked past, tracked by
+`selectedSeen`. That second disjunct is load-bearing: requiring both budgets to be
+*full* would never be satisfied when fewer than `selectedLimit` matches are selected,
+which is the common case, and the scan would run to the end of the array on every
+recompute. A selection sitting late in `availableIds` still forces a scan up to its
+index — inherent to listing selections in natural order, and no worse than the
+pre-existing worst case of a query with fewer total matches than the budget. This runs
+debounced at `SEARCH_DEBOUNCE_MS` and never from `render()`.
 
 ## Component — `packages/core/src/components/control-bar/search.ts`
 
@@ -193,9 +204,10 @@ treatment and needs no change.
 ## Accessibility
 
 The suggestion container takes `role="listbox"` and rows take `role="option"` with
-`aria-selected` reflecting `isSelected`. Selected rows carry
-`title="Remove from selection"` and a matching `aria-label`, so the ✕ is not the only
-signal that the row is removable.
+`aria-selected` reflecting `isSelected`. Selected rows carry `title="Remove from
+selection"` and an `aria-label` of `${id}, remove from selection`; addable rows get an
+`aria-label` of just their ID. `title` alone is not reliably announced by screen readers,
+so the ✕ is not the only signal that a marked row is removable.
 
 ## Testing
 

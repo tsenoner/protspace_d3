@@ -27,8 +27,11 @@ distinction entirely: there is one rule, and the no-match message becomes truthf
 
 **Independent budgets.** Selected entries use a 10-entry budget separate from the 50-entry
 selectable cap. A single shared cap would let 50+ selected matches fill the list and hide
-every addable protein. The scan still exits early once both budgets are full, preserving
-the sub-millisecond behaviour on 573K IDs.
+every addable protein. The scan still exits early once the selectable budget is full and
+the selected budget is either full or exhausted — exhausted meaning every selected ID has
+been walked past, tracked by a `selectedSeen` counter. Requiring both budgets to be _full_
+would never early-exit when fewer than ten matches are selected, so the counter is what
+preserves the sub-millisecond behaviour on 573K IDs.
 
 **Natural order, not grouped.** Entries stay in `availableProteinIds` order and are
 interleaved. Grouping would reorder results relative to what users see today.

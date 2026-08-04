@@ -108,6 +108,8 @@ describe('protspace-protein-search feedback', () => {
     const rows = rowsOf(element);
     expect(rows.map((row) => row.getAttribute('aria-selected'))).toEqual(['true', 'false']);
     expect(rows[0].getAttribute('title')).toBe('Remove from selection');
+    expect(rows[0].getAttribute('aria-label')).toBe('GT4, remove from selection');
+    expect(rows[1].getAttribute('aria-label')).toBe('GT40');
   });
 
   it('emits remove-selection when a marked row is clicked', async () => {
