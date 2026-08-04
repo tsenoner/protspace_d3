@@ -184,7 +184,7 @@ with per-element `toLowerCase()` that ran from inside `render()`.
 Bind `@remove-selection=${this._handleSearchSelectionRemove}` on the
 `<protspace-protein-search>` element (`control-bar.ts:623-629`).
 
-`_handleSearchSelectionRemove` mirrors `_handleSearchSelectionAdd` (`control-bar.ts:1476`):
+`_handleSearchSelectionRemove` mirrors `_handleSearchSelectionAdd` (`control-bar.ts:1477`):
 
 1. Return early if the ID is absent from `selectedIdsChips`.
 2. Filter it out; assign `selectedIdsChips` and `selectedProteinsCount`.
@@ -220,14 +220,21 @@ so the ✕ is not the only signal that a marked row is removable.
 - Natural array order is preserved across mixed selected/unselected runs.
 
 `search.component.test.ts` — the existing regression test is retained but its assertion
-flips from the message string to a marked entry. Added cases:
+flips from the message string to a marked entry. Cases:
 
+- Exact selected ID (`P00595`) is marked instead of reporting no matches.
 - P00595–P00599 selected, query `P0059` → five marked entries, no empty-state message.
-- `GT4` selected with `GT40`–`GT46` available, query `GT4` → `GT4` marked plus six addable.
-- Clicking a marked entry emits `remove-selection` with the right `proteinId`.
-- Enter on a highlighted marked entry removes it.
-- After removal the query is preserved and the row flips to addable.
+- `GT4` selected with `GT40` and `GT41` available, query `GT4` → `GT4` marked plus two addable.
 - A query matching nothing still renders `No matching protein IDs found`.
+- Focusing an empty input surfaces current selections above addable entries.
+- Marked rows carry `aria-selected`, a `title`, and an `aria-label` naming the removal action.
+- Clicking a marked entry emits `remove-selection` with the right `proteinId`.
+- Enter on a highlighted marked entry removes it; Enter on an unselected entry adds it instead.
+- After removal the query is preserved and the row flips to addable.
+- Repeated ArrowDown advances the highlight past the first row.
+- Enter activates the arrow-highlighted row, not the first row.
+- Enter still activates the first row when it interrupts a pending debounce.
+- The highlight clamps to the new last row when a selection change shortens the list.
 
 ## Scope boundaries
 

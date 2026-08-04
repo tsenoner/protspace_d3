@@ -66,7 +66,7 @@ pnpm --filter @protspace/core exec vitest --run src/components/control-bar/<file
   - `export const MAX_SELECTED_SUGGESTIONS = 10`
   - `computeSearchSuggestions(availableIds: readonly string[], selectedIds: Iterable<string>, query: string, isInputFocused: boolean, limit?: number, selectedLimit?: number): SearchSuggestion[]`
 
-- [ ] **Step 1: Replace the test file with the new expectations**
+- [x] **Step 1: Replace the test file with the new expectations**
 
 Overwrite `packages/core/src/components/control-bar/search-suggestions.test.ts`. Note that the old `excludes already-selected IDs` block asserted the bug (selected IDs dropped) — it is replaced by `includes already-selected IDs as marked`, which asserts the inverse.
 
@@ -279,7 +279,7 @@ describe('computeSearchSuggestions', () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 ```bash
 pnpm --filter @protspace/core exec vitest --run src/components/control-bar/search-suggestions.test.ts
@@ -287,7 +287,7 @@ pnpm --filter @protspace/core exec vitest --run src/components/control-bar/searc
 
 Expected: FAIL. `MAX_SELECTED_SUGGESTIONS` and `SearchSuggestion` do not exist yet, and every assertion using `idsOf` fails because the current return value is `string[]`.
 
-- [ ] **Step 3: Rewrite `search-suggestions.ts`**
+- [x] **Step 3: Rewrite `search-suggestions.ts`**
 
 Replace the whole file:
 
@@ -320,7 +320,11 @@ export interface SearchSuggestion {
  * selectable entries draw from independent budgets and are returned in natural
  * `availableIds` order — they are interleaved, not grouped.
  *
- * Stops scanning as soon as both budgets are full (sub-ms even at 573K).
+ * Stops scanning once the selectable budget is full AND the selected budget is either
+ * full or exhausted (every selected ID has been walked past, tracked by `selectedSeen`).
+ * That is typically sub-ms even at 573K, but not unconditionally: a selected ID sitting
+ * late in `availableIds` still forces the scan up to its index before it can be marked
+ * exhausted (~5 ms at 573K in that worst case).
  */
 export function computeSearchSuggestions(
   availableIds: readonly string[],
@@ -336,13 +340,24 @@ export function computeSearchSuggestions(
   const out: SearchSuggestion[] = [];
   let selectableCount = 0;
   let selectedCount = 0;
+  let selectedSeen = 0;
 
   for (let i = 0; i < availableIds.length; i++) {
-    if (selectableCount >= limit && selectedCount >= selectedLimit) break;
+    // The selected budget is done when it is full OR when every selected ID has been
+    // passed — without the second clause a selection smaller than `selectedLimit` would
+    // keep this loop scanning to the end of a 573K-entry array on every recompute.
+    if (
+      selectableCount >= limit &&
+      (selectedCount >= selectedLimit || selectedSeen >= selectedSet.size)
+    ) {
+      break;
+    }
     const id = availableIds[i];
+    const isSelected = selectedSet.has(id);
+    if (isSelected) selectedSeen++;
     if (q && !id.toLowerCase().startsWith(q)) continue;
 
-    if (selectedSet.has(id)) {
+    if (isSelected) {
       if (selectedCount >= selectedLimit) continue;
       out.push({ id, isSelected: true });
       selectedCount++;
@@ -357,7 +372,7 @@ export function computeSearchSuggestions(
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 ```bash
 pnpm --filter @protspace/core exec vitest --run src/components/control-bar/search-suggestions.test.ts
@@ -365,7 +380,7 @@ pnpm --filter @protspace/core exec vitest --run src/components/control-bar/searc
 
 Expected: PASS, all tests green.
 
-- [ ] **Step 5: Confirm the type break in the component**
+- [x] **Step 5: Confirm the type break in the component**
 
 ```bash
 pnpm --filter @protspace/core type-check
@@ -388,7 +403,7 @@ Expected: FAIL in `search.ts` — `searchSuggestions` is now `SearchSuggestion[]
 - Consumes: `SearchSuggestion`, `computeSearchSuggestions` from Task 1.
 - Produces: `.search-suggestion.selected` rows in the shadow DOM; `_getEmptyStateMessage()` no longer exists.
 
-- [ ] **Step 1: Replace the component test file**
+- [x] **Step 1: Replace the component test file**
 
 Overwrite `packages/core/src/components/control-bar/search.component.test.ts`. The existing test's assertion flips from the message string to a marked row.
 
@@ -507,7 +522,7 @@ describe('protspace-protein-search feedback', () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 ```bash
 pnpm --filter @protspace/core exec vitest --run src/components/control-bar/search.component.test.ts
@@ -515,7 +530,7 @@ pnpm --filter @protspace/core exec vitest --run src/components/control-bar/searc
 
 Expected: FAIL — the component still filters selected IDs out, still renders `Protein ID is already selected`, and emits no `selected` class, `aria-selected`, or `title`.
 
-- [ ] **Step 3: Update the import and state type in `search.ts`**
+- [x] **Step 3: Update the import and state type in `search.ts`**
 
 Replace line 6:
 
@@ -529,7 +544,7 @@ Replace line 21:
   @state() private searchSuggestions: SearchSuggestion[] = [];
 ```
 
-- [ ] **Step 4: Replace the suggestion-list render block**
+- [x] **Step 4: Replace the suggestion-list render block**
 
 Replace `search.ts` lines 49-76 with:
 
@@ -569,7 +584,7 @@ Replace `search.ts` lines 49-76 with:
 
 The `mousedown` handler still calls `_addSelection`; toggling arrives in Task 3.
 
-- [ ] **Step 5: Fix the Enter branch and delete the empty-state classifier**
+- [x] **Step 5: Fix the Enter branch and delete the empty-state classifier**
 
 In `_onSearchKeydown`, replace the `_addSelection` call that indexes into `searchSuggestions` (line 149) with:
 
@@ -579,7 +594,7 @@ In `_onSearchKeydown`, replace the `_addSelection` call that indexes into `searc
 
 Delete the entire `_getEmptyStateMessage()` method (lines 223-232). Nothing else references it.
 
-- [ ] **Step 6: Add the marked-row style**
+- [x] **Step 6: Add the marked-row style**
 
 In `search.styles.ts`, insert after the `.search-suggestion:hover, .active, :focus` rule (after line 118):
 
@@ -596,7 +611,7 @@ In `search.styles.ts`, insert after the `.search-suggestion:hover, .active, :foc
     }
 ```
 
-- [ ] **Step 7: Run the component tests and the type check**
+- [x] **Step 7: Run the component tests and the type check**
 
 ```bash
 pnpm --filter @protspace/core exec vitest --run src/components/control-bar/search.component.test.ts
@@ -605,7 +620,7 @@ pnpm --filter @protspace/core type-check
 
 Expected: PASS for both. The type error from Task 1 Step 5 is now resolved.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add packages/core/src/components/control-bar/search-suggestions.ts \
@@ -649,7 +664,7 @@ EOF
 - Consumes: `SearchSuggestion` and the marked rows from Task 2.
 - Produces: `remove-selection` CustomEvent with `detail: { proteinId: string }`, bubbling and composed. Consumed by `control-bar.ts` `_handleSearchSelectionRemove`.
 
-- [ ] **Step 1: Append the removal tests**
+- [x] **Step 1: Append the removal tests**
 
 Add these cases inside the existing `describe('protspace-protein-search feedback', ...)` block in `search.component.test.ts`:
 
@@ -727,7 +742,7 @@ Add these cases inside the existing `describe('protspace-protein-search feedback
   });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 ```bash
 pnpm --filter @protspace/core exec vitest --run src/components/control-bar/search.component.test.ts
@@ -735,7 +750,7 @@ pnpm --filter @protspace/core exec vitest --run src/components/control-bar/searc
 
 Expected: FAIL — no `remove-selection` event is ever emitted, and the list does not recompute when `selectedProteinIds` changes.
 
-- [ ] **Step 3: Add the Lit `PropertyValues` import**
+- [x] **Step 3: Add the Lit `PropertyValues` import**
 
 Replace line 1 of `search.ts`:
 
@@ -743,7 +758,7 @@ Replace line 1 of `search.ts`:
 import { LitElement, html, type PropertyValues } from 'lit';
 ```
 
-- [ ] **Step 4: Route activation through a toggle**
+- [x] **Step 4: Route activation through a toggle**
 
 In the render block from Task 2, replace the `mousedown` handler body:
 
@@ -763,7 +778,7 @@ In `_onSearchKeydown`, replace the Enter branch's suggestion call:
 
 The `else if (this.searchQuery.trim())` fallback that calls `_addSelection(this.searchQuery.trim())` stays unchanged — it handles Enter with an empty list.
 
-- [ ] **Step 5: Add the toggle, removal, and recompute methods**
+- [x] **Step 5: Add the toggle, removal, and recompute methods**
 
 Add to `search.ts`, immediately before `_addSelection`:
 
@@ -831,7 +846,7 @@ Add `willUpdate` immediately after `disconnectedCallback`:
   }
 ```
 
-- [ ] **Step 6: Add the remove affordance style**
+- [x] **Step 6: Add the remove affordance style**
 
 In `search.styles.ts`, append after the `.search-suggestion.selected::before` rule from Task 2:
 
@@ -849,7 +864,7 @@ In `search.styles.ts`, append after the `.search-suggestion.selected::before` ru
     }
 ```
 
-- [ ] **Step 7: Wire the event through `control-bar.ts`**
+- [x] **Step 7: Wire the event through `control-bar.ts`**
 
 Add the binding to the `<protspace-protein-search>` element (after line 628):
 
@@ -887,7 +902,7 @@ Add the handler immediately after `_handleSearchSelectionAdd` (which ends at lin
   }
 ```
 
-- [ ] **Step 8: Run the full core suite and type check**
+- [x] **Step 8: Run the full core suite and type check**
 
 ```bash
 pnpm --filter @protspace/core exec vitest --run src/components/control-bar/
@@ -896,7 +911,7 @@ pnpm --filter @protspace/core type-check
 
 Expected: PASS for both.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add packages/core/src/components/control-bar/search.ts \
@@ -933,7 +948,7 @@ EOF
 - Consumes: the shipped behaviour from Tasks 1-3.
 - Produces: a change record that `openspec validate --strict` accepts.
 
-- [ ] **Step 1: Rename the change directory**
+- [x] **Step 1: Rename the change directory**
 
 ```bash
 git mv openspec/changes/show-already-selected-search-message \
@@ -942,7 +957,7 @@ git mv openspec/changes/show-already-selected-search-message \
 
 The OpenSpec CLI has no rename command; `git mv` is the mechanism. Leave `.openspec.yaml` as-is (`schema: spec-driven`, `created: 2026-08-01`).
 
-- [ ] **Step 2: Replace the spec delta**
+- [x] **Step 2: Replace the spec delta**
 
 Overwrite `openspec/changes/mark-selected-proteins-in-search/specs/protein-search-feedback/spec.md`:
 
@@ -1000,7 +1015,7 @@ The protein search SHALL show generic no-match feedback only when a non-empty qu
 - **THEN** the search feedback displays `No matching protein IDs found`
 ```
 
-- [ ] **Step 3: Rewrite `proposal.md`**
+- [x] **Step 3: Rewrite `proposal.md`**
 
 Overwrite `openspec/changes/mark-selected-proteins-in-search/proposal.md`:
 
@@ -1043,7 +1058,7 @@ at all, because the list was non-empty.
 
 This resolves the third PR #398 review item — the old Impact section claimed an `apps/web` Playwright regression the diff never contained.
 
-- [ ] **Step 4: Rewrite `design.md`**
+- [x] **Step 4: Rewrite `design.md`**
 
 Overwrite `openspec/changes/mark-selected-proteins-in-search/design.md`:
 
@@ -1077,8 +1092,10 @@ distinction entirely: there is one rule, and the no-match message becomes truthf
 
 **Independent budgets.** Selected entries use a 10-entry budget separate from the 50-entry
 selectable cap. A single shared cap would let 50+ selected matches fill the list and hide
-every addable protein. The scan still exits early once both budgets are full, preserving
-the sub-millisecond behaviour on 573K IDs.
+every addable protein. The scan still exits early once the selectable budget is full and
+the selected budget is either full or exhausted (every selected ID walked past, tracked by
+`selectedSeen`) — typically sub-millisecond on 573K IDs, though a selected ID sitting late
+in `availableIds` still forces the scan up to its index.
 
 **Natural order, not grouped.** Entries stay in `availableProteinIds` order and are
 interleaved. Grouping would reorder results relative to what users see today.
@@ -1103,7 +1120,7 @@ suite is label-gated and does not run on pull requests by default. The composed 
 verified manually in the browser against the demo dataset instead.
 ```
 
-- [ ] **Step 5: Rewrite `tasks.md`**
+- [x] **Step 5: Rewrite `tasks.md`**
 
 Overwrite `openspec/changes/mark-selected-proteins-in-search/tasks.md`:
 
@@ -1135,7 +1152,7 @@ Overwrite `openspec/changes/mark-selected-proteins-in-search/tasks.md`:
 
 Leave the boxes unchecked while working; check them as each is completed.
 
-- [ ] **Step 6: Validate the change**
+- [x] **Step 6: Validate the change**
 
 ```bash
 npx openspec validate mark-selected-proteins-in-search --strict
@@ -1143,7 +1160,7 @@ npx openspec validate mark-selected-proteins-in-search --strict
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add openspec/changes/
@@ -1169,7 +1186,7 @@ EOF
 
 **Files:** none modified.
 
-- [ ] **Step 1: Run the full JavaScript suite**
+- [x] **Step 1: Run the full JavaScript suite**
 
 ```bash
 pnpm test:ci
@@ -1177,7 +1194,7 @@ pnpm test:ci
 
 Expected: PASS. Record the total count; the baseline before this work was 1,872 passed with 1 intentional skip.
 
-- [ ] **Step 2: Run formatting and quality gates**
+- [x] **Step 2: Run formatting and quality gates**
 
 ```bash
 pnpm format:check
@@ -1186,7 +1203,7 @@ pnpm precommit
 
 Both must pass. `precommit` alone is insufficient — it runs lint-staged and therefore only inspects staged files, so `format:check` must be run separately.
 
-- [ ] **Step 3: Verify in the browser**
+- [x] **Step 3: Verify in the browser**
 
 Start the app with `pnpm dev` (app on `localhost:8080`), open `/explore` with the demo dataset, then:
 
@@ -1197,7 +1214,7 @@ Start the app with `pnpm dev` (app on `localhost:8080`), open `/explore` with th
 5. Search `zzzz` — expect `No matching protein IDs found`.
 6. Confirm the console shows no errors (existing Lit development warnings are expected).
 
-- [ ] **Step 4: Push and update the PR**
+- [x] **Step 4: Push and update the PR**
 
 ```bash
 git push

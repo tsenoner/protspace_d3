@@ -240,4 +240,26 @@ describe('protspace-protein-search feedback', () => {
     expect(rows).toHaveLength(10);
     expect(rows[9].classList.contains('active')).toBe(true);
   });
+
+  it('does not reopen the dropdown after an add echoes back a selection change', async () => {
+    const element = await setupSearch(['GT4', 'GT40'], []);
+    await typeQuery(element, 'GT40');
+    expect(rowsOf(element)).toHaveLength(1);
+
+    const input = element.shadowRoot!.querySelector('#protein-search-input') as HTMLInputElement;
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await element.updateComplete;
+
+    // The add cleared the query and closed the dropdown synchronously.
+    expect(rowsOf(element)).toHaveLength(0);
+    expect(element.shadowRoot!.querySelector('.search-suggestions')).toBeNull();
+
+    // Simulate the parent echoing the new selection back down — this must NOT
+    // reopen the dropdown even though the input is still focused with an empty query.
+    element.selectedProteinIds = ['GT40'];
+    await element.updateComplete;
+
+    expect(rowsOf(element)).toHaveLength(0);
+    expect(element.shadowRoot!.querySelector('.search-suggestions')).toBeNull();
+  });
 });

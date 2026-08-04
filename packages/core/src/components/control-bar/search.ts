@@ -23,6 +23,7 @@ class ProtspaceProteinSearch extends LitElement {
   @state() private isInputFocused: boolean = false;
 
   private _suggestionDebounceId: ReturnType<typeof setTimeout> | null = null;
+  private _blurTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   render() {
     return html`
@@ -106,6 +107,7 @@ class ProtspaceProteinSearch extends LitElement {
     super.disconnectedCallback();
     window.removeEventListener('keydown', this._handleBodyKeydown);
     this._clearSuggestionDebounce();
+    this._clearBlurTimeout();
   }
 
   protected willUpdate(changed: PropertyValues<this>): void {
@@ -113,8 +115,12 @@ class ProtspaceProteinSearch extends LitElement {
     // (including this component's own remove, which keeps the query) would otherwise leave
     // the open dropdown stale. Recomputing here cannot loop: it only writes
     // `searchSuggestions`, never `selectedProteinIds`.
-    if (!changed.has('selectedProteinIds')) return;
+    if (!changed.has('selectedProteinIds') && !changed.has('availableProteinIds')) return;
     if (!this.searchQuery.trim() && !this.isInputFocused) return;
+    // Only refresh a dropdown that is already open. Without this, clearing the query
+    // on add (or Escape, or a blur that left text behind) leaves the component ready
+    // to re-open the list the moment the parent echoes a selection change back down.
+    if (this.searchSuggestions.length === 0) return;
     this._updateSuggestions(true);
   }
 
@@ -194,6 +200,7 @@ class ProtspaceProteinSearch extends LitElement {
   private _onInputFocus() {
     this.isInputFocused = true;
     this._clearSuggestionDebounce();
+    this._clearBlurTimeout();
     this._updateSuggestions();
     // Notify parent to close other dropdowns
     this.dispatchEvent(
@@ -208,7 +215,8 @@ class ProtspaceProteinSearch extends LitElement {
     this.isInputFocused = false;
     this._clearSuggestionDebounce();
     // Delay clearing suggestions to allow mousedown to fire on suggestions
-    setTimeout(() => {
+    this._blurTimeoutId = setTimeout(() => {
+      this._blurTimeoutId = null;
       this.searchSuggestions = [];
       this.highlightedSuggestionIndex = -1;
     }, 200);
@@ -218,6 +226,13 @@ class ProtspaceProteinSearch extends LitElement {
     if (this._suggestionDebounceId !== null) {
       clearTimeout(this._suggestionDebounceId);
       this._suggestionDebounceId = null;
+    }
+  }
+
+  private _clearBlurTimeout() {
+    if (this._blurTimeoutId !== null) {
+      clearTimeout(this._blurTimeoutId);
+      this._blurTimeoutId = null;
     }
   }
 

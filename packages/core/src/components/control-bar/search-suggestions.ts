@@ -26,8 +26,11 @@ export interface SearchSuggestion {
  * selectable entries draw from independent budgets and are returned in natural
  * `availableIds` order — they are interleaved, not grouped.
  *
- * Stops scanning once the selectable budget is full and the selected budget is either
- * full or exhausted (every selected ID has been walked past) — sub-ms even at 573K.
+ * Stops scanning once the selectable budget is full AND the selected budget is either
+ * full or exhausted (every selected ID has been walked past, tracked by `selectedSeen`).
+ * That is typically sub-ms even at 573K, but not unconditionally: a selected ID sitting
+ * late in `availableIds` still forces the scan up to its index before it can be marked
+ * exhausted (~5 ms at 573K in that worst case).
  */
 export function computeSearchSuggestions(
   availableIds: readonly string[],
