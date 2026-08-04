@@ -219,6 +219,10 @@ class ProtspaceProteinSearch extends LitElement {
   }
 
   private _flushSuggestions() {
+    // Only settle a pending debounce. Recomputing when the list is already current
+    // resets the highlight to 0, which would make arrow navigation impossible and
+    // send Enter to the wrong row.
+    if (this._suggestionDebounceId === null) return;
     this._clearSuggestionDebounce();
     this._updateSuggestions();
   }

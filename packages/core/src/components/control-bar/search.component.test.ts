@@ -169,16 +169,73 @@ describe('protspace-protein-search feedback', () => {
     expect(element.shadowRoot!.querySelector('.no-results')).toBeNull();
   });
 
-  it('clamps the highlight when a removal shortens the list', async () => {
-    const element = await setupSearch(['GT4', 'GT40'], ['GT4', 'GT40']);
-    await typeQuery(element, 'GT40');
-    expect(rowsOf(element)).toHaveLength(1);
+  it('advances the highlight past the first row on repeated ArrowDown', async () => {
+    const element = await setupSearch([...FIVE, 'Q12345'], []);
+    await typeQuery(element, 'P0059');
 
-    element.selectedProteinIds = ['GT4'];
+    const input = element.shadowRoot!.querySelector('#protein-search-input') as HTMLInputElement;
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
     await element.updateComplete;
 
     const rows = rowsOf(element);
-    expect(rows).toHaveLength(1);
-    expect(rows[0].classList.contains('active')).toBe(true);
+    expect(rows[2].classList.contains('active')).toBe(true);
+  });
+
+  it('activates the arrow-highlighted row on Enter, not the first row', async () => {
+    const element = await setupSearch([...FIVE, 'Q12345'], []);
+    await typeQuery(element, 'P0059');
+
+    const added: string[] = [];
+    element.addEventListener('add-selection', (event) => {
+      added.push((event as CustomEvent<{ proteinId: string }>).detail.proteinId);
+    });
+
+    const input = element.shadowRoot!.querySelector('#protein-search-input') as HTMLInputElement;
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+    expect(added).toEqual(['P00597']);
+  });
+
+  it('still activates the first row when Enter interrupts a pending debounce', async () => {
+    const element = await setupSearch([...FIVE, 'Q12345'], []);
+    const input = element.shadowRoot!.querySelector('#protein-search-input') as HTMLInputElement;
+    input.focus();
+    input.value = 'P0059';
+    input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    // Deliberately do NOT advance timers — the debounce is still pending.
+
+    const added: string[] = [];
+    element.addEventListener('add-selection', (event) => {
+      added.push((event as CustomEvent<{ proteinId: string }>).detail.proteinId);
+    });
+
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(added).toEqual(['P00595']);
+  });
+
+  it('clamps the highlight when a selection change shortens the list', async () => {
+    const ids = Array.from({ length: 12 }, (_, i) => `A${String(i + 1).padStart(2, '0')}`);
+    // 11 selected: 10 fit the selected budget, A12 remains selectable => 11 rows.
+    const element = await setupSearch(ids, ids.slice(0, 11));
+    await typeQuery(element, 'A');
+    expect(rowsOf(element)).toHaveLength(11);
+
+    const input = element.shadowRoot!.querySelector('#protein-search-input') as HTMLInputElement;
+    for (let i = 0; i < 10; i++) {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    }
+    await element.updateComplete;
+    expect(rowsOf(element)[10].classList.contains('active')).toBe(true);
+
+    // Selecting A12 too: 10 marked rows, nothing selectable => 10 rows.
+    element.selectedProteinIds = ids;
+    await element.updateComplete;
+
+    const rows = rowsOf(element);
+    expect(rows).toHaveLength(10);
+    expect(rows[9].classList.contains('active')).toBe(true);
   });
 });
