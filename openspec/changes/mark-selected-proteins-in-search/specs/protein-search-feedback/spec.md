@@ -24,7 +24,7 @@ The protein search SHALL include already-selected protein IDs in the suggestion 
 #### Scenario: Selections are visible on an empty focused input
 
 - **WHEN** a user focuses the search input with an empty query
-- **THEN** current selections are listed and marked above the selectable entries
+- **THEN** current selections are listed and marked alongside the selectable entries
 
 ### Requirement: Activating a marked suggestion removes that protein
 

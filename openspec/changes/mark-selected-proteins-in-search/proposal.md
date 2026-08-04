@@ -18,9 +18,12 @@ at all, because the list was non-empty.
   proteins stay visible however many matches are already selected.
 - Activating a marked suggestion removes that protein; removal preserves the query so
   several proteins can be pruned from one result set.
-- Focusing an empty search input now surfaces current selections above selectable entries.
+- Focusing an empty search input now surfaces current selections alongside selectable entries.
 - The empty-state classification is removed; `No matching protein IDs found` now renders
   only when nothing matches, which also removes a per-keystroke scan from `render()`.
+- Arrow-key navigation of the suggestion list now works: the highlight is no longer
+  reset on every keypress, so Enter activates the row the user highlighted rather
+  than always the first one.
 
 ## Impact
 
@@ -30,5 +33,7 @@ at all, because the list was non-empty.
 - Verification: unit coverage in `search-suggestions.test.ts`, custom-element coverage in
   `search.component.test.ts`, plus manual browser verification against the demo dataset.
   No Playwright test is added — see `design.md` on why component-level coverage was chosen.
-- Behaviour changes: pressing Enter on an already-selected ID now removes it (previously a
-  no-op); focusing the empty input now lists current selections.
+- Behaviour changes: pressing Enter on an already-selected ID now removes it (previously
+  a no-op); focusing the empty input now lists current selections; arrow-key navigation
+  now advances past the first row, and Enter activates the highlighted row rather than
+  always the first.

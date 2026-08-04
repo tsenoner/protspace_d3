@@ -43,6 +43,13 @@ preserved query would leave a stale list after a removal. A `willUpdate` hook re
 when `selectedProteinIds` changes and the dropdown is open, preserving the highlight index
 clamped to the new length.
 
+**Conditional suggestion flush.** `_flushSuggestions` recomputed on every Enter or arrow
+keypress, resetting the highlight to 0 before the key handler read it — so arrow
+navigation could not advance and Enter always activated the first row. That was merely
+annoying while Enter could only add; it becomes destructive once Enter can remove. The
+flush now returns early unless a suggestion debounce is actually pending, which is the
+only condition it exists to settle.
+
 ## Testing
 
 Component-level coverage in jsdom drives the real custom element through its input and

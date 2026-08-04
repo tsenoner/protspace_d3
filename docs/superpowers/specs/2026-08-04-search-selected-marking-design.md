@@ -55,7 +55,7 @@ regardless of whether that entry is selected. There is no skip logic.
 ### Empty query
 
 Focusing the empty search box shows up to `MAX_SELECTED_SUGGESTIONS` current selections
-above the addable entries. Unfocused with an empty query still yields nothing.
+alongside the addable entries, in natural array order. Unfocused with an empty query still yields nothing.
 
 ### Deliberate behaviour changes
 
