@@ -26,7 +26,8 @@ export interface SearchSuggestion {
  * selectable entries draw from independent budgets and are returned in natural
  * `availableIds` order — they are interleaved, not grouped.
  *
- * Stops scanning as soon as both budgets are full (sub-ms even at 573K).
+ * Stops scanning once the selectable budget is full and the selected budget is either
+ * full or exhausted (every selected ID has been walked past) — sub-ms even at 573K.
  */
 export function computeSearchSuggestions(
   availableIds: readonly string[],
@@ -42,13 +43,24 @@ export function computeSearchSuggestions(
   const out: SearchSuggestion[] = [];
   let selectableCount = 0;
   let selectedCount = 0;
+  let selectedSeen = 0;
 
   for (let i = 0; i < availableIds.length; i++) {
-    if (selectableCount >= limit && selectedCount >= selectedLimit) break;
+    // The selected budget is done when it is full OR when every selected ID has been
+    // passed — without the second clause a selection smaller than `selectedLimit` would
+    // keep this loop scanning to the end of a 573K-entry array on every recompute.
+    if (
+      selectableCount >= limit &&
+      (selectedCount >= selectedLimit || selectedSeen >= selectedSet.size)
+    ) {
+      break;
+    }
     const id = availableIds[i];
+    const isSelected = selectedSet.has(id);
+    if (isSelected) selectedSeen++;
     if (q && !id.toLowerCase().startsWith(q)) continue;
 
-    if (selectedSet.has(id)) {
+    if (isSelected) {
       if (selectedCount >= selectedLimit) continue;
       out.push({ id, isSelected: true });
       selectedCount++;

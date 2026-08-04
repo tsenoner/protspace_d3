@@ -118,7 +118,6 @@ export const searchStyles = [
     }
 
     .search-suggestion.selected {
-      color: var(--muted);
       opacity: 0.7;
     }
 

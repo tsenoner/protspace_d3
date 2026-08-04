@@ -193,6 +193,37 @@ describe('computeSearchSuggestions', () => {
       expect(selectedIdsOf(result)).toHaveLength(MAX_SELECTED_SUGGESTIONS);
       expect(selectableIdsOf(result)).toHaveLength(MAX_SEARCH_SUGGESTIONS);
     });
+
+    it('stops scanning once the selectable budget is full and selections are exhausted', () => {
+      const ids = Array.from({ length: 100_000 }, (_, i) => `P${String(i).padStart(6, '0')}`);
+      let reads = 0;
+      const counted = new Proxy(ids, {
+        get(target, prop) {
+          if (typeof prop === 'string' && /^[0-9]+$/.test(prop)) reads++;
+          return Reflect.get(target, prop);
+        },
+      }) as readonly string[];
+
+      const result = computeSearchSuggestions(counted, ['P000002'], '', true);
+
+      expect(result).toHaveLength(MAX_SEARCH_SUGGESTIONS + 1);
+      expect(reads).toBeLessThan(100);
+    });
+
+    it('stops scanning with no selections at all', () => {
+      const ids = Array.from({ length: 100_000 }, (_, i) => `P${String(i).padStart(6, '0')}`);
+      let reads = 0;
+      const counted = new Proxy(ids, {
+        get(target, prop) {
+          if (typeof prop === 'string' && /^[0-9]+$/.test(prop)) reads++;
+          return Reflect.get(target, prop);
+        },
+      }) as readonly string[];
+
+      computeSearchSuggestions(counted, [], 'p', true);
+
+      expect(reads).toBeLessThan(100);
+    });
   });
 
   describe('prefix-only (startsWith), NOT substring', () => {
