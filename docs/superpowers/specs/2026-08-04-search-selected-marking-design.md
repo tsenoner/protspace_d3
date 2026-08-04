@@ -138,11 +138,30 @@ debounced at `SEARCH_DEBOUNCE_MS` and never from `render()`.
 - `selectedProteinIds`-driven recompute preserves the current index, clamped to
   `[0, length - 1]`, or -1 when empty.
 
-Add a `willUpdate(changed)` hook: when `changed.has('selectedProteinIds')` and the dropdown
-is open (non-empty query or focused), call `_updateSuggestions(true)`. This is required —
-`searchSuggestions` is `@state` computed at debounce time, so without it a removal would
-leave the list stale while the query is preserved. It cannot loop: the recompute writes
-`searchSuggestions`, which does not change `selectedProteinIds`.
+Add a `willUpdate(changed)` hook with three early-exit guards, in order:
+
+```ts
+if (!changed.has('selectedProteinIds') && !changed.has('availableProteinIds')) return;
+if (!this.searchQuery.trim() && !this.isInputFocused) return;
+if (this.searchSuggestions.length === 0) return;
+this._updateSuggestions(true);
+```
+
+1. Only a change to `selectedProteinIds` or `availableProteinIds` is worth recomputing for
+   — anything else returns immediately.
+2. The recompute only matters while the dropdown could plausibly be open: a non-empty
+   query, or the input is focused.
+3. `searchSuggestions.length === 0` is what stops the hook from **re-opening** a closed
+   dropdown, as opposed to refreshing one that is already open. Without it, adding a
+   protein — which clears `searchQuery` but leaves the input focused — would satisfy guard
+   2 on its own, and the parent's very next echo of the new `selectedProteinIds` back down
+   would recompute a fresh list and pop the dropdown back open right after the user closed
+   it by selecting.
+
+This is required because `searchSuggestions` is `@state` computed at debounce time, so
+without the hook a removal would leave the list stale while the query is preserved. It
+cannot loop: the recompute writes `searchSuggestions`, which does not change
+`selectedProteinIds`.
 
 ### Activation
 
@@ -229,12 +248,16 @@ flips from the message string to a marked entry. Cases:
 - Focusing an empty input surfaces current selections above addable entries.
 - Marked rows carry `aria-selected`, a `title`, and an `aria-label` naming the removal action.
 - Clicking a marked entry emits `remove-selection` with the right `proteinId`.
-- Enter on a highlighted marked entry removes it; Enter on an unselected entry adds it instead.
+- Enter on a highlighted marked entry removes it; activating an unselected entry via
+  `mousedown` adds it instead.
 - After removal the query is preserved and the row flips to addable.
 - Repeated ArrowDown advances the highlight past the first row.
 - Enter activates the arrow-highlighted row, not the first row.
 - Enter still activates the first row when it interrupts a pending debounce.
 - The highlight clamps to the new last row when a selection change shortens the list.
+- Does not reopen the dropdown after an add echoes back a selection change.
+- Scrolls the highlighted row into view with `block: 'nearest'` when ArrowDown or ArrowUp
+  moves the highlight past the visible area (#413).
 
 ## Scope boundaries
 

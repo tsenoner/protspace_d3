@@ -15,7 +15,7 @@
 - Branch is `feat/345-already-selected-message` (PR #398). This work **supersedes** that PR's `search.ts` approach; do not preserve `_getEmptyStateMessage` or the string `Protein ID is already selected`.
 - No new dependencies. Do not add packages.
 - Matching stays **prefix-only** (`startsWith`), case-insensitive. Do not introduce substring or fuzzy matching.
-- The early-exit scan in `computeSearchSuggestions` must be preserved — it is what keeps the component sub-millisecond on Swiss-Prot's 573K IDs. No scan may run from inside `render()`.
+- The early-exit scan in `computeSearchSuggestions` must be preserved — it is typically what keeps the component sub-millisecond on Swiss-Prot's 573K IDs, though not unconditionally: a selected ID sitting late in `availableProteinIds` still forces the scan up to its index before it can be marked exhausted (~5 ms at 573K in that worst case). No scan may run from inside `render()`.
 - `MAX_SEARCH_SUGGESTIONS` stays `50`. New `MAX_SELECTED_SUGGESTIONS` is `10`.
 - `docs/superpowers/` is gitignored (`.gitignore:53`) but plan/spec files are tracked anyway — use `git add -f` for any file under it.
 - `pnpm precommit` only checks **staged** files (it runs lint-staged). Before the final push, also run `pnpm format:check` and the full `pnpm test:ci` explicitly.

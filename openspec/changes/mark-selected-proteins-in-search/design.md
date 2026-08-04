@@ -53,6 +53,16 @@ annoying while Enter could only add; it becomes destructive once Enter can remov
 flush now returns early unless a suggestion debounce is actually pending, which is the
 only condition it exists to settle.
 
+**Scroll the highlight with `block: 'nearest'` (#413).** Fixing the flush bug above
+exposed a follow-on problem: `.search-suggestions` is a fixed-height (`max-height: 20rem`)
+scroll container fitting ~8 rows, and arrow navigation never scrolled the newly
+highlighted row into view, so past the visible area the user navigated blind. An
+`updated` hook scrolls the highlighted row via `scrollIntoView({ block: 'nearest' })`
+rather than `'center'` or the default (`'start'`): `'nearest'` only moves the scroll
+position when the row is actually outside the visible area, so the list never jumps
+once the highlighted row is already visible — `'center'` or `'start'` would re-center or
+re-align the list on every keypress even when no scrolling was needed.
+
 ## Testing
 
 Component-level coverage in jsdom drives the real custom element through its input and

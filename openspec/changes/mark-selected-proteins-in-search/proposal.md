@@ -24,6 +24,10 @@ at all, because the list was non-empty.
 - Arrow-key navigation of the suggestion list now works: the highlight is no longer
   reset on every keypress, so Enter activates the row the user highlighted rather
   than always the first one.
+- The keyboard-highlighted suggestion is now scrolled into view as the highlight moves,
+  fixing a regression (#413) exposed by the above: past the ~8 visible rows of the
+  scrollable suggestion list, the highlight moved off-screen with nothing scrolling it
+  back into view.
 
 ## Impact
 
@@ -36,4 +40,6 @@ at all, because the list was non-empty.
 - Behaviour changes: pressing Enter on an already-selected ID now removes it (previously
   a no-op); focusing the empty input now lists current selections; arrow-key navigation
   now advances past the first row, and Enter activates the highlighted row rather than
-  always the first.
+  always the first. Arrow-key navigation past the visible area previously left the
+  highlight off-screen with nothing indicating which row Enter would activate (#413);
+  the highlighted row is now scrolled into view as it changes.

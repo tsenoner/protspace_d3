@@ -241,6 +241,65 @@ describe('protspace-protein-search feedback', () => {
     expect(rows[9].classList.contains('active')).toBe(true);
   });
 
+  it('scrolls the highlighted row into view when ArrowDown moves past the visible area', async () => {
+    const ids = Array.from({ length: 20 }, (_, i) => `B${String(i + 1).padStart(2, '0')}`);
+    const element = await setupSearch(ids, []);
+    await typeQuery(element, 'B');
+    expect(rowsOf(element)).toHaveLength(20);
+
+    const scrollIntoViewMock = vi.fn();
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+    try {
+      const input = element.shadowRoot!.querySelector('#protein-search-input') as HTMLInputElement;
+      for (let i = 0; i < 15; i++) {
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      }
+      await element.updateComplete;
+
+      // Typing the query seeds the highlight at row 0, so 15 ArrowDown presses land on row 15.
+      const rows = rowsOf(element);
+      expect(rows[15].classList.contains('active')).toBe(true);
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: 'nearest' });
+      expect(scrollIntoViewMock.mock.contexts.at(-1)).toBe(rows[15]);
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
+
+  it('scrolls the highlighted row into view when ArrowUp travels back up', async () => {
+    const ids = Array.from({ length: 20 }, (_, i) => `B${String(i + 1).padStart(2, '0')}`);
+    const element = await setupSearch(ids, []);
+    await typeQuery(element, 'B');
+
+    const input = element.shadowRoot!.querySelector('#protein-search-input') as HTMLInputElement;
+    for (let i = 0; i < 15; i++) {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    }
+    await element.updateComplete;
+    expect(rowsOf(element)[15].classList.contains('active')).toBe(true);
+
+    const scrollIntoViewMock = vi.fn();
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+    try {
+      for (let i = 0; i < 10; i++) {
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+      }
+      await element.updateComplete;
+
+      // 10 ArrowUp presses from row 15 land on row 5.
+      const rows = rowsOf(element);
+      expect(rows[5].classList.contains('active')).toBe(true);
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: 'nearest' });
+      expect(scrollIntoViewMock.mock.contexts.at(-1)).toBe(rows[5]);
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
+
   it('does not reopen the dropdown after an add echoes back a selection change', async () => {
     const element = await setupSearch(['GT4', 'GT40'], []);
     await typeQuery(element, 'GT40');

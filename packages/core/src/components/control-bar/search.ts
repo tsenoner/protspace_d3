@@ -124,6 +124,24 @@ class ProtspaceProteinSearch extends LitElement {
     this._updateSuggestions(true);
   }
 
+  // `PropertyValues<this>` (as used by `willUpdate` above) types `.has()` against
+  // `keyof this`, which TypeScript excludes private members from — so a private @state
+  // field like `highlightedSuggestionIndex` needs the untyped `Map<string, unknown>` form
+  // instead, matching the convention elsewhere in this package (e.g. scatter-plot.ts,
+  // legend.ts, query-numeric-input.ts).
+  protected updated(changed: Map<string, unknown>): void {
+    // Arrow-key navigation moves `highlightedSuggestionIndex` without scrolling anything.
+    // `.search-suggestions` is a fixed-height (max-height: 20rem) scroll container fitting
+    // ~8 rows, so past that the user navigates blind (issue #413). `block: 'nearest'` only
+    // scrolls when the row is actually outside the visible area, so it never jumps the
+    // list when the highlighted row is already visible.
+    if (!changed.has('highlightedSuggestionIndex')) return;
+    if (this.highlightedSuggestionIndex < 0) return;
+    const rows = this.shadowRoot?.querySelectorAll('.search-suggestion');
+    const row = rows?.[this.highlightedSuggestionIndex] as HTMLElement | undefined;
+    row?.scrollIntoView?.({ block: 'nearest' });
+  }
+
   private _handleBodyKeydown = (event: KeyboardEvent) => {
     if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
       event.preventDefault();

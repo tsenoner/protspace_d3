@@ -15,6 +15,8 @@
 - [x] 3.1 Emit `remove-selection` when a marked suggestion is activated.
 - [x] 3.2 Recompute suggestions on selection change, preserving the clamped highlight.
 - [x] 3.3 Handle `remove-selection` in the control bar, mirroring `add-selection`.
+- [x] 3.4 Scroll the keyboard-highlighted suggestion into view with `block: 'nearest'`
+      as it changes, fixing the off-screen highlight past the visible area (#413).
 
 ## 4. Verification
 
