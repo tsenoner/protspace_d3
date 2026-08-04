@@ -127,6 +127,18 @@ export const searchStyles = [
       color: var(--primary);
     }
 
+    .search-suggestion.selected::after {
+      content: '✕';
+      float: right;
+      opacity: 0;
+      transition: var(--transition-fast);
+    }
+
+    .search-suggestion.selected:hover::after,
+    .search-suggestion.selected.active::after {
+      opacity: 1;
+    }
+
     .no-results {
       padding: var(--spacing-md);
       text-align: center;

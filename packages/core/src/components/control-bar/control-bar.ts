@@ -626,6 +626,7 @@ export class ProtspaceControlBar extends LitElement {
             @selection-change=${this._handleSearchSelectionChange}
             @add-selection=${this._handleSearchSelectionAdd}
             @add-selection-multiple=${this._handleSearchSelectionAddMultiple}
+            @remove-selection=${this._handleSearchSelectionRemove}
           ></protspace-protein-search>
         </div>
 
@@ -1494,6 +1495,32 @@ export class ProtspaceControlBar extends LitElement {
     ) as StructureViewerElement[];
     viewers.forEach((v) => v?.loadProtein?.(proteinId));
 
+    this.dispatchEvent(
+      new CustomEvent('protein-selection-change', {
+        detail: { proteinIds: newSelection.slice() },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  private _handleSearchSelectionRemove(event: CustomEvent<{ proteinId: string }>) {
+    const { proteinId } = event.detail;
+    if (!proteinId || !this.selectedIdsChips.includes(proteinId)) return;
+
+    const newSelection = this.selectedIdsChips.filter((id) => id !== proteinId);
+    this.selectedIdsChips = newSelection;
+    this.selectedProteinsCount = newSelection.length;
+
+    if (
+      this.autoSync &&
+      this._scatterplotElement &&
+      'selectedProteinIds' in this._scatterplotElement
+    ) {
+      (this._scatterplotElement as ScatterplotElementLike).selectedProteinIds = [...newSelection];
+    }
+
+    // Structure viewers are intentionally left alone, matching clear-all.
     this.dispatchEvent(
       new CustomEvent('protein-selection-change', {
         detail: { proteinIds: newSelection.slice() },

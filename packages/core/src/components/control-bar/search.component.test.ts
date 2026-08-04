@@ -109,4 +109,76 @@ describe('protspace-protein-search feedback', () => {
     expect(rows.map((row) => row.getAttribute('aria-selected'))).toEqual(['true', 'false']);
     expect(rows[0].getAttribute('title')).toBe('Remove from selection');
   });
+
+  it('emits remove-selection when a marked row is clicked', async () => {
+    const element = await setupSearch([...FIVE, 'Q12345'], FIVE);
+    await typeQuery(element, 'P0059');
+
+    const removed: string[] = [];
+    element.addEventListener('remove-selection', (event) => {
+      removed.push((event as CustomEvent<{ proteinId: string }>).detail.proteinId);
+    });
+
+    rowsOf(element)[0].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    expect(removed).toEqual(['P00595']);
+  });
+
+  it('removes the highlighted marked row on Enter', async () => {
+    const element = await setupSearch([...FIVE, 'Q12345'], FIVE);
+    await typeQuery(element, 'P0059');
+
+    const removed: string[] = [];
+    element.addEventListener('remove-selection', (event) => {
+      removed.push((event as CustomEvent<{ proteinId: string }>).detail.proteinId);
+    });
+
+    const input = element.shadowRoot!.querySelector('#protein-search-input') as HTMLInputElement;
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(removed).toEqual(['P00595']);
+  });
+
+  it('adds, not removes, when an unselected row is activated', async () => {
+    const element = await setupSearch(['GT4', 'GT40'], ['GT4']);
+    await typeQuery(element, 'GT4');
+
+    const added: string[] = [];
+    const removed: string[] = [];
+    element.addEventListener('add-selection', (event) => {
+      added.push((event as CustomEvent<{ proteinId: string }>).detail.proteinId);
+    });
+    element.addEventListener('remove-selection', (event) => {
+      removed.push((event as CustomEvent<{ proteinId: string }>).detail.proteinId);
+    });
+
+    rowsOf(element)[1].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    expect(added).toEqual(['GT40']);
+    expect(removed).toEqual([]);
+  });
+
+  it('keeps the query and flips the row to selectable after a removal', async () => {
+    const element = await setupSearch([...FIVE, 'Q12345'], FIVE);
+    await typeQuery(element, 'P0059');
+
+    // Simulate the parent echoing the new selection back down.
+    element.selectedProteinIds = FIVE.slice(1);
+    await element.updateComplete;
+
+    const rows = rowsOf(element);
+    expect(rows.map(rowText)).toEqual(FIVE);
+    expect(rows[0].classList.contains('selected')).toBe(false);
+    expect(element.shadowRoot!.querySelector('.no-results')).toBeNull();
+  });
+
+  it('clamps the highlight when a removal shortens the list', async () => {
+    const element = await setupSearch(['GT4', 'GT40'], ['GT4', 'GT40']);
+    await typeQuery(element, 'GT40');
+    expect(rowsOf(element)).toHaveLength(1);
+
+    element.selectedProteinIds = ['GT4'];
+    await element.updateComplete;
+
+    const rows = rowsOf(element);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].classList.contains('active')).toBe(true);
+  });
 });

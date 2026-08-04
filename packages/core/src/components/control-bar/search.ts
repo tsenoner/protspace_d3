@@ -1,4 +1,4 @@
-import { LitElement, html } from 'lit';
+import { LitElement, html, type PropertyValues } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { customElement } from '../../utils/safe-custom-element';
 import { searchStyles } from './search.styles';
@@ -61,7 +61,7 @@ class ProtspaceProteinSearch extends LitElement {
                       @mousedown=${(e: Event) => {
                         // Use mousedown to avoid blur before click
                         e.preventDefault();
-                        this._addSelection(suggestion.id);
+                        this._activateSuggestion(suggestion);
                       }}
                     >
                       ${suggestion.id}
@@ -103,6 +103,16 @@ class ProtspaceProteinSearch extends LitElement {
     super.disconnectedCallback();
     window.removeEventListener('keydown', this._handleBodyKeydown);
     this._clearSuggestionDebounce();
+  }
+
+  protected willUpdate(changed: PropertyValues<this>): void {
+    // `searchSuggestions` is computed on a debounce, so a selection change made elsewhere
+    // (including this component's own remove, which keeps the query) would otherwise leave
+    // the open dropdown stale. Recomputing here cannot loop: it only writes
+    // `searchSuggestions`, never `selectedProteinIds`.
+    if (!changed.has('selectedProteinIds')) return;
+    if (!this.searchQuery.trim() && !this.isInputFocused) return;
+    this._updateSuggestions(true);
   }
 
   private _handleBodyKeydown = (event: KeyboardEvent) => {
@@ -149,7 +159,7 @@ class ProtspaceProteinSearch extends LitElement {
         this.highlightedSuggestionIndex >= 0 &&
         this.highlightedSuggestionIndex < this.searchSuggestions.length
       ) {
-        this._addSelection(this.searchSuggestions[this.highlightedSuggestionIndex].id);
+        this._activateSuggestion(this.searchSuggestions[this.highlightedSuggestionIndex]);
       } else if (this.searchQuery.trim()) {
         this._addSelection(this.searchQuery.trim());
       }
@@ -213,14 +223,48 @@ class ProtspaceProteinSearch extends LitElement {
     this._updateSuggestions();
   }
 
-  private _updateSuggestions() {
+  private _updateSuggestions(preserveHighlight = false) {
+    const previousIndex = this.highlightedSuggestionIndex;
     this.searchSuggestions = computeSearchSuggestions(
       this.availableProteinIds,
       this.selectedProteinIds,
       this.searchQuery,
       this.isInputFocused,
     );
-    this.highlightedSuggestionIndex = this.searchSuggestions.length > 0 ? 0 : -1;
+
+    if (this.searchSuggestions.length === 0) {
+      this.highlightedSuggestionIndex = -1;
+      return;
+    }
+
+    this.highlightedSuggestionIndex = preserveHighlight
+      ? Math.min(Math.max(previousIndex, 0), this.searchSuggestions.length - 1)
+      : 0;
+  }
+
+  private _activateSuggestion(suggestion: SearchSuggestion) {
+    if (suggestion.isSelected) {
+      this._removeSelection(suggestion.id);
+    } else {
+      this._addSelection(suggestion.id);
+    }
+  }
+
+  private _removeSelection(id: string) {
+    if (!this.selectedProteinIds.includes(id)) return;
+
+    // Deliberately keeps `searchQuery` and the open dropdown so several proteins can be
+    // pruned from one result set without retyping. `willUpdate` refreshes the list when
+    // the parent echoes the new selection back down.
+    this._clearSuggestionDebounce();
+
+    this.dispatchEvent(
+      new CustomEvent('remove-selection', {
+        detail: { proteinId: id },
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 
   private _addSelection(id: string) {
