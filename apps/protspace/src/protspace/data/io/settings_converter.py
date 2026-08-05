@@ -17,7 +17,12 @@ import re
 NA_COLOR = "#C0C0C0"  # light gray for missing / <NA> values
 NA_INTERNAL = "__NA__"  # frontend internal key for N/A categories
 NA_PINNED_COLOR = "#DDDDDD"  # lighter gray used for N/A in pinned settings
-_NA_LABELS = {"", "<NA>", "NaN", "__NA__"}
+# Every spelling a missing cell can arrive under. "None" is what ``str()`` yields
+# for a parquet NULL, which is how the frontend writer now stores a missing
+# categorical cell (it no longer writes the __NA__ sentinel), so without it a
+# styled N/A group lands under the key "None" and the frontend's __NA__ lookup
+# misses it.
+_NA_LABELS = {"", "<NA>", "NaN", "__NA__", "None"}
 REST_MARKER = "__REST__"  # auto-fill remaining slots from top values by frequency
 
 # Kelly's 21 Colors of Maximum Contrast (same order as the web frontend)
@@ -72,6 +77,21 @@ _ENVELOPE_SIBLING_KEYS = frozenset(
     {"exportOptions", "publishState", "eatOverlayEnabled", "eatConfidenceThreshold"}
 )
 
+# Keys of a single annotation's settings entry. Their presence at the top level of
+# a ``legendSettings`` value means it is one annotation's entry, not a map of them.
+_ANNOTATION_SETTINGS_KEYS = frozenset(
+    {
+        "categories",
+        "sortMode",
+        "maxVisibleValues",
+        "hiddenValues",
+        "includeShapes",
+        "shapeSize",
+        "selectedPaletteId",
+        "numericSettings",
+    }
+)
+
 
 def _is_frontend_envelope(settings: object) -> bool:
     """True only for the frontend's nested part-4 shape.
@@ -82,11 +102,21 @@ def _is_frontend_envelope(settings: object) -> bool:
     annotation's own entry as if it were the whole map and blank every legend.
     Requiring a sibling mirrors the frontend reader's own two-field check in
     ``settings-validation.ts`` (``isNormalizedBundleSettings``).
+
+    A sibling alone is not enough either — the siblings are plausible column
+    names too, so two colliding headers (``legendSettings`` + ``publishState``)
+    would be misread as an envelope. The inner shape settles it: in a real
+    envelope the value under ``legendSettings`` is keyed by annotation name, so
+    it never carries per-annotation settings keys at its top level, whereas a
+    colliding column's own entry is exactly such a settings dict.
     """
+    if not isinstance(settings, dict):
+        return False
+    inner = settings.get(LEGEND_SETTINGS_KEY)
     return (
-        isinstance(settings, dict)
-        and isinstance(settings.get(LEGEND_SETTINGS_KEY), dict)
+        isinstance(inner, dict)
         and bool(_ENVELOPE_SIBLING_KEYS & settings.keys())
+        and not (_ANNOTATION_SETTINGS_KEYS & inner.keys())
     )
 
 
@@ -117,10 +147,20 @@ def rewrap_settings(settings: dict, template: dict | None) -> dict:
     ``protspace style`` reads part 4, rebuilds the annotation map, and writes it
     back. When the source bundle came from the frontend, writing the bare map
     would drop ``publishState``, ``exportOptions`` and the EAT display settings.
+
+    *settings* is overlaid on the template's own annotation map rather than
+    replacing it. Only annotations that survive
+    :func:`settings_to_visualization_state` get rebuilt, and a numeric annotation
+    never does — the frontend persists its categories with empty colors/shapes,
+    which that function filters out — so replacing the map wholesale would drop
+    every numeric annotation's ``numericSettings``, palette and hidden values.
     """
     if not _is_frontend_envelope(template):
         return settings
-    return {**template, LEGEND_SETTINGS_KEY: settings}
+    return {
+        **template,
+        LEGEND_SETTINGS_KEY: {**template[LEGEND_SETTINGS_KEY], **settings},
+    }
 
 
 def settings_to_visualization_state(settings: dict) -> dict:
@@ -174,8 +214,8 @@ def _sort_values_for_zorder(
 ) -> list[str]:
     """Return *values* ordered according to *sort_mode*.
 
-    NA-like values (``""``, ``"<NA>"``, ``"NaN"``) are always placed last
-    regardless of sort mode.
+    NA-like values (:data:`_NA_LABELS`) are always placed last regardless of
+    sort mode.
 
     Args:
         values: The set of category values.
@@ -184,9 +224,8 @@ def _sort_values_for_zorder(
         frequencies: Mapping ``{value: count}``.  Required for size-based
             modes; ignored for alphabetical / manual modes.
     """
-    na_labels = {"", "<NA>", "NaN"}
-    regular = sorted(v for v in values if v not in na_labels)
-    na_present = sorted(v for v in values if v in na_labels)
+    regular = sorted(v for v in values if v not in _NA_LABELS)
+    na_present = sorted(v for v in values if v in _NA_LABELS)
 
     if sort_mode in ("size-desc", "size-asc") and frequencies:
         regular.sort(

@@ -73,11 +73,19 @@ function readFormatVersion(metadata: FileMetaData): number {
  * paths, which rebuild the table with pyarrow and drop key-value metadata.
  * Columns stored as text (the `protspace` CLI stringifies its annotation frame)
  * are absent here, so those keep falling back to value inference.
+ *
+ * Only an *unannotated* physical type counts. A logical/converted type means the
+ * physical type is a carrier, not the identity: pyarrow stores an all-null
+ * (arrow `null`) column as INT32 + logical NULL, and DECIMAL rides on INT32/INT64
+ * as well — reading either as an integer annotation would turn a text column into
+ * a numeric one. Annotated fields fall back to value inference, exactly as they
+ * did before this reader existed.
  */
 function readNumericColumnTypes(metadata: FileMetaData): Record<string, 'int' | 'float'> {
   const numericColumns: Record<string, 'int' | 'float'> = {};
   for (const field of metadata.schema) {
     if (!field.name || !field.type) continue;
+    if (field.logical_type != null || field.converted_type != null) continue;
     if (INTEGER_PARQUET_TYPES.has(field.type)) numericColumns[field.name] = 'int';
     else if (FLOAT_PARQUET_TYPES.has(field.type)) numericColumns[field.name] = 'float';
   }

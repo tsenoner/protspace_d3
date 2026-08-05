@@ -1,5 +1,7 @@
 """Tests for settings_converter — color conversion, sorting, and state conversion."""
 
+import copy
+
 import pytest
 
 from protspace.data.io.settings_converter import (
@@ -335,6 +337,58 @@ class TestFrontendSettingsShape:
             "legendSettings": {"a": "rgba(255, 0, 0, 0.8)"},
             "organism": {"Human": "rgba(0, 255, 0, 0.8)"},
         }
+
+    def test_flat_map_is_not_unwrapped_just_because_a_sibling_name_collides(self):
+        """Envelope sibling names are plausible CSV headers too.
+
+        A flat map whose columns happen to be `legendSettings` + `publishState`
+        satisfies the sibling check, so the inner shape has to settle it: here the
+        value under `legendSettings` is one annotation's own settings entry, which
+        a real envelope's annotation-keyed map never looks like.
+        """
+        flat = {
+            "legendSettings": {
+                "sortMode": "alpha-asc",
+                "categories": {
+                    "a": {"zOrder": 0, "color": "#FF0000", "shape": "circle"}
+                },
+            },
+            "publishState": {
+                "categories": {
+                    "Human": {"zOrder": 0, "color": "#00FF00", "shape": "square"}
+                }
+            },
+        }
+        colors = settings_to_visualization_state(flat)["annotation_colors"]
+        assert colors == {
+            "legendSettings": {"a": "rgba(255, 0, 0, 0.8)"},
+            "publishState": {"Human": "rgba(0, 255, 0, 0.8)"},
+        }
+
+    def test_restyling_keeps_annotations_the_viz_state_cannot_carry(self):
+        """A numeric annotation is invisible to `settings_to_visualization_state`.
+
+        The frontend persists numeric categories with empty color/shape, which that
+        function filters out, so the rebuilt map never mentions them. Replacing the
+        envelope's legendSettings wholesale would drop their numericSettings,
+        palette and hidden values — the loss this envelope handling exists to stop.
+        """
+        plddt = {
+            "categories": {"70": {"zOrder": 0, "color": "", "shape": ""}},
+            "numericSettings": {"binningStrategy": "quantile", "reverseGradient": True},
+            "selectedPaletteId": "viridis",
+            "hiddenValues": ["__NA__"],
+            "maxVisibleValues": 8,
+        }
+        original = _frontend_settings()
+        original["legendSettings"]["plddt"] = copy.deepcopy(plddt)
+
+        viz = settings_to_visualization_state(original)
+        assert "plddt" not in viz["annotation_colors"]
+
+        result = visualization_state_to_settings(viz, original)
+        assert result["legendSettings"]["plddt"] == plddt
+        assert "organism" in result["legendSettings"]
 
     def test_envelope_still_detected_when_its_single_annotation_is_named_legendSettings(
         self,

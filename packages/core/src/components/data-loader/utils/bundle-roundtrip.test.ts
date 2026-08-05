@@ -617,6 +617,33 @@ describe('numeric annotation type fidelity', () => {
     expect(data.annotations.weight.numericType).toBe('int');
   });
 
+  it('does not read a pyarrow all-null column as an integer declaration', async () => {
+    // pyarrow stores a wholly-missing pandas column as arrow `null`, which lands in
+    // parquet as `optional int32 ec_number (Null)` — physical INT32 carrying a NULL
+    // logical type. Taking the physical type at face value would hand the restore
+    // pass an 'int' declaration for a *categorical* column that happens to have no
+    // values, rewriting it as a numeric annotation with a gradient legend.
+    //
+    // Fixture (a 3-part bundle written by pyarrow):
+    //   annotations = pa.table({"identifier": pa.array(["P1","P2","P3"]),
+    //                           "ec_number": pa.nulls(3),
+    //                           "family": pa.array(["A","B","A"])})
+    //   parts joined by ---PARQUET_DELIMITER---, part 1 stamped format_version=2
+    const extraction = await extractRowsFromParquetBundle(
+      loadArrayBuffer(
+        resolve(
+          __dirname,
+          '../../../../../../apps/web/tests/fixtures/all_null_column.parquetbundle',
+        ),
+      ),
+    );
+    expect(extraction.numericColumnTypes).not.toHaveProperty('ec_number');
+
+    const data = convertParquetToVisualizationData(extraction);
+    expect(data.annotations.ec_number.kind).toBe('categorical');
+    expect(data.annotations.family.kind).toBe('categorical');
+  });
+
   it('keeps EAT confidence companions out of the user-visible annotations', async () => {
     // The companion column is written FLOAT, so it legitimately appears in
     // numericColumnTypes. What keeps it out of the legend is that
