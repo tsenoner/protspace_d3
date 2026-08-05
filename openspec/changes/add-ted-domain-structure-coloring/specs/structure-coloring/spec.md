@@ -48,6 +48,18 @@ The structure viewer SHALL provide pLDDT and TED domains color options after a s
 - **THEN** the viewer reapplies Mol\*'s built-in pLDDT confidence theme
 - **AND** the control and explanatory text identify pLDDT as active
 
+#### Scenario: User changes mode while a theme update is in progress
+
+- **WHEN** a TED domain theme update is still in progress and the user activates pLDDT
+- **THEN** the viewer applies pLDDT after the in-progress update finishes
+- **AND** the control and explanatory text identify pLDDT as the final active mode
+
+#### Scenario: Structure changes while a theme update is in progress
+
+- **WHEN** a new protein replaces the viewer before the prior viewer's theme update finishes
+- **THEN** the prior update completion does not change the new structure's color mode
+- **AND** the new structure retains the default pLDDT control state
+
 ### Requirement: TED residue colors are consistent by domain
 
 The TED color theme SHALL assign one deterministic categorical color per TED domain number across every valid inclusive segment and SHALL color residues outside TED assignments with a neutral color.

@@ -47,6 +47,8 @@ After a structure loads, the viewer will render a two-option “Color by” segm
 
 The control remains visible when TED is unavailable so users can distinguish unavailable annotation from a missing feature.
 
+Theme changes are queued per viewer so the most recently requested mode is applied last even when a previous Mol\* update is still in progress. Each request also captures the current viewer and a monotonic request identifier; cleanup invalidates both the pending request and queue so a completion from a replaced viewer cannot update the newly loaded structure's control state.
+
 ## Risks / Trade-offs
 
 - **[TED endpoint latency delays complete structure data]** → Start the optional request in parallel with existing structure work, cap it at five seconds, abort on timeout, and absorb failures into an empty list.

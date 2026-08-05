@@ -38,6 +38,9 @@ export class ProtspaceStructureViewer extends LitElement {
   @state() private _viewer: MolstarViewer | null = null;
   @state() private _structureData: StructureData | null = null;
   @state() private _colorMode: StructureColorMode = 'plddt';
+  private _requestedColorMode: StructureColorMode = 'plddt';
+  private _colorModeRequestId = 0;
+  private _colorModeChangeQueue: Promise<void> = Promise.resolve();
   private _scatterplotElement: Element | null = null;
 
   // Refs
@@ -234,6 +237,10 @@ export class ProtspaceStructureViewer extends LitElement {
   }
 
   private _cleanup() {
+    this._requestedColorMode = 'plddt';
+    this._colorModeRequestId += 1;
+    this._colorModeChangeQueue = Promise.resolve();
+
     if (this._viewer) {
       try {
         this._viewer.dispose();
@@ -294,19 +301,38 @@ export class ProtspaceStructureViewer extends LitElement {
   }
 
   private async _handleColorModeChange(mode: StructureColorMode) {
-    if (!this._viewer || this._colorMode === mode) return;
+    const viewer = this._viewer;
+    if (!viewer || this._requestedColorMode === mode) return;
     if (mode === 'ted-domains' && !this._structureData?.tedDomains.length) return;
 
-    try {
-      if (mode === 'ted-domains') {
-        await this._viewer.setColorTheme(mode, this._structureData!.tedDomains);
-      } else {
-        await this._viewer.setColorTheme(mode);
+    const tedDomains = this._structureData?.tedDomains ?? [];
+    this._requestedColorMode = mode;
+    const requestId = ++this._colorModeRequestId;
+
+    const applyColorMode = async () => {
+      if (this._viewer !== viewer || requestId !== this._colorModeRequestId) return;
+
+      try {
+        if (mode === 'ted-domains') {
+          await viewer.setColorTheme(mode, tedDomains);
+        } else {
+          await viewer.setColorTheme(mode);
+        }
+
+        if (this._viewer === viewer && requestId === this._colorModeRequestId) {
+          this._colorMode = mode;
+        }
+      } catch (error) {
+        if (this._viewer === viewer && requestId === this._colorModeRequestId) {
+          this._requestedColorMode = this._colorMode;
+        }
+        console.warn('[StructureViewer] Failed to change structure color mode:', error);
       }
-      this._colorMode = mode;
-    } catch (error) {
-      console.warn('[StructureViewer] Failed to change structure color mode:', error);
-    }
+    };
+
+    const colorModeChange = this._colorModeChangeQueue.then(applyColorMode, applyColorMode);
+    this._colorModeChangeQueue = colorModeChange;
+    await colorModeChange;
   }
 
   render() {

@@ -15,9 +15,15 @@
 
 - [x] 3.1 Add failing component tests for the color control's default, enabled, disabled, and switching states
 - [x] 3.2 Add the accessible two-mode color control and mode-specific explanatory text
+- [x] 3.3 Add failing regressions for rapid reverse selection and stale viewer completion
+- [x] 3.4 Sequence theme updates and ignore requests invalidated by viewer cleanup
 
-## 4. Verification
+## 4. Documentation
 
-- [x] 4.1 Re-run focused unit tests and the original browser reproduction
-- [x] 4.2 Run the repository test suite and mandated `pnpm precommit` gate
-- [x] 4.3 Re-run strict OpenSpec, focused and broad tests, browser proof, and bundle contract
+- [x] 4.1 Document TED retrieval, coloring, availability, and the color-mode control
+
+## 5. Verification
+
+- [x] 5.1 Re-run focused unit tests and the original browser reproduction
+- [x] 5.2 Run the repository test suite and mandated `pnpm precommit` gate
+- [x] 5.3 Re-run strict OpenSpec, focused and broad tests, browser proof, and bundle contract
