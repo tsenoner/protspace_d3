@@ -696,6 +696,13 @@ class TestPreparationNotebookCacheIdentity:
         assert globin != phosphatase
         assert globin.parent == phosphatase.parent == tmp_path / "queries"
 
+    def test_query_cache_path_is_reused_for_same_query(self, tmp_path):
+        query = "(family:globin) AND (reviewed:true)"
+
+        assert pipeline_module._query_fasta_cache_path(
+            tmp_path, query
+        ) == pipeline_module._query_fasta_cache_path(tmp_path, query)
+
     def test_input_cache_dir_changes_for_disjoint_fasta_inputs(self, tmp_path):
         first = tmp_path / "first.fasta"
         second = tmp_path / "second.fasta"
@@ -726,6 +733,23 @@ class TestPreparationNotebookCacheIdentity:
         assert pipeline_module._input_cache_dir(
             tmp_path, first
         ) == pipeline_module._input_cache_dir(tmp_path, renamed)
+
+    def test_embedding_cache_path_changes_with_backend(self, tmp_path):
+        cache_dir = tmp_path / "inputs" / "content-key"
+
+        local = pipeline_module._embedding_cache_path(cache_dir, "prot_t5", "local")
+        biocentral = pipeline_module._embedding_cache_path(
+            cache_dir, "prot_t5", "biocentral"
+        )
+
+        assert local != biocentral
+
+    def test_embedding_cache_path_is_reused_for_same_backend(self, tmp_path):
+        cache_dir = tmp_path / "inputs" / "content-key"
+
+        assert pipeline_module._embedding_cache_path(
+            cache_dir, "prot_t5", "local"
+        ) == pipeline_module._embedding_cache_path(cache_dir, "prot_t5", "local")
 
 
 # ---------------------------------------------------------------------------

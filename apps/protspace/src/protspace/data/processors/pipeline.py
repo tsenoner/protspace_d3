@@ -97,6 +97,11 @@ def _input_cache_dir(cache_root: Path, input_path: Path) -> Path:
     return cache_root / "inputs" / digest.hexdigest()[:12]
 
 
+def _embedding_cache_path(cache_dir: Path, embedder: str, backend: str) -> Path:
+    """Return the H5 path owned by one input, model, and producing backend."""
+    return cache_dir / f"{backend}-{embedder}.h5"
+
+
 # Valid override parameter names (from ReducerParams fields)
 _VALID_OVERRIDE_KEYS = {f.name for f in fields(ReducerParams)}
 # Field types for coercion

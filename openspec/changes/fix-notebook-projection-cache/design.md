@@ -1,6 +1,6 @@
 ## Context
 
-`ProtSpace_Preparation.ipynb` keeps `output/tmp` so expensive FASTA downloads, embeddings, and annotations can survive repeated Generate actions. `ReductionPipeline` also stores projections there. Projection keys already include the logical embedding name, method, dimensions, and every reducer parameter, so the slider-only symptom in issue #338 is not reproduced by the current implementation. The reproducible collision is broader: the notebook stores every query as `sequences.fasta`, every model as `{embedder}.h5`, every annotation set as `all_annotations.parquet`, and projections under one shared directory. Changing datasets can therefore reuse a different query's FASTA, append disjoint proteins to an embedding file, retain an old embedding for a changed sequence with the same identifier, or return annotations for unrelated identifiers.
+`ProtSpace_Preparation.ipynb` keeps `output/tmp` so expensive FASTA downloads, embeddings, and annotations can survive repeated Generate actions. `ReductionPipeline` also stores projections there. Projection keys already include the logical embedding name, method, dimensions, and every reducer parameter, so the slider-only symptom in issue #338 is not reproduced by the current implementation. The reproducible collision is broader: the notebook originally shared every query FASTA, model H5, annotation set, and projection directory. Input-content partitioning separates datasets, but an H5 still needs producer ownership because Local and Biocentral both resume by identifier, and a query FASTA must not appear at its final cache path until extraction completes.
 
 ## Goals / Non-Goals
 
@@ -9,6 +9,8 @@
 - Guarantee that every Preparation-notebook Generate action reduces the current embedding data.
 - Preserve caching for compatible query, embedding, and annotation inputs.
 - Prevent query, embedding, and annotation cache reuse across incompatible inputs.
+- Prevent embedding reuse across producing backends while preserving reuse within one backend and model.
+- Make a query FASTA visible as a cache hit only after complete, validated extraction.
 - Cover changed queries, disjoint inputs, same-ID sequence changes, annotation identifiers, and projection refresh with focused regressions.
 
 **Non-Goals:**
@@ -39,6 +41,20 @@ This keeps byte-identical inputs reusable while separating changed queries, disj
 
 **Alternative: teach each embedding backend to reconcile per-sequence hashes inside H5.** Rejected because both backends already implement resumable H5 writes and changing that format would broaden this notebook-scoped fix.
 
+### Include the embedding producer in H5 ownership
+
+Within an input-content directory, the notebook names each embedding H5 with the resolved backend and selected model. The input digest still owns the sequences, the model name still owns the requested representation, and the backend namespace prevents Local-produced identifiers from satisfying Biocentral's resume check or vice versa. Repeating the same input, backend, and model selects the same H5 and preserves the intended resume behavior.
+
+The notebook constructs fixed default backend configurations. Their batch sizes affect scheduling rather than vector identity, so no additional configuration hash is introduced.
+
+**Alternative: store and validate producer metadata inside every H5.** Rejected because producer-specific paths close the notebook collision without changing the shared H5 format or backend APIs.
+
+### Publish query FASTA caches atomically
+
+`query_uniprot` extracts a downloaded gzip into a temporary sibling of the requested cache file. It parses that staged FASTA and requires its ordered identifiers to match those read from the compressed download. Only then does it replace the final path atomically. A `finally` cleanup removes the compressed download and any incomplete staged output, so interruption cannot leave a nonempty final-path artifact for the next Generate action to accept.
+
+**Alternative: persist a separate completion marker.** Rejected because same-directory atomic replacement makes final-path existence the completion signal without a two-file consistency problem.
+
 ### Validate annotation identifiers before reuse
 
 `ReductionPipeline._fetch_annotations` compares the cached and requested identifier multisets before considering cached columns. A mismatch rebuilds the annotation cache for the current headers instead of passing incompatible rows into the bundle merge. Exact-identifier caches retain the existing incremental column/source behavior.
@@ -53,13 +69,15 @@ The notebook artifact will also be validated as a parseable notebook with parsea
 
 - **Projection reruns take longer even when nothing changed.** → This is the explicit notebook correctness contract; expensive embedding and annotation intermediates remain cached.
 - **Hashing an input file adds one sequential read per Generate action.** → Example and uploaded inputs are already read for processing, and the bounded cost avoids far more expensive incompatible embedding reuse.
+- **Backend-qualified H5 names leave prior unqualified files unused.** → They remain recoverable but are intentionally ignored because their producer cannot be proven.
+- **An interruption can leave the previous complete query FASTA in place.** → Atomic replacement preserves that known-complete artifact; incomplete staged output is removed and never published.
 - **Old shared cache files remain under `output/tmp`.** → New input-owned paths ignore them; no destructive migration is required.
 - **The regression could test pipeline behavior without proving notebook wiring.** → Verification will additionally inspect the executed notebook configuration path and validate all notebook code cells.
 - **A future pipeline refetch API rename could break the notebook.** → The focused pipeline regression and notebook configuration verification make that failure visible.
 
 ## Migration Plan
 
-No data migration is required. Existing shared FASTA, embedding, annotation, and projection files may remain in `output/tmp`; the notebook uses new query- and input-owned subpaths and stops reading incompatible shared entries. Rollback restores the shared cache paths and removes the explicit projection refresh.
+No data migration is required. Existing shared FASTA, annotation, and projection files plus backend-unqualified embedding H5 files may remain in `output/tmp`; the notebook uses query-, input-, and producer-owned paths and stops reading entries whose ownership cannot be proven. Rollback restores the shared cache paths and removes the explicit projection refresh.
 
 ## Open Questions
 

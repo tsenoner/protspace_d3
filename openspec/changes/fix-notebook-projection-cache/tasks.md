@@ -3,6 +3,7 @@
 - [x] 1.1 Integrate the same-name changed-embedding projection regression into the normal pipeline suite and construct `ReductionPipeline` through its initializer.
 - [x] 1.2 Add focused regressions for query changes, disjoint FASTA inputs, same-ID sequence changes, and annotation identifier mismatches.
 - [x] 1.3 Run the new cache-identity regressions before implementation and record the expected failures.
+- [x] 1.4 Add RED regressions for Local/Biocentral cache ownership, same-backend reuse, and interrupted query FASTA publication.
 
 ## 2. Notebook implementation
 
@@ -10,6 +11,8 @@
 - [x] 2.2 Partition cached query FASTA files by query text.
 - [x] 2.3 Partition retained embedding, annotation, and projection intermediates by selected input-file content.
 - [x] 2.4 Validate cached annotation identifiers before reuse and preserve incremental reuse for matching inputs.
+- [x] 2.5 Scope embedding H5 paths by producing backend while retaining same-backend/model reuse.
+- [x] 2.6 Stage, validate, and atomically publish query FASTA cache files, cleaning incomplete artifacts.
 
 ## 3. Focused verification
 

@@ -5,10 +5,11 @@ Issue #338 reports stale projections after changing a dimensionality-reduction s
 ## What Changes
 
 - Make every Generate action in `ProtSpace_Preparation.ipynb` explicitly recompute dimensionality-reduction projections.
-- Partition retained query FASTA files by query text and other intermediates by input-file content so only compatible inputs share cache entries.
+- Partition retained query FASTA files by query text, publish them atomically, and partition other intermediates by input-file content so only compatible inputs share cache entries.
+- Partition embedding H5 files by producing backend as well as input content and model.
 - Validate annotation-cache identifiers before reuse.
 - Continue retaining compatible query, embedding, and annotation intermediates.
-- Add focused regression coverage for changed queries, disjoint FASTA inputs, same-ID sequence changes, cross-dataset annotations, and explicitly refreshed projections.
+- Add focused regression coverage for changed queries, interrupted FASTA extraction, backend switches and reuse, disjoint FASTA inputs, same-ID sequence changes, cross-dataset annotations, and explicitly refreshed projections.
 
 ## Capabilities
 
@@ -23,6 +24,6 @@ None.
 ## Impact
 
 - Affected notebook: `apps/protspace/notebooks/ProtSpace_Preparation.ipynb`.
-- Affected pipeline helper: annotation cache validation and content-addressed notebook cache paths in `apps/protspace/src/protspace/data/processors/pipeline.py`.
+- Affected loaders/helpers: atomic query FASTA publication plus annotation validation and content-/producer-addressed notebook cache paths.
 - Affected tests: focused Python pipeline regressions using normal pipeline construction.
 - No CLI defaults, bundle format, public Python API, or dependencies change.

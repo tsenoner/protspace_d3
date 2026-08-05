@@ -24,7 +24,7 @@ The Preparation notebook SHALL recompute dimensionality-reduction projections on
 
 ### Requirement: Preparation notebook caches are owned by their inputs
 
-The Preparation notebook SHALL partition retained query FASTA files by query text and SHALL partition embedding, annotation, and projection intermediates by the content of the selected input file.
+The Preparation notebook SHALL partition retained query FASTA files by query text and SHALL publish them only after validated extraction completes. It SHALL partition embedding, annotation, and projection intermediates by the content of the selected input file, and embedding H5 files SHALL additionally be owned by their producing backend and model.
 
 #### Scenario: UniProt query changes between Generate actions
 
@@ -42,6 +42,30 @@ The Preparation notebook SHALL partition retained query FASTA files by query tex
 - **WHEN** a FASTA sequence changes while its identifier and selected embedder remain unchanged
 - **THEN** the changed FASTA content SHALL select a different embedding cache
 - **AND** the sequence SHALL be embedded from its current residues
+
+#### Scenario: Embedding backend changes for the same input and model
+
+- **WHEN** a user generates an embedding with one backend and then selects the other backend for the same input and model
+- **THEN** the second backend SHALL use a different embedding H5 cache
+- **AND** identifiers produced by the first backend SHALL NOT satisfy the second backend's resume check
+
+#### Scenario: Embedding backend remains unchanged
+
+- **WHEN** a user repeats Generate with the same input, backend, and model
+- **THEN** the notebook SHALL select the same embedding H5 cache
+- **AND** the backend's existing resume behavior SHALL remain available
+
+#### Scenario: Query FASTA extraction is interrupted
+
+- **WHEN** query FASTA extraction fails after writing part of its output
+- **THEN** the query-addressed final cache path SHALL NOT expose those incomplete bytes
+- **AND** incomplete temporary output SHALL be removed
+
+#### Scenario: Query FASTA extraction completes
+
+- **WHEN** the extracted FASTA identifiers match the downloaded query result
+- **THEN** the complete FASTA SHALL be atomically published at the query-addressed cache path
+- **AND** a later Generate action for that query MAY reuse it
 
 ### Requirement: Annotation cache reuse validates identifiers
 
