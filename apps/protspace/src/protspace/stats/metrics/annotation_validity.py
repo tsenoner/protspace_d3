@@ -10,6 +10,12 @@ silhouette aggregate is the size-weighted mean of its per-category parts (a
 mean over points, not categories); the Davies-Bouldin aggregate is the
 unweighted mean of its per-cluster values. Calinski-Harabasz stays
 aggregate-only. scikit-learn imports are function-local.
+
+``ClusterValidityStatistic`` reuses this statistic to score its own KMeans
+membership labels (``label_kind`` names the K-selection instead of
+``"annotation"``), so an auto-clustering's separation is measured by exactly the
+code that measures a curated annotation's -- there is no second implementation
+that could drift from it.
 """
 
 from __future__ import annotations
@@ -91,6 +97,17 @@ class AnnotationValidityStatistic:
     requires_embedding = False
     embedding_space = True  # also run by the driver's once-per-embedding pass
 
+    def __init__(self, label_kind: str = "annotation") -> None:
+        """``label_kind`` tags every emitted row with the labelling that was scored.
+
+        The default names the ordinary case (a curated annotation's own categories).
+        ``ClusterValidityStatistic`` reuses this statistic to score its own KMeans
+        membership labels and passes ``kmeans_elbow`` / ``kmeans_silhouette``, so the
+        tidy table records which K-selection produced the score rather than claiming
+        an annotation did.
+        """
+        self._label_kind = label_kind
+
     def compute(self, ctx: StatContext) -> list[StatRow]:
         if not ctx.annotations:
             return []
@@ -140,7 +157,7 @@ class AnnotationValidityStatistic:
                 "space_name": ctx.space_name,
                 "annotation": name,
                 "stat_family": self.family,
-                "label_kind": "annotation",
+                "label_kind": self._label_kind,
             }
             extra = {
                 "seed": ctx.rng_seed,

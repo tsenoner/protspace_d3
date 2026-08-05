@@ -116,9 +116,7 @@ def test_per_category_silhouette_size_weighted_averages_to_the_aggregate():
     outs = AnnotationValidityStatistic().compute(
         StatContext("projection", "PCA_2", coords=X, ids=ids, annotations=ann)
     )
-    aggregate = next(
-        r for r in outs if r.metric == "silhouette" and r.category is None
-    )
+    aggregate = next(r for r in outs if r.metric == "silhouette" and r.category is None)
     per_cat = [r for r in outs if r.metric == "silhouette" and r.category is not None]
 
     assert len(per_cat) == 4
@@ -173,7 +171,9 @@ def test_per_category_davies_bouldin_averages_to_the_aggregate():
     assert np.mean([r.value for r in per_cat]) == pytest.approx(aggregate.value)
 
 
-def test_silhouette_emission_discards_the_whole_attempt_when_decomposition_fails(monkeypatch):
+def test_silhouette_emission_discards_the_whole_attempt_when_decomposition_fails(
+    monkeypatch,
+):
     """571ecae7 fixed the emission order so a failing per-category decomposition
     discards the whole attempt instead of leaving a bare aggregate row behind (the
     aggregate is now emitted only after the per-category computation succeeds).
