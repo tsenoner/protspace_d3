@@ -178,6 +178,6 @@ When proteins have multiple values, such as multiple EC numbers:
 
 ## Next Steps
 
-- [Separation Scores](/explore/separation-scores) - the numbers on legend rows and the strips above them
+- [Separation Scores](/explore/separation-scores) - the strips above the legend, and how well each category separates
 - [Control Bar Features](/explore/control-bar) - projections, filters, export, and import
 - [Viewing 3D Structures](/explore/structures) - AlphaFold integration

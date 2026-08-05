@@ -8,13 +8,11 @@ They appear only for datasets prepared with statistics:
 protspace prepare -i embeddings.h5 -m pca2,umap2 --stats -o output
 ```
 
-Without `--stats` the bundle carries no statistics part, the legend shows no scores, and the metadata panel shows only the reduction's parameters. See [Data Preparation](/guide/data-preparation) for the full pipeline.
+Without `--stats` the bundle carries no statistics part, the legend shows no strips, and the metadata panel shows only the reduction's parameters. See [Data Preparation](/guide/data-preparation) for the full pipeline.
 
 ## Where They Appear
 
-**On each legend row**, the trailing number is that value's own silhouette score. `3.4.21.- (Serine endopeptidases) 309 -0.59` means 309 proteins with an average silhouette of -0.59, so that group is thoroughly mixed into the others.
-
-**Above the legend**, two strips place one dot per category on a shared axis, one strip for silhouette and one for Davies–Bouldin. Each dot carries its category's colour, so you can see at a glance whether an annotation separates uniformly or whether one group is dragging the average down. Hovering a dot marks the matching legend row, and hovering a legend row marks its dot.
+**Above the legend**, two strips place one dot per category on a shared axis, one strip for silhouette and one for Davies–Bouldin. Each dot carries its category's colour, so you can see at a glance whether an annotation separates uniformly or whether one group is dragging the average down. Hovering a dot marks the matching legend row, and hovering a legend row marks its dot. Either way, the number to the right of each axis reads out that category's exact value, so you get its silhouette and its Davies–Bouldin together rather than one at a time. It stays blank for a category a metric could not score: Davies–Bouldin has no value for a one-member category.
 
 **In the projection metadata panel**, opened with the "View projection metadata" button at the top left of the plot, a Separation section carries the whole-annotation scores for all three metrics. The panel's other two sections are separate: Parameters holds the reduction's own settings, and Projection quality holds faithfulness measures such as trustworthiness, which describe the layout itself and involve no annotation at all.
 
@@ -62,7 +60,11 @@ Above 5000 proteins the computation runs on a deterministic 5000-protein subsamp
 
 ## Cluster Annotations
 
-Preparing with `--stats` also adds `cluster_elbow_*` and `cluster_silhouette_*` annotations, an automatic K-means grouping of the embedding. Selecting one shows a different block: ARI and NMI, measuring how closely that automatic clustering reproduces each real annotation. It reads in the natural direction: this clustering, at this K, recovers this annotation at this ARI. Both are absent for ordinary annotations, where the comparison would not make sense.
+Preparing with `--stats` also adds `cluster_elbow_*` and `cluster_silhouette_*` annotations, an automatic K-means grouping of the embedding. Selecting one shows an extra block: ARI and NMI, measuring how closely that automatic clustering reproduces each real annotation. It reads in the natural direction: this clustering, at this K, recovers this annotation at this ARI. Both are absent for ordinary annotations, where the comparison would not make sense.
+
+These clusterings also carry their own separation scores, so the strips work on them exactly as on any annotation. Earlier versions instead attached each protein's own silhouette to its cluster value, so it showed up when you hovered that point in the plot. That was the only place in ProtSpace where a separation score was reported per protein rather than per group, and it is gone: a cluster is read through the strips, like every other annotation. Read those scores as descriptive rather than as a verdict, which is what the note under the strips warns about: K-means drew the boundaries being scored, in the very projection they are scored in, so it starts with an advantage no curated annotation has. A `cluster_silhouette_*` column goes further, since its K was chosen by maximising exactly the silhouette being reported. The per-category numbers are the part worth reading: they say which cluster is tight and which is mush, which the average cannot. The ARI and NMI block is the independent half, comparing the clustering against something it did not choose.
+
+A clustering belongs to the projection it was found in, so its scores appear only while that projection is displayed. Selecting `cluster_elbow_ProtT5 — PCA 2` while viewing UMAP 2 shows the groups but no scores.
 
 ## Next Steps
 
