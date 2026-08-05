@@ -1,5 +1,6 @@
 import { LitElement, html, css, svg, nothing } from 'lit';
 import { property } from 'lit/decorators.js';
+import { formatStatValue } from '@protspace/utils';
 import { customElement } from '../../utils/safe-custom-element';
 
 /** One category's position on a score axis, painted in its legend colour. */
@@ -21,6 +22,8 @@ const DOT_RADIUS = 5;
  * regardless, because the svg is `overflow: visible`.
  */
 const PADDING = 10;
+/** Shown in the value gutter while nothing is hovered. */
+const NO_VALUE = '—';
 
 /**
  * One metric's distribution across an annotation's categories: a dot per category on a
@@ -66,10 +69,37 @@ class ProtspaceScoreStrip extends LitElement {
       color: var(--legend-text-color, #222);
     }
 
+    /* Centring lands the readout on the axis line: the svg's layout box is
+       STRIP_HEIGHT tall and the axis sits at its midpoint. */
+    .strip-body {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
     svg {
       display: block;
       width: 100%;
       overflow: visible;
+      /* Without a zero min-width the intrinsic svg width would keep the flex item
+         from shrinking, and the gutter would push the axis out of the panel. */
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* Fixed width and tabular figures: the gutter must not resize as the hover
+       moves between categories, or every dot would shift with it. */
+    .strip-value {
+      flex: none;
+      min-width: 3rem;
+      text-align: right;
+      font-size: 0.75rem;
+      font-variant-numeric: tabular-nums;
+      color: var(--legend-text-color, #222);
+    }
+
+    .strip-value.is-empty {
+      color: var(--legend-text-secondary, #666);
     }
 
     .axis {
@@ -106,16 +136,30 @@ class ProtspaceScoreStrip extends LitElement {
     const position = (value: number): number =>
       span === 0 ? 50 : PADDING + ((value - min) / span) * (100 - PADDING * 2);
 
+    // The hovered category's own number, read straight off the points this strip
+    // already holds — no extra property to keep in step with `highlighted`. A
+    // category hovered in the legend that this metric could not score (a singleton
+    // has no Davies-Bouldin) simply has no point here, and the gutter stays empty,
+    // which is the honest reading rather than a gap to paper over.
+    const hovered = this.points.find((point) => point.category === this.highlighted);
+
     return html`
       <div class="strip-header">
         <span class="strip-label">${this.label}</span>
         <span>${this.higherIsBetter ? 'higher is better' : 'lower is better'}</span>
       </div>
-      <svg height="${STRIP_HEIGHT}" role="img" aria-label="${this.label} per category">
-        <line class="axis" x1="${PADDING}%" y1="${AXIS_Y}" x2="${100 - PADDING}%" y2="${AXIS_Y}" />
-        ${this.points.map(
-          (point) =>
-            svg`<circle
+      <div class="strip-body">
+        <svg height="${STRIP_HEIGHT}" role="img" aria-label="${this.label} per category">
+          <line
+            class="axis"
+            x1="${PADDING}%"
+            y1="${AXIS_Y}"
+            x2="${100 - PADDING}%"
+            y2="${AXIS_Y}"
+          />
+          ${this.points.map(
+            (point) =>
+              svg`<circle
             class="${point.category === this.highlighted ? 'is-highlighted' : ''}"
             data-category="${point.category}"
             cx="${position(point.value)}%"
@@ -125,17 +169,23 @@ class ProtspaceScoreStrip extends LitElement {
             @mouseenter=${() => this._emitHover(point.category)}
             @mouseleave=${() => this._emitHover(null)}
             @click=${() => this._emitClick(point.category)}
-          ><title>${point.category}: ${point.value.toFixed(3)}${
-            point.ceiling == null ? '' : ` (embedding ceiling ${point.ceiling.toFixed(3)})`
+          ><title>${point.category}: ${formatStatValue(point.value)}${
+            point.ceiling == null ? '' : ` (embedding ceiling ${formatStatValue(point.ceiling)})`
           }</title></circle>`,
-        )}
-        <text class="bound" x="${PADDING}%" y="${STRIP_HEIGHT - 4}" text-anchor="start">
-          ${this._formatBound(min)}
-        </text>
-        <text class="bound" x="${100 - PADDING}%" y="${STRIP_HEIGHT - 4}" text-anchor="end">
-          ${this._formatBound(max)}
-        </text>
-      </svg>
+          )}
+          <text class="bound" x="${PADDING}%" y="${STRIP_HEIGHT - 4}" text-anchor="start">
+            ${this._formatBound(min)}
+          </text>
+          <text class="bound" x="${100 - PADDING}%" y="${STRIP_HEIGHT - 4}" text-anchor="end">
+            ${this._formatBound(max)}
+          </text>
+        </svg>
+        <!-- aria-hidden: hovering is pointer-only, and each legend row already
+             announces its own score to assistive tech. -->
+        <span class="strip-value ${hovered ? '' : 'is-empty'}" part="value" aria-hidden="true"
+          >${hovered ? formatStatValue(hovered.value) : NO_VALUE}</span
+        >
+      </div>
     `;
   }
 

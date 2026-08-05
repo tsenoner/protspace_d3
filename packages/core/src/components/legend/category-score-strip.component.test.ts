@@ -134,6 +134,37 @@ describe('protspace-score-strip', () => {
     expect(el.shadowRoot!.textContent).toContain('lower is better');
   });
 
+  it('leaves the value gutter empty until a category is highlighted', async () => {
+    const el = await setup();
+
+    expect(el.shadowRoot!.querySelector('.strip-value')!.textContent!.trim()).toBe('—');
+  });
+
+  it('shows the highlighted category’s own value in the gutter', async () => {
+    const el = await setup();
+    el.highlighted = 'Viperidae';
+    await el.updateComplete;
+
+    expect(el.shadowRoot!.querySelector('.strip-value')!.textContent!.trim()).toBe('-0.150');
+
+    el.highlighted = 'Elapidae';
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector('.strip-value')!.textContent!.trim()).toBe('0.810');
+  });
+
+  it('keeps the gutter empty for a category this metric could not score', async () => {
+    // Davies-Bouldin has no value for a singleton category, so the legend can
+    // highlight a category that has no dot on this strip. Showing a neighbour's
+    // number, or the last one hovered, would be worse than showing none.
+    const el = await setup();
+    el.highlighted = 'Colubridae';
+    await el.updateComplete;
+
+    const gutter = el.shadowRoot!.querySelector('.strip-value')!;
+    expect(gutter.textContent!.trim()).toBe('—');
+    expect(gutter.classList.contains('is-empty')).toBe(true);
+  });
+
   it('appends the embedding ceiling to the tooltip when the dot carries one', async () => {
     const el = await setup([
       { category: 'Elapidae', value: 0.81, color: '#ff0000', ceiling: 0.95 },
