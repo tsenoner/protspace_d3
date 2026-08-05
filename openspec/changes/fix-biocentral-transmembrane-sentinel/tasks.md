@@ -29,3 +29,25 @@
 - [x] 6.1 Run the focused Biocentral and cross-language bundle contract tests and confirm they pass.
 - [x] 6.2 Run Ruff, the complete non-slow ProtSpace Python suite, strict OpenSpec validation, and `pnpm precommit`.
 - [x] 6.3 Prepare the verified change for the inline review follow-up and CI run.
+
+## 7. Follow-up Review Regression Coverage
+
+- [x] 7.1 Add focused real-model regressions proving missing TMbed payloads remain
+      missing for signal peptide and observe the expected failures.
+- [x] 7.2 Extend the generated bundle contract to expose missing signal peptide as
+      `N/A` and observe the expected failure.
+- [x] 7.3 Add CLI regression coverage proving FASTA sequences reach the annotation
+      manager and strengthen the hosted normalized-FASTA handoff assertion.
+
+## 8. Follow-up Review Fixes
+
+- [x] 8.1 Parse and pass FASTA sequences through `protspace annotate` while preserving
+      HDF5 behavior.
+- [x] 8.2 Centralize optional TMbed topology extraction for both derived annotations.
+
+## 9. Follow-up Review Verification
+
+- [x] 9.1 Run focused ProtSpace, hosted-prep, and cross-language contract tests.
+- [x] 9.2 Run Ruff, the complete relevant Python suites, strict OpenSpec validation,
+      and `pnpm precommit`.
+- [x] 9.3 Prepare the verified change for the review reply and pushed CI run.

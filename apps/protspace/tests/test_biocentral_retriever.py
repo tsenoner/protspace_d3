@@ -57,6 +57,16 @@ class TestSignalPeptideExtraction:
         result = BiocentralPredictionRetriever._extract_signal_peptide(preds)
         assert result == ""
 
+    def test_none_payload_is_missing(self):
+        preds = [_make_real_tmbed_prediction(None)]
+        result = BiocentralPredictionRetriever._extract_signal_peptide(preds)
+        assert result == ""
+
+    def test_empty_payload_is_missing(self):
+        preds = [_make_real_tmbed_prediction("")]
+        result = BiocentralPredictionRetriever._extract_signal_peptide(preds)
+        assert result == ""
+
 
 class TestTransmembraneExtraction:
     """Test TMbed → transmembrane type derivation."""

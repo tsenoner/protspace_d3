@@ -61,10 +61,17 @@ def annotate(
     from protspace.data.loaders.h5 import EMBEDDING_EXTENSIONS
 
     # Extract identifiers from input
+    sequences = None
     if is_fasta_file(input):
+        from protspace.data.io.fasta import parse_fasta
+        from protspace.data.loaders.h5 import parse_identifier
         from protspace.data.loaders.query import extract_identifiers_from_fasta
 
         headers = extract_identifiers_from_fasta(input)
+        sequences = {
+            parse_identifier(header): sequence
+            for header, sequence in parse_fasta(input).items()
+        }
     elif input.suffix.lower() in EMBEDDING_EXTENSIONS:
         from protspace.data.loaders.h5 import _collect_datasets
 
@@ -100,6 +107,7 @@ def annotate(
         headers=headers,
         annotations=annotations_list,
         output_path=None,
+        sequences=sequences,
     ).to_pd()
 
     if not scores:

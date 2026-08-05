@@ -202,11 +202,10 @@ class BiocentralPredictionRetriever(BaseAnnotationRetriever):
 
         TMbed labels: S = signal peptide, H/h = TM helix, B/b = TM beta, i/o = non-TM
         """
-        for pred in predictions:
-            if pred.model_name == "TMbed":
-                topology = str(pred.value) if pred.value else ""
-                return "True" if "S" in topology else "False"
-        return ""
+        topology = BiocentralPredictionRetriever._extract_tmbed_topology(predictions)
+        if topology is None:
+            return ""
+        return "True" if "S" in topology else "False"
 
     @staticmethod
     def _extract_transmembrane(predictions: list) -> str:
@@ -214,18 +213,26 @@ class BiocentralPredictionRetriever(BaseAnnotationRetriever):
 
         Returns: 'alpha-helical', 'beta-barrel', or 'non-transmembrane'
         """
+        topology = BiocentralPredictionRetriever._extract_tmbed_topology(predictions)
+        if topology is None:
+            return ""
+
+        has_helix = bool(re.search(r"[Hh]", topology))
+        has_beta = bool(re.search(r"[Bb]", topology))
+        if has_helix and has_beta:
+            return "alpha-helical;beta-barrel"
+        elif has_helix:
+            return "alpha-helical"
+        elif has_beta:
+            return "beta-barrel"
+        return "non-transmembrane"
+
+    @staticmethod
+    def _extract_tmbed_topology(predictions: list) -> str | None:
+        """Return a non-empty TMbed topology, or ``None`` when unavailable."""
         for pred in predictions:
             if pred.model_name == "TMbed":
                 if pred.value is None or pred.value == "":
-                    return ""
-                topology = str(pred.value)
-                has_helix = bool(re.search(r"[Hh]", topology))
-                has_beta = bool(re.search(r"[Bb]", topology))
-                if has_helix and has_beta:
-                    return "alpha-helical;beta-barrel"
-                elif has_helix:
-                    return "alpha-helical"
-                elif has_beta:
-                    return "beta-barrel"
-                return "non-transmembrane"
-        return ""
+                    return None
+                return str(pred.value)
+        return None

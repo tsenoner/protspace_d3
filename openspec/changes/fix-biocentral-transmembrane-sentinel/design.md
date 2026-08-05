@@ -18,6 +18,8 @@ established missing-value semantics while making newly produced TMbed data unamb
 - Preserve a successful TMbed negative prediction as a visible categorical value in
   the web application.
 - Keep genuinely absent Biocentral predictions represented as missing values.
+- Keep FASTA-provided sequences available to sequence-backed annotation sources even
+  when UniProt cannot resolve their identifiers.
 - Exercise the producer value through the generated Python-to-TypeScript bundle
   contract so future sentinel collisions fail in CI.
 - Keep user-facing annotation documentation aligned with the emitted vocabulary.
@@ -58,14 +60,31 @@ The payload guard runs before topology labels are scanned. This retains the dist
 at the producer: a completed, non-empty topology with no membrane segment is
 `non-transmembrane`, while an unavailable topology remains missing.
 
+Both `predicted_signal_peptide` and `predicted_transmembrane` derive from that same
+optional topology payload. A shared extractor therefore owns the missing-payload check
+before either annotation interprets the topology, preventing one annotation from
+inventing a completed negative result when the other reports missing data.
+
+### Pass FASTA sequences through the standalone annotation command
+
+The standalone `annotate` command will parse the FASTA into a canonical identifier to
+sequence map and pass it to `ProteinAnnotationManager`. The manager already gives local
+sequences priority and uses UniProt sequences only as fallback, so this closes the input
+handoff without changing annotation-source behavior. HDF5 inputs continue to omit a
+local sequence map and retain their existing UniProt-fallback behavior.
+
+The hosted prep service already normalizes FASTA headers and supplies that normalized
+file to `protspace annotate`; regression coverage pins that normalization preserves the
+sequence as well as the canonical identifier.
+
 ### Cover both the adapter and the cross-language seam
 
 Focused Python regressions will construct the real Biocentral `Prediction` model and
 assert the adapter vocabulary for completed and absent payloads. The generated bundle
-contract will derive both its negative and missing transmembrane fixture values from the
-real adapter and assert that TypeScript preserves the former as a category and the latter
-as `N/A`. This avoids duplicated hand-written constants that could allow producer and
-contract fixtures to drift apart.
+contract will derive its negative transmembrane and missing TMbed-derived fixture values
+from the real adapter and assert that TypeScript preserves the former as a category and
+the latter as `N/A`. This avoids duplicated hand-written constants that could allow
+producer and contract fixtures to drift apart.
 
 ## Risks / Trade-offs
 

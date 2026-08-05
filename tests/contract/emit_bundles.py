@@ -104,6 +104,16 @@ MISSING_TMBED_VALUE = BiocentralPredictionRetriever._extract_transmembrane(
         )
     ]
 )
+MISSING_SIGNAL_PEPTIDE_VALUE = BiocentralPredictionRetriever._extract_signal_peptide(
+    [
+        Prediction(
+            model_name="TMbed",
+            prediction_name="topology",
+            protocol="per_residue",
+            value=None,
+        )
+    ]
+)
 
 
 def build_annotations_table(ids: list[str]) -> pa.Table:
@@ -125,6 +135,9 @@ def build_annotations_table(ids: list[str]) -> pa.Table:
     predicted_transmembrane = [NEGATIVE_TMBED_CATEGORY, MISSING_TMBED_VALUE] + [""] * (
         rest - 1
     )
+    predicted_signal_peptide = ["False", MISSING_SIGNAL_PEPTIDE_VALUE] + [""] * (
+        rest - 1
+    )
 
     # A genuine double column with a null -- distinguishes "missing" from 0 and
     # from NaN across the language boundary. Real bundles carry both string-typed
@@ -137,6 +150,7 @@ def build_annotations_table(ids: list[str]) -> pa.Table:
             "identifier": pa.array(ids, pa.string()),
             "family": pa.array(family, pa.string()),
             "domains": pa.array(domains, pa.string()),
+            "predicted_signal_peptide": pa.array(predicted_signal_peptide, pa.string()),
             "predicted_transmembrane": pa.array(predicted_transmembrane, pa.string()),
             "length": pa.array(length, pa.float64()),
         }

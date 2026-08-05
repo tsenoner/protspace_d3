@@ -227,6 +227,16 @@ describe('annotation encoding across the language boundary', () => {
     ).toEqual(['__NA__']);
   });
 
+  it('preserves a missing TMbed payload as N/A for signal peptide', () => {
+    expect(
+      getProteinAnnotationValues(
+        data,
+        manifest.missingTransmembraneIndex,
+        'predicted_signal_peptide',
+      ),
+    ).toEqual(['__NA__']);
+  });
+
   it('reports a missing numeric value as missing rather than zero', () => {
     const lengths = data.numeric_annotation_data?.length;
     // Assert the length first: an out-of-range index yields `undefined`, which
