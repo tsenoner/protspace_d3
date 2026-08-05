@@ -13,3 +13,5 @@
 
 - [x] 3.1 Repeat the original browser reproduction and verify the TED label and exact href.
 - [x] 3.2 Run the affected package checks and the repository-mandated `pnpm precommit` gate.
+- [x] 3.3 Repair the stale image-pipeline readiness checks, update the Explore descriptions, and
+      regenerate their shared structure-viewer screenshot.

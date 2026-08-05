@@ -52,7 +52,7 @@ export async function waitForDataLoad(page: Page, timeout = 30000): Promise<void
       const plot = document.querySelector('#myPlot') as any;
       if (!plot) return false;
       if (!plot.data?.protein_ids?.length) return false;
-      if (!Array.isArray(plot._plotData) || plot._plotData.length === 0) return false;
+      if (!plot._plotData?.length) return false;
       if (!plot._scales) return false;
       return true;
     },
