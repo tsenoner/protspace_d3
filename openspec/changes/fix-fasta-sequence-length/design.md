@@ -12,6 +12,11 @@ the reduction pipeline returns that cached DataFrame before constructing the
 manager. Therefore the manager-only fallback does not repair empty lengths on
 normal warm-cache reruns.
 
+The standalone `protspace annotate` command, which is also the annotation path
+used by the hosted preparation service, extracts normalized identifiers from a
+FASTA input but does not pass its sequences to the manager. The manager fallback
+therefore cannot run on that path even though the sequence data is available.
+
 The fix must remain scoped to missing length metadata. Existing UniProt values
 are authoritative, and the annotation manager must continue to work when no
 FASTA sequence is available.
@@ -23,8 +28,11 @@ FASTA sequence is available.
 - Fill an empty sequence length from the matching local FASTA sequence.
 - Preserve non-empty UniProt sequence lengths.
 - Apply the fallback before annotation rows are merged and formatted.
+- Apply the fallback when `protspace annotate` receives FASTA input.
 - Apply the fallback to complete cache hits without refetching API annotations.
 - Protect both fallback and precedence behavior with focused tests.
+- Keep the annotation references synchronized with the fallback and precedence
+  behavior.
 
 **Non-Goals:**
 
@@ -74,6 +82,17 @@ non-empty cached or UniProt value is retained. The cached Parquet file itself is
 not rewritten on a read-only complete-cache hit; the derived value is local to
 the current output, preserving existing cache lifecycle semantics.
 
+### Supply sequences at the standalone annotation boundary
+
+When `protspace annotate` receives FASTA input, it will parse the file into an
+identifier-to-sequence map and normalize each key with the same
+`parse_identifier` policy already used to extract annotation identifiers and by
+the reduction pipeline. The command will pass that map to
+`ProteinAnnotationManager`; HDF5 input continues to provide no local sequences.
+
+This repairs both direct CLI usage and the hosted preparation service without
+duplicating fallback logic or changing FASTA parsing and normalization policy.
+
 ## Risks / Trade-offs
 
 - **[Identifier mismatch prevents fallback]** → Continue using the pipeline's
@@ -86,6 +105,9 @@ the current output, preserving existing cache lifecycle semantics.
 - **[Warm-cache fix triggers network work or rewrites cache]** → Keep the
   complete-cache early-return branch and enrich a copy of its selected DataFrame
   without constructing the annotation manager or persisting the derived value.
+- **[Standalone identifiers and sequence keys diverge]** → Normalize parsed
+  FASTA keys with the existing `parse_identifier` helper before passing them to
+  the manager.
 
 ## Migration Plan
 

@@ -8,11 +8,14 @@ to display the sequence length as unavailable.
 ## What Changes
 
 - Derive a missing sequence length from the matching local FASTA sequence.
+- Supply normalized FASTA sequences to the standalone `protspace annotate`
+  command used by the hosted preparation service.
 - Apply the same fallback when a complete annotation cache satisfies the run.
 - Preserve a non-empty length returned by UniProt.
 - Keep the existing missing-value behavior when neither source provides a
   sequence length.
 - Add regression coverage for the fallback and precedence behavior.
+- Document the missing-only FASTA fallback and UniProt precedence.
 
 ## Capabilities
 
@@ -28,7 +31,9 @@ None.
 ## Impact
 
 - Affects the Python annotation orchestration in
-  `apps/protspace/src/protspace/data/annotations/manager.py` and the complete-cache
-  branch in `apps/protspace/src/protspace/data/processors/pipeline.py`.
-- Adds focused manager and warm-cache pipeline tests.
+  `apps/protspace/src/protspace/data/annotations/manager.py`, the standalone
+  annotation command, and the complete-cache branch in
+  `apps/protspace/src/protspace/data/processors/pipeline.py`.
+- Adds focused manager, standalone annotation, and warm-cache pipeline tests.
+- Updates both annotation references to describe FASTA fallback behavior.
 - Does not change public APIs, file formats, dependencies, or UniProt precedence.

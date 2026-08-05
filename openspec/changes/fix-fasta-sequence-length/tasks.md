@@ -23,3 +23,13 @@
       without refetching annotations or rewriting the cache.
 - [x] 4.3 Prove that a non-empty cached length remains authoritative.
 - [x] 4.4 Run strict OpenSpec validation and all affected/full verification gates.
+
+## 5. Review Follow-up: Standalone Annotation and Documentation
+
+- [x] 5.1 Add a CLI regression proving normalized FASTA sequence data supplies a
+      missing length and record the expected RED failure.
+- [x] 5.2 Pass normalized FASTA identifier-to-sequence data through
+      `protspace annotate` to the existing manager fallback.
+- [x] 5.3 Update both annotation references with missing-only FASTA fallback and
+      UniProt-over-FASTA precedence.
+- [x] 5.4 Run focused, package, docs, OpenSpec, and repository verification gates.

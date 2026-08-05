@@ -19,6 +19,13 @@ provide a sequence length.
   FASTA sequence
 - **THEN** the output retains the UniProt sequence length
 
+#### Scenario: Standalone annotation command receives FASTA input
+
+- **WHEN** `protspace annotate` receives a FASTA file containing a protein whose
+  UniProt annotation has an empty sequence length
+- **THEN** the output length equals the number of residues in the matching FASTA
+  sequence
+
 #### Scenario: Complete annotation cache has a missing sequence length
 
 - **WHEN** a complete annotation cache has an empty sequence length and a
