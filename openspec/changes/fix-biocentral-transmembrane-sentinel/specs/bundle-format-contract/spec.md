@@ -20,26 +20,13 @@ normalizing to missing data.
 - **THEN** the producer emits the established missing representation
 - **AND** the TypeScript visualization data does not invent a transmembrane category
 
-#### Scenario: Empty TMbed payload remains missing
+#### Scenario: Empty or malformed TMbed payload remains missing
 
 - **WHEN** Biocentral returns a TMbed prediction object whose optional `value` payload
-  is `None` or an empty string
+  is `None`, empty, non-string, blank, or contains unsupported topology labels
 - **THEN** the producer emits the established missing representation before scanning
   topology labels
 - **AND** the TypeScript visualization data exposes the protein as `N/A` rather than
   `non-transmembrane`
 - **AND** the derived signal-peptide annotation is also exposed as `N/A` rather than
   `False`
-
-### Requirement: FASTA annotation inputs retain their sequences
-
-The standalone annotation producer SHALL pass sequences supplied in a FASTA input to
-sequence-backed annotation sources using the same canonical identifiers as its output.
-
-#### Scenario: A FASTA identifier is not resolved by UniProt
-
-- **WHEN** `protspace annotate` receives a FASTA entry whose identifier UniProt cannot
-  resolve
-- **THEN** the entry's FASTA sequence remains available to Biocentral and InterPro
-- **AND** the hosted prep pipeline preserves that sequence when it passes its normalized
-  FASTA to `protspace annotate`

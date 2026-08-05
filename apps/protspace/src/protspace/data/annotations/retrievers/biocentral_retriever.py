@@ -24,6 +24,7 @@ _PREDICTION_MODELS = {
 }
 
 _BATCH_SIZE = 1000
+_TMBED_TOPOLOGY_LABELS = frozenset("BbHhSio.")
 
 
 class BiocentralPredictionRetriever(BaseAnnotationRetriever):
@@ -229,10 +230,15 @@ class BiocentralPredictionRetriever(BaseAnnotationRetriever):
 
     @staticmethod
     def _extract_tmbed_topology(predictions: list) -> str | None:
-        """Return a non-empty TMbed topology, or ``None`` when unavailable."""
+        """Return a supported TMbed topology, or ``None`` when unavailable."""
         for pred in predictions:
             if pred.model_name == "TMbed":
-                if pred.value is None or pred.value == "":
+                value = pred.value
+                if (
+                    not isinstance(value, str)
+                    or not value
+                    or not set(value) <= _TMBED_TOPOLOGY_LABELS
+                ):
                     return None
-                return str(pred.value)
+                return value
         return None

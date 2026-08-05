@@ -43,6 +43,7 @@ interface Manifest {
   labelWithReservedChar: string;
   negativeTransmembraneCategory: string;
   missingTransmembraneIndex: number;
+  malformedTmbedIndex: number;
   nullLengthIndex: number;
 }
 
@@ -234,6 +235,15 @@ describe('annotation encoding across the language boundary', () => {
         manifest.missingTransmembraneIndex,
         'predicted_signal_peptide',
       ),
+    ).toEqual(['__NA__']);
+  });
+
+  it('preserves a malformed TMbed payload as N/A', () => {
+    expect(
+      getProteinAnnotationValues(data, manifest.malformedTmbedIndex, 'predicted_transmembrane'),
+    ).toEqual(['__NA__']);
+    expect(
+      getProteinAnnotationValues(data, manifest.malformedTmbedIndex, 'predicted_signal_peptide'),
     ).toEqual(['__NA__']);
   });
 

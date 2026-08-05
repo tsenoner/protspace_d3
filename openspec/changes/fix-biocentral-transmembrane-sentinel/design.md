@@ -52,13 +52,15 @@ Alternatives considered:
 - Use `soluble`. This is biologically narrower than "no predicted transmembrane
   segment" and can mislabel secreted or otherwise non-membrane proteins.
 
-### Preserve empty-string output for an absent TMbed result
+### Preserve empty-string output for an unavailable or malformed TMbed result
 
 The adapter will return an empty string when Biocentral provides no TMbed prediction or
-provides a TMbed prediction object whose optional `value` payload is `None` or empty.
-The payload guard runs before topology labels are scanned. This retains the distinction
-at the producer: a completed, non-empty topology with no membrane segment is
-`non-transmembrane`, while an unavailable topology remains missing.
+provides a TMbed prediction object whose optional `value` payload is `None`, empty,
+non-string, blank, or contains unsupported labels. A usable topology is a string made
+only from TMbed's `B`, `b`, `H`, `h`, `S`, `i`, `o`, and `.` labels. The payload guard
+runs before topology labels are scanned. This retains the distinction at the producer:
+a valid topology with no membrane segment is `non-transmembrane`, while an unavailable
+or malformed topology remains missing.
 
 Both `predicted_signal_peptide` and `predicted_transmembrane` derive from that same
 optional topology payload. A shared extractor therefore owns the missing-payload check

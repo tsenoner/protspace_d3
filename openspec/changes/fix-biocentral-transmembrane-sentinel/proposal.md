@@ -9,9 +9,9 @@ N/A and cannot be distinguished from proteins whose prediction is actually absen
 
 - Encode successful TMbed predictions with no membrane-spanning segment using a
   non-reserved categorical label.
-- Preserve genuinely absent Biocentral predictions, including TMbed prediction
-  objects whose optional payload is `None` or empty, as missing values for both
-  derived TMbed annotations.
+- Preserve absent or malformed Biocentral predictions, including TMbed prediction
+  objects whose optional payload is `None`, empty, non-string, or contains unsupported
+  topology labels, as missing values for both derived TMbed annotations.
 - Preserve FASTA sequences through the standalone `annotate` command so
   sequence-backed predictions do not depend on UniProt resolving the identifier.
 - Add regression coverage across the Python annotation producer and TypeScript
@@ -22,7 +22,8 @@ N/A and cannot be distinguished from proteins whose prediction is actually absen
 
 ### New Capabilities
 
-None.
+- `annotation-input`: Require standalone FASTA annotation inputs to retain their
+  sequences for sequence-backed annotation sources.
 
 ### Modified Capabilities
 

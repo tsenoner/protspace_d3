@@ -51,3 +51,24 @@
 - [x] 9.2 Run Ruff, the complete relevant Python suites, strict OpenSpec validation,
       and `pnpm precommit`.
 - [x] 9.3 Prepare the verified change for the review reply and pushed CI run.
+
+## 10. Malformed Payload and Spec Ownership Regressions
+
+- [x] 10.1 Add real-model regressions proving malformed TMbed payloads remain missing
+      for both derived annotations and observe the expected failures.
+- [x] 10.2 Add a producer/consumer regression proving a malformed TMbed payload reaches
+      TypeScript as `N/A` and observe the expected failure.
+- [x] 10.3 Move the FASTA sequence requirement from `bundle-format-contract` to its
+      owning `annotation-input` capability within this change.
+
+## 11. Malformed Payload Fix
+
+- [x] 11.1 Restrict the shared TMbed topology extractor to non-blank strings containing
+      only supported topology labels while preserving all valid topology semantics.
+
+## 12. Final Review Verification
+
+- [x] 12.1 Run focused ProtSpace and cross-language contract tests.
+- [x] 12.2 Run Ruff, the complete relevant Python and hosted-prep suites, strict OpenSpec
+      validation, and `pnpm precommit`.
+- [x] 12.3 Prepare the verified change for inline review replies and pushed CI.

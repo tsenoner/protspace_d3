@@ -76,18 +76,24 @@ LABEL_WITH_RESERVED_CHAR = "Kinase (EC 2.7.11.1); regulatory subunit"
 # swallows the second hit, which is exactly the bug the grammar exists to avoid.
 MULTI_HIT_CELL = f"{encode_field('DomA')}|0.91;{encode_field('DomB')}|0.82"
 
-# Derive this fixture value from the real annotation adapter rather than copying
-# its vocabulary into the contract test. A topology with only inside/outside
-# labels is a completed TMbed prediction with no membrane-spanning segment.
-NEGATIVE_TMBED_CATEGORY = BiocentralPredictionRetriever._extract_transmembrane(
-    [
+
+def tmbed_predictions(value: object) -> list[Prediction]:
+    """Build the real generated prediction shape consumed by the adapter."""
+    return [
         Prediction(
             model_name="TMbed",
             prediction_name="topology",
             protocol="per_residue",
-            value="oooooiiiii",
+            value=value,
         )
     ]
+
+
+# Derive this fixture value from the real annotation adapter rather than copying
+# its vocabulary into the contract test. A topology with only inside/outside
+# labels is a completed TMbed prediction with no membrane-spanning segment.
+NEGATIVE_TMBED_CATEGORY = BiocentralPredictionRetriever._extract_transmembrane(
+    tmbed_predictions("oooooiiiii")
 )
 
 # Keep one explicit missing-payload row separate from the fixture's other empty
@@ -95,24 +101,20 @@ NEGATIVE_TMBED_CATEGORY = BiocentralPredictionRetriever._extract_transmembrane(
 # the bundle reader has a chance to normalize the missing representation.
 MISSING_TMBED_INDEX = 1
 MISSING_TMBED_VALUE = BiocentralPredictionRetriever._extract_transmembrane(
-    [
-        Prediction(
-            model_name="TMbed",
-            prediction_name="topology",
-            protocol="per_residue",
-            value=None,
-        )
-    ]
+    tmbed_predictions(None)
 )
 MISSING_SIGNAL_PEPTIDE_VALUE = BiocentralPredictionRetriever._extract_signal_peptide(
-    [
-        Prediction(
-            model_name="TMbed",
-            prediction_name="topology",
-            protocol="per_residue",
-            value=None,
-        )
-    ]
+    tmbed_predictions(None)
+)
+
+# Malformed payloads are unavailable predictions, not completed negatives. Keep
+# one explicit row so this producer decision is exercised through bundle ingestion.
+MALFORMED_TMBED_INDEX = 2
+MALFORMED_TMBED_VALUE = BiocentralPredictionRetriever._extract_transmembrane(
+    tmbed_predictions("garbage")
+)
+MALFORMED_SIGNAL_PEPTIDE_VALUE = BiocentralPredictionRetriever._extract_signal_peptide(
+    tmbed_predictions("garbage")
 )
 
 
@@ -132,12 +134,16 @@ def build_annotations_table(ids: list[str]) -> pa.Table:
         encode_field("Hydrolase")
     ] * rest
     domains = [MULTI_HIT_CELL] + [f"{encode_field('DomB')}|0.75"] * rest
-    predicted_transmembrane = [NEGATIVE_TMBED_CATEGORY, MISSING_TMBED_VALUE] + [""] * (
-        rest - 1
-    )
-    predicted_signal_peptide = ["False", MISSING_SIGNAL_PEPTIDE_VALUE] + [""] * (
-        rest - 1
-    )
+    predicted_transmembrane = [
+        NEGATIVE_TMBED_CATEGORY,
+        MISSING_TMBED_VALUE,
+        MALFORMED_TMBED_VALUE,
+    ] + [""] * (rest - 2)
+    predicted_signal_peptide = [
+        "False",
+        MISSING_SIGNAL_PEPTIDE_VALUE,
+        MALFORMED_SIGNAL_PEPTIDE_VALUE,
+    ] + [""] * (rest - 2)
 
     # A genuine double column with a null -- distinguishes "missing" from 0 and
     # from NaN across the language boundary. Real bundles carry both string-typed
@@ -361,6 +367,7 @@ def main(out_dir: Path) -> None:
                 "labelWithReservedChar": LABEL_WITH_RESERVED_CHAR,
                 "negativeTransmembraneCategory": NEGATIVE_TMBED_CATEGORY,
                 "missingTransmembraneIndex": MISSING_TMBED_INDEX,
+                "malformedTmbedIndex": MALFORMED_TMBED_INDEX,
                 "nullLengthIndex": NULL_LENGTH_INDEX,
             }
         ),
