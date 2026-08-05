@@ -24,9 +24,12 @@ async function setupSearch(
   return element;
 }
 
+const inputOf = (element: ProteinSearchElement): HTMLInputElement =>
+  element.shadowRoot!.querySelector('#protein-search-input') as HTMLInputElement;
+
 /** Type a query into the real input and flush the 120ms suggestion debounce. */
 async function typeQuery(element: ProteinSearchElement, query: string): Promise<void> {
-  const input = element.shadowRoot!.querySelector('#protein-search-input') as HTMLInputElement;
+  const input = inputOf(element);
   input.focus();
   input.value = query;
   input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
@@ -34,17 +37,40 @@ async function typeQuery(element: ProteinSearchElement, query: string): Promise<
   await element.updateComplete;
 }
 
+const press = (element: ProteinSearchElement, key: string, times = 1): void => {
+  const input = inputOf(element);
+  for (let i = 0; i < times; i++) {
+    input.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+  }
+};
+
+/** Record the `proteinId` of every `type` event the element emits, in order. */
+const captureIds = (element: ProteinSearchElement, type: string): string[] => {
+  const seen: string[] = [];
+  element.addEventListener(type, (event) => {
+    seen.push((event as CustomEvent<{ proteinId: string }>).detail.proteinId);
+  });
+  return seen;
+};
+
 const rowsOf = (element: ProteinSearchElement): HTMLElement[] =>
   Array.from(element.shadowRoot!.querySelectorAll('.search-suggestion'));
 
 const rowText = (row: HTMLElement): string => row.textContent!.trim();
 
 describe('protspace-protein-search feedback', () => {
+  // jsdom does not implement scrollIntoView, so it is assigned rather than spied on.
+  const originalScrollIntoView = Element.prototype.scrollIntoView;
+  let scrollIntoViewMock: ReturnType<typeof vi.fn>;
+
   beforeEach(() => {
     vi.useFakeTimers();
+    scrollIntoViewMock = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoViewMock;
   });
 
   afterEach(() => {
+    Element.prototype.scrollIntoView = originalScrollIntoView;
     document.body.innerHTML = '';
     vi.useRealTimers();
   });
@@ -91,7 +117,7 @@ describe('protspace-protein-search feedback', () => {
 
   it('surfaces current selections when the empty input is focused', async () => {
     const element = await setupSearch();
-    const input = element.shadowRoot!.querySelector('#protein-search-input') as HTMLInputElement;
+    const input = inputOf(element);
     input.focus();
     input.dispatchEvent(new Event('focus', { bubbles: true, composed: true }));
     await element.updateComplete;
@@ -110,16 +136,15 @@ describe('protspace-protein-search feedback', () => {
     expect(rows[0].getAttribute('title')).toBe('Remove from selection');
     expect(rows[0].getAttribute('aria-label')).toBe('GT4, remove from selection');
     expect(rows[1].getAttribute('aria-label')).toBe('GT40');
+    // Selectable rows carry no tooltip rather than an empty one.
+    expect(rows[1].hasAttribute('title')).toBe(false);
   });
 
   it('emits remove-selection when a marked row is clicked', async () => {
     const element = await setupSearch([...FIVE, 'Q12345'], FIVE);
     await typeQuery(element, 'P0059');
 
-    const removed: string[] = [];
-    element.addEventListener('remove-selection', (event) => {
-      removed.push((event as CustomEvent<{ proteinId: string }>).detail.proteinId);
-    });
+    const removed = captureIds(element, 'remove-selection');
 
     rowsOf(element)[0].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
     expect(removed).toEqual(['P00595']);
@@ -129,13 +154,9 @@ describe('protspace-protein-search feedback', () => {
     const element = await setupSearch([...FIVE, 'Q12345'], FIVE);
     await typeQuery(element, 'P0059');
 
-    const removed: string[] = [];
-    element.addEventListener('remove-selection', (event) => {
-      removed.push((event as CustomEvent<{ proteinId: string }>).detail.proteinId);
-    });
+    const removed = captureIds(element, 'remove-selection');
 
-    const input = element.shadowRoot!.querySelector('#protein-search-input') as HTMLInputElement;
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    press(element, 'Enter');
     expect(removed).toEqual(['P00595']);
   });
 
@@ -143,14 +164,8 @@ describe('protspace-protein-search feedback', () => {
     const element = await setupSearch(['GT4', 'GT40'], ['GT4']);
     await typeQuery(element, 'GT4');
 
-    const added: string[] = [];
-    const removed: string[] = [];
-    element.addEventListener('add-selection', (event) => {
-      added.push((event as CustomEvent<{ proteinId: string }>).detail.proteinId);
-    });
-    element.addEventListener('remove-selection', (event) => {
-      removed.push((event as CustomEvent<{ proteinId: string }>).detail.proteinId);
-    });
+    const added = captureIds(element, 'add-selection');
+    const removed = captureIds(element, 'remove-selection');
 
     rowsOf(element)[1].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
     expect(added).toEqual(['GT40']);
@@ -175,9 +190,7 @@ describe('protspace-protein-search feedback', () => {
     const element = await setupSearch([...FIVE, 'Q12345'], []);
     await typeQuery(element, 'P0059');
 
-    const input = element.shadowRoot!.querySelector('#protein-search-input') as HTMLInputElement;
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    press(element, 'ArrowDown', 2);
     await element.updateComplete;
 
     const rows = rowsOf(element);
@@ -188,33 +201,25 @@ describe('protspace-protein-search feedback', () => {
     const element = await setupSearch([...FIVE, 'Q12345'], []);
     await typeQuery(element, 'P0059');
 
-    const added: string[] = [];
-    element.addEventListener('add-selection', (event) => {
-      added.push((event as CustomEvent<{ proteinId: string }>).detail.proteinId);
-    });
+    const added = captureIds(element, 'add-selection');
 
-    const input = element.shadowRoot!.querySelector('#protein-search-input') as HTMLInputElement;
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    press(element, 'ArrowDown', 2);
+    press(element, 'Enter');
 
     expect(added).toEqual(['P00597']);
   });
 
   it('still activates the first row when Enter interrupts a pending debounce', async () => {
     const element = await setupSearch([...FIVE, 'Q12345'], []);
-    const input = element.shadowRoot!.querySelector('#protein-search-input') as HTMLInputElement;
+    const input = inputOf(element);
     input.focus();
     input.value = 'P0059';
     input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
     // Deliberately do NOT advance timers — the debounce is still pending.
 
-    const added: string[] = [];
-    element.addEventListener('add-selection', (event) => {
-      added.push((event as CustomEvent<{ proteinId: string }>).detail.proteinId);
-    });
+    const added = captureIds(element, 'add-selection');
 
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    press(element, 'Enter');
     expect(added).toEqual(['P00595']);
   });
 
@@ -225,10 +230,7 @@ describe('protspace-protein-search feedback', () => {
     await typeQuery(element, 'A');
     expect(rowsOf(element)).toHaveLength(11);
 
-    const input = element.shadowRoot!.querySelector('#protein-search-input') as HTMLInputElement;
-    for (let i = 0; i < 10; i++) {
-      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-    }
+    press(element, 'ArrowDown', 10);
     await element.updateComplete;
     expect(rowsOf(element)[10].classList.contains('active')).toBe(true);
 
@@ -247,25 +249,14 @@ describe('protspace-protein-search feedback', () => {
     await typeQuery(element, 'B');
     expect(rowsOf(element)).toHaveLength(20);
 
-    const scrollIntoViewMock = vi.fn();
-    const original = Element.prototype.scrollIntoView;
-    Element.prototype.scrollIntoView = scrollIntoViewMock;
+    press(element, 'ArrowDown', 15);
+    await element.updateComplete;
 
-    try {
-      const input = element.shadowRoot!.querySelector('#protein-search-input') as HTMLInputElement;
-      for (let i = 0; i < 15; i++) {
-        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-      }
-      await element.updateComplete;
-
-      // Typing the query seeds the highlight at row 0, so 15 ArrowDown presses land on row 15.
-      const rows = rowsOf(element);
-      expect(rows[15].classList.contains('active')).toBe(true);
-      expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: 'nearest' });
-      expect(scrollIntoViewMock.mock.contexts.at(-1)).toBe(rows[15]);
-    } finally {
-      Element.prototype.scrollIntoView = original;
-    }
+    // Typing the query seeds the highlight at row 0, so 15 ArrowDown presses land on row 15.
+    const rows = rowsOf(element);
+    expect(rows[15].classList.contains('active')).toBe(true);
+    expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: 'nearest', behavior: 'smooth' });
+    expect(scrollIntoViewMock.mock.contexts.at(-1)).toBe(rows[15]);
   });
 
   it('scrolls the highlighted row into view when ArrowUp travels back up', async () => {
@@ -273,31 +264,19 @@ describe('protspace-protein-search feedback', () => {
     const element = await setupSearch(ids, []);
     await typeQuery(element, 'B');
 
-    const input = element.shadowRoot!.querySelector('#protein-search-input') as HTMLInputElement;
-    for (let i = 0; i < 15; i++) {
-      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-    }
+    press(element, 'ArrowDown', 15);
     await element.updateComplete;
     expect(rowsOf(element)[15].classList.contains('active')).toBe(true);
 
-    const scrollIntoViewMock = vi.fn();
-    const original = Element.prototype.scrollIntoView;
-    Element.prototype.scrollIntoView = scrollIntoViewMock;
+    scrollIntoViewMock.mockClear();
+    press(element, 'ArrowUp', 10);
+    await element.updateComplete;
 
-    try {
-      for (let i = 0; i < 10; i++) {
-        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
-      }
-      await element.updateComplete;
-
-      // 10 ArrowUp presses from row 15 land on row 5.
-      const rows = rowsOf(element);
-      expect(rows[5].classList.contains('active')).toBe(true);
-      expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: 'nearest' });
-      expect(scrollIntoViewMock.mock.contexts.at(-1)).toBe(rows[5]);
-    } finally {
-      Element.prototype.scrollIntoView = original;
-    }
+    // 10 ArrowUp presses from row 15 land on row 5.
+    const rows = rowsOf(element);
+    expect(rows[5].classList.contains('active')).toBe(true);
+    expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: 'nearest', behavior: 'smooth' });
+    expect(scrollIntoViewMock.mock.contexts.at(-1)).toBe(rows[5]);
   });
 
   it('does not reopen the dropdown after an add echoes back a selection change', async () => {
@@ -305,8 +284,7 @@ describe('protspace-protein-search feedback', () => {
     await typeQuery(element, 'GT40');
     expect(rowsOf(element)).toHaveLength(1);
 
-    const input = element.shadowRoot!.querySelector('#protein-search-input') as HTMLInputElement;
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    press(element, 'Enter');
     await element.updateComplete;
 
     // The add cleared the query and closed the dropdown synchronously.

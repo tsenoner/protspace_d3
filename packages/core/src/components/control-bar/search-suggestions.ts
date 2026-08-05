@@ -28,9 +28,18 @@ export interface SearchSuggestion {
  *
  * Stops scanning once the selectable budget is full AND the selected budget is either
  * full or exhausted (every selected ID has been walked past, tracked by `selectedSeen`).
- * That is typically sub-ms even at 573K, but not unconditionally: a selected ID sitting
- * late in `availableIds` still forces the scan up to its index before it can be marked
- * exhausted (~5 ms at 573K in that worst case).
+ *
+ * With no selection that is sub-ms even at 573K. With one, the exhausted clause can only
+ * fire after the loop passes the *highest index* of any selected ID — and since selections
+ * come from clicking scatter-plot points, those indices are arbitrary, so the expected scan
+ * length for k selections is `N·k/(k+1)`: half the array for one selection, 90% for three.
+ * Measured at 573K that is ~4 ms for one selection and ~9-10 ms for three or more, per
+ * debounced keystroke plus every Enter/Arrow flush and every selection echo. That is the
+ * typical cost of having a selection, not a worst case.
+ *
+ * Bounding it properly means breaking on the selectable budget alone and topping the
+ * selected budget up from `selectedIds` directly — O(50 + |selection|), ~0.2 ms — at the
+ * price of ordering overflow marked rows by selection rather than by `availableIds` index.
  */
 export function computeSearchSuggestions(
   availableIds: readonly string[],

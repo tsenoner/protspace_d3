@@ -1,6 +1,7 @@
-import { LitElement, html, type PropertyValues } from 'lit';
+import { LitElement, html, nothing, type PropertyValues } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { customElement } from '../../utils/safe-custom-element';
+import { scrollHighlightedIntoView } from '../../utils/dropdown-helpers';
 import { searchStyles } from './search.styles';
 import { isMacOrIos } from '@protspace/utils';
 import { computeSearchSuggestions, type SearchSuggestion } from './search-suggestions';
@@ -60,7 +61,7 @@ class ProtspaceProteinSearch extends LitElement {
                           : ''} ${suggestion.isSelected ? 'selected' : ''}"
                         role="option"
                         aria-selected=${suggestion.isSelected}
-                        title=${suggestion.isSelected ? 'Remove from selection' : ''}
+                        title=${suggestion.isSelected ? 'Remove from selection' : nothing}
                         aria-label=${suggestion.isSelected
                           ? `${suggestion.id}, remove from selection`
                           : suggestion.id}
@@ -134,16 +135,11 @@ class ProtspaceProteinSearch extends LitElement {
   // instead, matching the convention elsewhere in this package (e.g. scatter-plot.ts,
   // legend.ts, query-numeric-input.ts).
   protected updated(changed: Map<string, unknown>): void {
-    // Arrow-key navigation moves `highlightedSuggestionIndex` without scrolling anything.
     // `.search-suggestions` is a fixed-height (max-height: 20rem) scroll container fitting
-    // ~8 rows, so past that the user navigates blind (issue #413). `block: 'nearest'` only
-    // scrolls when the row is actually outside the visible area, so it never jumps the
-    // list when the highlighted row is already visible.
+    // ~8 rows, so past that arrow-key navigation would run off screen (issue #413).
     if (!changed.has('highlightedSuggestionIndex')) return;
     if (this.highlightedSuggestionIndex < 0) return;
-    const rows = this.shadowRoot?.querySelectorAll('.search-suggestion');
-    const row = rows?.[this.highlightedSuggestionIndex] as HTMLElement | undefined;
-    row?.scrollIntoView?.({ block: 'nearest' });
+    scrollHighlightedIntoView(this.shadowRoot, '.search-suggestion.active');
   }
 
   private _handleBodyKeydown = (event: KeyboardEvent) => {

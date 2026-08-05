@@ -17,6 +17,23 @@ const selectedIdsOf = (result: SearchSuggestion[]): string[] =>
 const selectableIdsOf = (result: SearchSuggestion[]): string[] =>
   result.filter((entry) => !entry.isSelected).map((entry) => entry.id);
 
+/**
+ * An ID array that counts how many entries the scan actually reads, so the early exit can
+ * be pinned by iteration count rather than by wall-clock timing. Only numeric index reads
+ * are counted — `.length` and other property access are not part of the scan.
+ */
+function countingIds(length: number): { ids: readonly string[]; reads: () => number } {
+  const backing = Array.from({ length }, (_, i) => `P${String(i).padStart(6, '0')}`);
+  let reads = 0;
+  const ids = new Proxy(backing, {
+    get(target, prop) {
+      if (typeof prop === 'string' && /^[0-9]+$/.test(prop)) reads++;
+      return Reflect.get(target, prop);
+    },
+  }) as readonly string[];
+  return { ids, reads: () => reads };
+}
+
 describe('computeSearchSuggestions', () => {
   describe('empty query + focused', () => {
     it('returns entries capped at the default selectable limit', () => {
@@ -195,34 +212,20 @@ describe('computeSearchSuggestions', () => {
     });
 
     it('stops scanning once the selectable budget is full and selections are exhausted', () => {
-      const ids = Array.from({ length: 100_000 }, (_, i) => `P${String(i).padStart(6, '0')}`);
-      let reads = 0;
-      const counted = new Proxy(ids, {
-        get(target, prop) {
-          if (typeof prop === 'string' && /^[0-9]+$/.test(prop)) reads++;
-          return Reflect.get(target, prop);
-        },
-      }) as readonly string[];
+      const { ids, reads } = countingIds(100_000);
 
-      const result = computeSearchSuggestions(counted, ['P000002'], '', true);
+      const result = computeSearchSuggestions(ids, ['P000002'], '', true);
 
       expect(result).toHaveLength(MAX_SEARCH_SUGGESTIONS + 1);
-      expect(reads).toBeLessThan(100);
+      expect(reads()).toBeLessThan(100);
     });
 
     it('stops scanning with no selections at all', () => {
-      const ids = Array.from({ length: 100_000 }, (_, i) => `P${String(i).padStart(6, '0')}`);
-      let reads = 0;
-      const counted = new Proxy(ids, {
-        get(target, prop) {
-          if (typeof prop === 'string' && /^[0-9]+$/.test(prop)) reads++;
-          return Reflect.get(target, prop);
-        },
-      }) as readonly string[];
+      const { ids, reads } = countingIds(100_000);
 
-      computeSearchSuggestions(counted, [], 'p', true);
+      computeSearchSuggestions(ids, [], 'p', true);
 
-      expect(reads).toBeLessThan(100);
+      expect(reads()).toBeLessThan(100);
     });
   });
 
