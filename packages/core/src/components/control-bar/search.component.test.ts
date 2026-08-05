@@ -321,4 +321,30 @@ describe('protspace-protein-search feedback', () => {
     expect(rowsOf(element)).toHaveLength(0);
     expect(element.shadowRoot!.querySelector('.search-suggestions')).toBeNull();
   });
+
+  it('refreshes dataset results only while the dropdown is open', async () => {
+    const element = await setupSearch(['OLD1'], []);
+    await typeQuery(element, 'NEW');
+
+    expect(rowsOf(element)).toHaveLength(0);
+    expect(element.shadowRoot!.querySelector('.no-results')?.textContent).toBe(
+      'No matching protein IDs found',
+    );
+
+    element.availableProteinIds = ['NEW1'];
+    await element.updateComplete;
+
+    expect(rowsOf(element).map(rowText)).toEqual(['NEW1']);
+    expect(element.shadowRoot!.querySelector('.no-results')).toBeNull();
+
+    const input = element.shadowRoot!.querySelector('#protein-search-input') as HTMLInputElement;
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await element.updateComplete;
+    expect(element.shadowRoot!.querySelector('.search-suggestions')).toBeNull();
+
+    element.availableProteinIds = ['NEW2'];
+    await element.updateComplete;
+
+    expect(element.shadowRoot!.querySelector('.search-suggestions')).toBeNull();
+  });
 });

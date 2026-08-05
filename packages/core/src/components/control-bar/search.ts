@@ -21,6 +21,7 @@ class ProtspaceProteinSearch extends LitElement {
   @state() private searchSuggestions: SearchSuggestion[] = [];
   @state() private highlightedSuggestionIndex: number = -1;
   @state() private isInputFocused: boolean = false;
+  @state() private isSuggestionDropdownOpen: boolean = false;
 
   private _suggestionDebounceId: ReturnType<typeof setTimeout> | null = null;
   private _blurTimeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -47,40 +48,42 @@ class ProtspaceProteinSearch extends LitElement {
           </div>
         </div>
 
-        ${this.searchSuggestions.length > 0 && (this.searchQuery || this.isInputFocused)
-          ? html`
-              <div class="search-suggestions" role="listbox">
-                ${this.searchSuggestions.map(
-                  (suggestion, i) => html`
-                    <div
-                      class="search-suggestion ${i === this.highlightedSuggestionIndex
-                        ? 'active'
-                        : ''} ${suggestion.isSelected ? 'selected' : ''}"
-                      role="option"
-                      aria-selected=${suggestion.isSelected}
-                      title=${suggestion.isSelected ? 'Remove from selection' : ''}
-                      aria-label=${suggestion.isSelected
-                        ? `${suggestion.id}, remove from selection`
-                        : suggestion.id}
-                      @mousedown=${(e: Event) => {
-                        // Use mousedown to avoid blur before click
-                        e.preventDefault();
-                        this._activateSuggestion(suggestion);
-                      }}
-                    >
-                      ${suggestion.id}
-                    </div>
-                  `,
-                )}
-              </div>
-            `
-          : this.searchQuery.trim() && this.searchSuggestions.length === 0
+        ${this.isSuggestionDropdownOpen
+          ? this.searchSuggestions.length > 0
             ? html`
-                <div class="search-suggestions">
-                  <div class="no-results">No matching protein IDs found</div>
+                <div class="search-suggestions" role="listbox">
+                  ${this.searchSuggestions.map(
+                    (suggestion, i) => html`
+                      <div
+                        class="search-suggestion ${i === this.highlightedSuggestionIndex
+                          ? 'active'
+                          : ''} ${suggestion.isSelected ? 'selected' : ''}"
+                        role="option"
+                        aria-selected=${suggestion.isSelected}
+                        title=${suggestion.isSelected ? 'Remove from selection' : ''}
+                        aria-label=${suggestion.isSelected
+                          ? `${suggestion.id}, remove from selection`
+                          : suggestion.id}
+                        @mousedown=${(e: Event) => {
+                          // Use mousedown to avoid blur before click
+                          e.preventDefault();
+                          this._activateSuggestion(suggestion);
+                        }}
+                      >
+                        ${suggestion.id}
+                      </div>
+                    `,
+                  )}
                 </div>
               `
-            : ''}
+            : this.searchQuery.trim()
+              ? html`
+                  <div class="search-suggestions">
+                    <div class="no-results">No matching protein IDs found</div>
+                  </div>
+                `
+              : ''
+          : ''}
       </div>
     `;
   }
@@ -95,6 +98,7 @@ class ProtspaceProteinSearch extends LitElement {
       this.highlightedSuggestionIndex = -1;
       this.searchQuery = '';
       this.isInputFocused = false;
+      this.isSuggestionDropdownOpen = false;
       // Blur the input element to sync state
       const input = this.shadowRoot?.querySelector(
         '#protein-search-input',
@@ -117,10 +121,10 @@ class ProtspaceProteinSearch extends LitElement {
     // `searchSuggestions`, never `selectedProteinIds`.
     if (!changed.has('selectedProteinIds') && !changed.has('availableProteinIds')) return;
     if (!this.searchQuery.trim() && !this.isInputFocused) return;
-    // Only refresh a dropdown that is already open. Without this, clearing the query
-    // on add (or Escape, or a blur that left text behind) leaves the component ready
-    // to re-open the list the moment the parent echoes a selection change back down.
-    if (this.searchSuggestions.length === 0) return;
+    // Result count cannot identify whether the dropdown is closed: an open no-match
+    // state also has zero suggestions. Track open state explicitly so dataset changes
+    // refresh empty results without reopening after add, Escape, or blur.
+    if (!this.isSuggestionDropdownOpen) return;
     this._updateSuggestions(true);
   }
 
@@ -169,6 +173,7 @@ class ProtspaceProteinSearch extends LitElement {
   private _onSearchInput(event: Event) {
     const target = event.target as HTMLInputElement;
     this.searchQuery = target.value;
+    this.isSuggestionDropdownOpen = true;
     this._clearSuggestionDebounce();
     this._suggestionDebounceId = setTimeout(() => {
       this._suggestionDebounceId = null;
@@ -212,11 +217,13 @@ class ProtspaceProteinSearch extends LitElement {
       this.searchSuggestions = [];
       this.highlightedSuggestionIndex = -1;
       this.searchQuery = '';
+      this.isSuggestionDropdownOpen = false;
     }
   }
 
   private _onInputFocus() {
     this.isInputFocused = true;
+    this.isSuggestionDropdownOpen = true;
     this._clearSuggestionDebounce();
     this._clearBlurTimeout();
     this._updateSuggestions();
@@ -237,6 +244,7 @@ class ProtspaceProteinSearch extends LitElement {
       this._blurTimeoutId = null;
       this.searchSuggestions = [];
       this.highlightedSuggestionIndex = -1;
+      this.isSuggestionDropdownOpen = false;
     }, 200);
   }
 
@@ -323,6 +331,7 @@ class ProtspaceProteinSearch extends LitElement {
         this.searchQuery = '';
         this.searchSuggestions = [];
         this.highlightedSuggestionIndex = -1;
+        this.isSuggestionDropdownOpen = false;
         return;
       }
     }
@@ -333,6 +342,7 @@ class ProtspaceProteinSearch extends LitElement {
       this.searchQuery = '';
       this.searchSuggestions = [];
       this.highlightedSuggestionIndex = -1;
+      this.isSuggestionDropdownOpen = false;
       return;
     }
 
@@ -341,6 +351,7 @@ class ProtspaceProteinSearch extends LitElement {
     this.searchQuery = '';
     this.searchSuggestions = [];
     this.highlightedSuggestionIndex = -1;
+    this.isSuggestionDropdownOpen = false;
 
     // Dispatch selection change event
     this.dispatchEvent(
@@ -389,6 +400,7 @@ class ProtspaceProteinSearch extends LitElement {
     this.searchQuery = '';
     this.searchSuggestions = [];
     this.highlightedSuggestionIndex = -1;
+    this.isSuggestionDropdownOpen = false;
   }
 
   /**

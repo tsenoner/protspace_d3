@@ -2,12 +2,13 @@
 
 ### Requirement: Protein search shows already-selected proteins as marked suggestions
 
-The protein search SHALL include already-selected protein IDs in the suggestion list, visually marked as selected, rather than omitting them. Selected and selectable entries SHALL draw from independent display budgets so that selectable entries remain visible regardless of how many matches are already selected.
+The protein search SHALL include already-selected protein IDs in the suggestion list, visually marked as selected, rather than omitting them. Selected and selectable entries SHALL draw from independent display budgets so that selectable entries remain visible regardless of how many matches are already selected. The selected-entry display budget SHALL be 10 rows.
 
 #### Scenario: Every prefix match is already selected
 
 - **WHEN** a user searches a partial ID whose every available match is already selected
-- **THEN** each matching protein is listed and marked as selected
+- **THEN** up to the first 10 matching proteins in available-protein order are listed and marked as selected
+- **AND** additional selected matches beyond that display budget are not rendered
 - **AND** the feedback does not display `No matching protein IDs found`
 
 #### Scenario: Selected ID is a strict prefix of unselected IDs

@@ -41,10 +41,12 @@ adding you typically search for the next protein; after removing you typically p
 within the current result set. The alternative — both preserving — regresses the
 single-ID search-and-add flow that this change originated from.
 
-**Recompute on selection change.** `searchSuggestions` is computed on a debounce, so a
-preserved query would leave a stale list after a removal. A `willUpdate` hook recomputes
-when `selectedProteinIds` changes and the dropdown is open, preserving the highlight index
-clamped to the new length.
+**Recompute changed inputs only while open.** `searchSuggestions` is computed on a debounce,
+so a preserved query would leave a stale list after a removal, and an open no-match result
+would stay stale when `availableProteinIds` changes. A dedicated open-state flag distinguishes
+that empty result from a closed dropdown. A `willUpdate` hook recomputes when either input
+changes while the dropdown is open, preserving the highlight index clamped to the new length
+without reopening after add, Escape, or blur.
 
 **Conditional suggestion flush.** `_flushSuggestions` recomputed on every Enter or arrow
 keypress, resetting the highlight to 0 before the key handler read it — so arrow
