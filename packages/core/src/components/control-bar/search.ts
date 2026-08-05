@@ -1,7 +1,7 @@
 import { LitElement, html, nothing, type PropertyValues } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { customElement } from '../../utils/safe-custom-element';
-import { scrollHighlightedIntoView } from '../../utils/dropdown-helpers';
+import { handleDropdownEscape, scrollHighlightedIntoView } from '../../utils/dropdown-helpers';
 import { searchStyles } from './search.styles';
 import { isMacOrIos } from '@protspace/utils';
 import { computeSearchSuggestions, type SearchSuggestion } from './search-suggestions';
@@ -35,10 +35,15 @@ class ProtspaceProteinSearch extends LitElement {
   private _suggestionDebounceId: ReturnType<typeof setTimeout> | null = null;
   private _blurTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
+  /** True exactly when `render()` emits the listbox that the combobox ARIA refers to. */
+  private get _isListboxRendered(): boolean {
+    return this.isSuggestionDropdownOpen && this.searchSuggestions.length > 0;
+  }
+
   render() {
     return html`
-      <div class="search-container" @click=${this._focusSearchInput}>
-        <div class="search-chips">
+      <div class="search-container">
+        <div class="search-chips" @click=${this._focusSearchInput}>
           <input
             id="protein-search-input"
             class="search-input"
@@ -47,8 +52,8 @@ class ProtspaceProteinSearch extends LitElement {
             placeholder="Search or paste protein IDs"
             role="combobox"
             aria-autocomplete="list"
-            aria-expanded=${this.isSuggestionDropdownOpen && this.searchSuggestions.length > 0}
-            aria-controls=${SUGGESTIONS_LIST_ID}
+            aria-expanded=${this._isListboxRendered}
+            aria-controls=${this._isListboxRendered ? SUGGESTIONS_LIST_ID : nothing}
             aria-activedescendant=${this.highlightedSuggestionIndex >= 0
               ? suggestionRowId(this.highlightedSuggestionIndex)
               : nothing}
@@ -113,24 +118,29 @@ class ProtspaceProteinSearch extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     window.addEventListener('keydown', this._handleBodyKeydown);
-    // Listen for parent-initiated close
-    this.addEventListener('close-search', () => {
-      this._resetSearch();
-      this.isInputFocused = false;
-      // Blur the input element to sync state
-      const input = this.shadowRoot?.querySelector(
-        '#protein-search-input',
-      ) as HTMLInputElement | null;
-      input?.blur();
-    });
+    // Listen for parent-initiated close. Bound field, not an inline closure: an inline
+    // one cannot be removed, so every re-attach of this element would stack another
+    // handler and run the close N times.
+    this.addEventListener('close-search', this._handleCloseSearch);
   }
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
     window.removeEventListener('keydown', this._handleBodyKeydown);
+    this.removeEventListener('close-search', this._handleCloseSearch);
     this._clearSuggestionDebounce();
     this._clearBlurTimeout();
   }
+
+  private _handleCloseSearch = () => {
+    this._resetSearch();
+    this.isInputFocused = false;
+    // Blur the input element to sync state
+    const input = this.shadowRoot?.querySelector(
+      '#protein-search-input',
+    ) as HTMLInputElement | null;
+    input?.blur();
+  };
 
   protected willUpdate(changed: PropertyValues<this>): void {
     // `searchSuggestions` is computed on a debounce, so a selection change made elsewhere
@@ -166,6 +176,14 @@ class ProtspaceProteinSearch extends LitElement {
     }
   };
 
+  /**
+   * Bound to `.search-chips` — the input's own row — and deliberately not to
+   * `.search-container`. The suggestion list is absolutely positioned but is still a
+   * child of the container, so a container-level handler would refocus the input on
+   * every suggestion click. In the 200ms blur grace window the input is not focused, so
+   * that refocus fires `_onInputFocus` and reopens the dropdown against the query a
+   * click-add just cleared — the ~50 unrelated rows this component exists to suppress.
+   */
   private _focusSearchInput() {
     const input = this.shadowRoot?.querySelector(
       '#protein-search-input',
@@ -186,7 +204,11 @@ class ProtspaceProteinSearch extends LitElement {
   private _onSearchInput(event: Event) {
     const target = event.target as HTMLInputElement;
     this.searchQuery = target.value;
-    this.isSuggestionDropdownOpen = true;
+    // Opening is deliberately left to `_updateSuggestions` on the debounce. Opening here
+    // would render the previous close's empty `searchSuggestions` against a non-empty
+    // query, i.e. flash `No matching protein IDs found` for SEARCH_DEBOUNCE_MS on the
+    // first keystroke after every add, Escape, or blur. While the dropdown is already
+    // open it stays open, so continuous typing is unaffected.
     this._clearSuggestionDebounce();
     this._suggestionDebounceId = setTimeout(() => {
       this._suggestionDebounceId = null;
@@ -224,15 +246,12 @@ class ProtspaceProteinSearch extends LitElement {
         this.highlightedSuggestionIndex = prev;
       }
     } else if (event.key === 'Escape') {
-      event.preventDefault();
-      event.stopPropagation();
-      this._resetSearch();
+      handleDropdownEscape(event, () => this._resetSearch());
     }
   }
 
   private _onInputFocus() {
     this.isInputFocused = true;
-    this.isSuggestionDropdownOpen = true;
     this._clearSuggestionDebounce();
     this._clearBlurTimeout();
     this._updateSuggestions();
@@ -300,14 +319,21 @@ class ProtspaceProteinSearch extends LitElement {
       this.searchQuery,
       this.isInputFocused,
     );
+    // Every caller (focus, debounce, flush, and the open-guarded `willUpdate`) is a
+    // reason for the list to be showing, and settling the open state here rather than
+    // at the keystroke keeps the dropdown and its contents in the same commit.
+    this.isSuggestionDropdownOpen = true;
 
     if (this.searchSuggestions.length === 0) {
       this.highlightedSuggestionIndex = -1;
       return;
     }
 
+    // `Math.min` alone, so a preserved -1 stays -1: an input-driven refresh must not
+    // invent a keyboard cursor the user never moved, or Enter would activate a row
+    // they never highlighted.
     this.highlightedSuggestionIndex = preserveHighlight
-      ? Math.min(Math.max(previousIndex, 0), this.searchSuggestions.length - 1)
+      ? Math.min(previousIndex, this.searchSuggestions.length - 1)
       : 0;
   }
 

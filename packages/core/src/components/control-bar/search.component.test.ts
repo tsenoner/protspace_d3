@@ -171,6 +171,44 @@ describe('protspace-protein-search feedback', () => {
     const input = inputOf(element);
     expect(input.getAttribute('aria-expanded')).toBe('false');
     expect(input.hasAttribute('aria-activedescendant')).toBe(false);
+    // aria-controls must not name an element that is no longer in the shadow root.
+    expect(input.hasAttribute('aria-controls')).toBe(false);
+  });
+
+  it('does not flash the no-match message while the first keystroke is still debounced', async () => {
+    const element = await setupSearch(['GT4', 'GT40'], []);
+    await typeQuery(element, 'GT4');
+
+    press(element, 'Escape');
+    await element.updateComplete;
+    expect(element.shadowRoot!.querySelector('.search-suggestions')).toBeNull();
+
+    const input = inputOf(element);
+    input.value = 'GT4';
+    input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    await element.updateComplete;
+
+    // Mid-debounce the suggestions are stale-empty; claiming "no matches" here would be
+    // false for the full debounce window.
+    expect(element.shadowRoot!.querySelector('.no-results')).toBeNull();
+
+    vi.advanceTimersByTime(120);
+    await element.updateComplete;
+    expect(rowsOf(element).map(rowText)).toEqual(['GT4', 'GT40']);
+  });
+
+  it('does not invent a highlight when a dataset change refreshes an empty result', async () => {
+    const element = await setupSearch(['OLD1'], []);
+    await typeQuery(element, 'NEW');
+    expect(inputOf(element).hasAttribute('aria-activedescendant')).toBe(false);
+
+    element.availableProteinIds = ['NEW1', 'NEW2'];
+    await element.updateComplete;
+
+    expect(rowsOf(element).map(rowText)).toEqual(['NEW1', 'NEW2']);
+    // The user never moved the cursor, so Enter must not activate NEW1.
+    expect(rowsOf(element).some((row) => row.classList.contains('active'))).toBe(false);
+    expect(inputOf(element).hasAttribute('aria-activedescendant')).toBe(false);
   });
 
   it('emits remove-selection when a marked row is clicked', async () => {

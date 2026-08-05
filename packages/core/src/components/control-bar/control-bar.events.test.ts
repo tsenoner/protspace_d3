@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createSelectionDisabledNotificationDetail } from './control-bar.events';
 import './control-bar';
 
@@ -27,8 +27,14 @@ describe('control-bar events', () => {
  * without this, since neither half alone exercises the connection between them.
  */
 describe('control-bar remove-selection wiring', () => {
-  it('drops the protein from the selection and emits protein-selection-change with the remaining IDs', async () => {
+  // Teardown, not setup: the control bar registers document-level click/keydown
+  // listeners in `connectedCallback`, so leaving it mounted would leak them into
+  // whatever runs next in this file.
+  afterEach(() => {
     document.body.innerHTML = '';
+  });
+
+  it('drops the protein from the selection and emits protein-selection-change with the remaining IDs', async () => {
     const controlBar = document.createElement('protspace-control-bar') as HTMLElement & {
       autoSync?: boolean;
       allProteinIds: string[];
