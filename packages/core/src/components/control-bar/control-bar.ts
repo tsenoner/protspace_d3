@@ -376,25 +376,11 @@ export class ProtspaceControlBar extends LitElement {
     });
     this.dispatchEvent(customEvent);
 
-    // If auto-sync is enabled, directly clear selections in scatterplot
-    if (this.autoSync && this._scatterplotElement) {
-      if ('selectedProteinIds' in this._scatterplotElement) {
-        (this._scatterplotElement as ScatterplotElementLike).selectedProteinIds = [];
-        this.selectedProteinsCount = 0;
-      }
-    }
-
-    // Clear search chips
-    this.selectedIdsChips = [];
-
-    // Dispatch a single, consistent event for all selection changes
-    this.dispatchEvent(
-      new CustomEvent('protein-selection-change', {
-        detail: { proteinIds: [] },
-        bubbles: true,
-        composed: true,
-      }),
-    );
+    // Previously this reset `selectedProteinsCount` inside the auto-sync branch, so
+    // clearing while `autoSync` was false (as `data-renderer.ts` sets it during a data
+    // swap) emptied the chips but left the count stale — keeping the Clear button live
+    // and Escape firing against an empty selection.
+    this._commitSelection([]);
   }
 
   private handleSplitData() {

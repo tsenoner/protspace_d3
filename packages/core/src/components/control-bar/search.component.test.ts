@@ -140,6 +140,39 @@ describe('protspace-protein-search feedback', () => {
     expect(rows[1].hasAttribute('title')).toBe(false);
   });
 
+  it('points aria-activedescendant at the keyboard-highlighted row', async () => {
+    const element = await setupSearch([...FIVE, 'Q12345'], []);
+    await typeQuery(element, 'P0059');
+
+    const input = inputOf(element);
+    const listbox = element.shadowRoot!.querySelector('[role="listbox"]')!;
+    expect(input.getAttribute('role')).toBe('combobox');
+    expect(input.getAttribute('aria-expanded')).toBe('true');
+    expect(input.getAttribute('aria-controls')).toBe(listbox.id);
+    // Multi-selectable, so aria-selected marks selection state, not the cursor.
+    expect(listbox.getAttribute('aria-multiselectable')).toBe('true');
+
+    press(element, 'ArrowDown', 2);
+    await element.updateComplete;
+
+    const rows = rowsOf(element);
+    expect(rows[2].classList.contains('active')).toBe(true);
+    expect(input.getAttribute('aria-activedescendant')).toBe(rows[2].id);
+  });
+
+  it('drops aria-activedescendant and collapses aria-expanded once the dropdown closes', async () => {
+    const element = await setupSearch(['GT4', 'GT40'], []);
+    await typeQuery(element, 'GT40');
+    expect(inputOf(element).getAttribute('aria-activedescendant')).not.toBeNull();
+
+    press(element, 'Escape');
+    await element.updateComplete;
+
+    const input = inputOf(element);
+    expect(input.getAttribute('aria-expanded')).toBe('false');
+    expect(input.hasAttribute('aria-activedescendant')).toBe(false);
+  });
+
   it('emits remove-selection when a marked row is clicked', async () => {
     const element = await setupSearch([...FIVE, 'Q12345'], FIVE);
     await typeQuery(element, 'P0059');

@@ -42,6 +42,22 @@ The protein search SHALL remove a protein from the selection when its marked sug
 - **WHEN** a user presses Enter on a highlighted suggestion marked as already selected
 - **THEN** that protein is removed from the selection
 
+### Requirement: The suggestion list is navigable by assistive technology
+
+The protein search SHALL expose the suggestion list as a multi-selectable listbox owned by the input, so that `aria-selected` denotes membership of the protein selection and the keyboard cursor is conveyed separately by `aria-activedescendant`.
+
+#### Scenario: Keyboard cursor moves between suggestions
+
+- **WHEN** a user moves the highlight with the arrow keys
+- **THEN** the input's `aria-activedescendant` names the highlighted row
+- **AND** `aria-selected` continues to reflect only whether each protein is in the selection
+
+#### Scenario: Dropdown closes
+
+- **WHEN** the suggestion dropdown closes
+- **THEN** the input reports `aria-expanded` as false
+- **AND** the input exposes no `aria-activedescendant`
+
 ### Requirement: Generic no-match feedback remains available
 
 The protein search SHALL show generic no-match feedback only when a non-empty query matches no available protein ID at all.

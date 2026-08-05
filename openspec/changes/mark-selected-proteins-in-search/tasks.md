@@ -17,6 +17,9 @@
 - [x] 3.3 Handle `remove-selection` in the control bar, mirroring `add-selection`.
 - [x] 3.4 Scroll the keyboard-highlighted suggestion into view with `block: 'nearest'`
       as it changes, fixing the off-screen highlight past the visible area (#413).
+- [x] 3.5 Wire the input as a combobox owning the listbox, so the keyboard cursor is
+      announced via `aria-activedescendant` — the screen-reader half of #413 — and
+      `aria-selected` keeps its multi-select listbox meaning.
 
 ## 4. Verification
 

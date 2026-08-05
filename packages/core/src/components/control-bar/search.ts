@@ -9,6 +9,14 @@ import { computeSearchSuggestions, type SearchSuggestion } from './search-sugges
 const SEARCH_DEBOUNCE_MS = 120;
 
 /**
+ * `aria-activedescendant` needs a stable id per row so assistive tech can announce the
+ * keyboard cursor. `aria-selected` is left to mean what it means in a multi-selectable
+ * listbox — "this protein is in the selection" — rather than doubling as the cursor.
+ */
+const SUGGESTIONS_LIST_ID = 'protein-search-suggestions';
+const suggestionRowId = (index: number) => `${SUGGESTIONS_LIST_ID}-${index}`;
+
+/**
  * Protein search component with autocomplete suggestions and multi-select state (no chips UI)
  */
 @customElement('protspace-protein-search')
@@ -37,6 +45,13 @@ class ProtspaceProteinSearch extends LitElement {
             type="text"
             .value=${this.searchQuery}
             placeholder="Search or paste protein IDs"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded=${this.isSuggestionDropdownOpen && this.searchSuggestions.length > 0}
+            aria-controls=${SUGGESTIONS_LIST_ID}
+            aria-activedescendant=${this.highlightedSuggestionIndex >= 0
+              ? suggestionRowId(this.highlightedSuggestionIndex)
+              : nothing}
             @input=${this._onSearchInput}
             @keydown=${this._onSearchKeydown}
             @blur=${this._onInputBlur}
@@ -52,13 +67,19 @@ class ProtspaceProteinSearch extends LitElement {
         ${this.isSuggestionDropdownOpen
           ? this.searchSuggestions.length > 0
             ? html`
-                <div class="search-suggestions" role="listbox">
+                <div
+                  class="search-suggestions"
+                  id=${SUGGESTIONS_LIST_ID}
+                  role="listbox"
+                  aria-multiselectable="true"
+                >
                   ${this.searchSuggestions.map(
                     (suggestion, i) => html`
                       <div
                         class="search-suggestion ${i === this.highlightedSuggestionIndex
                           ? 'active'
                           : ''} ${suggestion.isSelected ? 'selected' : ''}"
+                        id=${suggestionRowId(i)}
                         role="option"
                         aria-selected=${suggestion.isSelected}
                         title=${suggestion.isSelected ? 'Remove from selection' : nothing}
@@ -94,12 +115,8 @@ class ProtspaceProteinSearch extends LitElement {
     window.addEventListener('keydown', this._handleBodyKeydown);
     // Listen for parent-initiated close
     this.addEventListener('close-search', () => {
-      this._clearSuggestionDebounce();
-      this.searchSuggestions = [];
-      this.highlightedSuggestionIndex = -1;
-      this.searchQuery = '';
+      this._resetSearch();
       this.isInputFocused = false;
-      this.isSuggestionDropdownOpen = false;
       // Blur the input element to sync state
       const input = this.shadowRoot?.querySelector(
         '#protein-search-input',
@@ -209,11 +226,7 @@ class ProtspaceProteinSearch extends LitElement {
     } else if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
-      this._clearSuggestionDebounce();
-      this.searchSuggestions = [];
-      this.highlightedSuggestionIndex = -1;
-      this.searchQuery = '';
-      this.isSuggestionDropdownOpen = false;
+      this._resetSearch();
     }
   }
 
@@ -238,9 +251,7 @@ class ProtspaceProteinSearch extends LitElement {
     // Delay clearing suggestions to allow mousedown to fire on suggestions
     this._blurTimeoutId = setTimeout(() => {
       this._blurTimeoutId = null;
-      this.searchSuggestions = [];
-      this.highlightedSuggestionIndex = -1;
-      this.isSuggestionDropdownOpen = false;
+      this._closeDropdown();
     }, 200);
   }
 
@@ -249,6 +260,20 @@ class ProtspaceProteinSearch extends LitElement {
       clearTimeout(this._suggestionDebounceId);
       this._suggestionDebounceId = null;
     }
+  }
+
+  /** Collapse the dropdown, leaving the query intact. */
+  private _closeDropdown() {
+    this.searchSuggestions = [];
+    this.highlightedSuggestionIndex = -1;
+    this.isSuggestionDropdownOpen = false;
+  }
+
+  /** Close the dropdown and clear the query — the reset every activation path shares. */
+  private _resetSearch() {
+    this._clearSuggestionDebounce();
+    this.searchQuery = '';
+    this._closeDropdown();
   }
 
   private _clearBlurTimeout() {
@@ -323,31 +348,18 @@ class ProtspaceProteinSearch extends LitElement {
         validId = exact;
       } else {
         // ID not found in available proteins - ignore
-        this._clearSuggestionDebounce();
-        this.searchQuery = '';
-        this.searchSuggestions = [];
-        this.highlightedSuggestionIndex = -1;
-        this.isSuggestionDropdownOpen = false;
+        this._resetSearch();
         return;
       }
     }
 
     // Check if already selected
     if (this.selectedProteinIds.includes(validId)) {
-      this._clearSuggestionDebounce();
-      this.searchQuery = '';
-      this.searchSuggestions = [];
-      this.highlightedSuggestionIndex = -1;
-      this.isSuggestionDropdownOpen = false;
+      this._resetSearch();
       return;
     }
 
-    // Clear search state
-    this._clearSuggestionDebounce();
-    this.searchQuery = '';
-    this.searchSuggestions = [];
-    this.highlightedSuggestionIndex = -1;
-    this.isSuggestionDropdownOpen = false;
+    this._resetSearch();
 
     // Dispatch selection change event
     this.dispatchEvent(
@@ -392,11 +404,7 @@ class ProtspaceProteinSearch extends LitElement {
       );
     }
 
-    this._clearSuggestionDebounce();
-    this.searchQuery = '';
-    this.searchSuggestions = [];
-    this.highlightedSuggestionIndex = -1;
-    this.isSuggestionDropdownOpen = false;
+    this._resetSearch();
   }
 
   /**
