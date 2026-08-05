@@ -107,6 +107,21 @@ describe('round-trip with real data files', () => {
     expect(delimiterCount).toBe(3);
   });
 
+  it('re-emits a statistics part behind the zero-byte settings sentinel', async () => {
+    const filePath = resolve(__dirname, '../../../../../../apps/web/public/data/5K.parquetbundle');
+    const extraction = await extractRowsFromParquetBundle(loadArrayBuffer(filePath));
+    const data = convertParquetToVisualizationData(extraction);
+
+    // Stand-in bytes: the writer must carry the part through, never parse it.
+    data.statistics = new TextEncoder().encode('PAR1-statistics').buffer as ArrayBuffer;
+
+    const exported = new Uint8Array(createParquetBundle(data));
+
+    // 5 parts even without settings, so statistics stays at position five.
+    expect(countBundleDelimiters(exported)).toBe(4);
+    expect(new TextDecoder().decode(exported.slice(-15))).toBe('PAR1-statistics');
+  });
+
   it('should preserve raw numeric annotations through export/import', async () => {
     const filePath = resolve(
       __dirname,

@@ -101,6 +101,11 @@ export interface VisualizationData {
   annotation_predicted?: AnnotationPredictedData;
   annotation_scores?: Record<string, (number[] | null)[][]>;
   annotation_evidence?: Record<string, (string | null)[][]>;
+  /**
+   * Raw projection-statistics parquet part (bundle part 5) as read, carried
+   * unparsed so an export re-emits it instead of dropping it.
+   */
+  statistics?: ArrayBuffer;
 }
 
 export interface PlotDataPoint {
