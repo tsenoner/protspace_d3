@@ -226,54 +226,16 @@ describe('legend score column', () => {
     document.body.innerHTML = '';
   });
 
-  it('shows each category silhouette in its row', async () => {
+  it('keeps a scored row down to its label and count', async () => {
+    // The per-row number is gone: the strips' value gutters read out the hovered
+    // category on every metric at once, so repeating silhouette alone on each row was
+    // a second, narrower answer to the same question. A row is its label and count.
     const el = await setup(makeData());
 
     const row = el.shadowRoot!.querySelector('[data-value="Elapidae"]')!;
-    const scoreEl = row.querySelector('.legend-score')!;
-    expect(scoreEl.textContent!.trim()).toContain('0.81');
-    // The number alone reads as a bare "0.81" to a screen reader with no row context
-    // (the score sits outside the row's own labelled button); a sighted-only label is
-    // not enough.
-    expect(scoreEl.querySelector('.sr-only')?.textContent).toBe('Silhouette score ');
-  });
-
-  it('renders no score cell at all when the dataset has no statistics', async () => {
-    // Most datasets have no --stats part. A cell that's always present (even empty)
-    // still gets flex-blockified and picks up .legend-score's min-width, shifting
-    // .legend-count left for no benefit. It must not render at all in this case.
-    const el = await setup({ ...makeData(), statisticsRows: [] });
-    const row = el.shadowRoot!.querySelector('[data-value="Viperidae"]')!;
-
-    expect(row.querySelector('.legend-score')).toBeNull();
-  });
-
-  it('leaves the score cell empty for a category with no score', async () => {
-    // The cell must still exist: the row is a flex layout with justify-content:
-    // space-between, so dropping it would shift the spacing of every other row.
-    //
-    // Viperidae has a score in the shared fixture (-0.15), so it cannot stand in for
-    // "no score". Instead, give the legend a third category, Colubridae, that has no
-    // matching statistics row.
-    const data = makeData();
-    const el = await setup({
-      ...data,
-      annotations: {
-        major_group: {
-          ...data.annotations.major_group,
-          values: ['Elapidae', 'Viperidae', 'Colubridae'],
-          colors: ['#ff0000', '#00ff00', '#0000ff'],
-          shapes: ['circle', 'circle', 'circle'],
-        },
-      },
-      annotation_data: {
-        major_group: new Int32Array([0, 1, 1, 2]),
-      },
-    });
-    const row = el.shadowRoot!.querySelector('[data-value="Colubridae"]')!;
-
-    expect(row.querySelector('.legend-score')).not.toBeNull();
-    expect(row.querySelector('.legend-score')!.textContent!.trim()).toBe('');
+    expect(row.querySelector('.legend-count')!.textContent!.trim()).toBe('2');
+    // Elapidae's silhouette in this fixture, which used to render as "0.81".
+    expect(row.textContent).not.toContain('0.81');
   });
 
   it('sorts rows best-separating-first when the sort mode is silhouette-desc', async () => {

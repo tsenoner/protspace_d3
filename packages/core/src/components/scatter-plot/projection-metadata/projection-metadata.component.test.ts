@@ -417,4 +417,42 @@ describe('auto-cluster agreement placement', () => {
     expect(text).toContain('Recovers');
     expect(text).toContain('Major group');
   });
+
+  it('renders a clustering’s own separation scores above what it recovers', async () => {
+    // The backend files a clustering's validity under the membership column's own name, so
+    // the panel shows both halves for one selection: how separated it is (optimistic, it drew
+    // its own boundaries) and what it recovers (independent).
+    const el = await setup(
+      { n_neighbors: 15 },
+      {
+        statistics: [
+          statRow({ annotation: 'cluster_elbow_ProtT5 — UMAP 2', label_kind: 'kmeans_elbow' }),
+          agreementRow({ annotation: 'major_group' }),
+          statRow({
+            annotation: '',
+            stat_family: 'cluster_validity',
+            label_kind: 'kmeans_elbow',
+            metric: 'n_clusters',
+            metric_kind: 'meta',
+            value: 7,
+          }),
+        ],
+        selectedAnnotation: 'cluster_elbow_ProtT5 — UMAP 2',
+      },
+    );
+
+    const text = statsBlock(el)!.textContent!;
+    expect(text).toContain('Separation in this projection');
+    expect(text).toContain('Recovers');
+    expect(text).toContain('optimistic');
+  });
+
+  it('does not caveat an ordinary annotation', async () => {
+    const el = await setup(
+      { n_neighbors: 15 },
+      { statistics: [statRow(), agreementRow()], selectedAnnotation: 'major_group' },
+    );
+
+    expect(statsBlock(el)!.textContent).not.toContain('optimistic');
+  });
 });

@@ -453,12 +453,4 @@ export const itemStyles = css`
       0 1px 2px 0 rgba(0, 0, 0, 0.05),
       inset 2px 0 0 var(--legend-text-color, #222);
   }
-
-  .legend-score {
-    min-width: 2.5rem;
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-    font-size: 0.75rem;
-    color: var(--legend-text-secondary);
-  }
 `;

@@ -20,6 +20,7 @@ import {
   isPredictedAnnotation,
   getAnnotationMeta,
   annotationCategoryScores,
+  isAutoClusterColumn,
   type NumericBinningStrategy,
   type NumericAnnotationDisplaySettingsMap,
   type CategoryScore,
@@ -175,6 +176,12 @@ export class ProtspaceLegend extends LitElement {
    * see `_handleScatterplotDataChange`.
    */
   @state() private _hadCategoryScores = false;
+  /**
+   * Whether the current annotation is one of the backend's auto-clustering membership
+   * columns, whose separation scores are optimistic by construction. Derived alongside
+   * `_categoryScores` because both need `statisticsRows`, which render time does not see.
+   */
+  @state() private _isClusterAnnotation = false;
   /** Category under the pointer, in the legend rows or in a strip. Task 4 reads it. */
   @state() private _hoveredCategory: string | null = null;
   @state() private _eatOverlayEnabled = true;
@@ -1221,6 +1228,7 @@ export class ProtspaceLegend extends LitElement {
       selectedAnnotation,
       selectedProjectionName,
     );
+    this._isClusterAnnotation = isAutoClusterColumn(data.statisticsRows, selectedAnnotation);
     // Sticky per annotation: a filter/isolation view clears `statisticsRows`, which must not
     // read as "this annotation was never scored" -- only a genuine annotation switch may.
     if (this._categoryScores.length > 0) {
@@ -2461,6 +2469,14 @@ export class ProtspaceLegend extends LitElement {
               ></protspace-score-strip>
             `
           : ''}
+        <!-- Stated here rather than only in the projection-metadata panel: this is where
+             the per-category numbers are actually read, and a user hovering rows may
+             never open that panel. -->
+        ${this._isClusterAnnotation
+          ? html`<p class="score-strips-caveat">
+              K-means found these clusters in this projection, so these scores are optimistic.
+            </p>`
+          : ''}
       </section>
     `;
   }
@@ -2497,9 +2513,6 @@ export class ProtspaceLegend extends LitElement {
       otherCount,
       sortedIndex,
       this._canDragLegendItem(item),
-      this._categoryScores.length === 0
-        ? undefined
-        : (this._categoryScores.find((score) => score.category === item.value)?.silhouette ?? null),
     );
   }
 

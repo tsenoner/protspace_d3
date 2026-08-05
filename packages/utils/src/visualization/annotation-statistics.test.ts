@@ -5,6 +5,7 @@ import {
   annotationCategoryScores,
   clusterAgreement,
   formatStatValue,
+  isAutoClusterColumn,
   metricDescription,
 } from './annotation-statistics';
 
@@ -337,6 +338,34 @@ describe('clusterAgreement', () => {
     ];
 
     expect(clusterAgreement(rows, 'cluster_elbow_UMAP 2')).toEqual([]);
+  });
+});
+
+describe('isAutoClusterColumn', () => {
+  it('recognises a membership column from its own cluster_validity row', () => {
+    expect(isAutoClusterColumn(ROWS, 'cluster_elbow_UMAP 2')).toBe(true);
+  });
+
+  it('rejects an ordinary annotation, and a clustering from another projection', () => {
+    expect(isAutoClusterColumn(ROWS, 'major_group')).toBe(false);
+    // Reconstructed name equality, not a `cluster_` prefix test: PCA 2 has no
+    // n_clusters row here, so its column is not one of *this* bundle's clusterings.
+    expect(isAutoClusterColumn(ROWS, 'cluster_elbow_PCA 2')).toBe(false);
+    expect(isAutoClusterColumn(ROWS, 'cluster_silhouette_UMAP 2')).toBe(false);
+  });
+
+  it('answers from cluster_validity, not cluster_agreement', () => {
+    // A bundle prepared with no scored annotations emits no agreement rows at all,
+    // yet its clusterings are still clusterings. Keying off agreement would answer
+    // "no" here and silently drop the caveat exactly where it is needed.
+    const noAgreement = ROWS.filter((r) => r.stat_family !== 'cluster_agreement');
+    expect(isAutoClusterColumn(noAgreement, 'cluster_elbow_UMAP 2')).toBe(true);
+  });
+
+  it('is false for an empty or absent statistics part', () => {
+    expect(isAutoClusterColumn(undefined, 'cluster_elbow_UMAP 2')).toBe(false);
+    expect(isAutoClusterColumn([], 'cluster_elbow_UMAP 2')).toBe(false);
+    expect(isAutoClusterColumn(ROWS, '')).toBe(false);
   });
 });
 

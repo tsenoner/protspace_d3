@@ -238,4 +238,12 @@ export const layoutStyles = css`
     color: var(--legend-text-secondary);
     border-bottom: 1px solid var(--legend-border);
   }
+
+  /* Sits inside .score-strips, which already owns the padding and bottom border. */
+  .score-strips-caveat {
+    margin: 0;
+    font-size: 0.72rem;
+    line-height: 1.3;
+    color: var(--legend-text-secondary);
+  }
 `;

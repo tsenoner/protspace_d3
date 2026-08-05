@@ -14,6 +14,7 @@ import {
   clusterAgreement,
   formatStatValue,
   hasAnnotationStats,
+  isAutoClusterColumn,
   metricDescription,
   prettifyAnnotationName,
 } from '@protspace/utils';
@@ -44,8 +45,9 @@ class ProtspaceProjectionMetadata extends LitElement {
       this.projection?.name ?? '',
     );
     // Non-empty only when the selected annotation is itself a `cluster_elbow_*` /
-    // `cluster_silhouette_*` column; see `clusterAgreement`'s doc for why this can never
-    // overlap with `stats.validity` on real data (cluster columns are never scored annotations).
+    // `cluster_silhouette_*` column. That column now also carries its own validity scores,
+    // so the two blocks below routinely render together for a clustering: "how separated is
+    // it" (optimistic, it drew its own boundaries) above "what does it recover" (independent).
     const agreement = clusterAgreement(this.statisticsRows, this.selectedAnnotation);
 
     if (parameters.length === 0 && quality.length === 0) {
@@ -101,12 +103,10 @@ class ProtspaceProjectionMetadata extends LitElement {
   /**
    * How well the selected annotation separates in this projection (`summary`), and/or how well
    * the selected auto-clustering recovers every annotation it was compared against
-   * (`agreement`). The two never both carry content for real data: a `cluster_elbow_*` /
-   * `cluster_silhouette_*` column is never itself a scored annotation, so a non-empty
-   * `agreement` always means `summary` is null. The reverse does not hold: `summary` is also
-   * null for any annotation the run simply did not score, where `agreement` is empty too.
-   * Still, each is rendered independently rather than assumed exclusive, matching this file's
-   * existing defensive posture.
+   * (`agreement`). For a `cluster_*` column both carry content: the clustering is scored on its
+   * own labels *and* compared against every annotation. For an ordinary annotation `agreement`
+   * is empty. Each is rendered independently rather than assumed exclusive, which is also what
+   * keeps a bundle written before clusterings were self-scored (agreement only) rendering.
    */
   private _renderAnnotationStats(
     summary: AnnotationStatSummary | null,
@@ -146,6 +146,15 @@ class ProtspaceProjectionMetadata extends LitElement {
             `
           : ''}
         ${scope ? html`<div class="stat-caveat">${scope}</div>` : ''}
+        <!-- The clustering is scored on the labels it drew itself, in the projection it drew
+             them in, so "Separation in this projection" reads high by construction. "Recovers"
+             is the honest half of this panel for a cluster column: ARI/NMI compare it against
+             something it did not choose. -->
+        ${isAutoClusterColumn(this.statisticsRows, this.selectedAnnotation)
+          ? html`<div class="stat-caveat">
+              K-means found these clusters in this projection, so these scores are optimistic.
+            </div>`
+          : nothing}
         <!-- Stated unconditionally: isolation, query filters, legend hides and the reliability
              threshold all narrow the view, and these scores are computed once over the whole
              dataset regardless. A flag tracking "is the view a subset?" cannot stay correct. -->

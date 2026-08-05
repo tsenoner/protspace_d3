@@ -295,7 +295,6 @@ export class LegendRenderer {
     otherItemsCount?: number,
     itemIndex?: number,
     dragEnabled: boolean = true,
-    score?: number | null,
   ): TemplateResult {
     const displayLabel = item.displayValue ?? toDisplayValue(item.value);
 
@@ -330,18 +329,6 @@ export class LegendRenderer {
           ${this.renderItemActions(item, eventHandlers.onViewOther)}
         </div>
         <span class="legend-count" part="count">${item.count}</span>
-        ${score === undefined
-          ? nothing
-          : html`
-              <!-- Present because this legend has at least one scored category. Still
-                   rendered (empty) when this particular category has none (score === null),
-                   so the following columns in the flex row don't shift. -->
-              <span class="legend-score" part="score"
-                >${score === null
-                  ? ''
-                  : html`<span class="sr-only">Silhouette score </span>${score.toFixed(2)}`}</span
-              >
-            `}
       </div>
     `;
   }

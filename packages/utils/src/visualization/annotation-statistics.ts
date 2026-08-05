@@ -217,6 +217,29 @@ function clusterColumnName(labelKind: string, spaceName: string): string | null 
   return null;
 }
 
+/**
+ * Whether `annotation` is one of the backend's auto-clustering membership columns.
+ *
+ * Tested against the `cluster_validity` rows (`n_clusters`), which are emitted for every
+ * labelling unconditionally -- unlike `cluster_agreement`, which needs at least one scored
+ * annotation to compare against, so a bundle prepared without annotations would answer
+ * "no" for a column that plainly is one.
+ *
+ * Callers use it to caveat separation scores: KMeans drew the boundaries being scored, and
+ * a `cluster_silhouette_*` column's K was chosen by maximising that very silhouette.
+ */
+export function isAutoClusterColumn(
+  statistics: readonly ProjectionStatisticRow[] | undefined,
+  annotation: string,
+): boolean {
+  if (!statistics?.length || !annotation) return false;
+  return statistics.some(
+    (row) =>
+      row.stat_family === 'cluster_validity' &&
+      clusterColumnName(row.label_kind, row.space_name) === annotation,
+  );
+}
+
 /** One annotation, and how well the selected auto-clustering recovers it. */
 export interface ClusterAgreementEntry {
   annotation: string;
@@ -230,10 +253,11 @@ export interface ClusterAgreementEntry {
  *
  * The backend never files a `cluster_agreement` row under the cluster column's own name: like
  * every other stat, it's filed under the annotation being *scored* (`major_group`, `ec_number`,
- * …; see `annotationStatSummary` above), and `cluster_*` columns are themselves excluded from
- * ever being scored as an annotation (`annotation_select.py`). So the only way to find "this
- * clustering"'s rows is to reconstruct each row's column name via `clusterColumnName` and test
- * it against what's selected, never by filtering on `row.annotation`.
+ * …; see `annotationStatSummary` above). So the only way to find "this clustering"'s rows is to
+ * reconstruct each row's column name via `clusterColumnName` and test it against what's
+ * selected, never by filtering on `row.annotation`. That is specific to `cluster_agreement`:
+ * a clustering's own `annotation_validity` rows ARE filed under the column's name, and
+ * `annotationStatSummary` / `annotationCategoryScores` find them the ordinary way.
  *
  * Returns `[]` for anything that isn't one of the backend's `cluster_elbow_*` /
  * `cluster_silhouette_*` shapes, which doubles as the "should the block render at all" test.
@@ -271,7 +295,8 @@ export function clusterAgreement(
  * cannot drift the way `annotationStatSummary(...) !== null` and `stats || agreement.length > 0`
  * once did. `summary` can be non-null with zero validity rows (a category a subsampled validity
  * pass drops while the unsampled agreement pass still recovers it), which is content-free on its
- * own; `agreement` (from `clusterAgreement`) is what makes a `cluster_*` column count instead.
+ * own; `agreement` (from `clusterAgreement`) is what makes a `cluster_*` column count when its
+ * own separation scores are missing, as in a bundle written before clusterings were self-scored.
  */
 export function hasAnnotationStats(
   summary: AnnotationStatSummary | null,

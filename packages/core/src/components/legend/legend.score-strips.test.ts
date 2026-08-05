@@ -271,6 +271,66 @@ describe('legend score strips', () => {
     expect(rowOrder().indexOf('B')).toBeLessThan(rowOrder().indexOf('A'));
   });
 
+  it('fills both strips’ value gutters when a legend row is hovered', async () => {
+    // The whole point of the gutter: hovering one row reads out that category on
+    // every metric at once, so silhouette and Davies-Bouldin are read together
+    // rather than one number at a time from separate dot tooltips.
+    const { legend } = await setup();
+
+    const gutters = () =>
+      (Array.from(legend.shadowRoot!.querySelectorAll('protspace-score-strip')) as StripElement[])
+        .map((strip) => strip.shadowRoot!.querySelector('.strip-value')!.textContent!.trim())
+        .join(' / ');
+
+    expect(gutters()).toBe('— / —');
+
+    const rowA = legend.shadowRoot!.querySelector('[data-value="A"]')!;
+    rowA.dispatchEvent(new Event('mouseenter'));
+    await legend.updateComplete;
+    // Category A on UMAP 2: silhouette 0.5, Davies-Bouldin 1.2 (see makeData).
+    expect(gutters()).toBe('0.500 / 1.200');
+
+    rowA.dispatchEvent(new Event('mouseleave'));
+    await legend.updateComplete;
+    expect(gutters()).toBe('— / —');
+  });
+
+  it('caveats the strips for an auto-clustering, and only for one', async () => {
+    // A clustering is scored on the labels it drew itself, in the projection it drew
+    // them in, so its strips read high by construction and must say so. An ordinary
+    // annotation must not carry the same note.
+    const plain = await setup();
+    expect(plain.legend.shadowRoot!.querySelector('.score-strips-caveat')).toBeNull();
+    document.body.innerHTML = '';
+
+    const data = makeData();
+    const cluster = await setup({
+      data: {
+        annotations: { 'cluster_elbow_UMAP 2': data.annotations.family },
+        annotation_data: { 'cluster_elbow_UMAP 2': data.annotation_data!.family },
+        statisticsRows: [
+          ...data.statisticsRows!.map((r) => ({ ...r, annotation: 'cluster_elbow_UMAP 2' })),
+          {
+            space_kind: 'projection' as const,
+            space_name: 'UMAP 2',
+            annotation: '',
+            stat_family: 'cluster_validity' as const,
+            label_kind: 'kmeans_elbow',
+            metric: 'n_clusters',
+            metric_kind: 'meta' as const,
+            value: 2,
+          },
+        ],
+      },
+      plot: { selectedAnnotation: 'cluster_elbow_UMAP 2' },
+    });
+
+    expect(cluster.legend.shadowRoot!.querySelector('protspace-score-strip')).not.toBeNull();
+    expect(cluster.legend.shadowRoot!.querySelector('.score-strips-caveat')?.textContent).toContain(
+      'optimistic',
+    );
+  });
+
   it('shows a note instead of the strips when filtering hides previously-visible scores', async () => {
     const { legend, plot, data } = await setup();
     expect(legend.shadowRoot!.querySelector('protspace-score-strip')).not.toBeNull();
