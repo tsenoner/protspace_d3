@@ -27,19 +27,19 @@ The marker will render as `N points · Zoomed in` inside the existing bottom-lef
 
 ### Store only a reactive boolean boundary
 
-The scatterplot will add a reactive `_isZoomedIn` boolean. The host callback will continue assigning every transform to the plain `_transform` field, then compute `nextIsZoomedIn = t.k > 1` and assign the boolean only when it differs from the current value. Lit therefore renders once when zoom crosses above identity and once when reset reaches identity, rather than once per D3 frame.
+The scatterplot will add a reactive `_isZoomedIn` boolean. The host callback will continue assigning every transform to the plain `_transform` field, then assign `t.k > 1` to the boolean. Lit's default change detection ignores equal boolean values, so it enqueues a render once when zoom crosses above identity and once when reset reaches identity, rather than once per D3 frame.
 
 Keeping the boolean on the scatterplot host, rather than the interaction controller, preserves the controller's role as a generic transform dispatcher and keeps rendering state beside the template that consumes it.
 
 ### Verify both state propagation and user-visible behavior
 
-A focused jsdom test will drive the real host bridge, assert the marker appears and disappears in the component render, and lock the no-repeat-update boundary for additional `k > 1` transforms. A Playwright regression will wheel over the real Explore scatterplot, assert `Zoomed in`, double-click reset, and assert the marker disappears.
+A focused jsdom test will drive the real host bridge, assert the count and marker render as explicit presentation items, and observe actual plot rendering across the no-repeat-update boundary for additional `k > 1` transforms. A Playwright regression will wheel over the real Explore scatterplot, verify the complete `N points · Zoomed in` chip and its spacing, double-click reset, and assert the marker disappears.
 
 ## Risks / Trade-offs
 
 - **Floating-point values during reset could keep the marker visible until the transition finishes** → This is intentional: the plot remains non-identity until D3 emits the final `k === 1` transform.
 - **A marker appended to the count chip is less prominent than a dedicated badge** → The count chip is persistent, unobtrusive, and has no collision risk; the text remains visible throughout the zoomed state.
-- **Reactive state could regress zoom performance if written every frame** → Compare the derived boolean before assignment and include a request-update count assertion in the focused test.
+- **Reactive state could regress zoom performance if equal values enqueue updates** → Exercise consecutive same-side transforms and assert that no additional plot render runs.
 
 ## Migration Plan
 

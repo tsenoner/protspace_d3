@@ -1226,10 +1226,7 @@ export class ProtspaceScatterplot extends LitElement {
       resolveSlotsToIds: (slots) => this._slotsToInteractiveIds(slots),
       onTransform: (t) => {
         this._transform = t;
-        const isZoomedIn = t.k > 1;
-        if (isZoomedIn !== this._isZoomedIn) {
-          this._isZoomedIn = isZoomedIn;
-        }
+        this._isZoomedIn = t.k > 1;
         this._connectorOverlay.updateZoomScale(t.k);
       },
       onSelect: (ids, clearVisual) => this._commitSelection(ids, clearVisual),
@@ -1987,10 +1984,8 @@ export class ProtspaceScatterplot extends LitElement {
         ${this.data
           ? html`
               <div class="plot-indicator">
-                ${this._getVisiblePointCount()} points
-                ${this._isZoomedIn
-                  ? html`&nbsp;· <span class="zoom-indicator">Zoomed in</span>`
-                  : ''}
+                <span class="point-count">${this._getVisiblePointCount()} points</span>
+                ${this._isZoomedIn ? html`<span class="zoom-indicator">· Zoomed in</span>` : ''}
               </div>
             `
           : ''}
