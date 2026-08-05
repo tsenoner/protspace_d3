@@ -3,6 +3,7 @@
 from collections import Counter
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from protspace.data.loaders.embedding_set import (
@@ -343,6 +344,80 @@ class TestResolveAnnotationNames:
 
     def test_tsv_path(self):
         assert self._resolve(["data.tsv", "ec"]) == (["ec"], "data.tsv")
+
+
+class TestAnnotationCacheMigration:
+    def test_legacy_pdb_cache_is_refetched_and_marked(self, tmp_path, monkeypatch):
+        """Ambiguous pre-tri-state PDB values must not survive a cache hit."""
+        from protspace.data.annotations.retrievers.uniprot_retriever import (
+            ProteinAnnotations,
+            UniProtRetriever,
+        )
+
+        legacy_cache = pd.DataFrame(
+            {
+                "identifier": ["unresolved", "resolved_without_pdb"],
+                "xref_pdb": ["True", "True"],
+                "gene_name": ["", "GENE"],
+                "protein_name": ["", "Protein"],
+                "uniprot_kb_id": ["", "NO_PDB_HUMAN"],
+                "signal_peptide": ["True", "False"],
+            }
+        )
+        cache_path = tmp_path / "all_annotations.parquet"
+        legacy_cache.to_parquet(cache_path, index=False)
+
+        def fetch_current_annotations(_self):
+            return [
+                ProteinAnnotations(
+                    identifier="unresolved",
+                    annotations={
+                        "xref_pdb": "",
+                        "gene_name": "",
+                        "protein_name": "",
+                        "uniprot_kb_id": "",
+                    },
+                ),
+                ProteinAnnotations(
+                    identifier="resolved_without_pdb",
+                    annotations={
+                        "xref_pdb": "",
+                        "gene_name": "GENE",
+                        "protein_name": "Protein",
+                        "uniprot_kb_id": "NO_PDB_HUMAN",
+                    },
+                ),
+            ]
+
+        monkeypatch.setattr(
+            UniProtRetriever, "fetch_annotations", fetch_current_annotations
+        )
+        pipeline = ReductionPipeline(
+            PipelineConfig(
+                methods=[],
+                output_path=tmp_path / "unused.parquetbundle",
+                annotations=["xref_pdb", "signal_peptide"],
+                keep_tmp=True,
+                intermediate_dir=tmp_path,
+            )
+        )
+
+        result = pipeline._fetch_annotations(["unresolved", "resolved_without_pdb"])
+
+        assert result["xref_pdb"].tolist() == ["", "False"]
+        assert result["signal_peptide"].tolist() == ["True", "False"]
+        assert pd.read_parquet(cache_path).attrs == {
+            "protspace_annotation_cache_version": 1
+        }
+
+        def fail_if_refetched(_self):
+            raise AssertionError("current cache should use the fast path")
+
+        monkeypatch.setattr(UniProtRetriever, "fetch_annotations", fail_if_refetched)
+        cached_result = pipeline._fetch_annotations(
+            ["unresolved", "resolved_without_pdb"]
+        )
+        assert cached_result["xref_pdb"].tolist() == ["", "False"]
 
 
 # ---------------------------------------------------------------------------

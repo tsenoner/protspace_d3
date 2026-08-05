@@ -7,13 +7,15 @@ The UniProt retriever emits the same empty-string representation for every unava
 **Goals:**
 
 - Preserve the three evidence states for PDB availability: present, confirmed absent, and unavailable.
+- Prevent previously persisted bad PDB values from bypassing the corrected semantics.
+- Keep canonical signal-peptide booleans stable across mixed cache/refetch runs.
 - Keep the existing annotation schema and frontend missing-value contract.
 - Cover the distinction with the smallest focused regression test.
 
 **Non-Goals:**
 
 - Change UniProt accession recognition or inactive-entry resolution.
-- Refactor the annotation model or other boolean-like annotations.
+- Refactor the annotation model or unrelated boolean-like annotations.
 - Change the bundle wire format or frontend rendering.
 
 ## Decisions
@@ -34,15 +36,49 @@ Persisted annotations already contain the canonical strings `""`, `"False"`, and
 
 Skipping transformations for all cached UniProt data was rejected because the manager can merge cached annotations with newly fetched sources in the same run, and bypassing the shared transformation stage would require broader provenance tracking.
 
+### Version transformed annotation-cache semantics in Parquet metadata
+
+`all_annotations.parquet` will carry a `protspace_annotation_cache_version`
+DataFrame attribute in its Parquet metadata after the shared transformer has produced
+the cached values. An unversioned cache containing `xref_pdb` predates the three-state
+contract and cannot be repaired locally: a mapped canonical `"True"` may be a genuine
+PDB hit or a legacy empty value that was transformed twice. The pipeline will therefore
+drop and refetch the cached UniProt columns once, preserve other source columns, and
+write the current marker with the corrected result.
+
+Using the existing Parquet metadata channel avoids a sidecar file and does not expose
+an internal version column to bundle consumers. Invalidating every annotation cache was
+rejected because caches without `xref_pdb` cannot contain the affected value. Inferring
+correctness from row values was rejected because the ambiguous mapped `"True"` state has
+no reliable local discriminator.
+
+### Preserve cached signal-peptide booleans
+
+InterPro signal-peptide values share the merge-and-transform path used by freshly
+retrieved annotations. The transformer will preserve exact canonical `"True"` and
+`"False"` values before checking a raw InterPro value for `SIGNAL_PEPTIDE`. This keeps
+cached InterPro positives stable when a separate source such as UniProt is refetched,
+without changing raw InterPro interpretation.
+
 ## Risks / Trade-offs
 
 - **[Risk] A malformed resolved record could omit `uniprot_kb_id`.** → Treat it as unavailable rather than asserting a potentially false negative; this is the conservative evidence interpretation.
 - **[Risk] Existing consumers may have counted unmapped values as `False`.** → The change intentionally corrects that semantic category while leaving mapped entries unchanged.
 - **[Risk] A raw retriever value could resemble a canonical boolean string.** → UniProt PDB cross-references use PDB identifiers, so exact `"True"` and `"False"` values are reserved for ProtSpace's persisted representation.
+- **[Risk] A legacy cache is reused while offline.** → The affected UniProt values are
+  epistemically ambiguous, so the pipeline attempts the same source fetch used by an
+  explicit UniProt refresh rather than certifying guessed values as current.
+- **[Risk] Cache metadata is absent after external rewriting.** → Treat the cache as
+  legacy and perform the safe one-time refresh again.
 
 ## Migration Plan
 
-No data migration is required. Newly generated or explicitly refreshed annotations gain the corrected missing value; existing bundles remain readable. Rollback is a single transformer change because no schema or dependency changes are introduced.
+Existing bundles remain readable and are not rewritten. On the next prepare run, an
+unversioned `all_annotations.parquet` containing `xref_pdb` automatically refetches its
+UniProt columns, retains cached columns from other sources, and is rewritten with
+`protspace_annotation_cache_version = 1`. Newly generated caches carry that marker from
+their first write. Rollback can ignore the marker because it lives in Parquet metadata;
+no schema, bundle format, or dependency migration is required.
 
 ## Open Questions
 

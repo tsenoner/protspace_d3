@@ -38,6 +38,9 @@ from protspace.data.io.writers import AnnotationWriter
 
 logger = logging.getLogger(__name__)
 
+ANNOTATION_CACHE_VERSION_ATTR = "protspace_annotation_cache_version"
+ANNOTATION_CACHE_VERSION = 1
+
 
 class ProteinAnnotationManager:
     """Orchestrator for protein annotation extraction workflow."""
@@ -315,7 +318,10 @@ class ProteinAnnotationManager:
     def _save_and_load(self, proteins: list[ProteinAnnotations]) -> pd.DataFrame:
         """Save to file and load back."""
         self.writer.write_parquet(
-            proteins, self.output_path, apply_transforms=False
+            proteins,
+            self.output_path,
+            apply_transforms=False,
+            dataframe_attrs={ANNOTATION_CACHE_VERSION_ATTR: ANNOTATION_CACHE_VERSION},
         )  # Already transformed
         return pd.read_parquet(self.output_path)
 
