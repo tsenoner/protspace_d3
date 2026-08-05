@@ -132,8 +132,9 @@ export function createDatasetController({
       }
 
       const datasetHash = generateDatasetHash(data);
+      const hadPreviousDataset = currentDatasetHash !== null;
       const shouldClearPersistedState =
-        (loadMeta.kind === 'default' && currentDatasetHash !== null) ||
+        (loadMeta.kind === 'default' && hadPreviousDataset) ||
         (loadMeta.kind === 'user' && settings != null);
 
       legendElement.clearForNewDataset(datasetHash, shouldClearPersistedState);
@@ -172,7 +173,6 @@ export function createDatasetController({
       // Must be set before the restore block so that any view-change emitted by
       // setRequestedView below is persisted under the new dataset's key, not the
       // previous dataset's key.
-      const hadPreviousDataset = currentDatasetHash !== null;
       currentDatasetHash = datasetHash;
 
       const latestRequest = viewController.getLatestViewRequest();

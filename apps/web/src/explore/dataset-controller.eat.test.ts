@@ -136,7 +136,7 @@ describe('dataset controller EAT settings restore', () => {
     );
   });
 
-  it('preserves settings on initial default load and clears them on explicit reset', async () => {
+  it('reuses dataset lifecycle across initial load, user import, and explicit reset', async () => {
     const controlBar = {
       clearForNewDataset: vi.fn(),
       hasFileSettings: false,
@@ -146,10 +146,11 @@ describe('dataset controller EAT settings restore', () => {
       setFileSettings: vi.fn(),
       applyEatSettings: vi.fn(),
     };
+    let latestViewRequest = createEmptyExploreViewRequest();
     const viewController = {
       subscribeToViewChanges: vi.fn(() => () => {}),
       resolveLatestView: vi.fn(),
-      getLatestViewRequest: vi.fn(() => createEmptyExploreViewRequest()),
+      getLatestViewRequest: vi.fn(() => latestViewRequest),
       applyLatestViewForDatasetLoad: vi.fn(),
       setRequestedView: vi.fn(),
     };
@@ -162,7 +163,7 @@ describe('dataset controller EAT settings restore', () => {
       legendElement,
       loadQueue: {
         registerFileLoad: vi.fn(),
-        getLoadMetaForFile: vi.fn(),
+        getLoadMetaForFile: vi.fn(() => ({ sequence: 1, kind: 'user' as const })),
         getRunningLoadMeta: () => null,
         getLatestSequence: () => 0,
         resolvePendingLoadFinalization: mocks.resolvePendingLoadFinalization,
@@ -175,16 +176,15 @@ describe('dataset controller EAT settings restore', () => {
       viewController,
     } as unknown as Parameters<typeof createDatasetController>[0];
     const controller = createDatasetController(options);
-    const event = {
-      detail: {
-        data,
-        settings: {
-          legendSettings: {},
-          exportOptions: {},
-        },
-        source: 'auto',
+    const defaultEventDetail = {
+      data,
+      settings: {
+        legendSettings: {},
+        exportOptions: {},
       },
-    } as unknown as Event;
+      source: 'auto' as const,
+    };
+    const event = { detail: defaultEventDetail } as unknown as Event;
 
     await controller.handleDataLoaded(event);
 
@@ -192,10 +192,30 @@ describe('dataset controller EAT settings restore', () => {
     expect(controlBar.clearForNewDataset).toHaveBeenNthCalledWith(1, expect.any(String), false);
     expect(legendElement.setFileSettings).toHaveBeenNthCalledWith(1, {}, expect.any(String), false);
 
-    await controller.handleDataLoaded(event);
+    latestViewRequest = {
+      requested: { tooltip: ['stale-annotation'] },
+      present: { annotation: false, projection: false, tooltip: true },
+      normalize: { annotation: false, projection: false, tooltip: false },
+    };
+    await controller.handleDataLoaded({
+      detail: {
+        ...defaultEventDetail,
+        source: 'user',
+        file: { name: 'custom.parquetbundle' } as File,
+      },
+    } as unknown as Event);
 
     expect(legendElement.clearForNewDataset).toHaveBeenNthCalledWith(2, expect.any(String), true);
-    expect(controlBar.clearForNewDataset).toHaveBeenNthCalledWith(2, expect.any(String), true);
-    expect(legendElement.setFileSettings).toHaveBeenNthCalledWith(2, {}, expect.any(String), true);
+    expect(viewController.setRequestedView).toHaveBeenCalledWith({
+      requested: { tooltip: undefined },
+      present: { annotation: false, projection: false, tooltip: false },
+      normalize: { annotation: false, projection: false, tooltip: true },
+    });
+
+    await controller.handleDataLoaded(event);
+
+    expect(legendElement.clearForNewDataset).toHaveBeenNthCalledWith(3, expect.any(String), true);
+    expect(controlBar.clearForNewDataset).toHaveBeenNthCalledWith(3, expect.any(String), true);
+    expect(legendElement.setFileSettings).toHaveBeenNthCalledWith(3, {}, expect.any(String), true);
   });
 });
