@@ -2,7 +2,7 @@
 
 ### Requirement: Scatterplot indicates a zoomed-in view
 
-The scatterplot SHALL append the text `Zoomed in` to its existing visible point-count indicator whenever the active view scale is greater than the identity scale of `1`. The scatterplot SHALL NOT show that marker at identity scale, while zoomed out below identity, or for translation alone at identity scale.
+The scatterplot SHALL append the text `Zoomed in` to its existing visible point-count indicator whenever the active view scale is greater than the identity scale of `1`. The scatterplot SHALL NOT show that marker at identity scale, while zoomed out below identity, or for translation alone at identity scale. The point-count indicator SHALL expose its changing content as a polite status message so assistive technology can announce zoom and reset changes without moving focus.
 
 #### Scenario: User zooms in with the wheel
 
@@ -19,6 +19,12 @@ The scatterplot SHALL append the text `Zoomed in` to its existing visible point-
 
 - **WHEN** the existing reset behavior returns the view to identity scale `1`
 - **THEN** the point-count indicator no longer includes `Zoomed in`
+
+#### Scenario: Assistive technology receives zoom-state changes
+
+- **WHEN** the point-count indicator changes between identity and zoomed-in content
+- **THEN** the updated content is exposed as a polite status message
+- **AND** the change does not require focus to move to the indicator
 
 #### Scenario: User pans or zooms out
 

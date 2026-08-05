@@ -15,8 +15,9 @@ test.describe('scatterplot zoom indicator (#343)', () => {
       x: bounds!.x + bounds!.width / 2,
       y: bounds!.y + bounds!.height / 2,
     };
-    const pointCount = plot.locator('.point-count');
-    const pointCountChip = pointCount.locator('..');
+    const pointCountChip = plot.getByRole('status');
+    await expect(pointCountChip).toHaveAttribute('aria-live', 'polite');
+    const pointCount = pointCountChip.locator('.point-count');
     const zoomMarker = pointCountChip.locator('.zoom-indicator');
     await expect(zoomMarker).toHaveCount(0);
 
@@ -41,5 +42,6 @@ test.describe('scatterplot zoom indicator (#343)', () => {
     await page.mouse.dblclick(center.x, center.y);
     await expect.poll(() => plot.evaluate((element: any) => element._transform.k)).toBe(1);
     await expect(zoomMarker).toHaveCount(0);
+    await expect(pointCountChip).toHaveText(/^\s*\d+ points\s*$/);
   });
 });

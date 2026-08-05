@@ -10,6 +10,7 @@ Issue #343 requires a visible signal specifically for zooming in. The current `z
 
 - Show `Zoomed in` next to the existing point count while the active D3 scale is greater than `1`.
 - Remove the marker once reset reaches identity.
+- Announce zoom and reset status changes to assistive technology without moving focus.
 - Preserve the non-reactive `_transform` performance invariant by scheduling Lit updates only when the boolean zoomed-in state changes.
 - Cover the boundary in component tests and the real wheel/reset interaction in the Explore app.
 
@@ -23,7 +24,7 @@ Issue #343 requires a visible signal specifically for zooming in. The current `z
 
 ### Reuse the existing point-count chip
 
-The marker will render as `N points · Zoomed in` inside the existing bottom-left `.plot-indicator`. This avoids collisions with the top-right selection-mode indicator, the bottom-right numeric-recompute chip, and the bottom-center provenance status. A separate overlay was rejected because it would need new collision rules for no additional user value.
+The marker will render as `N points · Zoomed in` inside the existing bottom-left `.plot-indicator`. The chip reuses the component's established `role="status" aria-live="polite"` pattern so its changing content is announced without focus movement. A separate overlay was rejected because it would need new collision rules for no additional user value.
 
 ### Store only a reactive boolean boundary
 
@@ -33,7 +34,7 @@ Keeping the boolean on the scatterplot host, rather than the interaction control
 
 ### Verify both state propagation and user-visible behavior
 
-A focused jsdom test will drive the real host bridge, assert the count and marker render as explicit presentation items, and observe actual plot rendering across the no-repeat-update boundary for additional `k > 1` transforms. A Playwright regression will wheel over the real Explore scatterplot, verify the complete `N points · Zoomed in` chip and its spacing, double-click reset, and assert the marker disappears.
+A focused jsdom test will drive the real host bridge, assert the count and marker render as a polite status, and observe actual plot rendering across the no-repeat-update boundary for additional `k > 1` transforms. A Playwright regression will locate the chip by its status role, wheel over the real Explore scatterplot, verify the complete `N points · Zoomed in` presentation, double-click reset, and assert the status returns to the point count alone.
 
 ## Risks / Trade-offs
 

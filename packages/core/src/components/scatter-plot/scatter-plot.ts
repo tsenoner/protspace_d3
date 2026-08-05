@@ -1983,7 +1983,7 @@ export class ProtspaceScatterplot extends LitElement {
           : ''}
         ${this.data
           ? html`
-              <div class="plot-indicator">
+              <div class="plot-indicator" role="status" aria-live="polite">
                 <span class="point-count">${this._getVisiblePointCount()} points</span>
                 ${this._isZoomedIn ? html`<span class="zoom-indicator">· Zoomed in</span>` : ''}
               </div>

@@ -70,13 +70,13 @@ describe('scatterplot zoom indicator (#343)', () => {
     vi.restoreAllMocks();
   });
 
-  it('renders the point count and zoom label as spaced presentation items', async () => {
+  it('renders the point count and zoom label as a polite status', async () => {
     const plot = await makePlot();
     const host = plot._interactionHost();
     host.onTransform(d3.zoomIdentity.scale(2));
     await plot.updateComplete;
 
-    const chip = plot.shadowRoot?.querySelector('.plot-indicator');
+    const chip = plot.shadowRoot?.querySelector('[role="status"][aria-live="polite"]');
     expect(chip?.querySelector('.point-count')?.textContent).toBe('1 points');
     expect(chip?.querySelector('.zoom-indicator')?.textContent).toBe('· Zoomed in');
     expect(Array.from(chip?.children ?? []).map((child) => child.className)).toEqual([
