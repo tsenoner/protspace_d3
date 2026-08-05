@@ -82,6 +82,21 @@ class PipelineConfig:
     reducer_params: ReducerParams = field(default_factory=ReducerParams)
 
 
+def _query_fasta_cache_path(cache_root: Path, query: str) -> Path:
+    """Return the retained FASTA path owned by one exact UniProt query."""
+    digest = hashlib.sha256(query.encode()).hexdigest()[:12]
+    return cache_root / "queries" / f"{digest}.fasta"
+
+
+def _input_cache_dir(cache_root: Path, input_path: Path) -> Path:
+    """Return the retained intermediate directory owned by one input file."""
+    digest = hashlib.sha256()
+    with input_path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return cache_root / "inputs" / digest.hexdigest()[:12]
+
+
 # Valid override parameter names (from ReducerParams fields)
 _VALID_OVERRIDE_KEYS = {f.name for f in fields(ReducerParams)}
 # Field types for coercion
@@ -396,6 +411,26 @@ class ReductionPipeline:
 
             if cache_path.exists():
                 cached_df = pd.read_parquet(cache_path)
+                cached_identifiers = (
+                    Counter(cached_df["identifier"].astype(str))
+                    if "identifier" in cached_df.columns
+                    else Counter()
+                )
+                requested_identifiers = Counter(map(str, headers))
+
+                if cached_identifiers != requested_identifiers:
+                    logger.info(
+                        "Annotation cache input changed; fetching annotations "
+                        "for the current identifiers"
+                    )
+                    api_df = ProteinAnnotationManager(
+                        headers=headers,
+                        annotations=annotations_list,
+                        output_path=cache_path,
+                        sequences=sequences,
+                    ).to_pd()
+                    return self._merge_csv(api_df, csv_df)
+
                 cached_annotations = set(cached_df.columns) - {"identifier"}
 
                 if annotations_list is None:

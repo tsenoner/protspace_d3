@@ -1,3 +1,3 @@
 # fix-notebook-projection-cache
 
-Invalidate cached notebook projections when input data changes.
+Keep retained Preparation-notebook intermediates aligned with the selected input.
