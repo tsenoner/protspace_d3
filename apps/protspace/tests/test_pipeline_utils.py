@@ -358,14 +358,14 @@ class TestAnnotationCacheMigration:
 
         legacy_cache = pd.DataFrame(
             {
-                "identifier": ["resolved_without_pdb", "unresolved"],
+                "identifier": ["unresolved", "resolved_without_pdb"],
                 "xref_pdb": ["True", "True"],
-                "gene_name": ["STALE_GENE", ""],
-                "protein_name": ["Protein", ""],
-                "uniprot_kb_id": ["NO_PDB_HUMAN", ""],
-                "organism_id": ["9606", ""],
-                "genus": ["Homo", ""],
-                "signal_peptide": ["False", "True"],
+                "gene_name": ["", "STALE_GENE"],
+                "protein_name": ["", "Protein"],
+                "uniprot_kb_id": ["", "NO_PDB_HUMAN"],
+                "organism_id": ["", "9606"],
+                "genus": ["", "Homo"],
+                "signal_peptide": ["True", "False"],
             }
         )
         cache_path = tmp_path / "all_annotations.parquet"
@@ -374,16 +374,6 @@ class TestAnnotationCacheMigration:
         def fetch_current_annotations(_self):
             return [
                 ProteinAnnotations(
-                    identifier="resolved_without_pdb",
-                    annotations={
-                        "xref_pdb": "",
-                        "gene_name": "GENE",
-                        "protein_name": "Protein",
-                        "uniprot_kb_id": "NO_PDB_HUMAN",
-                        "organism_id": "9606",
-                    },
-                ),
-                ProteinAnnotations(
                     identifier="unresolved",
                     annotations={
                         "xref_pdb": "",
@@ -391,6 +381,16 @@ class TestAnnotationCacheMigration:
                         "protein_name": "",
                         "uniprot_kb_id": "",
                         "organism_id": "",
+                    },
+                ),
+                ProteinAnnotations(
+                    identifier="resolved_without_pdb",
+                    annotations={
+                        "xref_pdb": "",
+                        "gene_name": "GENE",
+                        "protein_name": "Protein",
+                        "uniprot_kb_id": "NO_PDB_HUMAN",
+                        "organism_id": "9606",
                     },
                 ),
             ]
@@ -408,15 +408,15 @@ class TestAnnotationCacheMigration:
             )
         )
 
-        headers = ["resolved_without_pdb", "unresolved"]
+        headers = ["unresolved", "resolved_without_pdb"]
         result = pipeline._fetch_annotations(headers)
 
-        assert result["xref_pdb"].tolist() == ["False", ""]
-        assert result["gene_name"].tolist() == ["GENE", ""]
-        assert result["genus"].tolist() == ["Homo", ""]
-        assert result["signal_peptide"].tolist() == ["False", "True"]
+        assert result["xref_pdb"].tolist() == ["", "False"]
+        assert result["gene_name"].tolist() == ["", "GENE"]
+        assert result["genus"].tolist() == ["", "Homo"]
+        assert result["signal_peptide"].tolist() == ["True", "False"]
         migrated_cache = pd.read_parquet(cache_path)
-        assert migrated_cache["genus"].tolist() == ["Homo", ""]
+        assert migrated_cache["genus"].tolist() == ["", "Homo"]
         assert migrated_cache.attrs == {"protspace_annotation_cache_version": 1}
 
         def fail_if_refetched(_self):
@@ -424,8 +424,8 @@ class TestAnnotationCacheMigration:
 
         monkeypatch.setattr(UniProtRetriever, "fetch_annotations", fail_if_refetched)
         cached_result = pipeline._fetch_annotations(headers)
-        assert cached_result["xref_pdb"].tolist() == ["False", ""]
-        assert cached_result["genus"].tolist() == ["Homo", ""]
+        assert cached_result["xref_pdb"].tolist() == ["", "False"]
+        assert cached_result["genus"].tolist() == ["", "Homo"]
 
 
 # ---------------------------------------------------------------------------

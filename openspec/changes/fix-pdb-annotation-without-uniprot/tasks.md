@@ -36,3 +36,12 @@
       rehydrated, without retaining stale UniProt outputs or changing source refetching.
 - [x] 5.3 Run focused, affected, full Python, Ruff, bundle contract, strict OpenSpec,
       docs/generated, and repository precommit verification.
+
+## 6. Order-Independent Cache Schema Review Follow-up
+
+- [x] 6.1 Reverse the mixed mapped/unmapped migration regression and verify a later-only
+      cached taxonomy field is omitted on the current writer path.
+- [x] 6.2 Build the Parquet annotation schema from all records while preserving existing
+      first-seen column order and missing-value behavior.
+- [x] 6.3 Run focused, affected, full Python, Ruff, strict OpenSpec, bundle contract,
+      docs/generated, and repository precommit verification.

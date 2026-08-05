@@ -30,6 +30,13 @@ from unaffected sources, and mark the transformed replacement cache as current.
 - **AND** subsequent reuse of the migrated cache preserves the taxonomy without another
   migration refresh
 
+#### Scenario: An unresolved protein precedes a taxonomy-bearing protein
+
+- **WHEN** an unresolved protein without taxonomy keys is the first migrated record and
+  a later resolved protein has a cached taxonomy annotation
+- **THEN** the rewritten Parquet schema includes that later taxonomy annotation
+- **AND** subsequent reuse of the migrated cache preserves its values
+
 #### Scenario: Legacy cache has no PDB annotation
 
 - **WHEN** an unversioned annotation cache does not contain `xref_pdb`

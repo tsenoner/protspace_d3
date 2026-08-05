@@ -67,6 +67,15 @@ retrieved annotations. The transformer will preserve exact canonical `"True"` an
 cached InterPro positives stable when a separate source such as UniProt is refetched,
 without changing raw InterPro interpretation.
 
+### Derive the Parquet schema from every annotation record
+
+Merged annotation records can have non-uniform keys: for example, an unresolved first
+protein has no taxonomy fields while a later resolved protein can carry cached `genus`.
+The Parquet writer will therefore collect annotation keys across all records before
+building rows, preserving their first-seen order and filling absent values with the
+existing empty-string representation. This keeps schema membership independent of row
+order without introducing source ownership knowledge into the generic writer.
+
 ## Risks / Trade-offs
 
 - **[Risk] A malformed resolved record could omit `uniprot_kb_id`.** → Treat it as unavailable rather than asserting a potentially false negative; this is the conservative evidence interpretation.
@@ -83,10 +92,11 @@ without changing raw InterPro interpretation.
 Existing bundles remain readable and are not rewritten. On the next prepare run, an
 unversioned `all_annotations.parquet` containing `xref_pdb` automatically refetches its
 UniProt columns, retains cached columns from other sources and the temporary taxonomy
-lookup dependency, and is rewritten with
-`protspace_annotation_cache_version = 1`. Newly generated caches carry that marker from
-their first write. Rollback can ignore the marker because it lives in Parquet metadata;
-no schema, bundle format, or dependency migration is required.
+lookup dependency, and includes every annotation key observed across all rows in the
+replacement cache before stamping `protspace_annotation_cache_version = 1`. Newly
+generated caches carry that marker from their first write. Rollback can ignore the
+marker because it lives in Parquet metadata; no schema, bundle format, or dependency
+migration is required.
 
 ## Open Questions
 

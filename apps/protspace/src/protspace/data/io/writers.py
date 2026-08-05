@@ -89,7 +89,10 @@ class AnnotationWriter:
             return
 
         # Convert to rows
-        csv_headers = ["identifier"] + list(proteins[0].annotations.keys())
+        annotation_headers = dict.fromkeys(
+            header for protein in proteins for header in protein.annotations
+        )
+        csv_headers = ["identifier", *annotation_headers]
         data_rows = []
 
         for protein in proteins:
