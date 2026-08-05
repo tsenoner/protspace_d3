@@ -11,9 +11,8 @@ import {
   getUniprotKbId,
 } from './protein-tooltip-helpers';
 
-const ANNOTATION_HEADER_LABELS: Record<'bitscore' | 'silhouette' | 'evidence', string> = {
+const ANNOTATION_HEADER_LABELS: Record<'bitscore' | 'evidence', string> = {
   bitscore: 'Bitscore',
-  silhouette: 'Silhouette',
   evidence: 'Evidence',
 };
 
@@ -70,7 +69,7 @@ function formatScore(value: number): string {
 }
 
 function renderAnnotationBlock(block: AnnotationBlock): TemplateResult {
-  const headerType = getAnnotationHeaderType(block.scores, block.evidence, block.key);
+  const headerType = getAnnotationHeaderType(block.scores, block.evidence);
   const numericType: NumericAnnotationType = block.numericType;
   return html`
     <div class="tooltip-annotations">

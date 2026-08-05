@@ -36,25 +36,20 @@ export function getUniprotKbId(uniprotKbIdValues: string[]): string | null {
 }
 
 /**
- * Auto-cluster membership columns the backend writes as `cluster_elbow_<proj>` /
- * `cluster_silhouette_<proj>`. Both carry a per-point silhouette confidence after the `|`, never a
- * bit score; the elbow/silhouette in the name is the K-selection, not the score.
- */
-const CLUSTER_COLUMN_PREFIX = 'cluster_';
-
-/**
  * Determine the annotation header type based on available scores and evidence.
- * Returns 'silhouette' for auto-cluster columns, 'bitscore' if any other scores are present,
- * 'evidence' if any evidence codes are present (but no scores), or null if neither exists.
+ * Returns 'bitscore' if any scores are present, 'evidence' if any evidence codes are
+ * present (but no scores), or null if neither exists.
+ *
+ * Auto-cluster membership columns used to land here as their own 'silhouette' header,
+ * being the only columns whose scores were not bit scores. They no longer reach it:
+ * `buildAnnotationBlock` drops their per-point silhouette in favour of the legend's
+ * per-cluster strips.
  */
 export function getAnnotationHeaderType(
   scores: (number[] | null)[],
   evidence: (string | null)[],
-  column?: string,
-): 'bitscore' | 'silhouette' | 'evidence' | null {
-  if (scores.some((s) => Array.isArray(s) && s.length > 0)) {
-    return column?.startsWith(CLUSTER_COLUMN_PREFIX) ? 'silhouette' : 'bitscore';
-  }
+): 'bitscore' | 'evidence' | null {
+  if (scores.some((s) => Array.isArray(s) && s.length > 0)) return 'bitscore';
   if (evidence.some((e) => e != null)) return 'evidence';
   return null;
 }

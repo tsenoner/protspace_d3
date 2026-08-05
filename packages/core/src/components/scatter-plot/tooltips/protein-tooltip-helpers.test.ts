@@ -134,19 +134,10 @@ describe('getAnnotationHeaderType', () => {
     expect(getAnnotationHeaderType([null, null], [null, 'IDA'])).toBe('evidence');
   });
 
-  it('returns "silhouette" for auto-cluster membership columns', () => {
-    // Both K-selections score each point by silhouette confidence, not by a bit score.
-    expect(getAnnotationHeaderType([[0.497]], [null], 'cluster_silhouette_ProtT5 — PCA 2')).toBe(
-      'silhouette',
-    );
-    expect(getAnnotationHeaderType([[0.601]], [null], 'cluster_elbow_ProtT5 — PCA 2')).toBe(
-      'silhouette',
-    );
-  });
-
-  it('returns "bitscore" for a scored column that is not a cluster column', () => {
-    expect(getAnnotationHeaderType([[42]], [null], 'interpro')).toBe('bitscore');
-  });
+  // Auto-cluster columns used to reach this with a per-point silhouette and get their
+  // own 'silhouette' header. buildAnnotationBlock now drops those scores, so every
+  // score arriving here is a bit score again; the replacement guard lives in
+  // plot-data-accessors.test.ts.
 });
 
 describe('formatRawNumericTooltipValue', () => {

@@ -279,6 +279,45 @@ describe('plot-data-accessors', () => {
       expect(view.blocks.map((b) => b.key)).toEqual(['species', 'gene_name']);
     });
 
+    it('drops the per-point silhouette an auto-cluster column carries', () => {
+      // Bundles prepared before the backend stopped attaching it still ship
+      // `cluster N|0.4970`, which the loader parses into annotation_scores. The
+      // legend strips report each cluster's silhouette instead, so the tooltip must
+      // not be the one place in the app showing a separation score per protein.
+      const data: VisualizationData = {
+        ...baseData(),
+        annotations: {
+          ...baseData().annotations,
+          cluster_elbow_t: {
+            kind: 'categorical',
+            values: ['cluster 0', 'cluster 1'],
+            colors: ['#f00', '#0f0'],
+            shapes: ['circle', 'circle'],
+          },
+        },
+        annotation_data: { ...baseData().annotation_data, cluster_elbow_t: Int32Array.of(0, 1, 0) },
+        annotation_scores: { cluster_elbow_t: [[[0.497]], [[0.601]], [[0.3]]], species: [[[42]]] },
+        statisticsRows: [
+          {
+            space_kind: 'projection',
+            space_name: 't',
+            annotation: '',
+            stat_family: 'cluster_validity',
+            label_kind: 'kmeans_elbow',
+            metric: 'n_clusters',
+            metric_kind: 'meta',
+            value: 2,
+          },
+        ],
+      };
+
+      const view = buildTooltipView(data, 0, 'cluster_elbow_t', ['species']);
+      expect(view.blocks[0].displayValues).toEqual(['cluster 0']);
+      expect(view.blocks[0].scores).toEqual([]);
+      // A real scored annotation in the same tooltip keeps its bit score.
+      expect(view.blocks[1].scores).toEqual([[42]]);
+    });
+
     it('returns only extra blocks when primary is null', () => {
       const view = buildTooltipView(baseData(), 0, null, ['gene_name']);
       expect(view.blocks.map((b) => b.key)).toEqual(['gene_name']);
