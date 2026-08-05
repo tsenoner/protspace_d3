@@ -43,8 +43,11 @@ semicolon joining remain unchanged, which keeps the behavioral impact limited to
 
 ## Migration Plan
 
-No stored-data migration is required. Newly retrieved annotations use the source-aligned label;
-rolling back the formatter restores the previous literal if necessary.
+No persistent bundle migration is required. However, the intermediate annotation cache stores
+already-formatted `ted_domains` strings and does not re-run the formatter for cached columns. Users
+reusing an existing output directory MUST run their `protspace prepare ... --refetch ted` command
+once after upgrading; the targeted refetch replaces only the cached TED columns while preserving
+other cached stages. Rolling back likewise requires `--refetch ted` to restore the previous literal.
 
 ## Open Questions
 

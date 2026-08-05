@@ -12,6 +12,8 @@
 
 - [x] 3.1 Update the TED annotation documentation sources to describe `-|{plddt}` output.
 - [x] 3.2 Regenerate the annotation reference and verify generated documentation is current.
+- [x] 3.3 Document the one-time `--refetch ted` requirement for existing formatted annotation
+      caches in the user-facing references and migration plan.
 
 ## 4. Verification
 
