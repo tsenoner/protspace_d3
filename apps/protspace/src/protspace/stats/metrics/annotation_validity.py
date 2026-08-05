@@ -21,18 +21,28 @@ from protspace.stats.base import DEFAULT_SAMPLE_THRESHOLD, StatContext, StatRow
 
 
 def _per_category_silhouette(
-    sample_values: np.ndarray, labels: np.ndarray, cat_names: list[str]
+    sample_values: np.ndarray,
+    labels: np.ndarray,
+    cat_names: list[str],
+    scorable: np.ndarray,
 ) -> dict[str, float]:
-    """Mean silhouette per category.
+    """Mean silhouette per category, for the categories with >= 2 members.
 
     ``silhouette_score`` is ``silhouette_samples(...).mean()``, a mean over POINTS,
     so the aggregate is the size-weighted mean of these per-category values, not
     their plain mean. No extra work is done either way: the per-point array is
     retained instead of being collapsed and discarded.
+
+    Dropping the singleton categories leaves that identity exact rather than
+    approximate: scikit-learn defines a lone point's silhouette as 0, so each one
+    contributes ``1 * 0`` to the weighted sum. The aggregate therefore stays the
+    standard ``silhouette_score`` over every point, singletons included, while the
+    rows report only the categories the number can actually describe.
     """
     return {
         name: float(sample_values[labels == j].mean())
         for j, name in enumerate(cat_names)
+        if scorable[j]
     }
 
 
@@ -44,6 +54,13 @@ def _per_category_davies_bouldin(
     ``R_i = max over j != i of (s_i + s_j) / ||c_i - c_j||`` for centroids ``c``
     and mean intra-cluster distances ``s``. scikit-learn's ``davies_bouldin_score``
     is the mean of exactly these, and exposes only that mean.
+
+    ``Xa``/``labels`` must already be restricted to the categories with >= 2
+    members, and ``labels`` renumbered contiguously. A singleton is its own
+    centroid, so its ``s_i`` is 0 and its ``R_i`` measures the rival's radius over
+    the gap instead of anything about itself. Unlike the silhouette that is not a
+    harmless zero: the index is a mean over CATEGORIES, so one singleton takes a
+    full ``1/k`` share of the aggregate no matter how few proteins it holds.
     """
     from sklearn.metrics import pairwise_distances
 
@@ -149,7 +166,12 @@ class AnnotationValidityStatistic:
                     )
                 )
 
-            # silhouette needs 2 <= k <= n-1; DBI/CH are unstable with singletons.
+            # A one-member category has no spread, so any score for it describes its
+            # neighbours rather than itself. It gets no per-category row, and it is
+            # kept out of the metrics whose aggregate it would distort.
+            scorable = counts >= 2
+
+            # silhouette needs 2 <= k <= n-1.
             if 2 <= achieved <= n - 1:
                 try:
                     from sklearn.metrics import silhouette_samples
@@ -158,18 +180,34 @@ class AnnotationValidityStatistic:
                     # Compute the parts BEFORE emitting the aggregate: if the
                     # decomposition raises, the except below must discard the
                     # whole attempt, not leave an aggregate row with zero parts.
-                    per_cat = _per_category_silhouette(samples, labels, cat_names)
+                    per_cat = _per_category_silhouette(
+                        samples, labels, cat_names, scorable
+                    )
                     _emit("silhouette", samples.mean())
                     for cat, value in per_cat.items():
                         _emit("silhouette", value, cat)
                 except Exception:  # noqa: BLE001 - best-effort
                     pass
 
-            if not bool((counts < 2).any()):
+            # DBI and CH run over the scorable categories only. Restricting the
+            # input, rather than suppressing the metrics whenever any singleton
+            # exists, is what makes them available for annotations like a taxonomic
+            # rank, where a handful of one-member categories used to hide the score
+            # of every other category. It also keeps each aggregate the plain mean
+            # of the per-category rows actually emitted.
+            if int(scorable.sum()) >= 2:
+                keep = np.flatnonzero(scorable)
+                point_mask = scorable[labels]
+                Xs = Xa[point_mask]
+                # sklearn wants contiguous 0..k'-1 labels once categories drop out.
+                renumber = np.full(achieved, -1)
+                renumber[keep] = np.arange(len(keep))
+                ls = renumber[labels[point_mask]]
+                scored_names = [cat_names[j] for j in keep]
                 try:
                     # Same ordering constraint as the silhouette block above.
-                    per_cat = _per_category_davies_bouldin(Xa, labels, cat_names)
-                    _emit("davies_bouldin", davies_bouldin_score(Xa, labels))
+                    per_cat = _per_category_davies_bouldin(Xs, ls, scored_names)
+                    _emit("davies_bouldin", davies_bouldin_score(Xs, ls))
                     for cat, value in per_cat.items():
                         _emit("davies_bouldin", value, cat)
                 except Exception:  # noqa: BLE001 - best-effort
@@ -178,7 +216,7 @@ class AnnotationValidityStatistic:
                 try:
                     # Aggregate only: CH is a global variance ratio with no
                     # accepted per-cluster decomposition.
-                    _emit("calinski_harabasz", calinski_harabasz_score(Xa, labels))
+                    _emit("calinski_harabasz", calinski_harabasz_score(Xs, ls))
                 except Exception:  # noqa: BLE001 - best-effort
                     pass
         return rows

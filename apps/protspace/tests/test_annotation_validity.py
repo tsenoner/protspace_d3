@@ -224,10 +224,13 @@ def test_per_category_rows_are_emitted_for_the_embedding_pass_too():
     assert any(r.metric == "silhouette" for r in per_cat)
 
 
-def test_singleton_category_emits_no_davies_bouldin_at_all():
-    # DBI is unstable with a singleton cluster, so neither the aggregate nor the
-    # per-category rows may appear; otherwise the mean invariant would compare a
-    # present aggregate against an incomplete set of parts.
+def test_singleton_category_is_dropped_but_the_others_still_score():
+    # A one-member category has no spread, so it gets no per-category row of its
+    # own -- for silhouette either, where scikit-learn would otherwise hand back a
+    # fabricated-looking 0.0. It no longer suppresses Davies-Bouldin and
+    # Calinski-Harabasz for every OTHER category: those now run over the
+    # categories that do have >= 2 members. `lonely` used to cost `a` and `b`
+    # both metrics entirely.
     X, _ = _blobs(n=60, centers=2, dim=2, seed=7)
     ids = [f"p{i}" for i in range(60)]
     cats = ["a"] * 30 + ["b"] * 29 + ["lonely"]
@@ -235,8 +238,29 @@ def test_singleton_category_emits_no_davies_bouldin_at_all():
     outs = AnnotationValidityStatistic().compute(
         StatContext("projection", "P", coords=X, ids=ids, annotations=ann)
     )
-    assert [r for r in outs if r.metric == "davies_bouldin"] == []
-    assert [r for r in outs if r.metric == "silhouette"]
+
+    for metric in ("silhouette", "davies_bouldin"):
+        scored = {r.category for r in outs if r.metric == metric and r.category}
+        assert scored == {"a", "b"}
+    assert [r for r in outs if r.metric == "calinski_harabasz"]
+
+    # The silhouette aggregate still covers every point, `lonely` included, and
+    # the size-weighted identity still closes EXACTLY because a lone point's
+    # silhouette is 0 by definition. Dividing by 60 rather than 59 is the point:
+    # re-weighting over just the surviving 59 would not reproduce the aggregate.
+    sil_agg = next(r for r in outs if r.metric == "silhouette" and r.category is None)
+    sil = {r.category: r.value for r in outs if r.metric == "silhouette" and r.category}
+    assert (30 * sil["a"] + 29 * sil["b"]) / 60 == pytest.approx(sil_agg.value)
+
+    # The Davies-Bouldin aggregate, by contrast, is computed over the two scored
+    # categories only, so it stays the plain mean of exactly the rows emitted. This
+    # is what fails if the singleton is filtered out of the emission but left in
+    # the metric's input.
+    dbi_agg = next(
+        r for r in outs if r.metric == "davies_bouldin" and r.category is None
+    )
+    dbi = [r.value for r in outs if r.metric == "davies_bouldin" and r.category]
+    assert np.mean(dbi) == pytest.approx(dbi_agg.value)
 
 
 def test_category_is_written_to_the_arrow_table():
