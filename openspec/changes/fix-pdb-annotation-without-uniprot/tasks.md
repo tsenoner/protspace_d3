@@ -27,3 +27,12 @@
       and validate the OpenSpec change strictly.
 - [x] 4.5 Run affected and full Python tests, Ruff, the bundle contract, and the
       repository-mandated `pnpm precommit` gate.
+
+## 5. Taxonomy Migration Review Follow-up
+
+- [x] 5.1 Add a failing production-path regression proving cached taxonomy survives a
+      UniProt cache migration and repeated reuse while stale UniProt fields do not.
+- [x] 5.2 Preserve the cached taxonomy lookup dependency only until taxonomy is
+      rehydrated, without retaining stale UniProt outputs or changing source refetching.
+- [x] 5.3 Run focused, affected, full Python, Ruff, bundle contract, strict OpenSpec,
+      docs/generated, and repository precommit verification.

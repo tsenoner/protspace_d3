@@ -21,6 +21,15 @@ from unaffected sources, and mark the transformed replacement cache as current.
 - **THEN** ProtSpace preserves those unaffected source columns while refreshing the
   UniProt columns
 
+#### Scenario: Cached taxonomy depends on the UniProt organism identifier
+
+- **WHEN** a legacy PDB cache contains taxonomy annotations and their cached
+  `organism_id` lookup key, and taxonomy is not being refetched
+- **THEN** ProtSpace retains the lookup key long enough to rehydrate the cached taxonomy
+- **AND** merges that taxonomy against the freshly fetched UniProt annotations
+- **AND** subsequent reuse of the migrated cache preserves the taxonomy without another
+  migration refresh
+
 #### Scenario: Legacy cache has no PDB annotation
 
 - **WHEN** an unversioned annotation cache does not contain `xref_pdb`

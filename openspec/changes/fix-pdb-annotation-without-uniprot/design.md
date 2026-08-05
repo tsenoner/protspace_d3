@@ -46,6 +46,13 @@ PDB hit or a legacy empty value that was transformed twice. The pipeline will th
 drop and refetch the cached UniProt columns once, preserve other source columns, and
 write the current marker with the corrected result.
 
+Cached taxonomy is source-owned independently, but its cache representation is keyed by
+the UniProt-owned `organism_id`. When taxonomy is reused during a UniProt refresh, the
+pipeline will retain that one dependency until the manager has rehydrated the cached
+taxonomy dictionary. Cached UniProt records are still excluded from the merge, and the
+freshly fetched `organism_id` selects the rehydrated taxonomy record, so stale UniProt
+outputs cannot survive the migration.
+
 Using the existing Parquet metadata channel avoids a sidecar file and does not expose
 an internal version column to bundle consumers. Invalidating every annotation cache was
 rejected because caches without `xref_pdb` cannot contain the affected value. Inferring
@@ -75,7 +82,8 @@ without changing raw InterPro interpretation.
 
 Existing bundles remain readable and are not rewritten. On the next prepare run, an
 unversioned `all_annotations.parquet` containing `xref_pdb` automatically refetches its
-UniProt columns, retains cached columns from other sources, and is rewritten with
+UniProt columns, retains cached columns from other sources and the temporary taxonomy
+lookup dependency, and is rewritten with
 `protspace_annotation_cache_version = 1`. Newly generated caches carry that marker from
 their first write. Rollback can ignore the marker because it lives in Parquet metadata;
 no schema, bundle format, or dependency migration is required.

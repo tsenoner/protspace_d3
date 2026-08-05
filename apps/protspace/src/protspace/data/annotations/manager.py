@@ -9,7 +9,10 @@ from pathlib import Path
 
 import pandas as pd
 
-from protspace.data.annotations.configuration import AnnotationConfiguration
+from protspace.data.annotations.configuration import (
+    TAXONOMY_LOOKUP_ANNOTATION,
+    AnnotationConfiguration,
+)
 from protspace.data.annotations.merging import AnnotationMerger
 from protspace.data.annotations.retrievers.biocentral_retriever import (
     BIOCENTRAL_ANNOTATIONS,
@@ -331,7 +334,7 @@ class ProteinAnnotationManager:
         id_counts = {}
 
         for protein in fetched_uniprot:
-            organism_id = protein.annotations.get("organism_id")
+            organism_id = protein.annotations.get(TAXONOMY_LOOKUP_ANNOTATION)
             if organism_id:
                 try:
                     org_id = int(organism_id)
@@ -388,7 +391,10 @@ class ProteinAnnotationManager:
         Returns:
             Dict mapping organism_id to taxonomy annotations (same format as TaxonomyRetriever)
         """
-        if self.cached_data is None or "organism_id" not in self.cached_data.columns:
+        if (
+            self.cached_data is None
+            or TAXONOMY_LOOKUP_ANNOTATION not in self.cached_data.columns
+        ):
             return {}
 
         # Find available taxonomy annotations in cache
@@ -401,7 +407,7 @@ class ProteinAnnotationManager:
 
         # Group by organism_id
         for _, row in self.cached_data.iterrows():
-            organism_id = row["organism_id"]
+            organism_id = row[TAXONOMY_LOOKUP_ANNOTATION]
             if pd.isna(organism_id) or organism_id == "":
                 continue
 

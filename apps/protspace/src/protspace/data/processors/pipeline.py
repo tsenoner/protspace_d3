@@ -467,14 +467,20 @@ class ReductionPipeline:
                     # Drop cached columns for refetched sources so manager
                     # re-fetches them
                     from protspace.data.annotations.configuration import (
+                        TAXONOMY_LOOKUP_ANNOTATION,
+                    )
+                    from protspace.data.annotations.configuration import (
                         AnnotationConfiguration as AnnCfg,
                     )
 
+                    cached_by_source = AnnCfg.categorize_annotations_by_source(
+                        cached_annotations
+                    )
                     cols_to_drop = set()
                     for src in refetched:
-                        cols_to_drop |= AnnCfg.categorize_annotations_by_source(
-                            cached_annotations
-                        ).get(src, set())
+                        cols_to_drop |= cached_by_source.get(src, set())
+                    if cached_by_source["taxonomy"] and not sources["taxonomy"]:
+                        cols_to_drop.discard(TAXONOMY_LOOKUP_ANNOTATION)
                     if cols_to_drop:
                         cached_df = cached_df.drop(
                             columns=[c for c in cols_to_drop if c in cached_df.columns]
