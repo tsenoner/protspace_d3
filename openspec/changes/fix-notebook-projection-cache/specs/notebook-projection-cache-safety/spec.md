@@ -65,15 +65,23 @@ The Preparation notebook SHALL partition retained query FASTA files by query tex
 
 - **WHEN** the extracted FASTA identifiers match the downloaded query result
 - **THEN** the complete FASTA SHALL be atomically published at the query-addressed cache path
+- **AND** the published file SHALL use normal new-file permissions under the process umask
 - **AND** a later Generate action for that query MAY reuse it
 
 ### Requirement: Annotation cache reuse validates identifiers
 
-The reduction pipeline SHALL reuse a retained annotation cache only when its identifier multiset matches the identifiers requested by the current run.
+The reduction pipeline SHALL reuse a retained annotation cache only when its identifier multiset contains every identifier requested by the current run. The cache MAY contain identifiers outside the current request.
 
-#### Scenario: Input identifiers change between runs
+#### Scenario: Requested identifiers are missing from the cache
 
 - **WHEN** a retained annotation cache contains identifiers from an earlier input
-- **AND** the current run requests a different identifier multiset
+- **AND** the current run requests one or more identifiers absent from that cache
 - **THEN** annotations SHALL be fetched for the current identifiers
 - **AND** incompatible cached rows SHALL NOT be returned as the current metadata
+
+#### Scenario: Cache contains a superset of requested identifiers
+
+- **WHEN** a retained annotation cache contains every identifier requested by the current run
+- **AND** it also contains identifiers outside the current request
+- **THEN** the retained cache SHALL remain eligible for reuse
+- **AND** the larger retained cache SHALL NOT be replaced by a subset-only fetch

@@ -414,6 +414,15 @@ class ReductionPipeline:
             intermediate_dir.mkdir(parents=True, exist_ok=True)
             cache_path = intermediate_dir / "all_annotations.parquet"
 
+            def fetch_current_annotations() -> pd.DataFrame:
+                api_df = ProteinAnnotationManager(
+                    headers=headers,
+                    annotations=annotations_list,
+                    output_path=cache_path,
+                    sequences=sequences,
+                ).to_pd()
+                return self._merge_csv(api_df, csv_df)
+
             if cache_path.exists():
                 cached_df = pd.read_parquet(cache_path)
                 cached_identifiers = (
@@ -422,19 +431,15 @@ class ReductionPipeline:
                     else Counter()
                 )
                 requested_identifiers = Counter(map(str, headers))
+                missing_identifiers = requested_identifiers - cached_identifiers
 
-                if cached_identifiers != requested_identifiers:
-                    logger.info(
-                        "Annotation cache input changed; fetching annotations "
-                        "for the current identifiers"
+                if missing_identifiers:
+                    logger.warning(
+                        "Annotation cache is missing %d requested identifier(s); "
+                        "fetching annotations for the current identifiers",
+                        sum(missing_identifiers.values()),
                     )
-                    api_df = ProteinAnnotationManager(
-                        headers=headers,
-                        annotations=annotations_list,
-                        output_path=cache_path,
-                        sequences=sequences,
-                    ).to_pd()
-                    return self._merge_csv(api_df, csv_df)
+                    return fetch_current_annotations()
 
                 cached_annotations = set(cached_df.columns) - {"identifier"}
 
@@ -516,13 +521,7 @@ class ReductionPipeline:
                 ).to_pd()
                 return self._merge_csv(api_df, csv_df)
             else:
-                api_df = ProteinAnnotationManager(
-                    headers=headers,
-                    annotations=annotations_list,
-                    output_path=cache_path,
-                    sequences=sequences,
-                ).to_pd()
-                return self._merge_csv(api_df, csv_df)
+                return fetch_current_annotations()
         else:
             api_df = ProteinAnnotationManager(
                 headers=headers,

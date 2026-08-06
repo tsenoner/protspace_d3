@@ -348,11 +348,12 @@ With `--keep-tmp` (default), all intermediate results are cached in `{output}/tm
 | ----------- | ---- | -------------- |
 | FASTA sequences | `sequences.fasta` | Skip UniProt query download |
 | Embeddings | `{embedder}.h5` | Skip already-embedded proteins |
-| Annotations | `all_annotations.parquet` | Fetch only missing annotation sources |
+| Annotations | `all_annotations.parquet` | Fetch missing sources when the cache covers every requested identifier; rebuild when requested identifiers are absent |
 | Similarity matrix | `similarity_matrix.npy` | Skip MMseqs2 recomputation |
 | DR projections | `proj_{name}_{method}_{hash}.npz` | Skip dimensionality reduction |
 
 - Annotation cache always includes scores regardless of `--no-scores`
+- An annotation cache may cover more proteins than the current run; those extra rows are filtered later. If any requested identifier is absent, annotations are rebuilt for the current input and the cache is replaced.
 - DR projection caches are keyed by embedding name, method, dimensions, and all parameters — changing any parameter creates a new cache entry
 - Use `--refetch all` to bypass all caches, or `--refetch <stages>` selectively (e.g., `--refetch ted,biocentral`)
 

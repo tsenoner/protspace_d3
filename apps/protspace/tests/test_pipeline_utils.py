@@ -37,18 +37,37 @@ def _preparation_notebook_projection_refetch_stages() -> frozenset[str]:
         for cell in notebook["cells"]
         if cell["cell_type"] == "code"
     )
-    generate_source = next(source for source in code_sources if "def _on_gen" in source)
+    generate_source = next(
+        (source for source in code_sources if "def _on_gen" in source), None
+    )
+    if generate_source is None:
+        pytest.fail("Generate callback not found in the Preparation notebook")
     tree = ast.parse(generate_source)
     config_call = next(
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "PipelineConfig"
+        (
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "PipelineConfig"
+        ),
+        None,
     )
+    if config_call is None:
+        pytest.fail("PipelineConfig(...) not found in the notebook Generate callback")
     refetch_keyword = next(
-        keyword for keyword in config_call.keywords if keyword.arg == "refetch_stages"
+        (
+            keyword
+            for keyword in config_call.keywords
+            if keyword.arg == "refetch_stages"
+        ),
+        None,
     )
+    if refetch_keyword is None:
+        pytest.fail(
+            "PipelineConfig(...) with refetch_stages not found in the notebook "
+            "Generate callback"
+        )
     expression = ast.Expression(refetch_keyword.value)
     return eval(
         compile(expression, filename=str(notebook_path), mode="eval"),
@@ -836,19 +855,56 @@ def test_annotation_cache_is_reused_for_matching_identifiers(tmp_path, monkeypat
     assert result["identifier"].tolist() == ["P1", "P2"]
 
 
+def test_annotation_cache_superset_is_reused_without_truncation(tmp_path, monkeypatch):
+    from protspace.data.annotations.manager import ProteinAnnotationManager
+
+    cache_path = tmp_path / "cache" / "all_annotations.parquet"
+    cache_path.parent.mkdir()
+    cached = pd.DataFrame(
+        {
+            "identifier": ["P1", "P2", "P3"],
+            "protein_name": ["one", "two", "three"],
+            "gene_name": ["gene-one", "gene-two", "gene-three"],
+            "uniprot_kb_id": ["id-one", "id-two", "id-three"],
+        }
+    )
+    cached.to_parquet(cache_path)
+    pipeline = ReductionPipeline(
+        PipelineConfig(
+            methods=[],
+            output_path=tmp_path / "output.parquetbundle",
+            keep_tmp=True,
+            intermediate_dir=cache_path.parent,
+            annotations=["protein_name"],
+        )
+    )
+
+    def unexpected_fetch(_manager):
+        pytest.fail("a cache covering every requested identifier should be reused")
+
+    monkeypatch.setattr(ProteinAnnotationManager, "to_pd", unexpected_fetch)
+
+    result = pipeline._fetch_annotations(["P2", "P1"])
+
+    assert result["identifier"].tolist() == ["P1", "P2", "P3"]
+    pd.testing.assert_frame_equal(pd.read_parquet(cache_path), cached)
+
+
 # ---------------------------------------------------------------------------
 # Preparation notebook projection refresh
 # ---------------------------------------------------------------------------
 
 
 def test_notebook_refreshes_same_name_changed_input_through_pipeline(tmp_path):
+    refetch_stages = _preparation_notebook_projection_refetch_stages()
+    assert refetch_stages == frozenset({"projections"})
     config = PipelineConfig(
         methods=parse_methods_arg(["umap2"]),
         output_path=tmp_path / "output" / "data.parquetbundle",
         keep_tmp=True,
         intermediate_dir=tmp_path / "output" / "tmp",
         annotations=None,
-        refetch_stages=_preparation_notebook_projection_refetch_stages(),
+        refetch_stages=refetch_stages,
     )
     config.intermediate_dir.mkdir(parents=True)
     pipeline = ReductionPipeline(config)

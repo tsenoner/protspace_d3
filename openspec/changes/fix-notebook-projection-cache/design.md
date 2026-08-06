@@ -53,11 +53,13 @@ The notebook constructs fixed default backend configurations. Their batch sizes 
 
 `query_uniprot` extracts a downloaded gzip into a temporary sibling of the requested cache file. It parses that staged FASTA and requires its ordered identifiers to match those read from the compressed download. Only then does it replace the final path atomically. A `finally` cleanup removes the compressed download and any incomplete staged output, so interruption cannot leave a nonempty final-path artifact for the next Generate action to accept.
 
+Before publication, the staged file receives the permissions that a normal new file would receive under the process umask. Atomic replacement therefore does not make the retained FASTA less accessible than the direct-write behavior it replaces.
+
 **Alternative: persist a separate completion marker.** Rejected because same-directory atomic replacement makes final-path existence the completion signal without a two-file consistency problem.
 
 ### Validate annotation identifiers before reuse
 
-`ReductionPipeline._fetch_annotations` compares the cached and requested identifier multisets before considering cached columns. A mismatch rebuilds the annotation cache for the current headers instead of passing incompatible rows into the bundle merge. Exact-identifier caches retain the existing incremental column/source behavior.
+`ReductionPipeline._fetch_annotations` verifies that the cached identifier multiset covers every requested identifier before considering cached columns. Missing requested identifiers rebuild the annotation cache for the current headers instead of passing incompatible rows into the bundle merge. A cached superset remains reusable because the pipeline's later identifier merge drops rows outside the current input; this preserves the existing subset-run behavior and avoids replacing a larger cache with a smaller one.
 
 ### Exercise actual cache behavior in the regression
 
@@ -69,6 +71,7 @@ The notebook artifact will also be validated as a parseable notebook with parsea
 
 - **Projection reruns take longer even when nothing changed.** → This is the explicit notebook correctness contract; expensive embedding and annotation intermediates remain cached.
 - **Hashing an input file adds one sequential read per Generate action.** → Example and uploaded inputs are already read for processing, and the bounded cost avoids far more expensive incompatible embedding reuse.
+- **Any FASTA content change selects a new embedding cache and re-embeds the complete file.** → This deliberately gives same-identifier sequence changes correct ownership without redesigning the shared H5 format around per-sequence hashes; incremental per-sequence invalidation remains outside this notebook-scoped change.
 - **Backend-qualified H5 names leave prior unqualified files unused.** → They remain recoverable but are intentionally ignored because their producer cannot be proven.
 - **An interruption can leave the previous complete query FASTA in place.** → Atomic replacement preserves that known-complete artifact; incomplete staged output is removed and never published.
 - **Old shared cache files remain under `output/tmp`.** → New input-owned paths ignore them; no destructive migration is required.

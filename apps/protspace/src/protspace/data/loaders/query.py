@@ -6,6 +6,7 @@ and _extract_identifiers_from_fasta*.
 
 import gzip
 import logging
+import os
 import tempfile
 from pathlib import Path
 
@@ -88,6 +89,9 @@ def query_uniprot(
             raise ValueError("Extracted FASTA identifiers do not match the download")
 
         if save_to is not None:
+            current_umask = os.umask(0)
+            os.umask(current_umask)
+            staged_path.chmod(0o666 & ~current_umask)
             staged_path.replace(save_to)
             staged_path = None
             extracted_path = save_to

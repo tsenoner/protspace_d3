@@ -4,6 +4,7 @@
 - [x] 1.2 Add focused regressions for query changes, disjoint FASTA inputs, same-ID sequence changes, and annotation identifier mismatches.
 - [x] 1.3 Run the new cache-identity regressions before implementation and record the expected failures.
 - [x] 1.4 Add RED regressions for Local/Biocentral cache ownership, same-backend reuse, and interrupted query FASTA publication.
+- [x] 1.5 Add RED regressions for annotation-cache superset reuse and published FASTA permissions.
 
 ## 2. Notebook implementation
 
@@ -13,6 +14,8 @@
 - [x] 2.4 Validate cached annotation identifiers before reuse and preserve incremental reuse for matching inputs.
 - [x] 2.5 Scope embedding H5 paths by producing backend while retaining same-backend/model reuse.
 - [x] 2.6 Stage, validate, and atomically publish query FASTA cache files, cleaning incomplete artifacts.
+- [x] 2.7 Preserve normal umask-derived permissions when atomically publishing query FASTA files.
+- [x] 2.8 Reuse annotation caches that cover all requested identifiers without truncating cached supersets.
 
 ## 3. Focused verification
 
@@ -20,6 +23,7 @@
 - [x] 3.2 Validate the notebook with `nbformat` and compile every code cell after removing Colab magics.
 - [x] 3.3 Verify the original two-run reproduction returns coordinates from the changed input and invokes the reducer twice.
 - [x] 3.4 Run the consolidated pipeline regressions and the full non-slow Python suite.
+- [x] 3.5 Make notebook projection-refetch wiring failures explicit in the focused regression.
 
 ## 4. Repository gates
 

@@ -2,6 +2,8 @@
 
 import builtins
 import gzip
+import os
+import stat
 from pathlib import Path
 
 import pytest
@@ -74,3 +76,16 @@ def test_query_uniprot_atomically_publishes_complete_fasta(tmp_path, monkeypatch
     assert path == target
     assert target.read_text() == fasta
     assert list(tmp_path.iterdir()) == [target]
+
+
+def test_query_uniprot_publishes_fasta_with_process_umask(tmp_path, monkeypatch):
+    target = tmp_path / "query.fasta"
+    _mock_download(monkeypatch, ">P1\nAAAA\n")
+    previous_umask = os.umask(0o027)
+
+    try:
+        query_module.query_uniprot("family:globin", save_to=target)
+    finally:
+        os.umask(previous_umask)
+
+    assert stat.S_IMODE(target.stat().st_mode) == 0o640
