@@ -9,6 +9,7 @@ type ProjectionMetadataElement = HTMLElement & {
   projection: Projection | null;
   statisticsRows?: readonly ProjectionStatisticRow[];
   selectedAnnotation: string;
+  viewIsSubset: boolean;
   updateComplete: Promise<unknown>;
 };
 
@@ -238,7 +239,37 @@ describe('protspace-projection-metadata annotation quality section', () => {
     expect(statsBlock(el)!.querySelector('.stat-metric-embedding')!.textContent).toContain('0.10');
     expect(text).not.toContain('emb 0.10');
     expect(text).toContain('5 categories · 1,427 proteins scored');
-    expect(text).toContain('Computed on the full dataset');
+    // The scores' scope is folded into the scope line rather than a standing paragraph, and
+    // only becomes a warning when the view is actually narrowed (see the subset test below).
+    expect(text).toContain('full dataset');
+    expect(text).not.toContain('not this view');
+  });
+
+  it('warns that the scores outrun the view only while the view is narrowed', async () => {
+    // The scores are computed once over everything and never recomputed, so under a filter or
+    // an isolation they describe a population the user is no longer looking at. Stated
+    // unconditionally this said the same thing either way — no information in the common case,
+    // and therefore easy to skip in the one case it matters.
+    const stats = {
+      statistics: [statRow({ extra_json: '{"n_categories": 5, "n_labels": 1427}' })],
+      selectedAnnotation: 'major_group',
+    };
+
+    const whole = await setup({ n_components: 2 }, stats);
+    expect(statsBlock(whole)!.textContent).toContain('full dataset');
+    expect(statsBlock(whole)!.textContent).not.toContain('not this view');
+
+    document.body.innerHTML = '';
+    const filtered = await setup({ n_components: 2 }, stats);
+    filtered.viewIsSubset = true;
+    await filtered.updateComplete;
+
+    // One line, not a second paragraph: the scope and the warning are the same statement.
+    const caveats = statsBlock(filtered)!.querySelectorAll('.stat-caveat');
+    expect(caveats).toHaveLength(1);
+    expect(caveats[0].textContent).toContain('full dataset, not this view');
+    // The numbers themselves are untouched — only how they are described.
+    expect(statsBlock(filtered)!.textContent).toContain('5 categories');
   });
 
   it('marks each metric with the direction that counts as better', async () => {

@@ -79,9 +79,18 @@ export const projectionMetadataStyles = [
          region was the annotation-stats block: exactly what the dropdown's STATS badge
          sends people here to read. Safe for the side-placed info popovers, which are
          position:fixed and anchor to this element via data-info-popover-boundary. */
-      max-height: min(30rem, calc(100vh - 6rem));
+      /* Fallback only. The real cap is measured and set inline by _updateMaxHeight(), because
+         the binding constraint is the scatter-plot host's height, not the viewport's: the plot
+         starts partway down the page (209px measured at 1102px tall), so a viewport rule
+         over-allocates by exactly that much and the tallest cards get clipped again. */
+      max-height: calc(100vh - 8rem);
       overflow-y: auto;
       overscroll-behavior: contain;
+      /* Reserve the scrollbar's width up front. Without it the bar is laid over the content
+         box on overflow and clips the right-hand value column — "Embedding" and its numbers
+         lost their last characters. Stable also means the layout does not shift by ~15px at
+         the moment a section appears and tips the card into scrolling. */
+      scrollbar-gutter: stable;
       background: var(--protspace-tooltip-bg, rgba(255, 255, 255, 0.95));
       border: 1px solid var(--protspace-tooltip-border, #d9e2ec);
       border-radius: 0.5rem;

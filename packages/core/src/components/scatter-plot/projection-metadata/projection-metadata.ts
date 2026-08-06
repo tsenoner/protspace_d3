@@ -64,6 +64,12 @@ class ProtspaceProjectionMetadata extends LitElement {
   @property({ type: Array }) statisticsRows?: readonly ProjectionStatisticRow[];
   /** Annotation currently coloring the plot, which the quality section is scored on. */
   @property({ type: String, attribute: 'selected-annotation' }) selectedAnnotation = '';
+  /**
+   * Whether the plot is currently showing less than the whole dataset (a query filter or an
+   * isolation). The scores never are — they are computed once by the backend over everything —
+   * so this only changes how the scope line describes them, never the numbers.
+   */
+  @property({ type: Boolean }) viewIsSubset = false;
 
   /**
    * Click-pinned open, so the panel survives the pointer leaving it — the same affordance the
@@ -74,8 +80,56 @@ class ProtspaceProjectionMetadata extends LitElement {
 
   static styles = projectionMetadataStyles;
 
+  /** Smallest card worth showing before scrolling; below this a "scrollable" card is unusable. */
+  private static readonly MIN_CARD_HEIGHT = 200;
+  /** Gap above the card (below the trigger) and the breathing room kept at the plot's edge. */
+  private static readonly CARD_MARGIN = 8;
+
+  /**
+   * Created lazily and guarded: `ResizeObserver` is absent in jsdom and under SSR, and as a
+   * field initializer its constructor ran before the element could render at all. The measured
+   * cap still applies without it; only tracking a later resize is lost.
+   */
+  private _resize: ResizeObserver | null = null;
+
+  firstUpdated() {
+    this._updateMaxHeight();
+    // The plot host resizes with the window and with the side panels opening/closing.
+    if (typeof ResizeObserver === 'undefined' || !this.offsetParent) return;
+    this._resize = new ResizeObserver(() => this._updateMaxHeight());
+    this._resize.observe(this.offsetParent);
+  }
+
+  updated() {
+    // Section visibility changes with the selected annotation, so the natural height does too.
+    this._updateMaxHeight();
+  }
+
+  /**
+   * Cap the card at the space actually left inside the scatter-plot, which clips its overflow.
+   *
+   * Measured rather than expressed in CSS. The constraint is the plot host's height, and this
+   * card cannot reach it: percentages resolve against its own `:host`, which is only as tall as
+   * the 32px trigger. Viewport units miss by however far down the page the plot begins —
+   * measured at 209px, i.e. a 974px cap where only 827px fits. `container-type: size` on the
+   * host would express it exactly but also makes the host the containing block for
+   * `position: fixed` descendants, which would strand the side-placed ⓘ popovers.
+   */
+  private _updateMaxHeight(): void {
+    const host = this.offsetParent as HTMLElement | null;
+    const content = this.shadowRoot?.querySelector('.content') as HTMLElement | null;
+    if (!host || !content) return;
+    const { MIN_CARD_HEIGHT, CARD_MARGIN } = ProtspaceProjectionMetadata;
+    // Top of the card = trigger's offset + its height + the gap the stylesheet leaves.
+    const cardTop = this.offsetTop + this.offsetHeight + CARD_MARGIN;
+    const available = host.clientHeight - cardTop - CARD_MARGIN;
+    content.style.maxHeight = `${Math.max(MIN_CARD_HEIGHT, available)}px`;
+  }
+
   disconnectedCallback() {
     super.disconnectedCallback();
+    this._resize?.disconnect();
+    this._resize = null;
     this._setPinned(false);
   }
 
@@ -294,10 +348,6 @@ class ProtspaceProjectionMetadata extends LitElement {
         ${isAutoClusterColumn(this.statisticsRows, this.selectedAnnotation)
           ? html`<div class="stat-caveat">${AUTO_CLUSTER_SCORE_CAVEAT}</div>`
           : nothing}
-        <!-- Stated unconditionally: isolation, query filters, legend hides and the reliability
-             threshold all narrow the view, and these scores are computed once over the whole
-             dataset regardless. A flag tracking "is the view a subset?" cannot stay correct. -->
-        <div class="stat-caveat">Computed on the full dataset.</div>
       </div>
     `;
   }
@@ -360,6 +410,12 @@ class ProtspaceProjectionMetadata extends LitElement {
     if (scored !== null) {
       parts.push(`${scored.toLocaleString()} ${scored === 1 ? 'protein' : 'proteins'} scored`);
     }
+    // The scores' own scope, folded in here rather than repeated as a standing paragraph
+    // below. "Computed on the full dataset." was rendered unconditionally, so it said the
+    // same thing whether or not anything was filtered — no information in the common case,
+    // and therefore easy to skip in the one case it matters. Now it only becomes a warning
+    // when the view actually narrows, which is the same signal the legend already acts on.
+    parts.push(this.viewIsSubset ? 'full dataset, not this view' : 'full dataset');
     return parts.join(' · ');
   }
 

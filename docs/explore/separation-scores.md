@@ -52,7 +52,7 @@ The practical effect shows up most on deep taxonomic ranks. Scoring a venom data
 
 ## Scores Cover The Whole Dataset
 
-Scores are computed once, during preparation, over every protein. Hiding legend values or filtering the view does not recompute them, so the panel states "Computed on the full dataset".
+Scores are computed once, during preparation, over every protein. Hiding legend values or filtering the view does not recompute them, so the panel's scope line ends in "full dataset" — and, while the view is narrowed, "full dataset, not this view".
 
 Because a filtered view and a whole-dataset score would contradict each other on screen, the strips are replaced by "Separation scores are hidden while the view is filtered" whenever a filter is active. This includes the EAT reliability slider. Clear the filter and the strips return.
 
