@@ -56,13 +56,12 @@ export async function waitForDataLoad(page: Page, timeout = 30000): Promise<void
       if (!plot._scales) return false;
       return true;
     },
-    undefined,
     { timeout, polling: 200 },
   );
 
   // The loading overlay fades out (opacity 0.5s) then removes itself ~500 ms
   // later. Wait for the element to be gone from the DOM.
-  await page.waitForFunction(() => !document.getElementById('progressive-loading'), undefined, {
+  await page.waitForFunction(() => !document.getElementById('progressive-loading'), {
     timeout,
     polling: 100,
   });
@@ -83,7 +82,6 @@ export async function waitForLegend(page: Page, timeout = 15000): Promise<void> 
       const items = legend.shadowRoot.querySelectorAll('.legend-item');
       return items.length > 0;
     },
-    undefined,
     { timeout, polling: 200 },
   );
 
