@@ -1,4 +1,4 @@
-import { test, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -20,6 +20,11 @@ type DuplicatePlotProbe = HTMLElement & {
   };
   _scales?: { x: (v: number) => number; y: (v: number) => number };
   _transform?: { x: number; y: number; k: number };
+};
+
+type DuplicateControlBarProbe = HTMLElement & {
+  applyProjectionSelection(projection: string): void;
+  selectedProjection?: string;
 };
 
 /**
@@ -542,20 +547,36 @@ test.describe('Scatterplot Animation Captures', () => {
     // animating the cog → checkbox path (keeps the GIF focused on the badge).
     await page.evaluate(async () => {
       const plot = document.querySelector('#myPlot') as DuplicatePlotProbe | null;
-      if (!plot) return;
+      const controlBar = document.querySelector('#myControlBar') as DuplicateControlBarProbe | null;
+      if (!plot || !controlBar) {
+        throw new Error('Duplicate-badge capture needs #myPlot and #myControlBar');
+      }
 
-      const pcaIndex = plot.data?.projections?.findIndex((projection) =>
-        projection.name.includes('PCA'),
-      );
-      if (pcaIndex === undefined || pcaIndex < 0) {
+      const pca = plot.data?.projections?.find((projection) => projection.name.includes('PCA'));
+      if (!pca) {
         throw new Error('Duplicate-badge capture requires a PCA projection');
       }
 
-      plot.selectedProjectionIndex = pcaIndex;
+      controlBar.applyProjectionSelection(pca.name);
       await plot.updateComplete;
       plot.config = { ...(plot.config ?? {}), enableDuplicateStackUI: true };
       await plot.updateComplete;
     });
+
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const plot = document.querySelector('#myPlot') as DuplicatePlotProbe | null;
+            const controlBar = document.querySelector(
+              '#myControlBar',
+            ) as DuplicateControlBarProbe | null;
+            const plotProjection = plot?.data?.projections?.[plot.selectedProjectionIndex]?.name;
+            return !!plotProjection && plotProjection === controlBar?.selectedProjection;
+          }),
+        { timeout: 1_000 },
+      )
+      .toBe(true);
 
     // Wait for the scatter-plot to (re)compute its duplicate stacks. The
     // overlay update is debounced behind the config change + a quadtree
