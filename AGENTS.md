@@ -45,6 +45,45 @@ Always run `pnpm precommit` before creating any git commit. It runs:
 
 It is JS-only; Python workspace members are covered by their own CI workflows (see below).
 
+Note that `pnpm precommit` runs lint-staged, so it only inspects **staged** files. Unstaged
+work passes it and still fails CI's `format:check`. Run `pnpm format:check` and `pnpm test`
+explicitly when you have not staged everything.
+
+## End-to-end tests (Playwright)
+
+`e2e.yml` is the only suite that drives the real app in a browser, and it is the only place
+several whole subsystems are covered at all — EAT provenance connectors, isolation, dataset
+swap. Nothing in `pnpm precommit` touches them.
+
+When it runs:
+
+| Trigger                                                            | Runs?                           |
+| ------------------------------------------------------------------ | ------------------------------- |
+| PR touching `apps/web/**`, `packages/core/**`, `packages/utils/**` | yes, on every push              |
+| Backend-only PR                                                    | no — dispatch by hand if wanted |
+| Nightly on `main` (03:00 UTC)                                      | yes                             |
+| `gh workflow run e2e.yml --ref <branch>`                           | yes, any branch                 |
+
+A `concurrency` group cancels superseded PR runs, so a burst of pushes costs one ~8-minute
+run rather than one per commit. Cancellation is scoped to `pull_request`: the nightly and
+manual dispatches always finish.
+
+**Why the paths filter and not a label.** Until 2026-08-06 this suite was gated on a
+`run-e2e` label that did not exist, so it had never run on a pull request — 56 consecutive
+`skipped`. PR #389 merged a regression that deleted every EAT provenance connector on a
+projection change; every other check was green, and only the nightly would have caught it,
+on `main`, the next morning. A label cannot be the fix here: a `paths:` filter suppresses
+the webhook itself, so a label added to a PR outside those paths can never start a run.
+
+**A red E2E run is worth reproducing before you dismiss it.** That regression failed 6/6 in
+CI and 0/17 locally. Local passes prove nothing about it; compare against the nightly's
+history on `main` instead (`gh run list --workflow=e2e.yml --event=schedule`), which is the
+only long-running green baseline. To run it locally:
+
+```bash
+npx playwright test -c apps/web/tests/playwright.config.ts
+```
+
 ## Python workspace members (uv)
 
 The Python packages are uv workspace members (root `[tool.uv.workspace]`) sharing one root
