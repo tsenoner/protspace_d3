@@ -372,9 +372,11 @@ test.describe('URL-backed explore view state', () => {
 
   test('preserves shape size across projection reloads and deep links', async ({ page }) => {
     const shapeSize = 42;
-    // Mirrors calculatePointSize() in packages/core/src/components/legend/legend-helpers.ts
-    // (LEGEND_DEFAULTS.symbolSizeMultiplier); specs can't import @protspace/core under
-    // Playwright's ESM loader — see the note above waitForView.
+    // LEGEND_DEFAULTS.symbolSizeMultiplier, as used by calculatePointSize() in
+    // packages/core/src/components/legend/legend-helpers.ts. That helper also clamps via
+    // Math.max(10, ...), which this plain multiply omits — equivalent only while
+    // shapeSize >= 2, so keep this test above that. Specs can't import @protspace/core
+    // under Playwright's ESM loader, so the multiplier is mirrored rather than imported.
     const SHAPE_SIZE_TO_POINT_SIZE = 8;
     const expectedShapeState = { pointSize: shapeSize * SHAPE_SIZE_TO_POINT_SIZE, shapeSize };
     await page.goto('/explore');
