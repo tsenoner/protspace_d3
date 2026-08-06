@@ -1943,6 +1943,9 @@ export class ProtspaceScatterplot extends LitElement {
 
         <protspace-projection-metadata
           .projection=${this.data?.projections[this.selectedProjectionIndex] ?? null}
+          .statisticsRows=${this.data?.statisticsRows}
+          selected-annotation=${this.selectedAnnotation}
+          .viewIsSubset=${this.filtersActive || this.isIsolationMode()}
         ></protspace-projection-metadata>
 
         <protspace-tips
