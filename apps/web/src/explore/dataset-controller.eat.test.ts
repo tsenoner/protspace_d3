@@ -122,7 +122,7 @@ describe('dataset controller', () => {
 
   describe('EAT settings restore', () => {
     it('applies embedded EAT settings after an OPFS reload while retaining OPFS legend precedence', async () => {
-      const { controlBar, controller, legendElement, plotElement } = createControllerHarness({
+      const { controlBar, controller, legendElement } = createControllerHarness({
         loadQueue: {
           getRunningLoadMeta: () => ({ sequence: 7, kind: 'opfs' as const }),
           getLatestSequence: () => 7,
