@@ -306,6 +306,47 @@ export const projectionMetadataStyles = [
        trailing inline-block. flex-start strands it against the first line, so a wrapped name
        reads "Davies- (i) / Bouldin". flex-end puts it beside "Bouldin", where it belongs, and
        is identical to baseline alignment for the single-line names. */
+    /* The metric names in the Recovers header, each with its own icon. Baseline-aligned with
+       the "N clusters vs" label opposite so the header reads as one line. */
+    .recovers-metric-head {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.15rem;
+      justify-content: flex-end;
+      white-space: nowrap;
+    }
+
+    /* The category count, inside the name cell rather than a fourth column: it must be able to
+       wrap under a long annotation name instead of squeezing the numbers. */
+    .recovers-meta {
+      color: var(--panel-text-muted, #94a3b8);
+    }
+
+    /* Coverage, on its own line under the row it qualifies, spanning the full grid. */
+    .recovers-coverage {
+      grid-column: 1 / -1;
+      padding-left: 0.6rem;
+      color: var(--panel-text-muted, #94a3b8);
+      font-size: var(--text-caption, 0.6875rem);
+    }
+
+    .recovers-more {
+      grid-column: 1 / -1;
+      justify-self: start;
+      margin-top: 0.25rem;
+      padding: 0;
+      border: none;
+      background: none;
+      color: var(--protspace-highlight-color, #00a3e0);
+      font: inherit;
+      font-size: var(--text-caption, 0.6875rem);
+      cursor: pointer;
+    }
+
+    .recovers-more:hover {
+      text-decoration: underline;
+    }
+
     .stat-metric-label {
       display: flex;
       align-items: flex-end;

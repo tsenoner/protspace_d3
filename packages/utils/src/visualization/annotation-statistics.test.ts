@@ -244,20 +244,90 @@ describe('clusterAgreement', () => {
       ...over,
     });
 
+  it("ranks best-recovered first and reports K and each annotation's cardinality", () => {
+    // The block answers "which known biology do these clusters correspond to?" — a ranking.
+    // K and the category counts are not decoration: ARI's achievable maximum falls as an
+    // annotation's cardinality diverges from K, so a bare ARI is not comparable across rows.
+    const agree = (annotation: string, metric: string, value: number, scored = 811) => ({
+      space_kind: 'projection' as const,
+      space_name: 'UMAP 2',
+      annotation,
+      stat_family: 'cluster_agreement' as const,
+      label_kind: 'kmeans_elbow',
+      metric,
+      metric_kind: 'validity' as const,
+      value,
+      extra_json: JSON.stringify({ n_labels: scored }),
+    });
+    const validity = (annotation: string, categories: number) => ({
+      space_kind: 'projection' as const,
+      space_name: 'UMAP 2',
+      annotation,
+      stat_family: 'annotation_validity' as const,
+      label_kind: 'annotation',
+      metric: 'silhouette',
+      metric_kind: 'validity' as const,
+      value: 0.1,
+      extra_json: JSON.stringify({ n_categories: categories, n_labels: 811 }),
+    });
+
+    const rows: ProjectionStatisticRow[] = [
+      agree('ec', 'adjusted_rand', 0.11, 192),
+      agree('phylum', 'adjusted_rand', 0.22),
+      agree('phylum', 'normalized_mutual_info', 0.37),
+      validity('phylum', 4),
+      validity('ec', 4),
+      // The clustering's own cardinality is K.
+      validity('cluster_elbow_UMAP 2', 6),
+    ];
+
+    const { clusters, entries } = clusterAgreement(rows, 'cluster_elbow_UMAP 2');
+
+    expect(clusters).toBe(6);
+    expect(entries.map((e) => e.annotation)).toEqual(['phylum', 'ec']);
+    expect(entries[0].categories).toBe(4);
+    // Coverage comes from the AGREEMENT row, not the validity row: the two passes can cover
+    // different protein sets, and this must describe the comparison actually displayed.
+    expect(entries[1].scored).toBe(192);
+    expect(entries[0].scored).toBe(811);
+  });
+
+  it('keeps an annotation carrying only one of the two metrics, and ranks it by its ARI', () => {
+    // Sorting looks the metric up by name rather than by index, so a group with only NMI
+    // cannot be read as though its first metric were ARI.
+    const row = (annotation: string, metric: string, value: number): ProjectionStatisticRow => ({
+      space_kind: 'projection',
+      space_name: 'UMAP 2',
+      annotation,
+      stat_family: 'cluster_agreement',
+      label_kind: 'kmeans_elbow',
+      metric,
+      metric_kind: 'validity',
+      value,
+    });
+    const { entries } = clusterAgreement(
+      [row('nmi_only', 'normalized_mutual_info', 0.99), row('has_ari', 'adjusted_rand', 0.05)],
+      'cluster_elbow_UMAP 2',
+    );
+
+    // 0.99 is an NMI, so it must not outrank a real ARI of 0.05.
+    expect(entries.map((e) => e.annotation)).toEqual(['has_ari', 'nmi_only']);
+  });
+
   it('returns an empty array for a column that is not a cluster column', () => {
     const rows = [agreementRow({ labelKind: 'kmeans_elbow', recovers: 'major_group' })];
-    expect(clusterAgreement(rows, 'major_group')).toEqual([]);
+    expect(clusterAgreement(rows, 'major_group').entries).toEqual([]);
   });
 
   it('returns an empty array when the bundle carries no statistics', () => {
-    expect(clusterAgreement(undefined, 'cluster_elbow_UMAP 2')).toEqual([]);
-    expect(clusterAgreement([], 'cluster_elbow_UMAP 2')).toEqual([]);
+    expect(clusterAgreement(undefined, 'cluster_elbow_UMAP 2').entries).toEqual([]);
+    expect(clusterAgreement([], 'cluster_elbow_UMAP 2').entries).toEqual([]);
   });
 
   it('returns an empty array when no agreement row matches the selected clustering', () => {
     // Cluster-shaped name, but nothing in the bundle backs this particular projection.
     const rows = [agreementRow({ labelKind: 'kmeans_elbow', recovers: 'major_group' })];
-    expect(clusterAgreement(rows, 'cluster_elbow_PCA 2')).toEqual([]);
+    expect(clusterAgreement(rows, 'cluster_elbow_PCA 2').entries).toEqual([]);
   });
 
   it('groups multiple recovered annotations under the selected clustering', () => {
@@ -272,7 +342,7 @@ describe('clusterAgreement', () => {
       agreementRow({ labelKind: 'kmeans_elbow', recovers: 'ec_number', value: 0.31 }),
     ];
 
-    const entries = clusterAgreement(rows, 'cluster_elbow_UMAP 2');
+    const { entries } = clusterAgreement(rows, 'cluster_elbow_UMAP 2');
 
     expect(entries.map((e) => e.annotation)).toEqual(['major_group', 'ec_number']);
     expect(entries[0].metrics).toHaveLength(2);
@@ -295,7 +365,7 @@ describe('clusterAgreement', () => {
       }),
     ];
 
-    const entries = clusterAgreement(rows, 'cluster_elbow_UMAP 2');
+    const { entries } = clusterAgreement(rows, 'cluster_elbow_UMAP 2');
 
     expect(entries[0].metrics.map((m) => m.metric)).toEqual([
       'adjusted_rand',
@@ -311,15 +381,17 @@ describe('clusterAgreement', () => {
       agreementRow({ labelKind: 'kmeans_silhouette', recovers: 'major_group', value: 0.9 }),
     ];
 
-    expect(clusterAgreement(rows, 'cluster_elbow_UMAP 2')[0].metrics[0].value).toBe(0.2);
-    expect(clusterAgreement(rows, 'cluster_silhouette_UMAP 2')[0].metrics[0].value).toBe(0.9);
+    expect(clusterAgreement(rows, 'cluster_elbow_UMAP 2').entries[0].metrics[0].value).toBe(0.2);
+    expect(clusterAgreement(rows, 'cluster_silhouette_UMAP 2').entries[0].metrics[0].value).toBe(
+      0.9,
+    );
   });
 
   it('does not match a cluster column from a different projection', () => {
     const rows = [
       agreementRow({ labelKind: 'kmeans_elbow', recovers: 'major_group', space_name: 'PCA 2' }),
     ];
-    expect(clusterAgreement(rows, 'cluster_elbow_UMAP 2')).toEqual([]);
+    expect(clusterAgreement(rows, 'cluster_elbow_UMAP 2').entries).toEqual([]);
   });
 
   it('ignores rows outside cluster_agreement and non-finite values', () => {
@@ -337,7 +409,7 @@ describe('clusterAgreement', () => {
       agreementRow({ labelKind: 'kmeans_elbow', recovers: 'major_group', value: Number.NaN }),
     ];
 
-    expect(clusterAgreement(rows, 'cluster_elbow_UMAP 2')).toEqual([]);
+    expect(clusterAgreement(rows, 'cluster_elbow_UMAP 2').entries).toEqual([]);
   });
 });
 

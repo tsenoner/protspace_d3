@@ -1,9 +1,11 @@
 import { LitElement, html, nothing } from 'lit';
 import { property, state } from 'lit/decorators.js';
+import type { PropertyValues } from 'lit';
 import { customElement } from '../../../utils/safe-custom-element';
 import type {
   AnnotationStatMetric,
   AnnotationStatSummary,
+  ClusterAgreement,
   ClusterAgreementEntry,
   Projection,
   ProjectionStatisticRow,
@@ -17,6 +19,7 @@ import {
   formatStatValue,
   hasAnnotationStats,
   isAutoClusterColumn,
+  isAutoClusterColumnName,
   metricDescription,
   metricDisplay,
 } from '@protspace/utils';
@@ -31,6 +34,31 @@ interface MetadataRow {
   /** Faithfulness scope ("local" / "global"), rendered as a group heading. Null groups first. */
   scope?: string | null;
 }
+
+/**
+ * The two agreement metrics, in the order the columns appear. Fixed rather than derived from the
+ * rows: the header is rendered once, so the columns cannot be whatever the first annotation
+ * happened to carry, and an annotation missing one shows N/A in that cell instead of shifting
+ * every row after it.
+ */
+const RECOVERS_METRICS = ['adjusted_rand', 'normalized_mutual_info'] as const;
+
+/**
+ * Rows shown before the expander. A count cap, never a value cap: the chance band here is about
+ * 0.011 and its spread varies ~45x within one block, so no score threshold is meaningful across
+ * annotations — and a clustering that recovers nothing is itself the finding, which a value cut
+ * would delete.
+ */
+const RECOVERS_COLLAPSED = 12;
+
+/** What the Recovers block is, behind the heading's ⓘ. */
+const RECOVERS_DESCRIPTION =
+  'How closely this automatic clustering reproduces each annotation it was compared against, ' +
+  'best match first. Unlike the separation scores above, these compare the clusters to ' +
+  'something the clustering did not choose, so they are not optimistic. Read them together ' +
+  "with each annotation's category count: ARI's achievable maximum drops as an annotation's " +
+  'number of categories diverges from the number of clusters, so a low ARI beside a very ' +
+  'different category count can still mean a clean correspondence — which is what NMI shows.';
 
 /** Human-readable heading for a faithfulness scope group. */
 const SCOPE_HEADINGS: Record<string, string> = {
@@ -63,6 +91,28 @@ interface QualityEntry {
   sampled: boolean;
 }
 
+/**
+ * The coverage most annotations in a block share. Modal, not maximal: the interesting case is the
+ * one annotation that covers far fewer proteins than the rest, and comparing against the majority
+ * is what makes it stand out. Null when nothing carries coverage.
+ */
+function modalCoverage(entries: readonly ClusterAgreementEntry[]): number | null {
+  const counts = new Map<number, number>();
+  for (const entry of entries) {
+    if (entry.scored === null) continue;
+    counts.set(entry.scored, (counts.get(entry.scored) ?? 0) + 1);
+  }
+  let best: number | null = null;
+  let bestCount = 0;
+  for (const [value, count] of counts) {
+    if (count > bestCount) {
+      best = value;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
 @customElement('protspace-projection-metadata')
 class ProtspaceProjectionMetadata extends LitElement {
   @property({ type: Object }) projection: Projection | null = null;
@@ -76,6 +126,16 @@ class ProtspaceProjectionMetadata extends LitElement {
    * so this only changes how the scope line describes them, never the numbers.
    */
   @property({ type: Boolean }) viewIsSubset = false;
+
+  /** Whether the Recovers list is showing every annotation or just the best `RECOVERS_COLLAPSED`. */
+  @state() private _recoversExpanded = false;
+
+  /**
+   * The protein count most Recovers rows share, so a row is only annotated with its own coverage
+   * when it actually differs. Taken as the modal value rather than the maximum: the common case
+   * is "every annotation covers the dataset except one", and calling that one out is the point.
+   */
+  private _recoversPopulation: number | null = null;
 
   /**
    * Click-pinned open, so the panel survives the pointer leaving it — the same affordance the
@@ -107,9 +167,20 @@ class ProtspaceProjectionMetadata extends LitElement {
     this._resize.observe(this.offsetParent);
   }
 
-  updated() {
-    // Section visibility changes with the selected annotation, so the natural height does too.
-    this._updateMaxHeight();
+  updated(changed: PropertyValues) {
+    // Only when the content that sets the natural height can actually have changed. This reads
+    // the host's clientHeight and writes an inline maxHeight, so running it on every update
+    // forces a synchronous layout — free today, a per-frame cost the moment anything on this
+    // card gains hover state. `_pinned` counts: the card has no measurable box until it opens.
+    if (
+      changed.has('projection') ||
+      changed.has('statisticsRows') ||
+      changed.has('selectedAnnotation') ||
+      changed.has('_pinned') ||
+      changed.has('_recoversExpanded')
+    ) {
+      this._updateMaxHeight();
+    }
   }
 
   /**
@@ -305,7 +376,7 @@ class ProtspaceProjectionMetadata extends LitElement {
    */
   private _renderAnnotationStats(
     summary: AnnotationStatSummary | null,
-    agreement: ClusterAgreementEntry[],
+    agreement: ClusterAgreement,
   ) {
     const scope = summary ? this._statScopeLine(summary) : '';
     // A bundle prepared without an embedding pass has every ceiling null: naming a column
@@ -348,26 +419,115 @@ class ProtspaceProjectionMetadata extends LitElement {
                   `
                 : ''}
               ${summary.validity.map((metric) => this._renderStatMetric(metric))}
+              ${scope ? html`<div class="stat-caveat">${scope}</div>` : ''}
+              <!-- Directly under Separation, which is what it caveats: the clustering drew the
+                   boundaries these silhouette/DBI/CH numbers score, so they read high by
+                   construction. It sat below "Recovers" before, which reads as if it qualifies
+                   the ARI/NMI rows — and those are the honest half, measured against
+                   annotations the clustering did not choose. -->
+              ${isAutoClusterColumn(this.statisticsRows, this.selectedAnnotation)
+                ? html`<div class="stat-caveat">${AUTO_CLUSTER_SCORE_CAVEAT}</div>`
+                : nothing}
             `
           : ''}
-        ${agreement.length > 0
-          ? html`
-              <div class="stat-heading">Recovers</div>
-              ${agreement.map(
-                (entry) => html`
-                  <div class="stat-group-label">${annotationLabel(entry.annotation)}</div>
-                  ${entry.metrics.map((metric) => this._renderStatMetric(metric))}
-                `,
-              )}
-            `
-          : ''}
-        ${scope ? html`<div class="stat-caveat">${scope}</div>` : ''}
-        <!-- The clustering is scored on the labels it drew itself, in the projection it drew
-             them in, so "Separation in this projection" reads high by construction. "Recovers"
-             is the honest half of this panel for a cluster column: ARI/NMI compare it against
-             something it did not choose. -->
-        ${isAutoClusterColumn(this.statisticsRows, this.selectedAnnotation)
-          ? html`<div class="stat-caveat">${AUTO_CLUSTER_SCORE_CAVEAT}</div>`
+        ${agreement.entries.length > 0 ? this._renderRecovers(agreement) : ''}
+      </div>
+    `;
+  }
+
+  /**
+   * How well the selected clustering recovers each annotation: one ROW per annotation, with the
+   * metric names in a single header instead of on every line.
+   *
+   * The old shape was metric-major — a heading per annotation, then an ARI line and an NMI line,
+   * each repeating the metric name, its direction arrow and its own ⓘ. Ten annotations cost 30
+   * lines and 20 focusable icons to convey ten names and twenty numbers, and `auto` selection can
+   * pick far more than ten. Transposed, ten annotations are ten lines and two icons.
+   *
+   * Sorted best-first, because the question this answers is "which known biology do these
+   * clusters correspond to?" — a ranking, not a lookup.
+   *
+   * Both metrics stay. ARI is chance-corrected and NMI is not, but the difference that matters
+   * here is that ARI's achievable maximum falls as the annotation's cardinality diverges from K:
+   * a clustering that is perfectly pure with respect to a 2-category annotation at K=50 scores
+   * ARI 0.04 and NMI 0.30. Showing ARI alone would print 0.04 for a perfect result, so the
+   * category count sits beside each name to make both numbers readable.
+   */
+  private _renderRecovers(agreement: ClusterAgreement) {
+    const { clusters, entries } = agreement;
+    this._recoversPopulation = modalCoverage(entries);
+    const shown = this._recoversExpanded ? entries : entries.slice(0, RECOVERS_COLLAPSED);
+    const hidden = entries.length - shown.length;
+    const nextBest = hidden > 0 ? entries[shown.length]!.metrics[0] : undefined;
+
+    return html`
+      <div class="stat-heading">
+        <span>Recovers</span>
+        <protspace-info-popover
+          placement="side"
+          label="cluster agreement"
+          .description=${RECOVERS_DESCRIPTION}
+        ></protspace-info-popover>
+      </div>
+      <!-- K goes in the header's otherwise-empty first cell, so it is stated once and every row
+           below reads as a sentence: "6 clusters vs Family (42 categories): ARI 0.21, NMI 0.42."
+           Without K the ARI column has no denominator. -->
+      <div class="stat-columns">
+        <span>${clusters === null ? 'Clusters vs' : `${clusters} clusters vs`}</span>
+        ${RECOVERS_METRICS.map((metric) => {
+          const { label, higherIsBetter, description } = metricDisplay(metric);
+          return html`<span class="recovers-metric-head"
+            >${label}${higherIsBetter ? ' ↑' : ' ↓'}
+            <protspace-info-popover
+              placement="side"
+              label=${label}
+              .description=${description}
+            ></protspace-info-popover
+          ></span>`;
+        })}
+      </div>
+      ${shown.map((entry) => this._renderRecoversRow(entry))}
+      ${hidden > 0
+        ? html`<button
+            class="recovers-more"
+            type="button"
+            aria-expanded=${this._recoversExpanded}
+            @click=${() => {
+              this._recoversExpanded = true;
+            }}
+          >
+            Show ${hidden} more${nextBest ? ` (best ${formatStatValue(nextBest.value)})` : ''}
+          </button>`
+        : nothing}
+    `;
+  }
+
+  /** One annotation's row: name and category count, then one cell per metric. */
+  private _renderRecoversRow(entry: ClusterAgreementEntry) {
+    const valueOf = (metric: string) => entry.metrics.find((m) => m.metric === metric);
+    return html`
+      <div class="stat-metric">
+        <span class="stat-metric-label">
+          <span class="stat-metric-name"
+            >${annotationLabel(entry.annotation)}${entry.categories === null
+              ? nothing
+              : html`<span class="recovers-meta"> · ${entry.categories} cat</span>`}</span
+          >
+        </span>
+        ${RECOVERS_METRICS.map((metric) => {
+          const found = valueOf(metric);
+          return html`<span class="stat-metric-value"
+            >${found ? formatStatValue(found.value) : NA_DISPLAY}</span
+          >`;
+        })}
+        <!-- Only when it differs from the block's own population. An annotation that labels a
+             fraction of the dataset is scored on that fraction, and a high number on thin
+             coverage reads identically to a high number on all of it. -->
+        ${entry.scored !== null && entry.scored !== this._recoversPopulation
+          ? html`<span class="recovers-coverage"
+              >${entry.scored.toLocaleString()} of
+              ${this._recoversPopulation?.toLocaleString() ?? 'the dataset'} scored</span
+            >`
           : nothing}
       </div>
     `;
@@ -426,7 +586,18 @@ class ProtspaceProjectionMetadata extends LitElement {
     const parts: string[] = [];
     const { categories, scored } = summary;
     if (categories !== null) {
-      parts.push(`${categories} ${categories === 1 ? 'category' : 'categories'}`);
+      // For a cluster_* column the "categories" being scored ARE the clusters, so this count is
+      // K. Saying "categories" there hid that, and left K unstated in the one section whose
+      // numbers are about the clusters themselves.
+      const isClustering = isAutoClusterColumnName(this.selectedAnnotation);
+      const noun = isClustering
+        ? categories === 1
+          ? 'cluster'
+          : 'clusters'
+        : categories === 1
+          ? 'category'
+          : 'categories';
+      parts.push(`${categories} ${noun}`);
     }
     if (scored !== null) {
       parts.push(`${scored.toLocaleString()} ${scored === 1 ? 'protein' : 'proteins'} scored`);

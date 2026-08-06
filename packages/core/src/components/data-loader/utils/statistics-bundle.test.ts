@@ -124,12 +124,22 @@ describe('statistics part of a parquetbundle', () => {
     const { statisticsRows } = await extractRowsFromParquetBundle(bundleWith(SETTINGS, STATISTICS));
 
     // Same run as the summary test above, read through the other door: every annotation the
-    // elbow-K clustering on ProtT5 — UMAP 2 was compared against, in the order the parquet rows
-    // arrived in. A backend rename of the cluster columns or a `label_kind` drift would silently
-    // empty this out with nothing else in the suite to catch it.
-    expect(
-      clusterAgreement(statisticsRows!, 'cluster_elbow_ProtT5 — UMAP 2').map((e) => e.annotation),
-    ).toEqual(['group', 'major_group', 'membran_prediction', 'seq_start']);
+    // elbow-K clustering on ProtT5 — UMAP 2 was compared against. A backend rename of the
+    // cluster columns or a `label_kind` drift would silently empty this out with nothing else
+    // in the suite to catch it. Sorted by ARI now, not parquet row order, so this asserts the
+    // set rather than the arrival sequence.
+    const recovered = clusterAgreement(statisticsRows!, 'cluster_elbow_ProtT5 — UMAP 2');
+    expect(recovered.entries.map((e) => e.annotation).sort()).toEqual([
+      'group',
+      'major_group',
+      'membran_prediction',
+      'seq_start',
+    ]);
+    // Best-recovered first: whatever the order, ARI must be non-increasing down the list.
+    const aris = recovered.entries.map(
+      (e) => e.metrics.find((m) => m.metric === 'adjusted_rand')?.value ?? Number.NEGATIVE_INFINITY,
+    );
+    expect([...aris].sort((a, b) => b - a)).toEqual(aris);
   });
 
   it('reports no statistics for an annotation the run did not score', async () => {

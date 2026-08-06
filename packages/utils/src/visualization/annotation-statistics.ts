@@ -352,6 +352,26 @@ export const AUTO_CLUSTER_SCORE_CAVEAT =
 export interface ClusterAgreementEntry {
   annotation: string;
   metrics: AnnotationStatMetric[];
+  /**
+   * How many categories this annotation has. Not decoration: ARI's achievable maximum depends on
+   * the annotation's cardinality relative to K, so a bare ARI is not comparable between a
+   * 4-category and a 42-category annotation. `null` when the bundle carries no provenance.
+   */
+  categories: number | null;
+  /**
+   * Proteins this comparison covered. An annotation that labels only part of the dataset is
+   * scored on that part — the demo's headline `ec` row at ARI 0.91 covers 192 of 811 proteins —
+   * and without it thin coverage is indistinguishable from a genuinely strong match.
+   */
+  scored: number | null;
+}
+
+/** The selected auto-clustering, and every annotation it was compared against. */
+export interface ClusterAgreement {
+  /** Clusters this labelling produced (K). The denominator each ARI is implicitly measured against. */
+  clusters: number | null;
+  /** Best-recovered first, by ARI. */
+  entries: ClusterAgreementEntry[];
 }
 
 /**
@@ -376,8 +396,8 @@ export interface ClusterAgreementEntry {
 export function clusterAgreement(
   statistics: readonly ProjectionStatisticRow[] | undefined,
   clusterColumn: string,
-): ClusterAgreementEntry[] {
-  if (!statistics?.length || !clusterColumn) return [];
+): ClusterAgreement {
+  if (!statistics?.length || !clusterColumn) return { clusters: null, entries: [] };
 
   const byAnnotation = new Map<string, AnnotationStatMetric[]>();
   for (const row of statistics) {
@@ -387,14 +407,50 @@ export function clusterAgreement(
     metrics.push(toMetric(row, null));
     byAnnotation.set(row.annotation, metrics);
   }
+  if (byAnnotation.size === 0) return { clusters: null, entries: [] };
 
-  // Group order follows first-encounter order in `statistics`. Unlike the label-kind groups in
-  // `annotationStatSummary`, annotation names have no fixed small enum to sort against, so
-  // there's nothing more "deliberate" this module could impose than the order rows arrived in.
-  return [...byAnnotation.entries()].map(([annotation, metrics]) => ({
-    annotation,
-    metrics: metrics.sort(byMetricOrder),
-  }));
+  // The counts the agreement rows themselves do not carry. `cluster_agreement` provenance holds
+  // only {n_labels, seed}; the annotation's cardinality lives on its own `annotation_validity`
+  // rows, and the clustering's K is the cardinality of the cluster column, which is filed as an
+  // annotation in its own right. Both are a join away in this same table, so neither needs a
+  // backend change — and a bundle missing either simply renders without it.
+  const validityProvenance = (annotation: string): ProjectionStatisticRow | undefined =>
+    statistics.find(
+      (row) =>
+        row.stat_family === 'annotation_validity' &&
+        row.annotation === annotation &&
+        row.category == null &&
+        !!row.extra_json,
+    );
+
+  const entries = [...byAnnotation.entries()].map(([annotation, metrics]) => {
+    const provenance = validityProvenance(annotation);
+    const agreementRow = statistics.find(
+      (row) =>
+        row.stat_family === 'cluster_agreement' &&
+        row.annotation === annotation &&
+        clusterColumnName(row.label_kind, row.space_name) === clusterColumn,
+    );
+    return {
+      annotation,
+      metrics: metrics.sort(byMetricOrder),
+      categories: extraCount(provenance, 'n_categories'),
+      // From the agreement row, not the validity row: the two passes can cover different
+      // protein sets, and this number must describe the comparison actually shown.
+      scored: extraCount(agreementRow, 'n_labels'),
+    };
+  });
+
+  // Best-recovered first. The block answers "which known biology do these clusters correspond
+  // to?", which is a ranking question — read in row order it was a lookup table you had to scan.
+  // Keyed on the metric by NAME, not by index: an annotation can carry only one of the two.
+  // Ties fall back to the name so the order is stable across renders and across bundles.
+  const ariOf = (entry: ClusterAgreementEntry): number =>
+    entry.metrics.find((metric) => metric.metric === 'adjusted_rand')?.value ??
+    Number.NEGATIVE_INFINITY;
+  entries.sort((a, b) => ariOf(b) - ariOf(a) || a.annotation.localeCompare(b.annotation));
+
+  return { clusters: extraCount(validityProvenance(clusterColumn), 'n_categories'), entries };
 }
 
 /**
@@ -408,9 +464,9 @@ export function clusterAgreement(
  */
 export function hasAnnotationStats(
   summary: AnnotationStatSummary | null,
-  agreement: ClusterAgreementEntry[],
+  agreement: ClusterAgreement,
 ): boolean {
-  return (summary?.validity.length ?? 0) > 0 || agreement.length > 0;
+  return (summary?.validity.length ?? 0) > 0 || agreement.entries.length > 0;
 }
 
 /**

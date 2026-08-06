@@ -548,10 +548,15 @@ describe('auto-cluster agreement placement', () => {
     expect(text).toContain('0.31');
     expect(text).toContain('0.44');
 
-    const groupLabels = Array.from(statsBlock(el)!.querySelectorAll('.stat-group-label')).map(
-      (node) => node.textContent,
-    );
-    expect(groupLabels).toEqual(['Major group', 'Ec number']);
+    // One ROW per annotation now, not a heading plus a metric line each. The metric names,
+    // their direction arrows and their ⓘ live in a single header, so a block of ten
+    // annotations costs ten lines and two icons rather than thirty and twenty.
+    const names = Array.from(statsBlock(el)!.querySelectorAll('.stat-metric-name'))
+      .map((node) => node.textContent!.replace(/\s+/g, ' ').trim())
+      .filter((name) => /Major group|Ec number/.test(name));
+    // Best-recovered first: the fixture's ARI is 0.62 for major_group and 0.31 for ec.
+    expect(names).toEqual(['Major group', 'Ec number']);
+    expect(statsBlock(el)!.querySelectorAll('.stat-group-label')).toHaveLength(0);
   });
 
   it('shows agreement for the selected clustering even from a different projection panel', async () => {
