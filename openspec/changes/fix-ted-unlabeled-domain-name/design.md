@@ -34,10 +34,18 @@ and other consumers with the incorrect value and duplicate source-specific knowl
 The implementation will change only the fallback label. Score rounding, CATH-name encoding, and
 semicolon joining remain unchanged, which keeps the behavioral impact limited to issue #342.
 
+### Detect legacy formatted cache values without migrating them
+
+When the annotation cache short-circuit sees a `ted_domains` value with the old domain-boundary
+`unclassified|score` shape, it will warn users to run `--refetch ted`. The cache remains unchanged;
+automatic schema versioning or mutation would broaden this source-label fix into cache migration
+infrastructure and could alter unrelated cached annotations.
+
 ## Risks / Trade-offs
 
-- Existing consumers may group on the literal `unclassified` value → document the output change
-  and cover the new literal with a regression test.
+- Existing consumers may group on the literal `unclassified` value → document the output change,
+  cover the new literal with a regression test, and warn when the precise legacy cache shape is
+  encountered.
 - A broad formatter change could affect labeled domains → implement only the fallback-branch
   substitution and run the complete TED retriever test module.
 
@@ -48,6 +56,8 @@ already-formatted `ted_domains` strings and does not re-run the formatter for ca
 reusing an existing output directory MUST run their `protspace prepare ... --refetch ted` command
 once after upgrading; the targeted refetch replaces only the cached TED columns while preserving
 other cached stages. Rolling back likewise requires `--refetch ted` to restore the previous literal.
+The committed public phosphatase example bundle is refreshed in place because it stores formatted
+TED values and is downloadable independently of the preparation cache.
 
 ## Open Questions
 
