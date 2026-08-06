@@ -339,6 +339,53 @@ describe('ScatterplotSyncController', () => {
 
       expect(mockScatterplot.hiddenAnnotationValues).toEqual([]);
     });
+
+    // Both arrays are `@property({ type: Array })` on the scatterplot, so Lit compares them by
+    // reference: handing it an equal-but-new array is recorded as a change. The scatterplot reads
+    // a change to `hiddenAnnotationValues` as "the user changed what is visible" and drops the EAT
+    // provenance connectors, so a resync that changed nothing used to wipe them. A projection
+    // switch runs exactly such a resync (`_handleProjectionChange`), which is how switching
+    // projection cleared the connectors — asserted end-to-end in eat-visualization.spec.ts.
+    it('keeps the same array instances when nothing actually changed', () => {
+      mockCallbacks.getHiddenValues = vi.fn().mockReturnValue(['hidden1', 'hidden2']);
+      mockCallbacks.getOtherConcreteValues = vi.fn().mockReturnValue(['other1']);
+
+      controller.syncHiddenValues();
+      const hiddenAfterFirst = mockScatterplot.hiddenAnnotationValues;
+      const otherAfterFirst = mockScatterplot.otherAnnotationValues;
+
+      // A fresh array with identical contents each time, exactly like the real callbacks.
+      mockCallbacks.getHiddenValues = vi.fn().mockReturnValue(['hidden1', 'hidden2']);
+      mockCallbacks.getOtherConcreteValues = vi.fn().mockReturnValue(['other1']);
+      controller.syncHiddenValues();
+
+      expect(mockScatterplot.hiddenAnnotationValues).toBe(hiddenAfterFirst);
+      expect(mockScatterplot.otherAnnotationValues).toBe(otherAfterFirst);
+    });
+
+    it('still replaces the array when the contents differ', () => {
+      mockCallbacks.getHiddenValues = vi.fn().mockReturnValue(['hidden1']);
+      controller.syncHiddenValues();
+      const first = mockScatterplot.hiddenAnnotationValues;
+
+      mockCallbacks.getHiddenValues = vi.fn().mockReturnValue(['hidden1', 'hidden2']);
+      controller.syncHiddenValues();
+
+      expect(mockScatterplot.hiddenAnnotationValues).not.toBe(first);
+      expect(mockScatterplot.hiddenAnnotationValues).toEqual(['hidden1', 'hidden2']);
+    });
+
+    it('treats a reordering as a change', () => {
+      mockCallbacks.getHiddenValues = vi.fn().mockReturnValue(['a', 'b']);
+      controller.syncHiddenValues();
+      const first = mockScatterplot.hiddenAnnotationValues;
+
+      mockCallbacks.getHiddenValues = vi.fn().mockReturnValue(['b', 'a']);
+      controller.syncHiddenValues();
+
+      expect(mockScatterplot.hiddenAnnotationValues).not.toBe(first);
+      expect(mockScatterplot.hiddenAnnotationValues).toEqual(['b', 'a']);
+    });
   });
 
   describe('syncOtherValues', () => {

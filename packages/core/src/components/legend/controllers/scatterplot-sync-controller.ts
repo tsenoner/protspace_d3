@@ -23,6 +23,21 @@ import type {
   LegendZOrderChangeEvent,
 } from '../legend-mapping-events';
 
+/**
+ * Same members in the same order.
+ *
+ * `hiddenAnnotationValues` and `otherAnnotationValues` are `@property({ type: Array })` on the
+ * scatterplot, so Lit's default `hasChanged` compares them by reference: assigning a freshly
+ * built array with identical contents is recorded as a change. Downstream that is not merely
+ * wasted work. `_reconcileProvenanceConnectors` (scatter-plot.ts) reads a change to
+ * `hiddenAnnotationValues` as "the user changed what is visible" and drops the EAT provenance
+ * connectors, and `_visibilityModelKey` compares the same array by reference, so the whole
+ * visibility model is rebuilt. Both must fire on a real edit and neither on a no-op resync.
+ */
+function sameOrder(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
 /** Maximum number of retries when looking for scatterplot element */
 const MAX_DISCOVERY_RETRIES = 10;
 /** Delay between retries in ms */
@@ -123,11 +138,16 @@ export class ScatterplotSyncController implements ReactiveController {
         this.callbacks.getHiddenValues(),
         this.callbacks.getOtherItems(),
       );
-      this._scatterplotElement.hiddenAnnotationValues = [...expandedHidden];
+      if (!sameOrder(this._scatterplotElement.hiddenAnnotationValues ?? [], expandedHidden)) {
+        this._scatterplotElement.hiddenAnnotationValues = [...expandedHidden];
+      }
     }
 
     if (supportsOtherValues(this._scatterplotElement)) {
-      this._scatterplotElement.otherAnnotationValues = this.callbacks.getOtherConcreteValues();
+      const otherValues = this.callbacks.getOtherConcreteValues();
+      if (!sameOrder(this._scatterplotElement.otherAnnotationValues ?? [], otherValues)) {
+        this._scatterplotElement.otherAnnotationValues = otherValues;
+      }
     }
   }
 
@@ -137,7 +157,10 @@ export class ScatterplotSyncController implements ReactiveController {
   syncOtherValues(): void {
     if (!this._scatterplotElement || !supportsOtherValues(this._scatterplotElement)) return;
 
-    this._scatterplotElement.otherAnnotationValues = this.callbacks.getOtherConcreteValues();
+    const otherValues = this.callbacks.getOtherConcreteValues();
+    if (!sameOrder(this._scatterplotElement.otherAnnotationValues ?? [], otherValues)) {
+      this._scatterplotElement.otherAnnotationValues = otherValues;
+    }
   }
 
   syncNumericAnnotationSettings(): void {
