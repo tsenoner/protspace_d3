@@ -140,7 +140,6 @@ const scatterplotStylesCore = css`
     z-index: var(--z-overlay);
     display: flex;
     align-items: center;
-    gap: 0.25rem;
     height: 2rem;
     padding: 0 0.625rem;
     box-sizing: border-box;

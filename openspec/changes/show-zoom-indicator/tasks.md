@@ -16,3 +16,10 @@
 - [x] 3.1 Repeat the original browser reproduction and confirm the marker appears above identity and disappears after reset with no new relevant console errors.
 - [x] 3.2 Run the affected core and Playwright test projects, then run `pnpm precommit`.
 - [x] 3.3 Validate the OpenSpec change and review the final diff for issue-only scope.
+
+## 4. Adversarial Review Follow-up
+
+- [x] 4.1 Rewrite the boundary-scheduling regression around Lit's `isUpdatePending` signal and add a failing regression showing marker-only updates must not redraw WebGL.
+- [x] 4.2 Add a failing regression for near-identity floating-point residue from symmetric wheel accumulation.
+- [x] 4.3 Render the count and conditional marker as one exact text run and remove the marker-only gap styling and query-hook spans.
+- [x] 4.4 Run focused component and browser tests, strict OpenSpec validation, and the repository precommit checks.

@@ -2,7 +2,7 @@
 
 ### Requirement: Scatterplot indicates a zoomed-in view
 
-The scatterplot SHALL append the text `Zoomed in` to its existing visible point-count indicator whenever the active view scale is greater than the identity scale of `1`. The scatterplot SHALL NOT show that marker at identity scale, while zoomed out below identity, or for translation alone at identity scale. The point-count indicator SHALL expose its changing content as a polite status message so assistive technology can announce zoom and reset changes without moving focus.
+The scatterplot SHALL append the text `Zoomed in` to its existing visible point-count indicator whenever the active view scale is greater than the identity scale of `1` by more than the implementation's small numerical tolerance. The scatterplot SHALL NOT show that marker at identity scale, for near-identity floating-point residue, while zoomed out below identity, or for translation alone at identity scale. The point-count indicator SHALL expose its changing content as a polite status message so assistive technology can announce zoom and reset changes without moving focus.
 
 #### Scenario: User zooms in with the wheel
 
@@ -20,6 +20,11 @@ The scatterplot SHALL append the text `Zoomed in` to its existing visible point-
 - **WHEN** the existing reset behavior returns the view to identity scale `1`
 - **THEN** the point-count indicator no longer includes `Zoomed in`
 
+#### Scenario: Symmetric wheel gesture returns near identity
+
+- **WHEN** accumulated wheel transforms leave the scale only within the numerical tolerance above `1`
+- **THEN** the point-count indicator does not include `Zoomed in`
+
 #### Scenario: Assistive technology receives zoom-state changes
 
 - **WHEN** the point-count indicator changes between identity and zoomed-in content
@@ -33,7 +38,7 @@ The scatterplot SHALL append the text `Zoomed in` to its existing visible point-
 
 ### Requirement: Zoom indication preserves transform rendering performance
 
-The scatterplot MUST keep the full D3 transform non-reactive and SHALL derive a separate reactive boolean for the zoomed-in boundary. Transform updates SHALL schedule marker-related Lit rendering only when that boolean changes.
+The scatterplot MUST keep the full D3 transform non-reactive and SHALL derive a separate reactive boolean for the zoomed-in boundary. Transform updates SHALL schedule marker-related Lit rendering only when that boolean changes. Marker-only Lit updates SHALL NOT redraw WebGL content or rebuild selection overlays already handled by the imperative zoom path.
 
 #### Scenario: Zoom gesture emits multiple zoomed-in frames
 
@@ -44,3 +49,8 @@ The scatterplot MUST keep the full D3 transform non-reactive and SHALL derive a 
 
 - **WHEN** a reset transition emits zoomed-in frames followed by its final identity frame
 - **THEN** the reactive zoom-indicator state changes once on the final identity frame
+
+#### Scenario: Zoom-indicator state crosses its boundary
+
+- **WHEN** a transform changes only the reactive zoom-indicator state
+- **THEN** the status text updates without an additional WebGL redraw or selection-overlay rebuild

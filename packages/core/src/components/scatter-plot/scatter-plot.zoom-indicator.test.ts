@@ -26,10 +26,12 @@ import './scatter-plot';
 type ZoomIndicatorInternals = HTMLElement & {
   data: VisualizationData;
   selectedAnnotation: string;
+  isUpdatePending: boolean;
   updateComplete: Promise<boolean>;
   firstUpdated(): void;
   _interactionHost(): PlotInteractionHost;
   _renderPlot(): void;
+  _updateSelectionOverlays(): void;
 };
 
 function makeData(): VisualizationData {
@@ -77,36 +79,47 @@ describe('scatterplot zoom indicator (#343)', () => {
     await plot.updateComplete;
 
     const chip = plot.shadowRoot?.querySelector('[role="status"][aria-live="polite"]');
-    expect(chip?.querySelector('.point-count')?.textContent).toBe('1 points');
-    expect(chip?.querySelector('.zoom-indicator')?.textContent).toBe('· Zoomed in');
-    expect(Array.from(chip?.children ?? []).map((child) => child.className)).toEqual([
-      'point-count',
-      'zoom-indicator',
-    ]);
+    expect(chip?.textContent?.trim()).toBe('1 points · Zoomed in');
   });
 
-  it('schedules rendering only when the zoomed-in boundary changes', async () => {
+  it('schedules a Lit update only when the zoomed-in boundary changes', async () => {
     const plot = await makePlot();
     const host = plot._interactionHost();
-    const renderPlot = vi.spyOn(plot, '_renderPlot').mockImplementation(() => {});
 
     host.onTransform(d3.zoomIdentity.scale(2));
+    expect(plot.isUpdatePending).toBe(true);
     await plot.updateComplete;
-    expect(renderPlot).toHaveBeenCalledTimes(1);
 
-    renderPlot.mockClear();
     host.onTransform(d3.zoomIdentity.scale(3));
-    await plot.updateComplete;
-    expect(renderPlot).not.toHaveBeenCalled();
+    expect(plot.isUpdatePending).toBe(false);
 
     host.onTransform(d3.zoomIdentity.translate(30, 20));
+    expect(plot.isUpdatePending).toBe(true);
     await plot.updateComplete;
-    expect(renderPlot).toHaveBeenCalledTimes(1);
-    expect(plot.shadowRoot?.querySelector('.zoom-indicator')).toBeNull();
+    expect(plot.shadowRoot?.querySelector('[role="status"]')?.textContent?.trim()).toBe('1 points');
 
-    renderPlot.mockClear();
     host.onTransform(d3.zoomIdentity.scale(0.5));
+    expect(plot.isUpdatePending).toBe(false);
+  });
+
+  it('does not redraw plot content for a zoom-indicator-only update', async () => {
+    const plot = await makePlot();
+    const renderPlot = vi.spyOn(plot, '_renderPlot').mockImplementation(() => {});
+    const updateOverlays = vi.spyOn(plot, '_updateSelectionOverlays').mockImplementation(() => {});
+
+    plot._interactionHost().onTransform(d3.zoomIdentity.scale(2));
     await plot.updateComplete;
+
     expect(renderPlot).not.toHaveBeenCalled();
+    expect(updateOverlays).not.toHaveBeenCalled();
+  });
+
+  it('treats floating-point wheel residue as identity', async () => {
+    const plot = await makePlot();
+
+    plot._interactionHost().onTransform(d3.zoomIdentity.scale(1.0000000000000002));
+    await plot.updateComplete;
+
+    expect(plot.shadowRoot?.querySelector('[role="status"]')?.textContent?.trim()).toBe('1 points');
   });
 });

@@ -17,31 +17,17 @@ test.describe('scatterplot zoom indicator (#343)', () => {
     };
     const pointCountChip = plot.getByRole('status');
     await expect(pointCountChip).toHaveAttribute('aria-live', 'polite');
-    const pointCount = pointCountChip.locator('.point-count');
-    const zoomMarker = pointCountChip.locator('.zoom-indicator');
-    await expect(zoomMarker).toHaveCount(0);
+    await expect(pointCountChip).toHaveText(/^\s*\d+ points\s*$/);
 
     await page.mouse.move(center.x, center.y);
     await page.mouse.wheel(0, -500);
     await expect
       .poll(() => plot.evaluate((element: any) => element._transform.k))
       .toBeGreaterThan(1);
-    await expect(pointCount).toHaveText(/^\d+ points$/);
-    await expect(zoomMarker).toHaveText('· Zoomed in');
-    const chipSpacing = await pointCountChip.evaluate((chip) => {
-      const count = chip.querySelector('.point-count')?.getBoundingClientRect();
-      const marker = chip.querySelector('.zoom-indicator')?.getBoundingClientRect();
-      return {
-        actual: count && marker ? marker.left - count.right : 0,
-        configured: Number.parseFloat(getComputedStyle(chip).columnGap),
-      };
-    });
-    expect(chipSpacing.actual).toBeGreaterThan(0);
-    expect(chipSpacing.actual).toBeCloseTo(chipSpacing.configured, 1);
+    await expect(pointCountChip).toHaveText(/^\s*\d+ points · Zoomed in\s*$/);
 
     await page.mouse.dblclick(center.x, center.y);
     await expect.poll(() => plot.evaluate((element: any) => element._transform.k)).toBe(1);
-    await expect(zoomMarker).toHaveCount(0);
     await expect(pointCountChip).toHaveText(/^\s*\d+ points\s*$/);
   });
 });

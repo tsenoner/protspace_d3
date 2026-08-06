@@ -83,6 +83,10 @@ const VIRTUALIZATION_PADDING = 100;
 const HIT_TEST_SEARCH_RADIUS_PX = 15;
 const POINT_RADIUS_SIZE_DIVISOR = 3;
 
+// D3 wheel zoom accumulates scale multiplicatively, so a symmetric round trip
+// can finish a few ULPs above identity even though the view is visually reset.
+const ZOOM_IDENTITY_EPSILON = 1e-6;
+
 /** Default number of bins for numeric→categorical materialization. Mirrors
  *  materializeVisualizationData's `defaultBinCount = 10` default. */
 const DEFAULT_NUMERIC_BIN_COUNT = 10;
@@ -866,12 +870,13 @@ export class ProtspaceScatterplot extends LitElement {
       this._webglRenderer?.invalidateStyleCache();
       this._renderPlot();
     }
-    // Render for other changes
-    const selectionKeys = ['selectedProteinIds', 'highlightedProteinIds'];
+    // These keys affect only the template or are rendered by the selection block
+    // above. Zoom transforms already redraw through the interaction controller's RAF.
+    const noAdditionalRenderKeys = ['selectedProteinIds', 'highlightedProteinIds', '_isZoomedIn'];
     const changedKeys = Array.from(changedProperties.keys()).map(String);
-    const onlySelectionChanged =
-      changedKeys.length > 0 && changedKeys.every((k) => selectionKeys.includes(k));
-    if (!onlySelectionChanged) {
+    const onlyNoAdditionalRenderKeysChanged =
+      changedKeys.length > 0 && changedKeys.every((k) => noAdditionalRenderKeys.includes(k));
+    if (!onlyNoAdditionalRenderKeysChanged) {
       this._renderPlot();
       this._updateSelectionOverlays();
     }
@@ -1226,7 +1231,7 @@ export class ProtspaceScatterplot extends LitElement {
       resolveSlotsToIds: (slots) => this._slotsToInteractiveIds(slots),
       onTransform: (t) => {
         this._transform = t;
-        this._isZoomedIn = t.k > 1;
+        this._isZoomedIn = t.k > 1 + ZOOM_IDENTITY_EPSILON;
         this._connectorOverlay.updateZoomScale(t.k);
       },
       onSelect: (ids, clearVisual) => this._commitSelection(ids, clearVisual),
@@ -1984,8 +1989,7 @@ export class ProtspaceScatterplot extends LitElement {
         ${this.data
           ? html`
               <div class="plot-indicator" role="status" aria-live="polite">
-                <span class="point-count">${this._getVisiblePointCount()} points</span>
-                ${this._isZoomedIn ? html`<span class="zoom-indicator">· Zoomed in</span>` : ''}
+                ${`${this._getVisiblePointCount()} points${this._isZoomedIn ? ' · Zoomed in' : ''}`}
               </div>
             `
           : ''}
