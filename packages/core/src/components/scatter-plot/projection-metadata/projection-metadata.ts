@@ -55,6 +55,10 @@ interface QualityEntry {
   metric: string;
   scope: string | null;
   value: unknown;
+  /** Proteins the comparison ran over. Shared by every faithfulness metric in a projection. */
+  sampleSize: number | null;
+  /** Whether that was a subsample rather than everything — a real caveat, previously hidden. */
+  sampled: boolean;
 }
 
 @customElement('protspace-projection-metadata')
@@ -162,7 +166,7 @@ class ProtspaceProjectionMetadata extends LitElement {
   };
 
   render() {
-    const { parameters, quality } = this._splitMetadata();
+    const { parameters, quality, qualityScope } = this._splitMetadata();
     // `stats`: validity scored for this exact projection, so it is scoped by the panel it sits
     // in. `agreement` (below) is deliberately not scoped that way: ARI/NMI describe the
     // clustering itself, not whichever projection the panel happens to be open on, and the
@@ -227,8 +231,18 @@ class ProtspaceProjectionMetadata extends LitElement {
         ${hasAnnotationStats(stats, agreement)
           ? this._renderAnnotationStats(stats, agreement)
           : nothing}
-        ${this._renderSection('Faithfulness to the embedding', 'quality', quality)}
+        ${this._renderSection('Faithfulness to the embedding', 'quality', quality, qualityScope)}
         ${this._renderSection('How it was made', 'parameters', parameters)}
+        <!-- Card-level, because it governs both score blocks equally: separation and
+             faithfulness are both computed once at prepare time and neither recomputes when
+             the view narrows. Stating it inside one section implied it applied only there. -->
+        ${quality.length > 0 || hasAnnotationStats(stats, agreement)
+          ? html`<div class="card-scope">
+              ${this.viewIsSubset
+                ? 'All scores are for the full dataset, not this view.'
+                : 'All scores are for the full dataset.'}
+            </div>`
+          : nothing}
       </div>
     `;
   }
@@ -241,12 +255,13 @@ class ProtspaceProjectionMetadata extends LitElement {
    * anything in this panel, so leaving them bare made the one section that most needed
    * explaining the only one without it.
    */
-  private _renderSection(title: string, id: string, rows: MetadataRow[]) {
+  private _renderSection(title: string, id: string, rows: MetadataRow[], scopeLine = '') {
     if (rows.length === 0) return nothing;
     let renderedScope: string | null | undefined;
     return html`
       <div class="section-heading">${title}</div>
       <dl data-section="${id}">
+        ${scopeLine ? html`<div class="section-scope">${scopeLine}</div>` : nothing}
         ${rows.map((row) => {
           // A heading once per scope run rather than "(local)" on every label. The backend
           // emits the metrics grouped, so a change of scope is a change of group.
@@ -410,12 +425,9 @@ class ProtspaceProjectionMetadata extends LitElement {
     if (scored !== null) {
       parts.push(`${scored.toLocaleString()} ${scored === 1 ? 'protein' : 'proteins'} scored`);
     }
-    // The scores' own scope, folded in here rather than repeated as a standing paragraph
-    // below. "Computed on the full dataset." was rendered unconditionally, so it said the
-    // same thing whether or not anything was filtered — no information in the common case,
-    // and therefore easy to skip in the one case it matters. Now it only becomes a warning
-    // when the view actually narrows, which is the same signal the legend already acts on.
-    parts.push(this.viewIsSubset ? 'full dataset, not this view' : 'full dataset');
+    // Deliberately NOT "full dataset" here. That is true of the faithfulness numbers too —
+    // both blocks are computed once at prepare time and neither recomputes on a filter — so
+    // stating it per section would repeat it. It is a card-level footer instead.
     return parts.join(' · ');
   }
 
@@ -427,8 +439,10 @@ class ProtspaceProjectionMetadata extends LitElement {
   private _splitMetadata(): {
     parameters: MetadataRow[];
     quality: MetadataRow[];
+    /** One line under the faithfulness heading saying what it was computed over. */
+    qualityScope: string;
   } {
-    if (!this.projection?.metadata) return { parameters: [], quality: [] };
+    if (!this.projection?.metadata) return { parameters: [], quality: [], qualityScope: '' };
 
     const rawMetadata = this.projection.metadata;
     const parameterEntries: Array<[string, unknown]> = [];
@@ -498,7 +512,7 @@ class ProtspaceProjectionMetadata extends LitElement {
       };
     });
 
-    return { parameters, quality };
+    return { parameters, quality, qualityScope: this._qualityScopeLine(qualityEntries) };
   }
 
   /**
@@ -509,11 +523,41 @@ class ProtspaceProjectionMetadata extends LitElement {
   private _qualityEntries(quality: Record<string, unknown>): QualityEntry[] {
     return Object.entries(quality).map(([metric, entry]): QualityEntry => {
       if (!entry || typeof entry !== 'object' || !('value' in entry)) {
-        return { metric, scope: null, value: entry };
+        return { metric, scope: null, value: entry, sampleSize: null, sampled: false };
       }
-      const { value, scope } = entry as { value: unknown; scope?: unknown };
-      return { metric, scope: typeof scope === 'string' ? scope : null, value };
+      const {
+        value,
+        scope,
+        sample_size: sampleSize,
+        sampled,
+      } = entry as {
+        value: unknown;
+        scope?: unknown;
+        sample_size?: unknown;
+        sampled?: unknown;
+      };
+      return {
+        metric,
+        scope: typeof scope === 'string' ? scope : null,
+        value,
+        sampleSize:
+          typeof sampleSize === 'number' && Number.isFinite(sampleSize) ? sampleSize : null,
+        sampled: sampled === true,
+      };
     });
+  }
+
+  /**
+   * What the faithfulness numbers were computed over, which the panel dropped entirely: the
+   * provenance repeats identically on every metric, so it belongs once under the section
+   * rather than on each row. `sampled` is the part that matters — above a threshold the
+   * backend compares a subsample, and nothing said so.
+   */
+  private _qualityScopeLine(entries: QualityEntry[]): string {
+    const withSize = entries.find((entry) => entry.sampleSize !== null);
+    if (!withSize) return '';
+    const proteins = `${withSize.sampleSize!.toLocaleString()} proteins compared`;
+    return entries.some((entry) => entry.sampled) ? `${proteins} · subsampled` : proteins;
   }
 
   /**

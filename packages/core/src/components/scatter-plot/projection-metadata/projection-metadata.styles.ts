@@ -191,6 +191,22 @@ export const projectionMetadataStyles = [
       line-height: 1.35;
     }
 
+    /* What a section was computed over, once under its heading. */
+    .section-scope {
+      margin: 0 0 0.4rem;
+      color: #94a3b8;
+      font-size: 0.6875rem;
+      line-height: 1.35;
+    }
+
+    /* Governs every score in the card, so it sits below all of them rather than inside one. */
+    .card-scope {
+      padding: 0 0.75rem 0.7rem;
+      color: #94a3b8;
+      font-size: 0.6875rem;
+      line-height: 1.35;
+    }
+
     dl > .scope-heading:first-child {
       margin-top: 0;
     }

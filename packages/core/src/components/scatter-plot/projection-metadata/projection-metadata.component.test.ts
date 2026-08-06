@@ -169,6 +169,33 @@ describe('protspace-projection-metadata quality rows', () => {
     removed.mockRestore();
   });
 
+  it('says what the faithfulness metrics were computed over, and when it was a subsample', async () => {
+    // The backend attaches sample_size/sampled to every faithfulness metric and the panel
+    // dropped all of it, so a number computed on a 5,000-protein subsample of a 570k dataset
+    // looked exactly like one computed on everything.
+    const whole = await setup({
+      quality: { knn_overlap: qualityEntry(0.62, 'local') },
+    });
+    const scope = (el: ProjectionMetadataElement) =>
+      el.shadowRoot!.querySelector('[data-section="quality"] .section-scope')!.textContent!.trim();
+    expect(scope(whole)).toBe('1,428 proteins compared');
+
+    document.body.innerHTML = '';
+    const sampled = await setup({
+      quality: {
+        knn_overlap: {
+          value: 0.62,
+          scope: 'local',
+          k: 15,
+          seed: 42,
+          sampled: true,
+          sample_size: 5000,
+        },
+      },
+    });
+    expect(scope(sampled)).toBe('5,000 proteins compared · subsampled');
+  });
+
   it('never leaves a serialized object in a value', async () => {
     const el = await setup({
       quality: { spearman_distance: qualityEntry(0.53, 'global') },
@@ -238,11 +265,10 @@ describe('protspace-projection-metadata annotation quality section', () => {
     expect(text).toContain('0.33');
     expect(statsBlock(el)!.querySelector('.stat-metric-embedding')!.textContent).toContain('0.10');
     expect(text).not.toContain('emb 0.10');
+    // The section states its own coverage; "full dataset" is card-level, because it is
+    // equally true of the faithfulness block (see the subset test below).
     expect(text).toContain('5 categories · 1,427 proteins scored');
-    // The scores' scope is folded into the scope line rather than a standing paragraph, and
-    // only becomes a warning when the view is actually narrowed (see the subset test below).
-    expect(text).toContain('full dataset');
-    expect(text).not.toContain('not this view');
+    expect(text).not.toContain('full dataset');
   });
 
   it('warns that the scores outrun the view only while the view is narrowed', async () => {
@@ -255,19 +281,22 @@ describe('protspace-projection-metadata annotation quality section', () => {
       selectedAnnotation: 'major_group',
     };
 
+    const cardScope = (el: ProjectionMetadataElement) =>
+      el.shadowRoot!.querySelector('.card-scope')!.textContent!.trim();
+
     const whole = await setup({ n_components: 2 }, stats);
-    expect(statsBlock(whole)!.textContent).toContain('full dataset');
-    expect(statsBlock(whole)!.textContent).not.toContain('not this view');
+    expect(cardScope(whole)).toContain('full dataset');
+    expect(cardScope(whole)).not.toContain('not this view');
 
     document.body.innerHTML = '';
     const filtered = await setup({ n_components: 2 }, stats);
     filtered.viewIsSubset = true;
     await filtered.updateComplete;
 
-    // One line, not a second paragraph: the scope and the warning are the same statement.
-    const caveats = statsBlock(filtered)!.querySelectorAll('.stat-caveat');
-    expect(caveats).toHaveLength(1);
-    expect(caveats[0].textContent).toContain('full dataset, not this view');
+    // Stated once for the whole card, not per section: it governs the faithfulness numbers
+    // just as much as the separation ones.
+    expect(filtered.shadowRoot!.querySelectorAll('.card-scope')).toHaveLength(1);
+    expect(cardScope(filtered)).toContain('full dataset, not this view');
     // The numbers themselves are untouched — only how they are described.
     expect(statsBlock(filtered)!.textContent).toContain('5 categories');
   });
