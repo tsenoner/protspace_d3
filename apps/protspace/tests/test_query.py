@@ -54,7 +54,7 @@ def test_query_uniprot_does_not_publish_partial_fasta(tmp_path, monkeypatch):
             return _InterruptingWriter(opened)
         return opened
 
-    monkeypatch.setattr(builtins, "open", interrupt_cache_write)
+    monkeypatch.setattr(query_module, "open", interrupt_cache_write, raising=False)
 
     with pytest.raises(RuntimeError, match="interrupted extraction"):
         query_module.query_uniprot("family:globin", save_to=target)

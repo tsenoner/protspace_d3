@@ -81,9 +81,7 @@ def query_uniprot(
         with gzip.open(temp_gz_file, "rt") as gz_file:
             content = gz_file.read()
             with open(extracted_path, "w") as out:
-                written = out.write(content)
-                if written != len(content):
-                    raise OSError("Incomplete FASTA extraction")
+                out.write(content)
 
         extracted_identifiers = extract_identifiers_from_fasta(extracted_path)
         if extracted_identifiers != identifiers:
