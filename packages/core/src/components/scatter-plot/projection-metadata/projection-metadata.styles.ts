@@ -65,8 +65,23 @@ export const projectionMetadataStyles = [
       position: absolute;
       top: calc(100% + 0.5rem);
       left: 0;
+      /* An explicit width, because max-width never applied. :host is position:absolute with
+         no width, so it shrink-to-fits around the 32px trigger; this box then shrink-to-fits
+         inside that, resolves below the floor, and min-width wins — measured in Chrome at
+         242-258px, never the 320px the max-width implies. That is what squeezed the
+         metric-name column and forced Calinski-Harabasz onto two lines. */
+      width: 20rem;
       min-width: 15rem;
       max-width: 20rem;
+      /* The card runs ~700px tall, ~1030px for a cluster column, from a 48px top offset —
+         and the scatter-plot host is overflow:hidden (scatter-plot.styles.ts), so the
+         overrun was hard-clipped and unreachable rather than merely spilling. The clipped
+         region was the annotation-stats block: exactly what the dropdown's STATS badge
+         sends people here to read. Safe for the side-placed info popovers, which are
+         position:fixed and anchor to this element via data-info-popover-boundary. */
+      max-height: min(30rem, calc(100vh - 6rem));
+      overflow-y: auto;
+      overscroll-behavior: contain;
       background: var(--protspace-tooltip-bg, rgba(255, 255, 255, 0.95));
       border: 1px solid var(--protspace-tooltip-border, #d9e2ec);
       border-radius: 0.5rem;
@@ -171,13 +186,6 @@ export const projectionMetadataStyles = [
       margin-top: 0;
     }
 
-    /* Second section of the panel: the same header bar, but mid-card, so it gets a top rule and
-     loses the card's rounded top corners. */
-    .stats-header {
-      border-top: 1px solid #e2e8f0;
-      border-radius: 0;
-    }
-
     /* One grid for the whole block (rows are display: contents) so every metric row shares the
      same column widths; a grid per row would size each row's columns to its own content and
      leave the values visibly ragged. minmax(0, 1fr) lets the label column shrink instead of
@@ -217,6 +225,18 @@ export const projectionMetadataStyles = [
       margin-top: 0;
     }
 
+    /* The selected annotation, inline in the heading. Reads as the input it is rather than as
+       a section of its own, and cannot be mistaken for the legend panel's title. */
+    .stat-annotation-chip {
+      display: inline-block;
+      padding: 0.05rem 0.3rem;
+      border-radius: 0.25rem;
+      background: #eef2f7;
+      color: #334155;
+      font-weight: 600;
+      overflow-wrap: anywhere;
+    }
+
     .stat-group-label,
     .stat-caveat {
       color: #94a3b8;
@@ -236,16 +256,12 @@ export const projectionMetadataStyles = [
       font-variant-numeric: tabular-nums;
     }
 
+    /* No min-width. It was inert while the ceiling heading ("Source embedding") was the wider
+     thing sizing this track, but the heading is one word now, so a 4.5rem floor would start
+     binding and take the width straight back off the metric-name column. */
     .stat-metric-embedding {
-      min-width: 4.5rem;
       color: #94a3b8;
       text-align: right;
-    }
-
-    /* Agreement metrics never have a ceiling, and neither does a bundle prepared without an
-     embedding, and reserving 4.5rem for a blank cell steals it from the label column. */
-    .stat-metric-embedding.is-empty {
-      min-width: 0;
     }
 
     /* Same reason as the dt rule above: as an inline element the ⓘ was pushed onto its own line

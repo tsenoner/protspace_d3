@@ -160,12 +160,21 @@ class ProtspaceProjectionMetadata extends LitElement {
         role="tooltip"
         data-info-popover-boundary
       >
-        <div class="header">Projection Metadata</div>
-        ${this._renderSection('Parameters', 'parameters', parameters)}
-        ${this._renderSection('Projection quality', 'quality', quality)}
+        <!-- The projection's own name, which the panel never showed: _splitMetadata skips
+             the "name" key, so a card describing one projection out of several did not say
+             which. It also replaces the second header bar the stats block used to print
+             (the annotation name), which duplicated the legend panel's own title and made
+             that block read as a stray card. -->
+        <div class="header">${this.projection?.name || 'Projection metadata'}</div>
+        <!-- Ordered by what the reader came for, now that the card scrolls. Separation is
+             what the color-by dropdown's STATS badge points at and the only block that
+             changes when you recolour, so it must not open below the fold; the reduction
+             parameters never change and are the reference material, so they go last. -->
         ${hasAnnotationStats(stats, agreement)
           ? this._renderAnnotationStats(stats, agreement)
           : nothing}
+        ${this._renderSection('Faithfulness to the embedding', 'quality', quality)}
+        ${this._renderSection('How it was made', 'parameters', parameters)}
       </div>
     `;
   }
@@ -228,12 +237,20 @@ class ProtspaceProjectionMetadata extends LitElement {
     // of entirely blank cells would only take width back from the label column for nothing.
     const hasEmbeddingCeiling = summary?.validity.some((metric) => metric.embedding !== null);
     return html`
-      <div class="header stats-header">${annotationLabel(this.selectedAnnotation)}</div>
       <div class="annotation-stats">
         ${summary && summary.validity.length > 0
           ? html`
+              <!-- The annotation is a chip inside the heading, not a header bar of its own.
+                   It is an INPUT to this section (same report, recoloured), not a change of
+                   subject, and a second bar printing the annotation name simply repeated the
+                   legend panel's title one column over. -->
               <div class="stat-heading">
-                <span>Separation in this projection</span>
+                <span
+                  >Separation, scored on
+                  <span class="stat-annotation-chip"
+                    >${annotationLabel(this.selectedAnnotation)}</span
+                  ></span
+                >
                 <protspace-info-popover
                   placement="side"
                   label="separation scores"

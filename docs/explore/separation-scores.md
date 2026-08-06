@@ -14,7 +14,7 @@ Without `--stats` the bundle carries no statistics part, the legend shows no str
 
 **Above the legend**, two strips place one dot per category on a shared axis, one strip for silhouette and one for Davies–Bouldin. Each dot carries its category's colour, so you can see at a glance whether an annotation separates uniformly or whether one group is dragging the average down. Hovering a dot marks the matching legend row, and hovering a legend row marks its dot. Either way, the number to the right of each axis reads out that category's exact value, so you get its silhouette and its Davies–Bouldin together rather than one at a time. It stays blank for a category a metric could not score: Davies–Bouldin has no value for a one-member category.
 
-**In the projection metadata panel**, opened with the "View projection metadata" button at the top left of the plot, a Separation section carries the whole-annotation scores for all three metrics. The panel's other two sections are separate: Parameters holds the reduction's own settings, and Projection quality holds faithfulness measures such as trustworthiness, which describe the layout itself and involve no annotation at all.
+**In the projection metadata panel**, opened with the chart button at the top left of the plot, the Separation section carries the whole-annotation scores for all three metrics and names the annotation it was scored on. It comes first because it is the only section that changes when you recolour. Below it, Faithfulness to the embedding holds measures such as trustworthiness, which describe the layout itself and involve no annotation at all, and How it was made holds the reduction's own settings.
 
 ## The Three Metrics
 
@@ -34,7 +34,7 @@ Silhouette and Davies–Bouldin both decompose. Silhouette is defined as an aver
 
 Calinski–Harabasz is a single global variance ratio with no accepted per-category form, so it appears in the panel only and has no strip.
 
-## The "In Embedding" Column
+## The "Embedding" Column
 
 Beside each score in the panel is its value on the original high-dimensional embedding. That is the ceiling: how much separation genuinely exists before any projection, so you can tell "this annotation does not separate" from "this 2D layout lost the separation that was there".
 

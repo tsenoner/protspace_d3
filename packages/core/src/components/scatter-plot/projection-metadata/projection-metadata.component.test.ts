@@ -76,13 +76,15 @@ describe('protspace-projection-metadata quality rows', () => {
       },
     });
 
+    // Faithfulness before the reduction parameters. The card scrolls now, so it is ordered by
+    // what the reader came for: the parameters never change and are reference material.
     expect(rows(el)).toEqual([
-      ['N Components', '2'],
       // The registry's spelling, not the prettified column name: a known metric is named the
       // way it is written in the literature ("kNN"), which title-casing the key cannot do.
       ['kNN Overlap', '0.58'],
       ['Trustworthiness', '0.97'],
       ['Random Triplet', '0.71'],
+      ['N Components', '2'],
     ]);
   });
 
@@ -227,9 +229,11 @@ describe('protspace-projection-metadata annotation quality section', () => {
       },
     );
 
-    expect(el.shadowRoot!.querySelector('.stats-header')!.textContent).toContain('Major group');
+    expect(el.shadowRoot!.querySelector('.stat-annotation-chip')!.textContent).toContain(
+      'Major group',
+    );
     const text = statsBlock(el)!.textContent!;
-    expect(text).toContain('Separation in this projection');
+    expect(text).toContain('Separation, scored on');
     expect(text).toContain('0.33');
     expect(statsBlock(el)!.querySelector('.stat-metric-embedding')!.textContent).toContain('0.10');
     expect(text).not.toContain('emb 0.10');
@@ -318,8 +322,8 @@ describe('metadata sections', () => {
     const headings = Array.from(el.shadowRoot!.querySelectorAll('.section-heading')).map((node) =>
       node.textContent!.trim(),
     );
-    expect(headings).toContain('Parameters');
-    expect(headings).toContain('Projection quality');
+    expect(headings).toContain('How it was made');
+    expect(headings).toContain('Faithfulness to the embedding');
 
     const parameters = el.shadowRoot!.querySelector('[data-section="parameters"]')!;
     expect(parameters.textContent).toContain('N Neighbors');
@@ -357,8 +361,8 @@ describe('metadata sections', () => {
     const headings = Array.from(el.shadowRoot!.querySelectorAll('.section-heading')).map((node) =>
       node.textContent!.trim(),
     );
-    expect(headings).toContain('Parameters');
-    expect(headings).not.toContain('Projection quality');
+    expect(headings).toContain('How it was made');
+    expect(headings).not.toContain('Faithfulness to the embedding');
   });
 
   it('shows the embedding column header only when some metric has a ceiling', async () => {
@@ -434,7 +438,7 @@ describe('auto-cluster agreement placement', () => {
     );
 
     const text = el.shadowRoot!.querySelector('.annotation-stats')!.textContent!;
-    expect(text).toContain('Separation in this projection');
+    expect(text).toContain('Separation, scored on');
     expect(text).not.toContain('Recovers');
   });
 
@@ -528,7 +532,7 @@ describe('auto-cluster agreement placement', () => {
     );
 
     const text = statsBlock(el)!.textContent!;
-    expect(text).toContain('Separation in this projection');
+    expect(text).toContain('Separation, scored on');
     expect(text).toContain('Recovers');
     expect(text).toContain('optimistic');
   });
