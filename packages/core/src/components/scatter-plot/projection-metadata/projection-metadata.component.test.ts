@@ -343,7 +343,11 @@ describe('metadata sections', () => {
     );
 
     const text = el.shadowRoot!.querySelector('.annotation-stats')!.textContent!;
-    expect(text).toContain('Source embedding');
+    // One word. The two headings sit in the grid's auto-sized columns, so a longer phrase
+    // ("Source embedding") set those widths from the heading rather than the number and
+    // starved the metric-name column — measured at 36px against a 120px need. The heading's
+    // own ⓘ carries the full explanation.
+    expect(text).toContain('Embedding');
     expect(text).not.toContain('emb 0.10');
   });
 

@@ -44,11 +44,11 @@ const SCOPE_HEADINGS: Record<string, string> = {
  * is a ceiling, and the gap between them is the cost of flattening to 2D.
  */
 const SEPARATION_SCOPE_DESCRIPTION =
-  'Two numbers per metric. "This projection" scores the layout you are looking at. ' +
-  '"Source embedding" scores the same annotation on the full high-dimensional embedding ' +
-  'this projection was computed from — flattening it to 2D can only lose structure, never ' +
-  'add it, so that column is the best any projection of this data could achieve. A small ' +
-  'gap means the projection kept what was there; a large one means it lost it.';
+  'Two numbers per metric. "Projection" scores the layout you are looking at. "Embedding" ' +
+  'scores the same annotation on the full high-dimensional embedding this projection was ' +
+  'computed from — flattening it to 2D can only lose structure, never add it, so that column ' +
+  'is the best any projection of this data could achieve. A small gap means the projection ' +
+  'kept what was there; a large one means it lost it.';
 
 /** A faithfulness metric before display: the raw key is kept so it can be looked up. */
 interface QualityEntry {
@@ -242,10 +242,16 @@ class ProtspaceProjectionMetadata extends LitElement {
               </div>
               ${hasEmbeddingCeiling
                 ? html`
+                    <!-- One word each. These sit in the grid's two auto-sized columns, which
+                         size to max-content, so the longer headings "This projection" and
+                         "Source embedding" set those widths from the widest HEADING rather
+                         than the widest number. Measured: that left the metric-name column
+                         36px and pushed its info icon out over the values. The heading's own
+                         info icon carries the full explanation instead. -->
                     <div class="stat-columns">
                       <span></span>
-                      <span>This projection</span>
-                      <span>Source embedding</span>
+                      <span>Projection</span>
+                      <span>Embedding</span>
                     </div>
                   `
                 : ''}

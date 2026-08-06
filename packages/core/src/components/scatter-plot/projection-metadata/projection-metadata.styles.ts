@@ -184,7 +184,12 @@ export const projectionMetadataStyles = [
      pushing the value columns past the panel's max-width at large text sizes. */
     .annotation-stats {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto auto;
+      /* min-content, not 0, on the label track. With a 0 minimum the track could size below
+         the metric name plus its info icon, and since nothing clips the cell the icon simply
+         painted over the value column to its right. min-content lets the name wrap at a word
+         boundary and guarantees the icon a place. Measured against the real component: with
+         0 the label track collapsed to 36px while its content needed 120px. */
+      grid-template-columns: minmax(min-content, 1fr) auto auto;
       gap: 0.15rem 0.5rem;
       padding: 0.625rem 0.75rem;
       font-size: 0.75rem;
@@ -246,13 +251,18 @@ export const projectionMetadataStyles = [
     /* Same reason as the dt rule above: as an inline element the ⓘ was pushed onto its own line
        whenever the metric name wrapped, which every long one does ("Calinski–Harabasz").
        Flex keeps it on the label's first line and lets the name wrap beside it. */
+    /* Flex, with the icon aligned to the name's LAST line.
+       Measured alternatives, both rejected: inline flow wraps the icon onto a third line of
+       its own, because the track's min-content is the longest WORD and reserves nothing for a
+       trailing inline-block. flex-start strands it against the first line, so a wrapped name
+       reads "Davies- (i) / Bouldin". flex-end puts it beside "Bouldin", where it belongs, and
+       is identical to baseline alignment for the single-line names. */
     .stat-metric-label {
       display: flex;
-      /* flex-start, not center: on a name that wraps to two lines, centring floats the icon
-         into the gap between them. */
-      align-items: flex-start;
+      align-items: flex-end;
       gap: 0.25rem;
-      min-width: 0;
+      /* No min-width: 0 — it would hand back the very floor the track above establishes, and
+         the icon would overflow into the value column again. */
     }
 
     /* Deliberately NO min-width: 0 here. With it the name could shrink below its own text,
