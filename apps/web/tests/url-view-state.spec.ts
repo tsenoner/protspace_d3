@@ -6,7 +6,9 @@ import {
   clickLegendItem,
   dismissTourIfPresent,
   getFirstLegendItemValue,
+  getShapeSizeState,
   isLegendItemHidden,
+  setShapeSize,
   supportsExplorePersistedDataset,
   waitForExploreDataLoad,
   waitForExploreInteractionReady,
@@ -288,22 +290,6 @@ async function expectUrlParam(
     .toBe(expected);
 }
 
-async function getShapeSizeState(page: Page) {
-  return page.evaluate(() => {
-    const legend = document.querySelector('protspace-legend') as
-      | (Element & { shapeSize?: number })
-      | null;
-    const plot = document.querySelector('protspace-scatterplot') as
-      | (Element & { config?: { pointSize?: number } })
-      | null;
-
-    return {
-      pointSize: plot?.config?.pointSize,
-      shapeSize: legend?.shapeSize,
-    };
-  });
-}
-
 // Discover the default demo's annotations/projections once per worker. Names can
 // contain spaces/em-dashes and change with demo swaps, so tests derive
 // non-default targets at runtime instead of hardcoding them.
@@ -386,27 +372,24 @@ test.describe('URL-backed explore view state', () => {
 
   test('preserves shape size across projection reloads and deep links', async ({ page }) => {
     const shapeSize = 42;
+    // Mirrors calculatePointSize() in packages/core/src/components/legend/legend-helpers.ts
+    // (LEGEND_DEFAULTS.symbolSizeMultiplier); specs can't import @protspace/core under
+    // Playwright's ESM loader — see the note above waitForView.
+    const SHAPE_SIZE_TO_POINT_SIZE = 8;
+    const expectedShapeState = { pointSize: shapeSize * SHAPE_SIZE_TO_POINT_SIZE, shapeSize };
     await page.goto('/explore');
     await dismissTourIfPresent(page);
     await waitForExploreDataLoad(page);
     await waitForExploreInteractionReady(page);
 
-    const legend = page.locator('protspace-legend');
-    await legend.getByRole('button', { name: 'Legend settings', exact: true }).click();
-    await legend.locator('#shape-size-input').fill(String(shapeSize));
-    await legend.getByRole('button', { name: 'Save', exact: true }).click();
+    await setShapeSize(page, shapeSize);
 
     await selectProjection(page, targetProjection);
     await waitForView(page, { projection: targetProjection });
     await page.reload();
     await waitForExploreDataLoad(page);
     await waitForView(page, { projection: targetProjection });
-    await expect
-      .poll(() => getShapeSizeState(page))
-      .toEqual({
-        pointSize: shapeSize * 8,
-        shapeSize,
-      });
+    await expect.poll(() => getShapeSizeState(page)).toEqual(expectedShapeState);
 
     await page.goto(
       `/explore?annotation=${encodeURIComponent(demoDefaultAnnotation)}&projection=${encodeURIComponent(demoDefaultProjection)}`,
@@ -416,12 +399,7 @@ test.describe('URL-backed explore view state', () => {
       annotation: demoDefaultAnnotation,
       projection: demoDefaultProjection,
     });
-    await expect
-      .poll(() => getShapeSizeState(page))
-      .toEqual({
-        pointSize: shapeSize * 8,
-        shapeSize,
-      });
+    await expect.poll(() => getShapeSizeState(page)).toEqual(expectedShapeState);
   });
 
   test('deep links render the requested view directly without an initial default swap', async ({

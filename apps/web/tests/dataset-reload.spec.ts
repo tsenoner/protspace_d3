@@ -5,7 +5,9 @@ import {
   clickLegendItem,
   dismissTourIfPresent,
   getFirstLegendItemValue,
+  getShapeSizeState,
   isLegendItemHidden,
+  setShapeSize,
   waitForExploreDataLoad,
   waitForExploreInteractionReady,
   waitForPersistedExploreDataset,
@@ -279,30 +281,6 @@ async function dispatchCustomEvent(
 
 async function hasLegacyNotificationHelperArtifacts(page: Page): Promise<boolean> {
   return page.evaluate(() => document.getElementById('protspace-notification-styles') !== null);
-}
-
-async function getShapeSizeState(page: Page) {
-  return page.evaluate(() => {
-    const legend = document.querySelector('protspace-legend') as
-      | (Element & { shapeSize?: number })
-      | null;
-    const plot = document.querySelector('protspace-scatterplot') as
-      | (Element & { config?: { pointSize?: number } })
-      | null;
-
-    return {
-      pointSize: plot?.config?.pointSize,
-      shapeSize: legend?.shapeSize,
-    };
-  });
-}
-
-async function setShapeSize(page: Page, shapeSize: number): Promise<void> {
-  const legend = page.locator('protspace-legend');
-  await legend.getByRole('button', { name: 'Legend settings', exact: true }).click();
-  await legend.locator('#shape-size-input').fill(String(shapeSize));
-  await legend.getByRole('button', { name: 'Save', exact: true }).click();
-  await expect.poll(() => getShapeSizeState(page)).toMatchObject({ shapeSize });
 }
 
 // ---------------------------------------------------------------------------
