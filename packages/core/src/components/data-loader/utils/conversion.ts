@@ -670,8 +670,9 @@ export function convertParquetToVisualizationData(
 }
 
 /**
- * Attach the bundle's unparsed statistics part so an export can re-emit it.
- * Raw `Rows` input never carries one.
+ * Attach the bundle's statistics part: the unparsed bytes so an export can re-emit them,
+ * and the parsed rows so the UI can render them. Raw `Rows` input (plain .parquet / legacy
+ * reads) never carries either, so it passes straight through.
  */
 function carryStatistics(
   data: VisualizationData,
@@ -679,6 +680,7 @@ function carryStatistics(
 ): VisualizationData {
   if (!Array.isArray(input) && input.statistics) {
     data.statistics = input.statistics;
+    data.statisticsRows = input.statisticsRows ?? undefined;
   }
   return data;
 }
