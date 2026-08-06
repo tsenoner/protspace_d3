@@ -12,8 +12,7 @@ MIN_PARAMETER_GROUP_BASIS_PX = 300
 def _generate_cell_source() -> str:
     notebook = json.loads(NOTEBOOK_PATH.read_text())
     for cell in notebook["cells"]:
-        source = cell.get("source", [])
-        source_text = "".join(source) if isinstance(source, list) else source
+        source_text = "".join(cell.get("source", []))
         if source_text.startswith(GENERATE_CELL_TITLE):
             return source_text
     raise AssertionError("Generate & Download cell not found")
@@ -36,7 +35,13 @@ def test_parameter_groups_wrap_before_slider_tracks_collapse():
     assert displayed_widgets, "Generate cell did not render its widget tree"
     assert parameter_groups, "Generate cell did not create parameter groups"
 
+    param_grid = namespace["param_grid"]
+    assert "wrap" in (param_grid.layout.flex_flow or ""), (
+        "Parameter grid must wrap; a nowrap row lets the cards shrink past their tracks"
+    )
+
     for group, _methods in parameter_groups:
+        assert group.layout.overflow == "hidden"
         flex_basis = group.layout.flex.split()[-1]
         assert flex_basis.endswith("px")
         basis_px = int(flex_basis.removesuffix("px"))
