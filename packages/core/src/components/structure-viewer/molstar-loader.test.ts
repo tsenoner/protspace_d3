@@ -39,7 +39,7 @@ describe('Mol* color theme adapter', () => {
   });
 
   it('registers TED coloring and switches loaded representations without reloading', async () => {
-    const addTheme = vi.fn();
+    const addTheme = vi.fn<(provider: unknown) => void>();
     const updateTheme = vi.fn(async () => undefined);
     const components = [{ id: 'polymer' }];
     const rawViewer = {
@@ -69,6 +69,32 @@ describe('Mol* color theme adapter', () => {
     await viewer.setColorTheme('ted-domains', domains);
     expect(updateTheme).toHaveBeenLastCalledWith(components, { color: 'protspace-ted-domain' });
     expect(rawViewer.loadStructureFromUrl).not.toHaveBeenCalled();
+
+    const provider = addTheme.mock.calls[0]?.[0] as
+      | {
+          factory: (
+            context: unknown,
+            props: Record<string, never>,
+          ) => { color: (location: unknown) => number };
+        }
+      | undefined;
+    expect(provider).toBeDefined();
+    const theme = provider!.factory({}, {});
+    const atomicUnit = {
+      kind: 0,
+      elements: [7],
+      model: {
+        atomicHierarchy: {
+          residueAtomSegments: { index: { 7: 3 } },
+          residues: { label_seq_id: { value: (index: number) => (index === 3 ? 35 : 200) } },
+        },
+      },
+    };
+    expect(theme.color({ kind: 'element-location', unit: atomicUnit, element: 7 })).toBe(0x0072b2);
+    expect(theme.color({ kind: 'bond-location', aUnit: atomicUnit, aIndex: 0 })).toBe(0x0072b2);
+    expect(
+      theme.color({ kind: 'element-location', unit: { ...atomicUnit, kind: 1 }, element: 7 }),
+    ).toBe(0x9ca3af);
 
     await viewer.setColorTheme('plddt');
     expect(updateTheme).toHaveBeenLastCalledWith(components, { color: 'plddt-confidence' });

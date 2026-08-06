@@ -35,6 +35,8 @@ The Mol* loader will wrap the CDN viewer with a `setColorTheme` method. It will 
 
 Using a custom provider was chosen over rewriting mmCIF or applying permanent overpaint because it maps residues at render time, preserves pLDDT data, and supports reversible switching. Adding the npm Mol\* package was rejected because the runtime is already intentionally pinned and dynamically loaded from the CDN.
 
+New AlphaFold structures retain Mol\*'s existing automatic pLDDT preset. The component does not reapply pLDDT after the asynchronous structure load, because a completion from a disposed or replaced viewer must not write a theme to the current viewer. Explicit user-initiated mode changes continue to go through the adapter.
+
 ### Map residue sequence numbers to stable categorical colors
 
 The TED theme will read each atomic element's `label_seq_id`, find the containing inclusive interval, and derive a color from the TED domain number using a fixed accessible categorical palette. All segments of the same domain therefore share a color. Residues outside valid TED intervals use a neutral gray.

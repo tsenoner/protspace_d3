@@ -200,4 +200,44 @@ describe('structure viewer color control', () => {
     expect(replacementTedButton?.getAttribute('aria-pressed')).toBe('false');
     expect(replacementTedButton?.disabled).toBe(true);
   });
+
+  it('does not report an error when a structure finishes after the viewer closes', async () => {
+    const structureLoad = deferred<void>();
+    mocks.loadStructureFromUrl.mockReturnValueOnce(structureLoad.promise);
+    const element = await renderViewer(domains);
+    const handleError = vi.fn();
+    element.addEventListener('structure-error', handleError);
+
+    element.close();
+    structureLoad.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(handleError).not.toHaveBeenCalled();
+  });
+
+  it('does not reset a replacement viewer theme when a stale structure load finishes', async () => {
+    const staleStructureLoad = deferred<void>();
+    mocks.loadStructureFromUrl.mockReturnValueOnce(staleStructureLoad.promise);
+    const element = await renderViewer(domains);
+
+    element.proteinId = 'P12345';
+    await vi.waitFor(() => expect(mocks.loadStructureFromUrl).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() =>
+      expect(
+        element.shadowRoot?.querySelector<HTMLButtonElement>('[data-color-mode="ted-domains"]'),
+      ).not.toBeNull(),
+    );
+
+    element.shadowRoot
+      ?.querySelector<HTMLButtonElement>('[data-color-mode="ted-domains"]')
+      ?.click();
+    await vi.waitFor(() =>
+      expect(mocks.setColorTheme).toHaveBeenLastCalledWith('ted-domains', domains),
+    );
+
+    staleStructureLoad.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mocks.setColorTheme).toHaveBeenLastCalledWith('ted-domains', domains);
+  });
 });

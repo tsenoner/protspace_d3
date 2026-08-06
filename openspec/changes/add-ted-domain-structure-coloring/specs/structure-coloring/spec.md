@@ -10,6 +10,12 @@ The structure viewer SHALL display each newly loaded AlphaFold structure with th
 - **THEN** the color control identifies pLDDT as the active mode
 - **AND** the viewer uses Mol\*'s pLDDT confidence theme
 
+#### Scenario: A prior structure finishes after its viewer is replaced
+
+- **WHEN** a structure load finishes after its Mol\* viewer has been closed or replaced
+- **THEN** the stale completion does not report a structure error
+- **AND** the stale completion does not change the current viewer's color theme
+
 ### Requirement: TED domain annotations are optional
 
 The system SHALL request TED domain annotations for the displayed accession and SHALL NOT fail or indefinitely delay structure loading when the TED request fails, stalls, returns no domains, or contains no valid residue segments.
@@ -73,3 +79,9 @@ The TED color theme SHALL assign one deterministic categorical color per TED dom
 
 - **WHEN** a rendered residue sequence number falls outside every TED interval
 - **THEN** the residue receives the neutral unassigned color
+
+#### Scenario: Mol\* supplies different location kinds
+
+- **WHEN** Mol\* requests a TED color for an atomic element or bond location
+- **THEN** the theme resolves the location to its `label_seq_id` residue number
+- **AND** a coarse or unmappable location receives the neutral unassigned color

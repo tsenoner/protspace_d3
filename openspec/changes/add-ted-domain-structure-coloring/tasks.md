@@ -10,6 +10,7 @@
 
 - [x] 2.1 Add failing tests for deterministic domain colors, discontinuous ranges, and neutral unassigned residues
 - [x] 2.2 Register the TED color provider and expose reversible pLDDT/TED theme switching in the Mol\* adapter
+- [x] 2.3 Exercise the registered provider for atomic element, bond, and coarse locations
 
 ## 3. Structure Viewer Control
 
@@ -17,6 +18,7 @@
 - [x] 3.2 Add the accessible two-mode color control and mode-specific explanatory text
 - [x] 3.3 Add failing regressions for rapid reverse selection and stale viewer completion
 - [x] 3.4 Sequence theme updates and ignore requests invalidated by viewer cleanup
+- [x] 3.5 Add a failing stale-load regression and remove the redundant post-load theme write
 
 ## 4. Documentation
 

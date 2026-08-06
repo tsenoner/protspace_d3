@@ -226,7 +226,6 @@ export class ProtspaceStructureViewer extends LitElement {
             structureData.format,
             structureData.isBinary,
           );
-          await this._viewer.setColorTheme('plddt');
         } else {
           throw new Error('AlphaFold structure URL not available');
         }
