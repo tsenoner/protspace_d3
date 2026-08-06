@@ -2,8 +2,13 @@
 
 ### Requirement: Automatic projection navigation preserves dataset display settings
 
-The explore view SHALL restore dataset-scoped legend display settings when projection navigation or
-a browser reload causes a fresh controller to load the same default dataset automatically.
+The explore view SHALL restore dataset-scoped display settings when projection navigation or a
+browser reload causes a fresh controller to load the same default dataset automatically.
+
+#### Scenario: In-place projection change retains Shape size
+
+- **WHEN** a user saves a non-default Shape size and changes projection without reloading the dataset
+- **THEN** the Shape size and its effective rendered point size remain unchanged
 
 #### Scenario: Direct projection URL restores Shape size
 
@@ -15,6 +20,23 @@ a browser reload causes a fresh controller to load the same default dataset auto
 
 - **WHEN** a user saves a non-default Shape size, changes projection, and reloads the explore page
 - **THEN** the Shape size and its effective rendered point size match the saved setting
+
+#### Scenario: Silent URL restores saved tooltip selection
+
+- **WHEN** a fresh automatic load has a saved tooltip-annotation selection and the URL does not
+  specify `tooltip`
+- **THEN** the saved tooltip-annotation selection is restored
+
+### Requirement: Persistence components share complete dataset identity
+
+The dataset controller and legend SHALL derive the same persistence identity from display-relevant
+dataset fields, including EAT prediction cells.
+
+#### Scenario: EAT-backed dataset restores the controller-keyed legend record
+
+- **GIVEN** a dataset contains `annotation_predicted` values
+- **WHEN** the controller preserves a legend record during an automatic load
+- **THEN** the legend reads and writes that record under the same dataset hash
 
 ### Requirement: Explicit demo reset clears dataset display settings
 

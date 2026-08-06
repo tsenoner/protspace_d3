@@ -33,8 +33,9 @@ file formats, or projection state.
 
 For a `default` load, use replacement semantics only when `currentDatasetHash` is already set. A
 fresh controller has no current dataset, so its automatic default load preserves existing
-dataset-keyed settings. An explicit reset occurs after a dataset is active, so it continues to clear
-and replace those settings.
+dataset-keyed settings. An explicit reset after a dataset is active continues to clear and replace
+those settings. Recovery-banner actions can request the demo before any dataset has loaded; those
+requests intentionally follow startup semantics because there is no active dataset to reset.
 
 This uses state the controller already owns and keeps the change local to the persistence decision.
 
@@ -61,11 +62,26 @@ defaults.
 **Alternative considered:** skip all embedded demo settings on automatic startup. Rejected because
 first-time users would lose curated per-annotation defaults when no local record exists.
 
+### Use one complete dataset identity at every persistence boundary
+
+The dataset controller and legend must hash the same fields. In particular, EAT prediction cells are
+part of the dataset fingerprint, so the legend includes `annotation_predicted` when it recomputes its
+hash after loading data. Otherwise the controller probes and seeds one storage key while the legend
+loads and saves another.
+
 ## Risks / Trade-offs
 
 - **A fresh automatic load restores the complete legend record, not only Shape size.** → This is the
   existing dataset-scoped persistence unit; retaining it avoids partial-record semantics. Explicit
   reset still clears the record.
+- **Other hash-scoped preferences also survive automatic startup.** → The existing storage cleanup
+  removes every `protspace:*:<dataset-hash>` key. Skipping it therefore also activates the existing
+  silent-URL tooltip restore path. An explicit reset after a dataset is active still clears all keys.
+- **A re-curated demo bundle does not replace existing records for returning users.** → The bundle
+  settings table is not part of the dataset hash and stored records do not distinguish seeded
+  defaults from user edits. Changing this would require new persistence provenance and precedence
+  rules; this change favors existing local settings. Changing the demo data changes the hash and
+  seeds the new bundle settings.
 - **Changing non-clearing file application affects its API semantics.** → There are no existing
   production callers of the non-clearing mode; focused controller tests define replacement and
   preserve-existing behavior explicitly.
@@ -77,7 +93,9 @@ first-time users would lose curated per-annotation defaults when no local record
 ## Migration Plan
 
 No data migration is required. Existing persisted records become restorable on reload and projection
-deep links. Rollback is a source revert; stored data remains compatible in either direction.
+deep links. EAT-backed legend records previously saved under the legend's incomplete,
+prediction-omitting hash are not migrated; the corrected shared hash is seeded on the next load.
+Non-EAT dataset keys are unchanged. Rollback is a source revert; the storage schema is unchanged.
 
 ## Open Questions
 

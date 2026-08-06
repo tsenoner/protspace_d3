@@ -10,6 +10,8 @@ dataset-scale preference.
 - Retain legend settings when the default dataset is loaded automatically into a fresh explore
   controller, including projection deep links and browser reloads.
 - Preserve the existing explicit reset-to-demo behavior when a dataset is already active.
+- Replace the historical page-reload reset behavior from #178 while retaining that issue's in-app
+  reset path after a custom dataset is active.
 - Add focused regression coverage for automatic default-load retention and explicit default reset.
 
 ## Capabilities
@@ -27,5 +29,8 @@ None.
 
 - `apps/web/src/explore/dataset-controller.ts` default-load persistence decision.
 - `packages/core/src/controllers/base-persistence-controller.ts` file-setting merge semantics.
-- Dataset-controller unit tests and a focused browser regression for Shape size restoration.
+- `packages/core/src/components/legend/legend.ts` dataset identity used by legend persistence.
+- Dataset-controller and legend unit tests plus focused browser regressions for Shape size
+  restoration.
+- Explore documentation for saved Shape size and reload/reset behavior.
 - No API, dependency, or bundle-format changes.

@@ -388,6 +388,7 @@ test.describe('URL-backed explore view state', () => {
 
     await selectProjection(page, targetProjection);
     await waitForView(page, { projection: targetProjection });
+    await expect.poll(() => getShapeSizeState(page)).toEqual(expectedShapeState);
     await page.reload();
     await waitForExploreDataLoad(page);
     await waitForView(page, { projection: targetProjection });

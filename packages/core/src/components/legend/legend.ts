@@ -831,17 +831,20 @@ export class ProtspaceLegend extends LitElement {
             protein_ids: sourceData.protein_ids,
             annotations: sourceData.annotations,
             numeric_annotation_data: sourceData.numeric_annotation_data,
+            annotation_predicted: sourceData.annotation_predicted,
           }
         : {
             protein_ids: this.proteinIds,
             annotations: this.data?.annotations,
             numeric_annotation_data: this.data?.numeric_annotation_data,
+            annotation_predicted: this.data?.annotation_predicted,
           };
 
       this._persistenceController.updateDatasetHash({
         protein_ids: unfilteredData.protein_ids,
         annotations: unfilteredData.annotations,
         numeric_annotation_data: unfilteredData.numeric_annotation_data,
+        annotation_predicted: unfilteredData.annotation_predicted,
       });
     }
 
