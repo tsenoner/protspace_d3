@@ -4,6 +4,7 @@ from typer.testing import CliRunner
 from protspace.cli.app import app
 from protspace.data.annotations.retrievers.uniprot_retriever import (
     ProteinAnnotations,
+    UniProtRetriever,
 )
 
 
@@ -11,10 +12,6 @@ def test_annotate_fasta_derives_missing_length_from_normalized_sequence(
     tmp_path, monkeypatch
 ):
     """The FASTA-backed CLI path must supply sequences to the annotation manager."""
-    from protspace.data.annotations.retrievers.uniprot_retriever import (
-        UniProtRetriever,
-    )
-
     fasta = tmp_path / "input.fasta"
     fasta.write_text(">custom|custom_protein|description\nMPEPTIDE\n")
     output = tmp_path / "annotations.parquet"
