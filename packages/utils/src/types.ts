@@ -117,7 +117,8 @@ export interface ProjectionStatisticRow {
    * absent on the aggregate row, and absent entirely on bundles written before
    * the column existed. Deliberately NOT in `PROJECTION_STATISTIC_COLUMNS`:
    * that list is the required set the reader's schema guard checks, so adding
-   * it would reject every bundle already prepared with `--stats`.
+   * it would reject every bundle already prepared with `--stats`. Same for
+   * `extra_json` below.
    */
   category?: string;
   /** Per-metric provenance as a JSON string (sample size, seed, …). */
@@ -125,9 +126,11 @@ export interface ProjectionStatisticRow {
 }
 
 /**
- * Required column names of the statistics part, in the writer's order. `satisfies` ties the list to
- * `ProjectionStatisticRow`, so renaming a column in only one of them is a compile error
- * instead of a reader/type drift the schema guard can't see.
+ * Required column names of the statistics part, in the writer's order — the set the reader's
+ * schema guard insists on. The optional columns (`extra_json`, `category`) are deliberately
+ * excluded: a bundle prepared before either existed must still be read, so requiring them
+ * would reject it. `satisfies` ties the list to `ProjectionStatisticRow`, so renaming a column
+ * in only one of them is a compile error instead of a reader/type drift the guard can't see.
  */
 export const PROJECTION_STATISTIC_COLUMNS = [
   'space_kind',
@@ -138,7 +141,6 @@ export const PROJECTION_STATISTIC_COLUMNS = [
   'metric',
   'metric_kind',
   'value',
-  'extra_json',
 ] as const satisfies readonly (keyof ProjectionStatisticRow)[];
 
 export interface VisualizationData {

@@ -244,8 +244,7 @@ async function extractStatistics(
     // Deliberately a subset check, not an equality one: a newer backend adding a column
     // must still render here, and it rides out on the verbatim bytes regardless.
     const columns = Object.keys(rows[0]);
-    const required = PROJECTION_STATISTIC_COLUMNS.filter((column) => column !== 'extra_json');
-    if (!required.every((column) => columns.includes(column))) {
+    if (!PROJECTION_STATISTIC_COLUMNS.every((column) => columns.includes(column))) {
       console.warn('Statistics parquet has an unexpected schema, ignoring it');
       return null;
     }

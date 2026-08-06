@@ -356,7 +356,9 @@ describe('protspace-projection-metadata annotation quality section', () => {
 
     const cells = Array.from(statsBlock(el)!.querySelectorAll('.stat-metric-embedding'));
     // Silhouette has an embedding-space row (a ceiling); Davies-Bouldin has none here.
-    expect(cells.map((cell) => cell.classList.contains('is-empty'))).toEqual([false, true]);
+    // Asserted on the rendered text, which is what the reader sees: the cell is kept (the
+    // row is display: contents, so dropping it would shift the grid) but left blank.
+    expect(cells.map((cell) => cell.textContent!.trim() === '')).toEqual([false, true]);
   });
 });
 

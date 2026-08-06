@@ -39,9 +39,11 @@ const SCOPE_HEADINGS: Record<string, string> = {
 };
 
 /**
- * What the two value columns mean. "This projection" and "Source embedding" are short enough to
- * fit the card but say nothing on their own about *why* there are two numbers — that the second
- * is a ceiling, and the gap between them is the cost of flattening to 2D.
+ * What the two value columns mean. Their headings are one word each ("Projection" /
+ * "Embedding") because the longer forms sized the grid's auto tracks and squeezed the
+ * metric-name column down to 36px — so the headings cannot themselves explain *why* there are
+ * two numbers, that the second is a ceiling, and that the gap between them is the cost of
+ * flattening to 2D. That explanation lives here, behind the section's ⓘ.
  */
 const SEPARATION_SCOPE_DESCRIPTION =
   'Two numbers per metric. "Projection" scores the layout you are looking at. "Embedding" ' +
@@ -86,7 +88,7 @@ class ProtspaceProjectionMetadata extends LitElement {
 
   /** Smallest card worth showing before scrolling; below this a "scrollable" card is unusable. */
   private static readonly MIN_CARD_HEIGHT = 200;
-  /** Gap above the card (below the trigger) and the breathing room kept at the plot's edge. */
+  /** Breathing room kept between the bottom of the card and the plot's edge. */
   private static readonly CARD_MARGIN = 8;
 
   /**
@@ -97,7 +99,8 @@ class ProtspaceProjectionMetadata extends LitElement {
   private _resize: ResizeObserver | null = null;
 
   firstUpdated() {
-    this._updateMaxHeight();
+    // No measurement here: Lit runs `updated()` immediately after this in the same pass, and
+    // it already writes the cap.
     // The plot host resizes with the window and with the side panels opening/closing.
     if (typeof ResizeObserver === 'undefined' || !this.offsetParent) return;
     this._resize = new ResizeObserver(() => this._updateMaxHeight());
@@ -124,8 +127,10 @@ class ProtspaceProjectionMetadata extends LitElement {
     const content = this.shadowRoot?.querySelector('.content') as HTMLElement | null;
     if (!host || !content) return;
     const { MIN_CARD_HEIGHT, CARD_MARGIN } = ProtspaceProjectionMetadata;
-    // Top of the card = trigger's offset + its height + the gap the stylesheet leaves.
-    const cardTop = this.offsetTop + this.offsetHeight + CARD_MARGIN;
+    // Measured, not reconstructed from the trigger's box plus a copy of the stylesheet's gap:
+    // that copy had to be kept in step with `--card-gap` by hand, and a drift between them
+    // would silently mis-size the cap.
+    const cardTop = content.getBoundingClientRect().top - host.getBoundingClientRect().top;
     const available = host.clientHeight - cardTop - CARD_MARGIN;
     content.style.maxHeight = `${Math.max(MIN_CARD_HEIGHT, available)}px`;
   }
@@ -183,13 +188,16 @@ class ProtspaceProjectionMetadata extends LitElement {
     // so the two blocks below routinely render together for a clustering: "how separated is
     // it" (optimistic, it drew its own boundaries) above "what does it recover" (independent).
     const agreement = clusterAgreement(this.statisticsRows, this.selectedAnnotation);
+    // Asked once. Three separate calls could drift apart under a later edit, which is the
+    // very drift the shared predicate exists to prevent.
+    const showStats = hasAnnotationStats(stats, agreement);
 
     // The stats block counts toward "is there anything to show". A projection whose
     // `info_json` is empty or absent yields no parameters AND no quality rows, so gating on
     // those alone hid a fully populated statistics section — while the color-by dropdown still
     // badged the annotation with "select this annotation and open the projection metadata
     // panel". Both sides ask `hasAnnotationStats`, so both must agree on whether it renders.
-    if (parameters.length === 0 && quality.length === 0 && !hasAnnotationStats(stats, agreement)) {
+    if (parameters.length === 0 && quality.length === 0 && !showStats) {
       return html``;
     }
 
@@ -228,15 +236,13 @@ class ProtspaceProjectionMetadata extends LitElement {
              what the color-by dropdown's STATS badge points at and the only block that
              changes when you recolour, so it must not open below the fold; the reduction
              parameters never change and are the reference material, so they go last. -->
-        ${hasAnnotationStats(stats, agreement)
-          ? this._renderAnnotationStats(stats, agreement)
-          : nothing}
+        ${showStats ? this._renderAnnotationStats(stats, agreement) : nothing}
         ${this._renderSection('Faithfulness to the embedding', 'quality', quality, qualityScope)}
         ${this._renderSection('How it was made', 'parameters', parameters)}
         <!-- Card-level, because it governs both score blocks equally: separation and
              faithfulness are both computed once at prepare time and neither recomputes when
              the view narrows. Stating it inside one section implied it applied only there. -->
-        ${quality.length > 0 || hasAnnotationStats(stats, agreement)
+        ${quality.length > 0 || showStats
           ? html`<div class="card-scope">
               ${this.viewIsSubset
                 ? 'All scores are for the full dataset, not this view.'
@@ -402,7 +408,7 @@ class ProtspaceProjectionMetadata extends LitElement {
         <span class="stat-metric-value">${formatStatValue(metric.value)}</span>
         <!-- The cell stays even when empty: \`.stat-metric\` is \`display: contents\`, so dropping
              it would shift every following row one column across the shared grid. -->
-        <span class="stat-metric-embedding ${metric.embedding === null ? 'is-empty' : ''}">
+        <span class="stat-metric-embedding">
           ${metric.embedding === null
             ? ''
             : html`<span class="sr-only">in embedding </span>${formatStatValue(metric.embedding)}`}
