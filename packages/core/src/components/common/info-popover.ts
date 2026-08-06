@@ -16,6 +16,17 @@ interface SideCoords {
 let infoPopoverSequence = 0;
 
 /**
+ * Marks the element a `placement="side"` popover should sit beside, when the containing panel is
+ * not itself a scroll container. Put it on the panel, not on the row.
+ *
+ * Written literally by the panels that opt in (`projection-metadata.ts`) rather than imported:
+ * Lit can interpolate an attribute's value but not its name. `info-popover.test.ts` spells it
+ * out too, so renaming it here without updating the panels fails that test rather than silently
+ * dropping the anchoring.
+ */
+const POPOVER_BOUNDARY_ATTRIBUTE = 'data-info-popover-boundary';
+
+/**
  * Small reusable "ⓘ" information control that opens a popover with an annotation description and an
  * optional "Learn more" link.
  *
@@ -26,6 +37,11 @@ let infoPopoverSequence = 0;
  *   itself (a short grace period bridges the small gap between them), so you can move into it to
  *   click "Learn more ↗" without it disappearing.
  * - **Click** still toggles a pinned state. Escape or an outside click closes it.
+ *
+ * The button carries no `title`. A native tooltip would repeat the `aria-label` it was set
+ * from, and the browser renders it on its own schedule and in its own place — so it surfaced
+ * *on top of* this component's popover, which is the one thing on screen already explaining
+ * the icon. Assistive tech reads `aria-label`; sighted users get the popover.
  *
  * Placement:
  * - `"bottom"` (default) drops the popover below the icon, used by the legend header.
@@ -347,6 +363,11 @@ class ProtspaceInfoPopover extends LitElement {
         continue;
       }
       if (node instanceof Element) {
+        // An explicit opt-in comes first. A panel can want the bubble anchored to its edge
+        // without being a scroll container — the projection-metadata card is a short, fully
+        // visible list, so nothing about it clips, yet dropping the bubble under an icon
+        // still buries the rows below. Overflow detection alone cannot express that.
+        if (node.hasAttribute(POPOVER_BOUNDARY_ATTRIBUTE)) return node.getBoundingClientRect();
         const s = getComputedStyle(node);
         const clips = /(auto|scroll|hidden|clip)/;
         if (clips.test(s.overflowX) || clips.test(s.overflowY)) {
@@ -527,7 +548,6 @@ class ProtspaceInfoPopover extends LitElement {
         aria-expanded=${open}
         aria-controls=${open ? this.popoverId : nothing}
         aria-describedby=${open && this.description ? this.descriptionId : nothing}
-        title=${ariaLabel}
         @pointerdown=${this._onPointerDown}
         @focus=${this._onFocus}
         @click=${this._onClick}

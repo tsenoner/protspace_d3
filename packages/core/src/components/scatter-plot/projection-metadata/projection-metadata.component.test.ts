@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import './projection-metadata';
 import type { Projection, ProjectionStatisticRow } from '@protspace/utils';
 
@@ -114,6 +114,56 @@ describe('protspace-projection-metadata quality rows', () => {
     // Reduction parameters are the reducer's own knobs and get no icon.
     const parameterRow = el.shadowRoot!.querySelector('[data-section="parameters"] .item');
     expect(parameterRow!.querySelector('protspace-info-popover')).toBeNull();
+  });
+
+  it('pins open on click and closes on Escape or an outside click', async () => {
+    // Hover alone made the panel unusable for its own content: reading a metric's ⓘ, or
+    // selecting a value, means moving the pointer off the card.
+    const el = await setup({ n_components: 2 });
+    const trigger = el.shadowRoot!.querySelector('.trigger') as HTMLButtonElement;
+    const content = () => el.shadowRoot!.querySelector('.content')!;
+
+    expect(content().classList.contains('is-pinned')).toBe(false);
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+
+    trigger.click();
+    await el.updateComplete;
+    expect(content().classList.contains('is-pinned')).toBe(true);
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+
+    // A pointerdown inside the panel must not dismiss it — that is the whole point.
+    content().dispatchEvent(new Event('pointerdown', { bubbles: true, composed: true }));
+    await el.updateComplete;
+    expect(content().classList.contains('is-pinned')).toBe(true);
+
+    document.body.dispatchEvent(new Event('pointerdown', { bubbles: true, composed: true }));
+    await el.updateComplete;
+    expect(content().classList.contains('is-pinned')).toBe(false);
+
+    trigger.click();
+    await el.updateComplete;
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await el.updateComplete;
+    expect(content().classList.contains('is-pinned')).toBe(false);
+  });
+
+  it('stops listening on the document once unpinned or removed', async () => {
+    // The listeners are document-wide and this component exists per scatter-plot, so a leak
+    // here dismisses unrelated panels and keeps a detached element alive.
+    const el = await setup({ n_components: 2 });
+    const added = vi.spyOn(document, 'addEventListener');
+    const removed = vi.spyOn(document, 'removeEventListener');
+
+    (el.shadowRoot!.querySelector('.trigger') as HTMLButtonElement).click();
+    await el.updateComplete;
+    expect(added).toHaveBeenCalledTimes(2); // pointerdown + keydown
+
+    el.remove();
+    await el.updateComplete;
+    expect(removed).toHaveBeenCalledTimes(2);
+
+    added.mockRestore();
+    removed.mockRestore();
   });
 
   it('never leaves a serialized object in a value', async () => {

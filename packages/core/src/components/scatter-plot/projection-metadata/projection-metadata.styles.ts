@@ -76,10 +76,12 @@ export const projectionMetadataStyles = [
       pointer-events: none;
       opacity: 0;
       visibility: hidden;
-      transform: translateY(-0.25rem);
+      /* Deliberately NOT animated with a transform. Any non-none transform makes this element
+         the containing block for position:fixed descendants, which is how the side-placed
+         info popovers escape the card to sit beside it — a slide-in here would silently
+         anchor them to this box instead of the viewport. Fade only. */
       transition:
         opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-        transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
         visibility 0.2s;
     }
 
@@ -96,11 +98,11 @@ export const projectionMetadataStyles = [
     }
 
     :host(:hover) .content,
+    .content.is-pinned,
     .trigger:focus-visible + .content {
       pointer-events: auto;
       opacity: 1;
       visibility: visible;
-      transform: translateY(0);
     }
 
     .header {

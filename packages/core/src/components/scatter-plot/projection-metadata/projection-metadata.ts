@@ -1,5 +1,5 @@
 import { LitElement, html, nothing } from 'lit';
-import { property } from 'lit/decorators.js';
+import { property, state } from 'lit/decorators.js';
 import { customElement } from '../../../utils/safe-custom-element';
 import type {
   AnnotationStatMetric,
@@ -45,7 +45,47 @@ class ProtspaceProjectionMetadata extends LitElement {
   /** Annotation currently coloring the plot, which the quality section is scored on. */
   @property({ type: String, attribute: 'selected-annotation' }) selectedAnnotation = '';
 
+  /**
+   * Click-pinned open, so the panel survives the pointer leaving it — the same affordance the
+   * ⓘ popovers inside it already have. Hover alone made the panel unusable for its own content:
+   * reading a metric's ⓘ, or selecting a number, means travelling outside the card.
+   */
+  @state() private _pinned = false;
+
   static styles = projectionMetadataStyles;
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this._setPinned(false);
+  }
+
+  private _setPinned(pinned: boolean): void {
+    if (this._pinned === pinned) return;
+    this._pinned = pinned;
+    // Bound once per toggle rather than kept for the element's lifetime: an always-on
+    // document listener on a component that exists per scatter-plot is a cost for a state
+    // that is off almost always.
+    if (pinned) {
+      document.addEventListener('pointerdown', this._onDocumentPointerDown, true);
+      document.addEventListener('keydown', this._onDocumentKeydown, true);
+    } else {
+      document.removeEventListener('pointerdown', this._onDocumentPointerDown, true);
+      document.removeEventListener('keydown', this._onDocumentKeydown, true);
+    }
+  }
+
+  /** `composedPath` rather than `contains`: the click may originate inside a nested shadow root. */
+  private _onDocumentPointerDown = (event: Event) => {
+    if (!event.composedPath().includes(this)) this._setPinned(false);
+  };
+
+  private _onDocumentKeydown = (event: KeyboardEvent) => {
+    if (event.key !== 'Escape') return;
+    // Let a pinned ⓘ inside the panel take Escape first; it closes on its own keydown handler
+    // and stopping here would leave the user pressing Escape twice with nothing happening.
+    this._setPinned(false);
+    (this.shadowRoot?.querySelector('.trigger') as HTMLElement | null)?.focus();
+  };
 
   render() {
     const { parameters, quality } = this._splitMetadata();
@@ -81,7 +121,9 @@ class ProtspaceProjectionMetadata extends LitElement {
         type="button"
         tabindex="0"
         aria-label="View projection metadata"
+        aria-expanded=${this._pinned}
         aria-describedby="projection-metadata-content"
+        @click=${() => this._setPinned(!this._pinned)}
       >
         <svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3 3v18h18" />
@@ -92,7 +134,12 @@ class ProtspaceProjectionMetadata extends LitElement {
         </svg>
       </button>
 
-      <div class="content" id="projection-metadata-content" role="tooltip">
+      <div
+        class="content ${this._pinned ? 'is-pinned' : ''}"
+        id="projection-metadata-content"
+        role="tooltip"
+        data-info-popover-boundary
+      >
         <div class="header">Projection Metadata</div>
         ${this._renderSection('Parameters', 'parameters', parameters)}
         ${this._renderSection('Projection quality', 'quality', quality)}
@@ -123,6 +170,7 @@ class ProtspaceProjectionMetadata extends LitElement {
                 ${row.label}
                 ${row.description
                   ? html`<protspace-info-popover
+                      placement="side"
                       .description=${row.description}
                       label=${row.label}
                     ></protspace-info-popover>`
@@ -218,9 +266,9 @@ class ProtspaceProjectionMetadata extends LitElement {
                anyway (every non-empty metric list runs through this once per row). -->
           ${description
             ? html`<protspace-info-popover
+                placement="side"
                 .description=${description}
                 label=${metric.label}
-                align="right"
               ></protspace-info-popover>`
             : nothing}
         </span>
