@@ -53,6 +53,17 @@ taxonomy dictionary. Cached UniProt records are still excluded from the merge, a
 freshly fetched `organism_id` selects the rehydrated taxonomy record, so stale UniProt
 outputs cannot survive the migration.
 
+The migration adds its required UniProt refresh to the source plan derived from missing
+annotations. Only an explicit `--refetch` request replaces that derived plan. This keeps
+newly requested taxonomy, InterPro, TED, and Biocentral annotations fetchable during the
+same run that upgrades a legacy PDB cache.
+
+UniProt batch failures remain represented as empty annotations for the current run, but
+the retriever exposes that failure state to the manager. A migration-triggered write is
+suppressed when any UniProt batch fails, leaving the unversioned cache in place so the
+next run retries instead of certifying partial empty results as current. Explicit
+refetches and ordinary first-time cache writes retain their existing behavior.
+
 Using the existing Parquet metadata channel avoids a sidecar file and does not expose
 an internal version column to bundle consumers. Invalidating every annotation cache was
 rejected because caches without `xref_pdb` cannot contain the affected value. Inferring
@@ -78,7 +89,7 @@ order without introducing source ownership knowledge into the generic writer.
 
 ## Risks / Trade-offs
 
-- **[Risk] A malformed resolved record could omit `uniprot_kb_id`.** → Treat it as unavailable rather than asserting a potentially false negative; this is the conservative evidence interpretation.
+- **[Risk] A transformed record could omit `uniprot_kb_id`.** → Absence means the caller did not supply mapping context (for example, a partial-header writer call), so preserve the established value-only PDB conversion. An explicitly empty identifier remains the unresolved-entry signal.
 - **[Risk] Existing consumers may have counted unmapped values as `False`.** → The change intentionally corrects that semantic category while leaving mapped entries unchanged.
 - **[Risk] A raw retriever value could resemble a canonical boolean string.** → UniProt PDB cross-references use PDB identifiers, so exact `"True"` and `"False"` values are reserved for ProtSpace's persisted representation.
 - **[Risk] A legacy cache is reused while offline.** → The affected UniProt values are

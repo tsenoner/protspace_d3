@@ -45,3 +45,17 @@
       first-seen column order and missing-value behavior.
 - [x] 6.3 Run focused, affected, full Python, Ruff, strict OpenSpec, bundle contract,
       docs/generated, and repository precommit verification.
+
+## 7. Migration Source Selection and Failure Safety Review Follow-up
+
+- [x] 7.1 Add a failing regression proving a legacy PDB migration still fetches a
+      newly required non-UniProt source.
+- [x] 7.2 Make the migration UniProt refresh additive to the derived source plan and
+      verify the focused regression passes.
+- [x] 7.3 Add a failing regression proving a partial UniProt batch failure leaves the
+      legacy cache unstamped and available for a later retry.
+- [x] 7.4 Propagate UniProt batch-failure state and suppress only failed migration
+      writes, without changing ordinary or explicit-refetch cache behavior.
+- [x] 7.5 Correct the design's missing-context statement and run focused, affected,
+      full Python, Ruff, strict OpenSpec, bundle contract, docs/generated, and
+      repository precommit verification.

@@ -454,8 +454,9 @@ class ReductionPipeline:
                 )
 
                 if refetching_annotations or legacy_pdb_cache:
-                    # Override with explicitly requested sources
-                    sources = {src: src in refetch for src in _ANN_SOURCES}
+                    if refetching_annotations:
+                        # Override with explicitly requested sources
+                        sources = {src: src in refetch for src in _ANN_SOURCES}
                     if legacy_pdb_cache:
                         sources["uniprot"] = True
                         logger.warning(
@@ -493,6 +494,7 @@ class ReductionPipeline:
                     sequences=sequences,
                     cached_data=cached_df,
                     sources_to_fetch=sources,
+                    preserve_existing_cache_on_uniprot_failure=legacy_pdb_cache,
                 ).to_pd()
                 return self._merge_csv(api_df, csv_df)
             else:

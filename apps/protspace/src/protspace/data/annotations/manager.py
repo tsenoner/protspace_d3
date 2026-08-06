@@ -56,6 +56,7 @@ class ProteinAnnotationManager:
         sequences: dict = None,
         cached_data: pd.DataFrame = None,
         sources_to_fetch: dict = None,
+        preserve_existing_cache_on_uniprot_failure: bool = False,
     ):
         """
         Initialize annotation manager.
@@ -67,11 +68,17 @@ class ProteinAnnotationManager:
             sequences: Dictionary mapping identifiers to sequences (for InterPro)
             cached_data: Previously cached DataFrame with annotations
             sources_to_fetch: Dict indicating which sources to fetch (uniprot, taxonomy, interpro)
+            preserve_existing_cache_on_uniprot_failure: Skip writing output when a
+                UniProt batch fails, leaving an existing cache available for retry
         """
         self.headers = headers
         self.output_path = output_path
         self.sequences = sequences
         self.cached_data = cached_data
+        self.preserve_existing_cache_on_uniprot_failure = (
+            preserve_existing_cache_on_uniprot_failure
+        )
+        self.uniprot_fetch_failed = False
         # Initialize configuration first so we can derive sources_to_fetch
         self.config = AnnotationConfiguration(annotations)
         self.user_annotations = self.config.user_annotations
@@ -178,7 +185,10 @@ class ProteinAnnotationManager:
         transformed_annotations = self.transformer.transform(merged_annotations)
 
         # 4. Create output
-        if self.output_path:
+        if self.output_path and not (
+            self.preserve_existing_cache_on_uniprot_failure
+            and self.uniprot_fetch_failed
+        ):
             df = self._save_and_load(transformed_annotations)
         else:
             df = DataFormatter.to_dataframe(transformed_annotations)
@@ -212,8 +222,14 @@ class ProteinAnnotationManager:
                 headers=self.headers,
                 annotations=self.config.uniprot_annotations,
             )
-            return retriever.fetch_annotations()
+            annotations = retriever.fetch_annotations()
+            failed_batch_count = getattr(retriever, "failed_batch_count", 0)
+            self.uniprot_fetch_failed = (
+                isinstance(failed_batch_count, int) and failed_batch_count > 0
+            )
+            return annotations
         except Exception as e:
+            self.uniprot_fetch_failed = True
             failed_sources.append(f"UniProt ({str(e)})")
             logger.warning(f"Failed to retrieve UniProt annotations: {e}")
             # Create minimal annotation set with just identifiers

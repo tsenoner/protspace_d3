@@ -21,6 +21,12 @@ from unaffected sources, and mark the transformed replacement cache as current.
 - **THEN** ProtSpace preserves those unaffected source columns while refreshing the
   UniProt columns
 
+#### Scenario: Legacy cache is missing a newly requested source
+
+- **WHEN** a legacy PDB cache lacks a requested annotation owned by a non-UniProt source
+- **THEN** ProtSpace fetches that missing source in addition to refreshing UniProt
+- **AND** the requested annotation is present in the current run's output
+
 #### Scenario: Cached taxonomy depends on the UniProt organism identifier
 
 - **WHEN** a legacy PDB cache contains taxonomy annotations and their cached
@@ -42,6 +48,12 @@ from unaffected sources, and mark the transformed replacement cache as current.
 - **WHEN** an unversioned annotation cache does not contain `xref_pdb`
 - **THEN** ProtSpace applies the existing incremental-cache rules without forcing a
   UniProt refresh for this migration
+
+#### Scenario: A UniProt batch fails during migration
+
+- **WHEN** a migration-triggered UniProt refresh cannot retrieve one or more batches
+- **THEN** ProtSpace does not replace the legacy cache or mark it as current
+- **AND** a subsequent run retries the migration
 
 ### Requirement: Cached signal-peptide booleans are idempotent
 
