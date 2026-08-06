@@ -49,3 +49,10 @@ def test_parameter_groups_wrap_before_slider_tracks_collapse():
         assert flex_basis.endswith("px")
         basis_px = int(flex_basis.removesuffix("px"))
         assert basis_px >= MIN_PARAMETER_GROUP_BASIS_PX
+
+        min_width = group.layout.min_width or ""
+        assert min_width.endswith("px")
+        min_width_px = int(min_width.removesuffix("px"))
+        assert min_width_px >= basis_px, (
+            "A lone parameter group must not shrink below its responsive flex basis"
+        )

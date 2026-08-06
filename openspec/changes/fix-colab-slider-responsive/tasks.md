@@ -12,3 +12,9 @@
 
 - [x] 3.1 Reproduce the three-card notebook layout at desktop and compressed viewports and confirm usable slider tracks after wrapping
 - [x] 3.2 Validate the OpenSpec change and run the repository-mandated `pnpm precommit` gate
+
+## 4. Review Follow-up
+
+- [x] 4.1 Add a regression assertion that a lone parameter group cannot shrink below the responsive reserve
+- [x] 4.2 Set each parameter group's minimum width to the 300 px flex basis
+- [x] 4.3 Run focused Python checks, validate the amended OpenSpec change, and rerun `pnpm precommit`
