@@ -21,6 +21,8 @@ import {
   getAnnotationMeta,
   annotationCategoryScores,
   isAutoClusterColumn,
+  metricDisplay,
+  AUTO_CLUSTER_SCORE_CAVEAT,
   type NumericBinningStrategy,
   type NumericAnnotationDisplaySettingsMap,
   type CategoryScore,
@@ -2395,10 +2397,10 @@ export class ProtspaceLegend extends LitElement {
    * chooses to show, and dropping those dots would misstate the distribution.
    */
   private _stripPoints(
+    colorByValue: Map<string, string>,
     pick: (score: CategoryScore) => number | null,
     pickCeiling?: (score: CategoryScore) => number | null,
   ): ScoreStripPoint[] {
-    const colorByValue = new Map(this._legendItems.map((item) => [item.value, item.color]));
     const points: ScoreStripPoint[] = [];
     for (const score of this._categoryScores) {
       const value = pick(score);
@@ -2426,13 +2428,16 @@ export class ProtspaceLegend extends LitElement {
         : '';
     }
 
+    // One map for both strips: it is keyed by the same legend items either way.
+    const colorByValue = new Map(this._legendItems.map((item) => [item.value, item.color]));
     // Davies-Bouldin has no embedding-space counterpart on CategoryScore, so only the
     // silhouette strip's tooltip carries a ceiling.
     const silhouette = this._stripPoints(
+      colorByValue,
       (score) => score.silhouette,
       (score) => score.silhouetteEmbedding,
     );
-    const daviesBouldin = this._stripPoints((score) => score.daviesBouldin);
+    const daviesBouldin = this._stripPoints(colorByValue, (score) => score.daviesBouldin);
     // Silhouette is bounded to [-1, 1], so its axis is fixed and comparable across
     // datasets. Davies-Bouldin is unbounded above, so it scales to the data at hand.
     const dbValues = daviesBouldin.map((point) => point.value);
@@ -2451,33 +2456,35 @@ export class ProtspaceLegend extends LitElement {
           }
         }}
       >
-        <protspace-score-strip
-          label="Silhouette"
-          .higherIsBetter=${true}
-          .points=${silhouette}
-          .domain=${[-1, 1] as [number, number]}
-          .highlighted=${this._hoveredCategory}
-        ></protspace-score-strip>
+        ${this._renderScoreStrip('silhouette', silhouette, [-1, 1])}
         ${daviesBouldin.length > 0
-          ? html`
-              <protspace-score-strip
-                label="Davies-Bouldin"
-                .higherIsBetter=${false}
-                .points=${daviesBouldin}
-                .domain=${dbDomain}
-                .highlighted=${this._hoveredCategory}
-              ></protspace-score-strip>
-            `
+          ? this._renderScoreStrip('davies_bouldin', daviesBouldin, dbDomain)
           : ''}
         <!-- Stated here rather than only in the projection-metadata panel: this is where
              the per-category numbers are actually read, and a user hovering rows may
              never open that panel. -->
         ${this._isClusterAnnotation
-          ? html`<p class="score-strips-caveat">
-              K-means found these clusters in this projection, so these scores are optimistic.
-            </p>`
+          ? html`<p class="score-strips-caveat">${AUTO_CLUSTER_SCORE_CAVEAT}</p>`
           : ''}
       </section>
+    `;
+  }
+
+  /**
+   * One metric's strip. Name and optimisation direction come from `metricDisplay`, the same
+   * entry the metadata panel's rows read, so the two panels cannot name a metric differently
+   * and a metric added to that map arrives here already labelled.
+   */
+  private _renderScoreStrip(metric: string, points: ScoreStripPoint[], domain: [number, number]) {
+    const { label, higherIsBetter } = metricDisplay(metric);
+    return html`
+      <protspace-score-strip
+        label=${label}
+        .higherIsBetter=${higherIsBetter}
+        .points=${points}
+        .domain=${domain}
+        .highlighted=${this._hoveredCategory}
+      ></protspace-score-strip>
     `;
   }
 

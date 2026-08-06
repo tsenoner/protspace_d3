@@ -111,10 +111,7 @@ class AnnotationValidityStatistic:
     def compute(self, ctx: StatContext) -> list[StatRow]:
         if not ctx.annotations:
             return []
-        from sklearn.metrics import (
-            calinski_harabasz_score,
-            davies_bouldin_score,
-        )
+        from sklearn.metrics import calinski_harabasz_score
 
         coords = np.asarray(ctx.coords)
         threshold = int(ctx.params.get("sample_threshold", DEFAULT_SAMPLE_THRESHOLD))
@@ -224,7 +221,12 @@ class AnnotationValidityStatistic:
                 try:
                     # Same ordering constraint as the silhouette block above.
                     per_cat = _per_category_davies_bouldin(Xs, ls, scored_names)
-                    _emit("davies_bouldin", davies_bouldin_score(Xs, ls))
+                    # The aggregate is the mean of these parts by construction, as the
+                    # silhouette block derives its own from `silhouette_samples`.
+                    # `davies_bouldin_score` would recompute the centroids and their
+                    # pairwise distances to return exactly this number, and an
+                    # independently computed aggregate could drift from its own rows.
+                    _emit("davies_bouldin", float(np.mean(list(per_cat.values()))))
                     for cat, value in per_cat.items():
                         _emit("davies_bouldin", value, cat)
                 except Exception:  # noqa: BLE001 - best-effort

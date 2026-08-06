@@ -1,10 +1,21 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
 import type { ProjectionStatisticRow, VisualizationData } from '@protspace/utils';
+import { metricDisplay } from '@protspace/utils';
 import './legend';
 import type { ProtspaceLegend } from './legend';
 import type { ScoreStripPoint } from './category-score-strip';
 import { LEGEND_EVENTS } from './config';
+import {
+  mountLegendWithScatterplot,
+  type MockScatterplot,
+} from './test-support/legend-scatterplot-harness';
+
+// Read from the same registry the strips label themselves from, rather than
+// restating the spelling here -- that duplication is what let the strips drift
+// from the metadata panel in the first place.
+const SILHOUETTE_LABEL = metricDisplay('silhouette').label;
+const DAVIES_BOULDIN_LABEL = metricDisplay('davies_bouldin').label;
 
 const STAT_BASE = {
   annotation: 'family',
@@ -111,21 +122,6 @@ function makeData(): VisualizationData {
   };
 }
 
-type MockScatterplot = HTMLElement & {
-  data: VisualizationData;
-  selectedAnnotation: string;
-  selectedProjectionIndex: number;
-  eatOverlayEnabled: boolean;
-  hiddenAnnotationValues: string[];
-  otherAnnotationValues: string[];
-  config: Record<string, never>;
-  filtersActive: boolean;
-  filteredProteinIds: string[];
-  getCurrentData(): VisualizationData;
-  isIsolationMode(): boolean;
-  getIsolationHistory(): string[][];
-};
-
 type StripElement = HTMLElement & {
   label: string;
   higherIsBetter: boolean;
@@ -136,35 +132,8 @@ async function setup(
   overrides: { data?: Partial<VisualizationData>; plot?: Partial<MockScatterplot> } = {},
 ) {
   const data = { ...makeData(), ...overrides.data };
-  const plot = document.createElement('protspace-scatterplot') as MockScatterplot;
-  Object.assign(plot, {
-    data,
-    selectedAnnotation: 'family',
-    selectedProjectionIndex: 0,
-    eatOverlayEnabled: true,
-    hiddenAnnotationValues: [],
-    otherAnnotationValues: [],
-    config: {},
-    filtersActive: false,
-    filteredProteinIds: [],
-    getCurrentData: () => data,
-    isIsolationMode: () => false,
-    getIsolationHistory: () => [],
-    ...overrides.plot,
-  });
-  document.body.append(plot);
-
-  // A bare, unregistered element is enough: the sync controller matches control bars
-  // by tag name (see scatterplot-sync-controller.ts `_onScatterplotDiscovered`), the
-  // same setup already used by scatterplot-sync-controller.test.ts.
-  const controlBar = document.createElement('protspace-control-bar');
-  document.body.append(controlBar);
-
-  const legend = document.createElement('protspace-legend') as ProtspaceLegend;
-  document.body.append(legend);
-  await legend.updateComplete;
-
-  return { data, legend, plot, controlBar };
+  const mounted = await mountLegendWithScatterplot(data, 'family', overrides.plot);
+  return { data, ...mounted };
 }
 
 describe('legend score strips', () => {
@@ -200,8 +169,8 @@ describe('legend score strips', () => {
     const strips = Array.from(
       legend.shadowRoot!.querySelectorAll('protspace-score-strip'),
     ) as StripElement[];
-    const silhouette = strips.find((strip) => strip.label === 'Silhouette')!;
-    const daviesBouldin = strips.find((strip) => strip.label === 'Davies-Bouldin')!;
+    const silhouette = strips.find((strip) => strip.label === SILHOUETTE_LABEL)!;
+    const daviesBouldin = strips.find((strip) => strip.label === DAVIES_BOULDIN_LABEL)!;
 
     expect(silhouette.higherIsBetter).toBe(true);
     expect(daviesBouldin.higherIsBetter).toBe(false);
@@ -215,8 +184,8 @@ describe('legend score strips', () => {
     const strips = Array.from(
       legend.shadowRoot!.querySelectorAll('protspace-score-strip'),
     ) as StripElement[];
-    const silhouette = strips.find((strip) => strip.label === 'Silhouette')!;
-    const daviesBouldin = strips.find((strip) => strip.label === 'Davies-Bouldin')!;
+    const silhouette = strips.find((strip) => strip.label === SILHOUETTE_LABEL)!;
+    const daviesBouldin = strips.find((strip) => strip.label === DAVIES_BOULDIN_LABEL)!;
 
     expect(silhouette.points.find((point) => point.category === 'A')?.ceiling).toBe(0.42);
     expect(silhouette.points.find((point) => point.category === 'B')?.ceiling).toBeNull();

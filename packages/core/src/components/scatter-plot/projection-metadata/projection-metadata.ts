@@ -9,14 +9,15 @@ import type {
   ProjectionStatisticRow,
 } from '@protspace/utils';
 import {
+  AUTO_CLUSTER_SCORE_CAVEAT,
   NA_DISPLAY,
+  annotationLabel,
   annotationStatSummary,
   clusterAgreement,
   formatStatValue,
   hasAnnotationStats,
   isAutoClusterColumn,
   metricDescription,
-  prettifyAnnotationName,
 } from '@protspace/utils';
 import { projectionMetadataStyles } from './projection-metadata.styles';
 import '../../common/info-popover';
@@ -117,7 +118,7 @@ class ProtspaceProjectionMetadata extends LitElement {
     // of entirely blank cells would only take width back from the label column for nothing.
     const hasEmbeddingCeiling = summary?.validity.some((metric) => metric.embedding !== null);
     return html`
-      <div class="header stats-header">${prettifyAnnotationName(this.selectedAnnotation)}</div>
+      <div class="header stats-header">${annotationLabel(this.selectedAnnotation)}</div>
       <div class="annotation-stats">
         ${summary && summary.validity.length > 0
           ? html`
@@ -139,7 +140,7 @@ class ProtspaceProjectionMetadata extends LitElement {
               <div class="stat-heading">Recovers</div>
               ${agreement.map(
                 (entry) => html`
-                  <div class="stat-group-label">${prettifyAnnotationName(entry.annotation)}</div>
+                  <div class="stat-group-label">${annotationLabel(entry.annotation)}</div>
                   ${entry.metrics.map((metric) => this._renderStatMetric(metric))}
                 `,
               )}
@@ -151,9 +152,7 @@ class ProtspaceProjectionMetadata extends LitElement {
              is the honest half of this panel for a cluster column: ARI/NMI compare it against
              something it did not choose. -->
         ${isAutoClusterColumn(this.statisticsRows, this.selectedAnnotation)
-          ? html`<div class="stat-caveat">
-              K-means found these clusters in this projection, so these scores are optimistic.
-            </div>`
+          ? html`<div class="stat-caveat">${AUTO_CLUSTER_SCORE_CAVEAT}</div>`
           : nothing}
         <!-- Stated unconditionally: isolation, query filters, legend hides and the reliability
              threshold all narrow the view, and these scores are computed once over the whole

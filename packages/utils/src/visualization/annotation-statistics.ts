@@ -63,9 +63,23 @@ const METRIC_DISPLAY: Record<
   },
 };
 
+/**
+ * How a metric presents itself. The single accessor for `METRIC_DISPLAY`, so a surface that
+ * renders a metric — the metadata panel's rows, the legend's score strips — names it and states
+ * its direction from the same entry rather than restating either. An unknown metric (a newer
+ * backend adding one) falls back to its raw name, higher-is-better, and no explanation.
+ */
+export function metricDisplay(metric: string): {
+  label: string;
+  higherIsBetter: boolean;
+  description: string;
+} {
+  return METRIC_DISPLAY[metric] ?? { label: metric, higherIsBetter: true, description: '' };
+}
+
 /** Explanation for a metric, shown behind the ⓘ icon, or '' when there is none (render no popover). */
 export function metricDescription(metric: string): string {
-  return METRIC_DISPLAY[metric]?.description ?? '';
+  return metricDisplay(metric).description;
 }
 
 /**
@@ -116,14 +130,45 @@ function toMetric(
   row: ProjectionStatisticRow,
   embeddingValue: number | null,
 ): AnnotationStatMetric {
-  const display = METRIC_DISPLAY[row.metric];
+  const display = metricDisplay(row.metric);
   return {
     metric: row.metric,
-    label: display?.label ?? row.metric,
+    label: display.label,
     value: row.value,
     embedding: embeddingValue,
-    higherIsBetter: display?.higherIsBetter ?? true,
+    higherIsBetter: display.higherIsBetter,
   };
+}
+
+/**
+ * The source-embedding ceiling per metric: the same metric scored on the embedding a 2D
+ * projection is measured against, keyed by metric.
+ *
+ * A bundle prepared from several embeddings carries one row per (annotation, metric, embedding) —
+ * the driver runs the embedding pass once per embedding set — and nothing in the tidy schema links
+ * a projection back to the embedding it came from. A metric scored on more than one embedding
+ * therefore has no ceiling that can be attributed to this projection: it maps to `null` rather
+ * than to some other embedding's number. A metric with no embedding row at all is simply absent.
+ *
+ * Shared by the aggregate and per-category selectors so the rule is written once and both scope it
+ * the same way — per metric, not per annotation, so one metric scored on two embeddings cannot
+ * suppress the ceiling of a metric scored on one. Per-category rows carry one embedding row per
+ * (metric, embedding, category), which the same-source check tolerates.
+ */
+function embeddingCeilings(
+  rows: readonly ProjectionStatisticRow[],
+): Map<string, { source: string; value: number } | null> {
+  const ceilings = new Map<string, { source: string; value: number } | null>();
+  for (const row of rows) {
+    if (row.space_kind !== 'embedding' || row.stat_family !== 'annotation_validity') continue;
+    const entry = ceilings.get(row.metric);
+    if (entry === undefined) {
+      ceilings.set(row.metric, { source: row.space_name, value: row.value });
+    } else if (entry !== null && entry.source !== row.space_name) {
+      ceilings.set(row.metric, null);
+    }
+  }
+  return ceilings;
 }
 
 /** Position of `key` in `order`; unknown keys (a newer backend adding one) sort last. */
@@ -164,22 +209,7 @@ export function annotationStatSummary(
   );
   if (forAnnotation.length === 0) return null;
 
-  // The embedding-space ceiling is projection-independent, but a bundle prepared from several
-  // embeddings carries one row per (annotation, metric, embedding); the driver runs the
-  // embedding pass once per embedding set. Nothing in the tidy schema links a projection back
-  // to the embedding it came from, so a metric scored on more than one embedding has no
-  // ceiling we can attribute: mark it conflicted (`null`) rather than show a different
-  // embedding's number. Absent = no embedding row at all.
-  const ceilings = new Map<string, { source: string; value: number } | null>();
-  for (const row of forAnnotation) {
-    if (row.space_kind !== 'embedding' || row.stat_family !== 'annotation_validity') continue;
-    const entry = ceilings.get(row.metric);
-    if (entry === undefined) {
-      ceilings.set(row.metric, { source: row.space_name, value: row.value });
-    } else if (entry !== null && entry.source !== row.space_name) {
-      ceilings.set(row.metric, null);
-    }
-  }
+  const ceilings = embeddingCeilings(forAnnotation);
 
   const inProjection = forAnnotation.filter(
     (row) => row.space_kind === 'projection' && row.space_name === projectionName,
@@ -239,6 +269,15 @@ export function isAutoClusterColumn(
       clusterColumnName(row.label_kind, row.space_name) === annotation,
   );
 }
+
+/**
+ * The caveat every surface must print alongside an auto-cluster column's own separation scores,
+ * gated on `isAutoClusterColumn` above. One string rather than one per surface: it exists to stop
+ * a number being misread, so the legend strips and the metadata panel must not be able to word it
+ * differently, or to have it corrected in only one of the two.
+ */
+export const AUTO_CLUSTER_SCORE_CAVEAT =
+  'K-means found these clusters in this projection, so these scores are optimistic.';
 
 /** One annotation, and how well the selected auto-clustering recovers it. */
 export interface ClusterAgreementEntry {
@@ -355,13 +394,8 @@ export function annotationCategoryScores(
   );
   if (rows.length === 0) return [];
 
-  // Same rule as the aggregate summary: a bundle prepared from several embeddings
-  // carries one row per embedding, and nothing links a projection back to the one it
-  // came from, so no ceiling can be attributed rather than showing the wrong one.
-  const embeddingNames = new Set(
-    rows.filter((row) => row.space_kind === 'embedding').map((row) => row.space_name),
-  );
-  const ceilingUsable = embeddingNames.size === 1;
+  // Literally the same rule as the aggregate summary, via the same helper.
+  const ceilings = embeddingCeilings(rows);
 
   const byCategory = new Map<string, CategoryScore>();
   const entryFor = (category: string): CategoryScore => {
@@ -381,7 +415,7 @@ export function annotationCategoryScores(
   for (const row of rows) {
     const entry = entryFor(row.category as string);
     if (row.space_kind === 'embedding') {
-      if (ceilingUsable && row.metric === 'silhouette') {
+      if (row.metric === 'silhouette' && ceilings.get('silhouette') !== null) {
         entry.silhouetteEmbedding = row.value;
       }
       continue;

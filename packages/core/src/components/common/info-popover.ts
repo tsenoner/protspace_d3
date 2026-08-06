@@ -35,13 +35,7 @@ let infoPopoverSequence = 0;
  *   edge keeps the bubble out of the list entirely, so every row's label stays visible while you
  *   move the pointer up and down the column of ⓘ icons.
  *
- * Extra content (e.g. an annotation's projection-quality statistics) can be projected into the
- * popover body as light-DOM children, which lets the owning component both build and style that
- * markup in its own shadow root. The render gate reads `childElementCount`, which is not
- * reactive, so a childList observer re-renders when projected content appears or disappears
- * after first render (an imperative consumer may append it later).
- *
- * Renders nothing when there is no description, docs URL, or projected content.
+ * Renders nothing when there is neither a description nor a docs URL.
  */
 @customElement('protspace-info-popover')
 class ProtspaceInfoPopover extends LitElement {
@@ -84,7 +78,7 @@ class ProtspaceInfoPopover extends LitElement {
       z-index: 1000;
       width: max-content;
       box-sizing: border-box;
-      max-width: min(var(--info-popover-max-width, 260px), calc(100vw - 24px));
+      max-width: min(260px, calc(100vw - 24px));
       padding: 0.55rem 0.65rem;
       border-radius: 8px;
       background: var(--surface-color, #ffffff);
@@ -148,16 +142,6 @@ class ProtspaceInfoPopover extends LitElement {
       border-top: none;
     }
 
-    /* Scroll container for the description + projected statistics. It has to be an inner element:
-       \`.popover\` cannot take \`overflow\` because the arrow is positioned outside its box. The cap
-       keeps a tall stats popover on screen: the side-placement clamp collapses to \`top: 8px\`
-       once the bubble is taller than the viewport, leaving the last rows unreachable. */
-    .popover-content {
-      max-height: 60vh;
-      overflow-y: auto;
-      overscroll-behavior: contain;
-    }
-
     .popover-description {
       margin: 0;
     }
@@ -208,11 +192,11 @@ class ProtspaceInfoPopover extends LitElement {
   private readonly popoverId = `protspace-info-popover-${++infoPopoverSequence}`;
 
   /**
-   * `aria-describedby` target. It is the content wrapper, not the popover itself: the popover
-   * carries an `aria-label`, and accname step 2C returns that label rather than descending into
-   * the contents, which silently emptied the description for every consumer.
+   * `aria-describedby` target. It is the description paragraph, never the popover itself: the
+   * popover carries an `aria-label`, and accname step 2C returns that label rather than
+   * descending into the contents, which would silently empty the description for every consumer.
    */
-  private readonly contentId = `${this.popoverId}-content`;
+  private readonly descriptionId = `${this.popoverId}-description`;
 
   /** Whether the popover is currently visible (any of the three triggers). */
   private get isOpen(): boolean {
@@ -227,15 +211,11 @@ class ProtspaceInfoPopover extends LitElement {
   /** Parent row used as the keep-open region for side placement (see `firstUpdated`). */
   private _row: HTMLElement | null = null;
 
-  /** Light-DOM children gate render(), but aren't reactive, so observe them (see class doc). */
-  private readonly childObserver = new MutationObserver(() => this.requestUpdate());
-
   connectedCallback() {
     super.connectedCallback();
     this.addEventListener('pointerenter', this._onPointerEnter);
     this.addEventListener('pointerleave', this._onPointerLeave);
     this.addEventListener('focusout', this._onFocusOut);
-    this.childObserver.observe(this, { childList: true });
   }
 
   firstUpdated() {
@@ -252,7 +232,6 @@ class ProtspaceInfoPopover extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    this.childObserver.disconnect();
     this.removeEventListener('pointerenter', this._onPointerEnter);
     this.removeEventListener('pointerleave', this._onPointerLeave);
     this.removeEventListener('focusout', this._onFocusOut);
@@ -517,8 +496,7 @@ class ProtspaceInfoPopover extends LitElement {
   }
 
   render() {
-    const hasContent =
-      this.description.length > 0 || this.docsUrl.length > 0 || this.childElementCount > 0;
+    const hasContent = this.description.length > 0 || this.docsUrl.length > 0;
     if (!hasContent) return nothing;
 
     const ariaLabel = this.label ? `Information about ${this.label}` : 'Annotation information';
@@ -545,7 +523,7 @@ class ProtspaceInfoPopover extends LitElement {
         aria-label=${ariaLabel}
         aria-expanded=${open}
         aria-controls=${open ? this.popoverId : nothing}
-        aria-describedby=${open ? this.contentId : nothing}
+        aria-describedby=${open && this.description ? this.descriptionId : nothing}
         title=${ariaLabel}
         @pointerdown=${this._onPointerDown}
         @focus=${this._onFocus}
@@ -583,12 +561,11 @@ class ProtspaceInfoPopover extends LitElement {
                   style=${this.sideCoords ? `top:${this.sideCoords.arrowTop}px` : ''}
                 ></span>`
               : nothing}
-            <div id=${this.contentId} class="popover-content">
-              ${this.description
-                ? html`<p class="popover-description">${this.description}</p>`
-                : nothing}
-              <slot></slot>
-            </div>
+            ${this.description
+              ? html`<p id=${this.descriptionId} class="popover-description">
+                  ${this.description}
+                </p>`
+              : nothing}
             ${this.docsUrl
               ? html`<a
                   class="popover-link"

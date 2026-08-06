@@ -5,6 +5,7 @@ import type { ProjectionStatisticRow, VisualizationData } from '@protspace/utils
 import './legend';
 import type { ProtspaceLegend } from './legend';
 import type { ScoreStripPoint } from './category-score-strip';
+import { mountLegendWithScatterplot } from './test-support/legend-scatterplot-harness';
 
 const STAT_BASE = {
   space_kind: 'projection' as const,
@@ -45,56 +46,13 @@ function makeData(extraRows: ProjectionStatisticRow[] = []): VisualizationData {
   };
 }
 
-type MockScatterplot = HTMLElement & {
-  data: VisualizationData;
-  selectedAnnotation: string;
-  selectedProjectionIndex: number;
-  eatOverlayEnabled: boolean;
-  hiddenAnnotationValues: string[];
-  otherAnnotationValues: string[];
-  config: Record<string, never>;
-  filtersActive: boolean;
-  filteredProteinIds: string[];
-  getCurrentData(): VisualizationData;
-  isIsolationMode(): boolean;
-  getIsolationHistory(): string[][];
-};
-
 type StripElement = HTMLElement & {
   highlighted: string | null;
   points: ScoreStripPoint[];
 };
 
-// The brief's original fixture drove a `legend.onDataChange(data, annotation, projection)`
-// entry point that does not exist: `onDataChange` is a private closure field inside
-// ScatterplotSyncController's constructor options (legend.ts:237), never assigned onto the
-// element itself. The only way in is what legend.score-strips.test.ts already proved: a
-// mock <protspace-scatterplot> the sync controller discovers by tag name.
 async function setup(data: VisualizationData): Promise<ProtspaceLegend> {
-  const plot = document.createElement('protspace-scatterplot') as MockScatterplot;
-  Object.assign(plot, {
-    data,
-    selectedAnnotation: 'major_group',
-    selectedProjectionIndex: 0,
-    eatOverlayEnabled: true,
-    hiddenAnnotationValues: [],
-    otherAnnotationValues: [],
-    config: {},
-    filtersActive: false,
-    filteredProteinIds: [],
-    getCurrentData: () => data,
-    isIsolationMode: () => false,
-    getIsolationHistory: () => [],
-  });
-  document.body.append(plot);
-
-  // A bare, unregistered element is enough: the sync controller matches control bars
-  // by tag name (scatterplot-sync-controller.ts `_onScatterplotDiscovered`).
-  document.body.append(document.createElement('protspace-control-bar'));
-
-  const legend = document.createElement('protspace-legend') as ProtspaceLegend;
-  document.body.append(legend);
-  await legend.updateComplete;
+  const { legend } = await mountLegendWithScatterplot(data, 'major_group');
   return legend;
 }
 

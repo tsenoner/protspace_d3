@@ -144,7 +144,16 @@ def test_per_category_davies_bouldin_averages_to_the_aggregate():
     # per-cluster R_i values, so the plain mean is the correct identity here;
     # exercising it on unbalanced categories is a strictly stronger check than
     # a balanced fixture, since it also rules out an accidental match.
+    #
+    # The statistic now derives the aggregate from the parts rather than calling
+    # davies_bouldin_score a second time, which would make a parts-vs-aggregate
+    # assertion tautological. So sklearn is pinned here as the external oracle
+    # instead: this fixture has no singleton and 200 rows (under the subsample
+    # threshold), so every category is scorable and `ls` is `y` renumbered by
+    # sorted name -- g0..g3 already in that order -- making (X, y) the exact
+    # input the statistic scored.
     from sklearn.datasets import make_blobs
+    from sklearn.metrics import davies_bouldin_score
 
     sizes = [120, 50, 20, 10]
     X, y = make_blobs(n_samples=sizes, n_features=2, random_state=3)
@@ -169,6 +178,7 @@ def test_per_category_davies_bouldin_averages_to_the_aggregate():
     # (verified directly) -- a property of the metric, not a decomposition bug.
     assert len({round(r.value, 9) for r in per_cat}) > 1
     assert np.mean([r.value for r in per_cat]) == pytest.approx(aggregate.value)
+    assert aggregate.value == pytest.approx(davies_bouldin_score(X, y))
 
 
 def test_silhouette_emission_discards_the_whole_attempt_when_decomposition_fails(

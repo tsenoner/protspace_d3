@@ -172,37 +172,17 @@ describe('protspace-info-popover', () => {
 
     expect(trigger.getAttribute('aria-controls')).toBe(dialog.id);
     // Describing the dialog itself would announce its aria-label instead of its contents,
-    // so the description target is the unlabelled content wrapper.
-    expect(trigger.getAttribute('aria-describedby')).toBe(`${dialog.id}-content`);
-    expect(dialog.querySelector('.popover-content')!.id).toBe(`${dialog.id}-content`);
+    // so the description target is the paragraph.
+    expect(trigger.getAttribute('aria-describedby')).toBe(
+      dialog.querySelector('.popover-description')!.id,
+    );
     expect(dialog.getAttribute('role')).toBe('dialog');
     expect(dialog.getAttribute('aria-label')).toBe('No annotation information');
   });
 
-  it('describes a popover that carries only projected content', async () => {
-    // A stats popover has no description paragraph at all, only slotted content — but the
-    // description target is still the unlabelled content wrapper, not the popover/dialog
-    // itself, which carries an aria-label that would be announced instead.
-    const el = await setup({ description: '', docsUrl: '' });
-    el.appendChild(
-      Object.assign(document.createElement('div'), { textContent: 'Silhouette 0.42' }),
-    );
-    el.requestUpdate();
-    await el.updateComplete;
-
-    button(el)!.click();
-    await el.updateComplete;
-
-    expect(button(el)!.getAttribute('aria-describedby')).toBe(`${popover(el)!.id}-content`);
-    // The content reaches the popover through the slot, so it is part of the flattened tree the
-    // accessible description is computed from (it is not in the shadow root's own textContent).
-    const slot = popover(el)!.querySelector('slot') as HTMLSlotElement;
-    expect(slot.assignedNodes().map((node) => node.textContent)).toEqual(['Silhouette 0.42']);
-  });
-
   it('keeps a description-only popover describing its description text', async () => {
-    // Regression guard: pointing aria-describedby at the dialog made screen readers announce the
-    // dialog's aria-label instead of this sentence (every legend/annotation ⓘ on main).
+    // Regression guard: pointing aria-describedby at the dialog would make screen readers
+    // announce the dialog's aria-label instead of this sentence.
     const el = await setup({ description: 'Predictions below this reliability are hidden.' });
     button(el)!.click();
     await el.updateComplete;
