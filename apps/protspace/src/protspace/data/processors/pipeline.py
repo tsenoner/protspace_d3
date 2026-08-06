@@ -742,12 +742,7 @@ class ReductionPipeline:
                 embedding_sets,
                 all_reductions,
                 rng_seed=self.config.reducer_params.random_state,
-                params={
-                    "cluster_selection": self.config.cluster_selection,
-                    # Silhouette-as-confidence on cluster values is a score, so it
-                    # honours --no-scores like UniProt/InterPro annotation scores.
-                    "include_scores": not self.config.no_scores,
-                },
+                params={"cluster_selection": self.config.cluster_selection},
                 # Faithfulness high-dim metric: reducers like PCA/MDS/PaCMAP omit
                 # 'metric' from their params, so fall back to the run's metric
                 # rather than silently assuming euclidean.
