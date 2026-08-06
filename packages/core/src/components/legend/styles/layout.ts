@@ -234,7 +234,9 @@ export const layoutStyles = css`
   .score-strips-note {
     margin: 0;
     padding: 0.5rem 0.75rem;
-    font-size: 0.78rem;
+    /* 0.72rem, the size every other secondary line in this stylesheet uses, and the same as
+       .score-strips-caveat below — the two say the same kind of thing about the strips. */
+    font-size: 0.72rem;
     color: var(--legend-text-secondary);
     border-bottom: 1px solid var(--legend-border);
   }

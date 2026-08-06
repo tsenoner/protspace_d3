@@ -168,7 +168,11 @@ class ProtspaceInfoPopover extends LitElement {
     .popover-link {
       display: inline-block;
       margin-top: 0.45rem;
-      color: var(--accent-color, #3b82f6);
+      /* Same correction as the focus ring above, which this component's own comment already
+         records: --accent-color is defined nowhere, so its #3b82f6 fallback was always what
+         rendered — a blue no other accent in the repo uses. Left behind when the ring was
+         fixed, and now visible in four hosts rather than one. */
+      color: var(--protspace-highlight-color, #00a3e0);
       text-decoration: none;
       font-weight: 500;
     }

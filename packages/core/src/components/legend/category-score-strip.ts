@@ -69,14 +69,14 @@ class ProtspaceScoreStrip extends LitElement {
         display: flex;
         align-items: baseline;
         justify-content: space-between;
-        font-size: 0.75rem;
-        color: var(--legend-text-secondary, #666);
+        font-size: var(--text-sm);
+        color: var(--legend-text-secondary);
         padding: 0 0.25rem;
       }
 
       .strip-label {
         font-weight: 600;
-        color: var(--legend-text-color, #222);
+        color: var(--legend-text-color);
         /* Keeps the ⓘ on the label's baseline rather than letting the 18px button
            stretch the header row. */
         display: inline-flex;
@@ -108,34 +108,34 @@ class ProtspaceScoreStrip extends LitElement {
         flex: none;
         min-width: 3rem;
         text-align: right;
-        font-size: 0.75rem;
+        font-size: var(--text-sm);
         font-variant-numeric: tabular-nums;
-        color: var(--legend-text-color, #222);
+        color: var(--legend-text-color);
       }
 
       .strip-value.is-empty {
-        color: var(--legend-text-secondary, #666);
+        color: var(--legend-text-secondary);
       }
 
       .axis {
-        stroke: var(--legend-border, #ddd);
+        stroke: var(--legend-border);
         stroke-width: 1;
       }
 
       circle {
-        stroke: var(--legend-bg, #fff);
+        stroke: var(--legend-bg);
         stroke-width: 1;
         cursor: pointer;
       }
 
       circle.is-highlighted {
-        stroke: var(--legend-text-color, #222);
+        stroke: var(--legend-text-color);
         stroke-width: 2;
       }
 
       .bound {
-        font-size: 0.6875rem;
-        fill: var(--legend-text-secondary, #666);
+        font-size: var(--text-caption);
+        fill: var(--legend-text-secondary);
       }
     `,
   ];

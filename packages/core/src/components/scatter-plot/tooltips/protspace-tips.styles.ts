@@ -153,7 +153,7 @@ export const protspaceTipsStyles = css`
   .section-label td {
     padding-top: 0.625rem;
     padding-bottom: 0.1875rem;
-    font-size: 0.6875rem;
+    font-size: var(--text-caption);
     font-weight: 600;
     color: #94a3b8;
     text-transform: uppercase;

@@ -16,7 +16,13 @@ export const projectionMetadataStyles = [
          beside it. Set them here rather than restyling the popover: the component already
          exposes the seam, and the legend keeps its own values. */
       --legend-text-secondary: #64748b;
-      --legend-text-color: #334155;
+      --legend-text-color: var(--text-primary);
+
+      /* Gap between the trigger and the card. Read by the card's top offset and by the
+         invisible hover bridge that spans it, which previously had to be kept in step by
+         hand. _updateMaxHeight() no longer restates it at all: it measures the card's
+         real offset instead. */
+      --card-gap: 0.5rem;
     }
 
     .trigger {
@@ -63,7 +69,7 @@ export const projectionMetadataStyles = [
 
     .content {
       position: absolute;
-      top: calc(100% + 0.5rem);
+      top: calc(100% + var(--card-gap));
       left: 0;
       /* An explicit width, because max-width never applied. :host is position:absolute with
          no width, so it shrink-to-fits around the 32px trigger; this box then shrink-to-fits
@@ -118,7 +124,7 @@ export const projectionMetadataStyles = [
       bottom: 100%;
       left: 0;
       width: 100%;
-      height: 0.5rem; /* matches the gap: top: calc(100% + 0.5rem) */
+      height: var(--card-gap);
     }
 
     :host(:hover) .content,
@@ -133,7 +139,7 @@ export const projectionMetadataStyles = [
       padding: 0.625rem 0.75rem;
       font-size: 0.8125rem;
       font-weight: 600;
-      color: #334155;
+      color: var(--text-primary);
       border-bottom: 1px solid #e2e8f0;
       background: #f8fafc;
       border-radius: 0.5rem 0.5rem 0 0;
@@ -184,27 +190,30 @@ export const projectionMetadataStyles = [
       white-space: nowrap;
     }
 
+    /* The card's caption tier: everything that says what a number covers rather than being
+       one. Typography once here, box model per class below. Deliberately excludes
+       .stat-group-label / .stat-caveat, which sit inside .annotation-stats and inherit its
+       1.5 line-height. */
+    .scope-heading,
+    .section-scope,
+    .card-scope {
+      color: var(--text-muted);
+      font-size: var(--text-caption);
+      line-height: 1.35;
+    }
+
     .scope-heading {
       margin: 0.55rem 0 0.3rem;
-      color: #94a3b8;
-      font-size: 0.6875rem;
-      line-height: 1.35;
     }
 
     /* What a section was computed over, once under its heading. */
     .section-scope {
       margin: 0 0 0.4rem;
-      color: #94a3b8;
-      font-size: 0.6875rem;
-      line-height: 1.35;
     }
 
     /* Governs every score in the card, so it sits below all of them rather than inside one. */
     .card-scope {
       padding: 0 0.75rem 0.7rem;
-      color: #94a3b8;
-      font-size: 0.6875rem;
-      line-height: 1.35;
     }
 
     dl > .scope-heading:first-child {
@@ -242,7 +251,7 @@ export const projectionMetadataStyles = [
       gap: 0.25rem;
       margin-top: 0.35rem;
       font-weight: 500;
-      color: #334155;
+      color: var(--text-primary);
       overflow-wrap: anywhere;
     }
 
@@ -257,15 +266,15 @@ export const projectionMetadataStyles = [
       padding: 0.05rem 0.3rem;
       border-radius: 0.25rem;
       background: #eef2f7;
-      color: #334155;
+      color: var(--text-primary);
       font-weight: 600;
       overflow-wrap: anywhere;
     }
 
     .stat-group-label,
     .stat-caveat {
-      color: #94a3b8;
-      font-size: 0.6875rem;
+      color: var(--text-muted);
+      font-size: var(--text-caption);
     }
 
     .stat-group-label {
@@ -285,8 +294,7 @@ export const projectionMetadataStyles = [
      thing sizing this track, but the heading is one word now, so a 4.5rem floor would start
      binding and take the width straight back off the metric-name column. */
     .stat-metric-embedding {
-      color: #94a3b8;
-      text-align: right;
+      color: var(--text-muted);
     }
 
     /* Same reason as the dt rule above: as an inline element the ⓘ was pushed onto its own line
@@ -321,24 +329,27 @@ export const projectionMetadataStyles = [
       flex: none;
     }
 
+    /* Both number columns: right-aligned under their headings, and never broken across
+       lines. The headings themselves are aligned by .stat-columns span:not(:first-child)
+       below, which must not pick up nowrap. */
     .stat-metric-value,
     .stat-metric-embedding {
-      /* Never break a number across lines. */
+      text-align: right;
       white-space: nowrap;
     }
 
     .stat-direction {
       margin-left: 0.15rem;
-      color: #94a3b8;
+      color: var(--text-muted);
     }
 
     .section-heading {
       padding: 0 0.75rem;
-      font-size: 0.6875rem;
+      font-size: var(--text-caption);
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      color: var(--text-secondary, #666);
+      color: var(--text-secondary);
       margin-top: 0.625rem;
       margin-bottom: 0.25rem;
     }
@@ -352,15 +363,11 @@ export const projectionMetadataStyles = [
     }
 
     .stat-columns span {
-      font-size: 0.6875rem;
-      color: var(--text-secondary, #666);
+      font-size: var(--text-caption);
+      color: var(--text-secondary);
     }
 
     .stat-columns span:not(:first-child) {
-      text-align: right;
-    }
-
-    .stat-metric-value {
       text-align: right;
     }
   `,
