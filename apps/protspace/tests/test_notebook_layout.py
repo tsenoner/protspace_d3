@@ -36,8 +36,11 @@ def test_parameter_groups_wrap_before_slider_tracks_collapse():
     assert parameter_groups, "Generate cell did not create parameter groups"
 
     param_grid = namespace["param_grid"]
-    assert "wrap" in (param_grid.layout.flex_flow or ""), (
-        "Parameter grid must wrap; a nowrap row lets the cards shrink past their tracks"
+    # Match the flex-wrap token exactly: a substring test would accept "nowrap".
+    flex_flow = param_grid.layout.flex_flow or ""
+    assert "wrap" in flex_flow.split(), (
+        f"Parameter grid must wrap (flex_flow={flex_flow!r}); "
+        "a nowrap row lets the cards shrink past their tracks"
     )
 
     for group, _methods in parameter_groups:
