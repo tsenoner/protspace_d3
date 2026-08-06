@@ -419,9 +419,12 @@ export function hasAnnotationStats(
  */
 export function formatStatValue(value: number): string {
   if (!Number.isFinite(value)) return '—';
-  // Round before testing the threshold, so -99.9996 renders as "-100" and not "-100.000"; and
+  // Two decimals, not three. Silhouette spans -1..1 and Davies-Bouldin single digits, so the
+  // third decimal is below the noise these estimates carry — they are computed on a subsample
+  // — and it cost a character in every column of a panel already wrapping onto second lines.
+  // Round before testing the threshold, so -99.996 renders as "-100" and not "-100.00"; and
   // drop the sign `toFixed` keeps on a value that rounded to zero, which reads as a glitch.
-  const decimals = value.toFixed(3);
+  const decimals = value.toFixed(2);
   const rounded = Number(decimals);
   const text = Math.abs(rounded) >= 100 ? value.toFixed(0) : decimals;
   return rounded === 0 ? text.replace('-', '') : text;

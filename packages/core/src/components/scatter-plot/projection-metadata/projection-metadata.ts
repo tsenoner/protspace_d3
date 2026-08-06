@@ -28,7 +28,27 @@ interface MetadataRow {
   label: string;
   value: string;
   description: string;
+  /** Faithfulness scope ("local" / "global"), rendered as a group heading. Null groups first. */
+  scope?: string | null;
 }
+
+/** Human-readable heading for a faithfulness scope group. */
+const SCOPE_HEADINGS: Record<string, string> = {
+  local: 'Local — are the same proteins still neighbours?',
+  global: 'Global — is the overall layout preserved?',
+};
+
+/**
+ * What the two value columns mean. "This projection" and "Source embedding" are short enough to
+ * fit the card but say nothing on their own about *why* there are two numbers — that the second
+ * is a ceiling, and the gap between them is the cost of flattening to 2D.
+ */
+const SEPARATION_SCOPE_DESCRIPTION =
+  'Two numbers per metric. "This projection" scores the layout you are looking at. ' +
+  '"Source embedding" scores the same annotation on the full high-dimensional embedding ' +
+  'this projection was computed from — flattening it to 2D can only lose structure, never ' +
+  'add it, so that column is the best any projection of this data could achieve. A small ' +
+  'gap means the projection kept what was there; a large one means it lost it.';
 
 /** A faithfulness metric before display: the raw key is kept so it can be looked up. */
 interface QualityEntry {
@@ -160,14 +180,21 @@ class ProtspaceProjectionMetadata extends LitElement {
    */
   private _renderSection(title: string, id: string, rows: MetadataRow[]) {
     if (rows.length === 0) return nothing;
+    let renderedScope: string | null | undefined;
     return html`
       <div class="section-heading">${title}</div>
       <dl data-section="${id}">
-        ${rows.map(
-          (row) => html`
+        ${rows.map((row) => {
+          // A heading once per scope run rather than "(local)" on every label. The backend
+          // emits the metrics grouped, so a change of scope is a change of group.
+          const heading =
+            row.scope && row.scope !== renderedScope ? SCOPE_HEADINGS[row.scope] : null;
+          renderedScope = row.scope;
+          return html`
+            ${heading ? html`<div class="scope-heading">${heading}</div>` : nothing}
             <div class="item">
               <dt>
-                ${row.label}
+                <span class="item-label">${row.label}</span>
                 ${row.description
                   ? html`<protspace-info-popover
                       placement="side"
@@ -178,8 +205,8 @@ class ProtspaceProjectionMetadata extends LitElement {
               </dt>
               <dd>${row.value}</dd>
             </div>
-          `,
-        )}
+          `;
+        })}
       </dl>
     `;
   }
@@ -205,13 +232,20 @@ class ProtspaceProjectionMetadata extends LitElement {
       <div class="annotation-stats">
         ${summary && summary.validity.length > 0
           ? html`
-              <div class="stat-heading">Separation in this projection</div>
+              <div class="stat-heading">
+                <span>Separation in this projection</span>
+                <protspace-info-popover
+                  placement="side"
+                  label="separation scores"
+                  .description=${SEPARATION_SCOPE_DESCRIPTION}
+                ></protspace-info-popover>
+              </div>
               ${hasEmbeddingCeiling
                 ? html`
                     <div class="stat-columns">
                       <span></span>
                       <span>This projection</span>
-                      <span>In embedding</span>
+                      <span>Source embedding</span>
                     </div>
                   `
                 : ''}
@@ -258,9 +292,14 @@ class ProtspaceProjectionMetadata extends LitElement {
     return html`
       <div class="stat-metric">
         <span class="stat-metric-label">
-          ${metric.label}<span class="stat-direction" aria-hidden="true" title="${better} is better"
-            >${metric.higherIsBetter ? '↑' : '↓'}</span
-          ><span class="sr-only"> (${better.toLowerCase()} is better)</span>
+          <span class="stat-metric-name"
+            >${metric.label}<span
+              class="stat-direction"
+              aria-hidden="true"
+              title="${better} is better"
+              >${metric.higherIsBetter ? '↑' : '↓'}</span
+            ><span class="sr-only"> (${better.toLowerCase()} is better)</span></span
+          >
           <!-- info-popover already renders nothing without a description; the guard here
                still avoids constructing an element per metric row that would render nothing
                anyway (every non-empty metric list runs through this once per row). -->
@@ -362,11 +401,21 @@ class ProtspaceProjectionMetadata extends LitElement {
       // A description is exactly what "the registry knows this metric" means, so it also
       // decides whether the registry's spelling ("kNN Overlap") beats the prettified key.
       const known = display.description.length > 0;
-      const name = known ? display.label : this._formatMetadataKey(metric);
       return {
-        label: scope ? `${name} (${scope})` : name,
-        value: this._formatMetadataValue(value, metric),
+        // The scope is a group heading now, not a suffix on every row. "(local)" / "(global)"
+        // on each of five labels cost more width than the panel has — "Spearman Distance
+        // (global) ⓘ" pushed its own value onto a second line.
+        label: known ? display.label : this._formatMetadataKey(metric),
+        // These are statistics, so they follow `formatStatValue` like every other score in
+        // the app rather than the generic metadata formatter's own rounding — which is still
+        // right for reduction parameters, and still handles the `value: null` a skipped
+        // metric is written as.
+        value:
+          typeof value === 'number' && Number.isFinite(value)
+            ? formatStatValue(value)
+            : this._formatMetadataValue(value, metric),
         description: display.description,
+        scope,
       };
     });
 

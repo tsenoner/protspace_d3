@@ -411,9 +411,11 @@ describe('per-category rows', () => {
 });
 
 describe('formatStatValue', () => {
-  it('keeps three decimals for bounded scores and drops them for unbounded ones', () => {
-    expect(formatStatValue(0.326)).toBe('0.326');
-    expect(formatStatValue(-0.65094)).toBe('-0.651');
+  it('keeps two decimals for bounded scores and drops them for unbounded ones', () => {
+    // Two, not three: the third decimal sits below the noise of a subsampled estimate and
+    // cost a character in every column of a panel that was wrapping onto second lines.
+    expect(formatStatValue(0.326)).toBe('0.33');
+    expect(formatStatValue(-0.65094)).toBe('-0.65');
     expect(formatStatValue(851.8693)).toBe('852');
   });
 
@@ -422,15 +424,15 @@ describe('formatStatValue', () => {
   });
 
   it('never prints a signed zero', () => {
-    expect(formatStatValue(-0.0003)).toBe('0.000');
-    expect(formatStatValue(-0)).toBe('0.000');
-    expect(formatStatValue(0.0003)).toBe('0.000');
+    expect(formatStatValue(-0.0003)).toBe('0.00');
+    expect(formatStatValue(-0)).toBe('0.00');
+    expect(formatStatValue(0.0003)).toBe('0.00');
   });
 
   it('applies the whole-number threshold after rounding', () => {
-    expect(formatStatValue(-99.9996)).toBe('-100');
-    expect(formatStatValue(99.9996)).toBe('100');
-    expect(formatStatValue(99.4)).toBe('99.400');
+    expect(formatStatValue(-99.996)).toBe('-100');
+    expect(formatStatValue(99.996)).toBe('100');
+    expect(formatStatValue(99.4)).toBe('99.40');
   });
 });
 

@@ -120,30 +120,55 @@ export const projectionMetadataStyles = [
       padding: 0.625rem 0.75rem;
     }
 
+    /* The value column is auto-sized and the label absorbs the remainder, not the reverse.
+     With "auto 1fr" a long label could not shrink (it was nowrap) so it squeezed the value
+     until word-break split the number itself — "0.619" rendered as "0.61" over "9". */
     .item {
       display: grid;
-      grid-template-columns: auto 1fr;
+      grid-template-columns: minmax(0, 1fr) auto;
       gap: 0.75rem;
       margin-bottom: 0.5rem;
       font-size: 0.75rem;
       line-height: 1.5;
+      align-items: baseline;
     }
 
     .item:last-child {
       margin-bottom: 0;
     }
 
+    /* Flex so the ⓘ stays on the label's line. As an inline element after wrapping text it
+     was pushed onto a line of its own, which is what left icons stranded under their row. */
     dt {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      min-width: 0;
       font-weight: 500;
       color: #475569;
-      white-space: nowrap;
+    }
+
+    .item-label {
+      min-width: 0;
     }
 
     dd {
       margin: 0;
       color: #64748b;
       text-align: right;
-      word-break: break-word;
+      /* Never break a number across lines. */
+      white-space: nowrap;
+    }
+
+    .scope-heading {
+      margin: 0.55rem 0 0.3rem;
+      color: #94a3b8;
+      font-size: 0.6875rem;
+      line-height: 1.35;
+    }
+
+    dl > .scope-heading:first-child {
+      margin-top: 0;
     }
 
     /* Second section of the panel: the same header bar, but mid-card, so it gets a top rule and
@@ -174,6 +199,9 @@ export const projectionMetadataStyles = [
     }
 
     .stat-heading {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
       margin-top: 0.35rem;
       font-weight: 500;
       color: #334155;
@@ -213,6 +241,26 @@ export const projectionMetadataStyles = [
      embedding, and reserving 4.5rem for a blank cell steals it from the label column. */
     .stat-metric-embedding.is-empty {
       min-width: 0;
+    }
+
+    /* Same reason as the dt rule above: as an inline element the ⓘ was pushed onto its own line
+       whenever the metric name wrapped, which every long one does ("Calinski–Harabasz").
+       Flex keeps it on the label's first line and lets the name wrap beside it. */
+    .stat-metric-label {
+      display: flex;
+      align-items: center;
+      gap: 0.1rem;
+      min-width: 0;
+    }
+
+    .stat-metric-name {
+      min-width: 0;
+    }
+
+    .stat-metric-value,
+    .stat-metric-embedding {
+      /* Never break a number across lines. */
+      white-space: nowrap;
     }
 
     .stat-direction {

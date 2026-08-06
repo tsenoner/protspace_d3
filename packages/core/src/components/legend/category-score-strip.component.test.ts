@@ -164,11 +164,11 @@ describe('protspace-score-strip', () => {
     el.highlighted = 'Viperidae';
     await el.updateComplete;
 
-    expect(el.shadowRoot!.querySelector('.strip-value')!.textContent!.trim()).toBe('-0.150');
+    expect(el.shadowRoot!.querySelector('.strip-value')!.textContent!.trim()).toBe('-0.15');
 
     el.highlighted = 'Elapidae';
     await el.updateComplete;
-    expect(el.shadowRoot!.querySelector('.strip-value')!.textContent!.trim()).toBe('0.810');
+    expect(el.shadowRoot!.querySelector('.strip-value')!.textContent!.trim()).toBe('0.81');
   });
 
   it('keeps the gutter empty for a category this metric could not score', async () => {
@@ -193,6 +193,6 @@ describe('protspace-score-strip', () => {
     const titles = Array.from(el.shadowRoot!.querySelectorAll('circle title')).map(
       (title) => title.textContent,
     );
-    expect(titles).toEqual(['Elapidae: 0.810 (embedding ceiling 0.950)', 'Viperidae: -0.150']);
+    expect(titles).toEqual(['Elapidae: 0.81 (embedding ceiling 0.95)', 'Viperidae: -0.15']);
   });
 });

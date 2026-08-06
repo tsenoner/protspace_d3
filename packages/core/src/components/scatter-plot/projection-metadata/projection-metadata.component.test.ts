@@ -80,9 +80,9 @@ describe('protspace-projection-metadata quality rows', () => {
       ['N Components', '2'],
       // The registry's spelling, not the prettified column name: a known metric is named the
       // way it is written in the literature ("kNN"), which title-casing the key cannot do.
-      ['kNN Overlap (local)', '0.578'],
-      ['Trustworthiness (local)', '0.975'],
-      ['Random Triplet (global)', '0.711'],
+      ['kNN Overlap', '0.58'],
+      ['Trustworthiness', '0.97'],
+      ['Random Triplet', '0.71'],
     ]);
   });
 
@@ -180,7 +180,7 @@ describe('protspace-projection-metadata quality rows', () => {
     // A metric that raised is written as `value: null`, not omitted.
     const el = await setup({ quality: { continuity: qualityEntry(null, 'local') } });
 
-    expect(rows(el)).toEqual([['Continuity (local)', 'N/A']]);
+    expect(rows(el)).toEqual([['Continuity', 'N/A']]);
   });
 });
 
@@ -230,9 +230,9 @@ describe('protspace-projection-metadata annotation quality section', () => {
     expect(el.shadowRoot!.querySelector('.stats-header')!.textContent).toContain('Major group');
     const text = statsBlock(el)!.textContent!;
     expect(text).toContain('Separation in this projection');
-    expect(text).toContain('0.326');
-    expect(statsBlock(el)!.querySelector('.stat-metric-embedding')!.textContent).toContain('0.095');
-    expect(text).not.toContain('emb 0.095');
+    expect(text).toContain('0.33');
+    expect(statsBlock(el)!.querySelector('.stat-metric-embedding')!.textContent).toContain('0.10');
+    expect(text).not.toContain('emb 0.10');
     expect(text).toContain('5 categories · 1,427 proteins scored');
     expect(text).toContain('Computed on the full dataset');
   });
@@ -343,8 +343,8 @@ describe('metadata sections', () => {
     );
 
     const text = el.shadowRoot!.querySelector('.annotation-stats')!.textContent!;
-    expect(text).toContain('In embedding');
-    expect(text).not.toContain('emb 0.095');
+    expect(text).toContain('Source embedding');
+    expect(text).not.toContain('emb 0.10');
   });
 
   it('omits the quality section entirely when there is no faithfulness', async () => {
@@ -473,10 +473,10 @@ describe('auto-cluster agreement placement', () => {
     expect(text).toContain('Major group');
     expect(text).toContain('Ec number');
     // Both metrics rendered for each group, not just a stray heading string.
-    expect(text).toContain('0.620');
-    expect(text).toContain('0.580');
-    expect(text).toContain('0.310');
-    expect(text).toContain('0.440');
+    expect(text).toContain('0.62');
+    expect(text).toContain('0.58');
+    expect(text).toContain('0.31');
+    expect(text).toContain('0.44');
 
     const groupLabels = Array.from(statsBlock(el)!.querySelectorAll('.stat-group-label')).map(
       (node) => node.textContent,

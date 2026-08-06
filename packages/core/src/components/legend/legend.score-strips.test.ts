@@ -257,7 +257,7 @@ describe('legend score strips', () => {
     rowA.dispatchEvent(new Event('mouseenter'));
     await legend.updateComplete;
     // Category A on UMAP 2: silhouette 0.5, Davies-Bouldin 1.2 (see makeData).
-    expect(gutters()).toBe('0.500 / 1.200');
+    expect(gutters()).toBe('0.50 / 1.20');
 
     rowA.dispatchEvent(new Event('mouseleave'));
     await legend.updateComplete;
