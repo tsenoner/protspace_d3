@@ -248,13 +248,26 @@ export const projectionMetadataStyles = [
        Flex keeps it on the label's first line and lets the name wrap beside it. */
     .stat-metric-label {
       display: flex;
-      align-items: center;
-      gap: 0.1rem;
+      /* flex-start, not center: on a name that wraps to two lines, centring floats the icon
+         into the gap between them. */
+      align-items: flex-start;
+      gap: 0.25rem;
       min-width: 0;
     }
 
+    /* Deliberately NO min-width: 0 here. With it the name could shrink below its own text,
+       and since nothing clips the overflow the text ran on underneath the icon that flex had
+       placed at the shrunken box's edge — which is the overlap, not a positioning bug. Left
+       at the default min-content, the name wraps at a word boundary instead and the icon
+       always follows the text. The label cell above still carries min-width: 0, so the grid
+       column itself can still shrink. */
     .stat-metric-name {
-      min-width: 0;
+      overflow-wrap: break-word;
+    }
+
+    /* The icon is furniture, never the thing that gets squeezed. */
+    .stat-metric-label protspace-info-popover {
+      flex: none;
     }
 
     .stat-metric-value,
