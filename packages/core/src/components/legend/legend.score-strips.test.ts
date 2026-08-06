@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { ProjectionStatisticRow, VisualizationData } from '@protspace/utils';
 import { metricDisplay } from '@protspace/utils';
 import './legend';
-import type { ProtspaceLegend } from './legend';
 import type { ScoreStripPoint } from './category-score-strip';
 import { LEGEND_EVENTS } from './config';
 import {
@@ -304,8 +303,11 @@ describe('legend score strips', () => {
     const { legend, plot, data } = await setup();
     expect(legend.shadowRoot!.querySelector('protspace-score-strip')).not.toBeNull();
 
-    // Mirrors what scatter-plot.ts's filtered-display path does: statisticsRows is
-    // cleared (sliceVisualizationDataByIndices), and filtersActive flips on.
+    // Mirrors what scatter-plot.ts's filtered-display path does: the payload's
+    // statisticsRows is cleared (sliceVisualizationDataByIndices) and filtersActive flips
+    // on, while the element's own unsliced `data` keeps its rows. The legend reads the
+    // scores from the latter and decides to hide them from the former, so this asserts the
+    // filter gate itself rather than the absence of data.
     plot.filtersActive = true;
     plot.dispatchEvent(
       new CustomEvent(LEGEND_EVENTS.DATA_CHANGE, {
@@ -320,7 +322,7 @@ describe('legend score strips', () => {
   });
 
   it('stays silent when a stats-less dataset is filtered', async () => {
-    // The "silent case": _hadCategoryScores must never have flipped true, so the note
+    // The "silent case": a dataset with no scores at all must stay silent, so the note
     // must not appear just because filtersActive is true from the very first render.
     const { legend } = await setup({
       data: { statisticsRows: [] },
@@ -332,15 +334,12 @@ describe('legend score strips', () => {
   });
 
   it('drops the note after switching to an annotation that was never scored', async () => {
-    // The sticky flag must be keyed on the annotation it was earned by. Testing it
-    // against `this.selectedAnnotation` cannot work: `_handleAnnotationChange` assigns
-    // that property before it calls `forceSync()`, so by the time the data-change
-    // handler runs the two are already equal and the reset never fires — leaving a
-    // filtered view claiming scores are "hidden" for an annotation that has none.
+    // The note is per annotation, not per dataset: a filtered view must not go on claiming
+    // scores are "hidden" once the user recolours by something the run never scored.
     const { legend, plot, data } = await setup();
     expect(legend.shadowRoot!.querySelector('protspace-score-strip')).not.toBeNull();
 
-    // Filter first, so the flag is genuinely load-bearing at this point.
+    // Filter first, so the note is genuinely showing at this point.
     plot.filtersActive = true;
     plot.dispatchEvent(
       new CustomEvent(LEGEND_EVENTS.DATA_CHANGE, {

@@ -172,24 +172,16 @@ export class ProtspaceLegend extends LitElement {
   @state() private _eatCounts: EatPopulationCounts | null = null;
   @state() private _categoryScores: CategoryScore[] = [];
   /**
-   * Whether the current annotation has ever shown category scores, so a filter/isolation
-   * view (which clears `statisticsRows`, see `sliceVisualizationDataByIndices`) can be told
-   * apart from an annotation that genuinely has none. Reset only on an annotation switch;
-   * see `_handleScatterplotDataChange`.
-   */
-  @state() private _hadCategoryScores = false;
-  /**
-   * Which annotation `_hadCategoryScores` was earned by, so the flag survives a filter resync of
-   * that annotation but clears on a switch to any other. Not reactive: only the flag is rendered.
-   */
-  private _scoredAnnotation: string | null = null;
-  /**
    * Whether the current annotation is one of the backend's auto-clustering membership
    * columns, whose separation scores are optimistic by construction. Derived alongside
    * `_categoryScores` because both need `statisticsRows`, which render time does not see.
    */
   @state() private _isClusterAnnotation = false;
-  /** Category under the pointer, in the legend rows or in a strip. Task 4 reads it. */
+  /**
+   * Category under the pointer, from a legend row or from a score strip. Read by
+   * `_renderLegendItem` (the row's `legend-item-score-hover` class) and by `_renderScoreStrip`
+   * (each strip's `highlighted` binding), so a hover in either place lights up both.
+   */
   @state() private _hoveredCategory: string | null = null;
   @state() private _eatOverlayEnabled = true;
   @state() private _eatConfidenceThreshold = DEFAULT_EAT_CONFIDENCE_THRESHOLD;
@@ -1238,25 +1230,22 @@ export class ProtspaceLegend extends LitElement {
     };
     this._updateAnnotationValues(data, selectedAnnotation);
     this._eatCounts = computeEatPopulationCounts(data, selectedAnnotation, this._eatOverlayEnabled);
+    // Taken from the unsliced element, not from the incoming payload.
+    // `sliceVisualizationDataByIndices` strips `statisticsRows` from a filtered or isolated
+    // view on purpose (a slice must not carry scores that describe the whole dataset), so
+    // reading them off `data` made every filter look identical to "this annotation was never
+    // scored" -- which is why this used to need a sticky per-annotation memory to tell the two
+    // apart. The scores are whole-dataset facts about the annotation, so the legend reads them
+    // from the whole dataset and decides separately whether to plot them (`_renderScoreStrips`).
+    // Same escape hatch the dataset hash in `updated()` already uses, and the same source the
+    // sibling projection-metadata panel is handed.
+    const statisticsRows = scatterplot?.data?.statisticsRows ?? data.statisticsRows;
     this._categoryScores = annotationCategoryScores(
-      data.statisticsRows,
+      statisticsRows,
       selectedAnnotation,
       selectedProjectionName,
     );
-    this._isClusterAnnotation = isAutoClusterColumn(data.statisticsRows, selectedAnnotation);
-    // Sticky per annotation: a filter/isolation view clears `statisticsRows`, which must not
-    // read as "this annotation was never scored" -- only a genuine annotation switch may.
-    //
-    // Keyed on the annotation the flag was actually earned by, NOT on whether
-    // `this.selectedAnnotation` differs from the incoming one: `_handleAnnotationChange` assigns
-    // `this.selectedAnnotation` before it calls `forceSync()`, so by the time this runs the two
-    // are already equal on every annotation switch and a difference test never fires.
-    if (this._categoryScores.length > 0) {
-      this._hadCategoryScores = true;
-      this._scoredAnnotation = selectedAnnotation;
-    } else if (selectedAnnotation !== this._scoredAnnotation) {
-      this._hadCategoryScores = false;
-    }
+    this._isClusterAnnotation = isAutoClusterColumn(statisticsRows, selectedAnnotation);
     this.proteinIds = data.protein_ids;
 
     // Sync isolation state
@@ -2406,7 +2395,12 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _setHoveredCategory(category: string | null): void {
-    this._hoveredCategory = category;
+    // Nothing reads the hover when there are no scores: `_renderScoreStrips` returns before
+    // the `highlighted` binding and `_renderLegendItem` gates its class on the same emptiness.
+    // Assigning null over null is a no-op for Lit, so a stats-less dataset stops re-rendering
+    // the whole legend on every row the pointer crosses, while a stale highlight still clears
+    // if the scores go away mid-hover.
+    this._hoveredCategory = this._categoryScores.length === 0 ? null : category;
   }
 
   /**
@@ -2415,6 +2409,48 @@ export class ProtspaceLegend extends LitElement {
    * greyed: the scores are computed over the whole dataset regardless of what the legend
    * chooses to show, and dropping those dots would misstate the distribution.
    */
+  /**
+   * Strip geometry, derived in `willUpdate` rather than in render: it depends only on the
+   * legend items and the scores, while the most frequent cause of a legend re-render is a
+   * hover, which changes neither. Plain fields, not `@state`: they are computed before render
+   * from properties that are already reactive, so making them reactive would only add a
+   * second update cycle. Written in `willUpdate` and not `updated()` for the same reason --
+   * after render they would paint one cycle stale.
+   */
+  private _silhouettePoints: ScoreStripPoint[] = [];
+  private _daviesBouldinPoints: ScoreStripPoint[] = [];
+  private _daviesBouldinDomain: [number, number] = [0, 1];
+
+  protected willUpdate(changedProperties: Map<string, unknown>): void {
+    if (changedProperties.has('_legendItems') || changedProperties.has('_categoryScores')) {
+      this._deriveStripPoints();
+    }
+  }
+
+  private _deriveStripPoints(): void {
+    // One map for both strips: it is keyed by the same legend items either way.
+    const colorByValue = new Map(this._legendItems.map((item) => [item.value, item.color]));
+    // Davies-Bouldin has no embedding-space counterpart on CategoryScore, so only the
+    // silhouette strip's tooltip carries a ceiling.
+    this._silhouettePoints = this._stripPoints(
+      colorByValue,
+      (score) => score.silhouette,
+      (score) => score.silhouetteEmbedding,
+    );
+    this._daviesBouldinPoints = this._stripPoints(colorByValue, (score) => score.daviesBouldin);
+    // Silhouette is bounded to [-1, 1], so its axis is fixed and comparable across datasets.
+    // Davies-Bouldin is unbounded above, so it scales to the data at hand. Folded rather than
+    // spread into Math.min/max: the argument list would grow with the category count, and a
+    // high-cardinality annotation would blow the call-argument limit.
+    let low = Infinity;
+    let high = -Infinity;
+    for (const point of this._daviesBouldinPoints) {
+      if (point.value < low) low = point.value;
+      if (point.value > high) high = point.value;
+    }
+    this._daviesBouldinDomain = this._daviesBouldinPoints.length > 0 ? [low, high] : [0, 1];
+  }
+
   private _stripPoints(
     colorByValue: Map<string, string>,
     pick: (score: CategoryScore) => number | null,
@@ -2435,33 +2471,23 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _renderScoreStrips() {
-    if (this._categoryScores.length === 0) {
-      // `_hadCategoryScores` tells a filter/isolation view (which clears `statisticsRows`)
-      // apart from an annotation that genuinely has no scores: without it, a stats-less
-      // dataset that happens to be filtered would show the note too.
-      const sp = this._scatterplotController.scatterplot;
-      return this._hadCategoryScores && (this.isolationMode || sp?.filtersActive)
-        ? html`<p class="score-strips-note">
-            Separation scores are hidden while the view is filtered.
-          </p>`
-        : '';
+    // Nothing to plot: this annotation was never scored, or the bundle carries no statistics.
+    if (this._categoryScores.length === 0) return '';
+    // Scored, but the view is showing a subset. The numbers describe the whole dataset and do
+    // not recompute, so plotting them beside a narrowed legend would misdescribe what is on
+    // screen; the strips step aside and say so. Gated on the live filter/isolation state
+    // directly, which is the actual question -- the scores themselves are read from the
+    // unsliced dataset (see `_handleScatterplotDataChange`) and so stay available for sorting.
+    const scatterplot = this._scatterplotController.scatterplot;
+    if (this.isolationMode || scatterplot?.filtersActive) {
+      return html`<p class="score-strips-note">
+        Separation scores are hidden while the view is filtered.
+      </p>`;
     }
 
-    // One map for both strips: it is keyed by the same legend items either way.
-    const colorByValue = new Map(this._legendItems.map((item) => [item.value, item.color]));
-    // Davies-Bouldin has no embedding-space counterpart on CategoryScore, so only the
-    // silhouette strip's tooltip carries a ceiling.
-    const silhouette = this._stripPoints(
-      colorByValue,
-      (score) => score.silhouette,
-      (score) => score.silhouetteEmbedding,
-    );
-    const daviesBouldin = this._stripPoints(colorByValue, (score) => score.daviesBouldin);
-    // Silhouette is bounded to [-1, 1], so its axis is fixed and comparable across
-    // datasets. Davies-Bouldin is unbounded above, so it scales to the data at hand.
-    const dbValues = daviesBouldin.map((point) => point.value);
-    const dbDomain: [number, number] =
-      dbValues.length > 0 ? [Math.min(...dbValues), Math.max(...dbValues)] : [0, 1];
+    const silhouette = this._silhouettePoints;
+    const daviesBouldin = this._daviesBouldinPoints;
+    const dbDomain = this._daviesBouldinDomain;
 
     return html`
       <section
