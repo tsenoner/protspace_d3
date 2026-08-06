@@ -51,7 +51,12 @@ class ProtspaceProjectionMetadata extends LitElement {
     // it" (optimistic, it drew its own boundaries) above "what does it recover" (independent).
     const agreement = clusterAgreement(this.statisticsRows, this.selectedAnnotation);
 
-    if (parameters.length === 0 && quality.length === 0) {
+    // The stats block counts toward "is there anything to show". A projection whose
+    // `info_json` is empty or absent yields no parameters AND no quality rows, so gating on
+    // those alone hid a fully populated statistics section — while the color-by dropdown still
+    // badged the annotation with "select this annotation and open the projection metadata
+    // panel". Both sides ask `hasAnnotationStats`, so both must agree on whether it renders.
+    if (parameters.length === 0 && quality.length === 0 && !hasAnnotationStats(stats, agreement)) {
       return html``;
     }
 

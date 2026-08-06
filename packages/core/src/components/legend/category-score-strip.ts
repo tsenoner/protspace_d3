@@ -2,6 +2,7 @@ import { LitElement, html, css, svg, nothing } from 'lit';
 import { property } from 'lit/decorators.js';
 import { formatStatValue } from '@protspace/utils';
 import { customElement } from '../../utils/safe-custom-element';
+import { srOnlyMixin } from '../../styles/mixins';
 
 /** One category's position on a score axis, painted in its legend colour. */
 export interface ScoreStripPoint {
@@ -50,79 +51,82 @@ class ProtspaceScoreStrip extends LitElement {
   @property({ type: Array }) domain: [number, number] = [-1, 1];
   @property({ type: Boolean, attribute: 'higher-is-better' }) higherIsBetter = true;
 
-  static styles = css`
-    :host {
-      display: block;
-    }
+  static styles = [
+    srOnlyMixin,
+    css`
+      :host {
+        display: block;
+      }
 
-    .strip-header {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      font-size: 0.75rem;
-      color: var(--legend-text-secondary, #666);
-      padding: 0 0.25rem;
-    }
+      .strip-header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        font-size: 0.75rem;
+        color: var(--legend-text-secondary, #666);
+        padding: 0 0.25rem;
+      }
 
-    .strip-label {
-      font-weight: 600;
-      color: var(--legend-text-color, #222);
-    }
+      .strip-label {
+        font-weight: 600;
+        color: var(--legend-text-color, #222);
+      }
 
-    /* Centring lands the readout on the axis line: the svg's layout box is
+      /* Centring lands the readout on the axis line: the svg's layout box is
        STRIP_HEIGHT tall and the axis sits at its midpoint. */
-    .strip-body {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
+      .strip-body {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
 
-    svg {
-      display: block;
-      width: 100%;
-      overflow: visible;
-      /* Without a zero min-width the intrinsic svg width would keep the flex item
+      svg {
+        display: block;
+        width: 100%;
+        overflow: visible;
+        /* Without a zero min-width the intrinsic svg width would keep the flex item
          from shrinking, and the gutter would push the axis out of the panel. */
-      flex: 1;
-      min-width: 0;
-    }
+        flex: 1;
+        min-width: 0;
+      }
 
-    /* Fixed width and tabular figures: the gutter must not resize as the hover
+      /* Fixed width and tabular figures: the gutter must not resize as the hover
        moves between categories, or every dot would shift with it. */
-    .strip-value {
-      flex: none;
-      min-width: 3rem;
-      text-align: right;
-      font-size: 0.75rem;
-      font-variant-numeric: tabular-nums;
-      color: var(--legend-text-color, #222);
-    }
+      .strip-value {
+        flex: none;
+        min-width: 3rem;
+        text-align: right;
+        font-size: 0.75rem;
+        font-variant-numeric: tabular-nums;
+        color: var(--legend-text-color, #222);
+      }
 
-    .strip-value.is-empty {
-      color: var(--legend-text-secondary, #666);
-    }
+      .strip-value.is-empty {
+        color: var(--legend-text-secondary, #666);
+      }
 
-    .axis {
-      stroke: var(--legend-border, #ddd);
-      stroke-width: 1;
-    }
+      .axis {
+        stroke: var(--legend-border, #ddd);
+        stroke-width: 1;
+      }
 
-    circle {
-      stroke: var(--legend-bg, #fff);
-      stroke-width: 1;
-      cursor: pointer;
-    }
+      circle {
+        stroke: var(--legend-bg, #fff);
+        stroke-width: 1;
+        cursor: pointer;
+      }
 
-    circle.is-highlighted {
-      stroke: var(--legend-text-color, #222);
-      stroke-width: 2;
-    }
+      circle.is-highlighted {
+        stroke: var(--legend-text-color, #222);
+        stroke-width: 2;
+      }
 
-    .bound {
-      font-size: 0.6875rem;
-      fill: var(--legend-text-secondary, #666);
-    }
-  `;
+      .bound {
+        font-size: 0.6875rem;
+        fill: var(--legend-text-secondary, #666);
+      }
+    `,
+  ];
 
   render() {
     if (this.points.length === 0) return nothing;
@@ -180,12 +184,24 @@ class ProtspaceScoreStrip extends LitElement {
             ${this._formatBound(max)}
           </text>
         </svg>
-        <!-- aria-hidden: hovering is pointer-only, and each legend row already
-             announces its own score to assistive tech. -->
-        <span class="strip-value ${hovered ? '' : 'is-empty'}" part="value" aria-hidden="true"
+        <!-- aria-hidden: the gutter is a pointer-driven readout, so it is never populated for
+             a keyboard or screen-reader user, and announcing an em dash on every render is
+             noise. The values themselves are reachable through the list below instead. -->
+        <span class="strip-value ${hovered ? '' : 'is-empty'}" aria-hidden="true"
           >${hovered ? formatStatValue(hovered.value) : NO_VALUE}</span
         >
       </div>
+      <!-- The strip's only accessible surface. The dots carry their values in <title>, but the
+           <svg> is role="img" with an aria-label, which replaces its whole subtree in the
+           accessibility tree, and the legend rows deliberately do not repeat the number (see
+           legend.score-sync.test.ts, "keeps a scored row down to its label and count"). Without
+           this list the per-category scores — the entire point of the strip — are unreachable
+           to assistive tech. -->
+      <ul class="sr-only">
+        ${this.points.map(
+          (point) => html`<li>${point.category}: ${formatStatValue(point.value)}</li>`,
+        )}
+      </ul>
     `;
   }
 

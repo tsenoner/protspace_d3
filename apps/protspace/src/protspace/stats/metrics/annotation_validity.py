@@ -82,9 +82,16 @@ def _per_category_davies_bouldin(
     # norm materialises a k x k x d tensor, which is unbounded on both axes (d is
     # the full pLM dim, k is unbounded for an explicit --stats-annotation).
     separation = pairwise_distances(centroids)
-    # Mirrors sklearn: coincident centroids (and the whole diagonal) become inf so
-    # their ratio is 0 and cannot win the row max. Without this the diagonal would
-    # divide by zero and every score would be inf.
+    # Mirrors sklearn's own short-circuit, which fires BEFORE the substitution below and
+    # uses `isclose` (atol 1e-8), not `== 0`. Without it, categories that share a centroid
+    # to within floating-point noise -- concentric rings, any symmetric arrangement -- have
+    # their ratios divided by a ~1e-16 separation instead of being recognised as degenerate,
+    # and the index explodes to ~1e16 rather than collapsing to 0. Returning zeros for every
+    # part rather than a bare 0.0 aggregate keeps "aggregate == mean of the parts" exact.
+    if np.allclose(intra, 0) or np.allclose(separation, 0):
+        return dict.fromkeys(cat_names, 0.0)
+    # Coincident centroids (and the whole diagonal) become inf so their ratio is 0 and
+    # cannot win the row max. Without this the diagonal would divide by zero.
     separation[separation == 0] = np.inf
     per_cluster = ((intra[:, None] + intra[None, :]) / separation).max(axis=1)
     return {name: float(per_cluster[j]) for j, name in enumerate(cat_names)}
@@ -165,17 +172,25 @@ class AnnotationValidityStatistic:
 
             cat_names = sorted(cat_to_int, key=cat_to_int.get)
 
-            def _emit(metric_name: str, value: float, category: str | None = None):
+            def _emit(
+                metric_name: str,
+                value: float,
+                category: str | None = None,
+                provenance: dict | None = None,
+            ):
                 # extra/base are reassigned each outer-loop iteration, but _emit is
                 # always called within the same iteration that defines it, before
                 # the next reassignment, so the closure never sees a stale value.
+                #
+                # `provenance` overrides `extra` for metrics scored on a restricted
+                # subset of the labelling; see the DBI/CH block below.
                 rows.append(
                     StatRow(
                         metric=metric_name,
                         metric_kind="validity",
                         value=float(value),
                         category=category,
-                        extra=extra,  # noqa: B023
+                        extra=provenance or extra,  # noqa: B023
                         **base,  # noqa: B023
                     )
                 )
@@ -218,6 +233,16 @@ class AnnotationValidityStatistic:
                 renumber[keep] = np.arange(len(keep))
                 ls = renumber[labels[point_mask]]
                 scored_names = [cat_names[j] for j in keep]
+                # These two metrics saw a smaller labelling than the silhouette did, so
+                # they must not inherit the unrestricted counts: the frontend prints
+                # n_labels/n_categories verbatim as the scope line beside the number
+                # ("Computed over N categories, M proteins"). With one singleton dropped
+                # that line claimed the full set for a mean taken over fewer.
+                scored_extra = {
+                    **extra,
+                    "n_labels": int(Xs.shape[0]),
+                    "n_categories": int(len(keep)),
+                }
                 try:
                     # Same ordering constraint as the silhouette block above.
                     per_cat = _per_category_davies_bouldin(Xs, ls, scored_names)
@@ -226,16 +251,24 @@ class AnnotationValidityStatistic:
                     # `davies_bouldin_score` would recompute the centroids and their
                     # pairwise distances to return exactly this number, and an
                     # independently computed aggregate could drift from its own rows.
-                    _emit("davies_bouldin", float(np.mean(list(per_cat.values()))))
+                    _emit(
+                        "davies_bouldin",
+                        float(np.mean(list(per_cat.values()))),
+                        provenance=scored_extra,
+                    )
                     for cat, value in per_cat.items():
-                        _emit("davies_bouldin", value, cat)
+                        _emit("davies_bouldin", value, cat, provenance=scored_extra)
                 except Exception:  # noqa: BLE001 - best-effort
                     pass
 
                 try:
                     # Aggregate only: CH is a global variance ratio with no
                     # accepted per-cluster decomposition.
-                    _emit("calinski_harabasz", calinski_harabasz_score(Xs, ls))
+                    _emit(
+                        "calinski_harabasz",
+                        calinski_harabasz_score(Xs, ls),
+                        provenance=scored_extra,
+                    )
                 except Exception:  # noqa: BLE001 - best-effort
                     pass
         return rows

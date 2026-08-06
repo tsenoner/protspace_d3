@@ -10,8 +10,6 @@ import type {
   LegendSortMode,
 } from '@protspace/utils';
 
-export type LegendSortModeLike = LegendSortMode;
-
 export interface ProtspaceData {
   projections?: Array<{ name: string; metadata?: { dimension?: 2 | 3 } }>;
   annotations?: Record<
@@ -66,7 +64,7 @@ export interface ScatterplotElementLike extends Element {
   filteredProteinIds?: string[];
   filtersActive?: boolean;
   numericAnnotationSettings?: NumericAnnotationDisplaySettingsMap;
-  annotationSortModes?: Record<string, LegendSortModeLike>;
+  annotationSortModes?: Record<string, LegendSortMode>;
   numericManualOrderIdsByAnnotation?: Record<string, string[]>;
   runWebGLRenderPerfMeasurements?: (
     iterations?: number,

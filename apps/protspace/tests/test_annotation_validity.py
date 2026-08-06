@@ -2,7 +2,10 @@ import numpy as np
 import pytest
 
 from protspace.stats.base import StatContext, StatRow
-from protspace.stats.metrics.annotation_validity import AnnotationValidityStatistic
+from protspace.stats.metrics.annotation_validity import (
+    AnnotationValidityStatistic,
+    _per_category_davies_bouldin,
+)
 
 
 def _blobs(n=200, centers=4, dim=2, seed=1):
@@ -179,6 +182,78 @@ def test_per_category_davies_bouldin_averages_to_the_aggregate():
     assert len({round(r.value, 9) for r in per_cat}) > 1
     assert np.mean([r.value for r in per_cat]) == pytest.approx(aggregate.value)
     assert aggregate.value == pytest.approx(davies_bouldin_score(X, y))
+
+
+def test_davies_bouldin_collapses_when_centroids_coincide():
+    # sklearn short-circuits to 0.0 when the centroids (or the intra-cluster spreads)
+    # are all within `isclose`'s 1e-8 of zero, BEFORE substituting inf for exact zeros.
+    # Reimplementing only the `== 0` substitution divides by a ~1e-16 separation instead
+    # and the index explodes to ~1e16 -- a finite float64 that reaches the bundle and
+    # destroys the legend strip's shared axis.
+    #
+    # Concentric rings: every point is distinct and the two categories are perfectly
+    # nested, but both centroids sit on the origin.
+    from sklearn.metrics import davies_bouldin_score
+
+    theta = np.linspace(0, 2 * np.pi, 200, endpoint=False)
+    X = np.vstack(
+        [
+            np.c_[np.cos(theta), np.sin(theta)],
+            np.c_[5 * np.cos(theta), 5 * np.sin(theta)],
+        ]
+    )
+    y = np.array([0] * 200 + [1] * 200)
+
+    per_cat = _per_category_davies_bouldin(X, y, ["inner", "outer"])
+
+    assert per_cat == {"inner": 0.0, "outer": 0.0}
+    # Both halves of the contract at once: matches sklearn, and the aggregate is still
+    # exactly the mean of the parts (a bare 0.0 aggregate would break the second).
+    assert np.mean(list(per_cat.values())) == pytest.approx(davies_bouldin_score(X, y))
+
+
+def test_restricted_metrics_report_the_labelling_they_actually_scored():
+    # DBI/CH drop singleton categories and score what is left, but `extra_json` used to
+    # be built once from the unrestricted set and attached to every metric. The frontend
+    # prints n_categories/n_labels verbatim as the scope line next to the number, so a
+    # taxonomic rank with singletons advertised a wider basis than was measured.
+    rng = np.random.default_rng(0)
+    X = np.vstack(
+        [
+            rng.normal(0, 0.1, size=(30, 2)),
+            rng.normal(5, 0.1, size=(29, 2)),
+            np.array([[50.0, 50.0]]),  # the singleton
+        ]
+    )
+    cats = ["a"] * 30 + ["b"] * 29 + ["lonely"]
+    ids = [f"p{i}" for i in range(60)]
+    outs = AnnotationValidityStatistic().compute(
+        StatContext(
+            "projection",
+            "PCA_2",
+            coords=X,
+            ids=ids,
+            annotations={"grp": dict(zip(ids, cats, strict=True))},
+        )
+    )
+    by_metric = {(r.metric, r.category): r for r in outs}
+
+    # Silhouette saw every point and every category, singleton included.
+    unrestricted = by_metric[("silhouette", None)].extra
+    assert unrestricted["n_labels"] == 60
+    assert unrestricted["n_categories"] == 3
+
+    # DBI and CH saw 59 points across 2 categories, and must say so.
+    for metric in ("davies_bouldin", "calinski_harabasz"):
+        provenance = by_metric[(metric, None)].extra
+        assert provenance["n_labels"] == 59, metric
+        assert provenance["n_categories"] == 2, metric
+        # Only the two counts are overridden; the rest of the provenance is shared.
+        assert provenance["seed"] == unrestricted["seed"]
+        assert provenance["sampled"] == unrestricted["sampled"]
+
+    # Per-category DBI rows carry the same restricted scope as their aggregate.
+    assert by_metric[("davies_bouldin", "a")].extra["n_categories"] == 2
 
 
 def test_silhouette_emission_discards_the_whole_attempt_when_decomposition_fails(

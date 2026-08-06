@@ -291,7 +291,9 @@ function renderSortingSection(
   const isSize = currentMode.startsWith('size');
   const isAlphabetic = currentMode.startsWith('alpha');
   const isManual = currentMode.startsWith('manual');
-  const isSilhouette = currentMode === 'silhouette-desc';
+  // Both directions, or the radio group renders with nothing checked after the header's
+  // reverse button has flipped the mode to ascending.
+  const isSilhouette = currentMode === 'silhouette-desc' || currentMode === 'silhouette-asc';
 
   const handleTypeChange = (category: 'size' | 'alpha' | 'manual' | 'silhouette') => {
     callbacks.onSortModeChange(aname, getSortModeForCategory(category));

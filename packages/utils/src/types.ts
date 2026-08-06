@@ -237,7 +237,14 @@ export type LegendSortMode =
   | 'manual'
   | 'manual-reverse'
   /** Best-separating category first. Display order only; the "Other" bucket stays size-driven. */
-  | 'silhouette-desc';
+  | 'silhouette-desc'
+  /**
+   * Worst-separating category first — what the legend header's reverse button produces from
+   * `silhouette-desc`. It must exist as a real mode: that button derives its result by string
+   * surgery on the current mode, so without this it minted a value outside this union, which
+   * `sanitizeLegendSettingsEntry` rejects — discarding the annotation's whole persisted block.
+   */
+  | 'silhouette-asc';
 
 export interface PersistedCategoryData {
   zOrder: number;

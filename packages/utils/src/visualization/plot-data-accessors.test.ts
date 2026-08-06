@@ -318,6 +318,58 @@ describe('plot-data-accessors', () => {
       expect(view.blocks[1].scores).toEqual([[42]]);
     });
 
+    it('drops it from the column name alone, with no statistics rows present', () => {
+      // The decision cannot depend on `statisticsRows`: `sliceVisualizationDataByIndices`
+      // clears them for a filtered or isolated view, and a bundle exported from that view
+      // still carries the `cluster_*` column and its `label|silhouette` payload. Judged
+      // from the rows, that re-opened bundle resurrects the per-point number — and
+      // `getAnnotationHeaderType` labels any surviving score "Bitscore", so it comes back
+      // both restored and mislabelled as a bit score.
+      const data: VisualizationData = {
+        ...baseData(),
+        annotations: {
+          ...baseData().annotations,
+          cluster_elbow_t: {
+            kind: 'categorical',
+            values: ['cluster 0', 'cluster 1'],
+            colors: ['#f00', '#0f0'],
+            shapes: ['circle', 'circle'],
+          },
+        },
+        annotation_data: { ...baseData().annotation_data, cluster_elbow_t: Int32Array.of(0, 1, 0) },
+        annotation_scores: { cluster_elbow_t: [[[0.497]], [[0.601]], [[0.3]]] },
+        // No statisticsRows at all — the filtered-export case.
+      };
+
+      const view = buildTooltipView(data, 0, 'cluster_elbow_t');
+      expect(view.blocks[0].displayValues).toEqual(['cluster 0']);
+      expect(view.blocks[0].scores).toEqual([]);
+    });
+
+    it('keeps scores on a curated column whose name merely mentions cluster', () => {
+      // Only the two generated prefixes count; an ordinary annotation must be untouched.
+      const data: VisualizationData = {
+        ...baseData(),
+        annotations: {
+          ...baseData().annotations,
+          cluster_of_differentiation: {
+            kind: 'categorical',
+            values: ['CD4'],
+            colors: ['#f00'],
+            shapes: ['circle'],
+          },
+        },
+        annotation_data: {
+          ...baseData().annotation_data,
+          cluster_of_differentiation: Int32Array.of(0, 0, 0),
+        },
+        annotation_scores: { cluster_of_differentiation: [[[88]]] },
+      };
+
+      const view = buildTooltipView(data, 0, 'cluster_of_differentiation');
+      expect(view.blocks[0].scores).toEqual([[88]]);
+    });
+
     it('returns only extra blocks when primary is null', () => {
       const view = buildTooltipView(baseData(), 0, null, ['gene_name']);
       expect(view.blocks.map((b) => b.key)).toEqual(['gene_name']);

@@ -271,6 +271,30 @@ export function isAutoClusterColumn(
 }
 
 /**
+ * Whether a column *name* is one the backend generates for an auto-clustering, judged from the
+ * name alone.
+ *
+ * The counterpart to `isAutoClusterColumn`, for the callers that only need to know what kind of
+ * column this is rather than which statistics rows describe it. Two reasons it must not consult
+ * the rows:
+ *
+ * - The rows are not always there. `sliceVisualizationDataByIndices` clears them for a filtered
+ *   or isolated view, and a bundle re-exported from that view carries the `cluster_*` column and
+ *   its per-point payload but no statistics part at all. A rows-based test answers "no" there and
+ *   the caller then treats a generated column as a curated one.
+ * - The rows are long-format and now carry a row per category, so scanning them to answer a
+ *   question about a string costs a full table pass on paths that run per hovered point.
+ *
+ * `isAutoClusterColumn` stays the right test wherever a row must actually be *matched* — the
+ * caveat surfaces, which are asking "did this run score this clustering?", not "what is this
+ * column?". A projection name may itself contain underscores, so this deliberately tests the
+ * generated prefixes rather than trying to split the suffix back apart.
+ */
+export function isAutoClusterColumnName(annotation: string): boolean {
+  return annotation.startsWith('cluster_elbow_') || annotation.startsWith('cluster_silhouette_');
+}
+
+/**
  * The caveat every surface must print alongside an auto-cluster column's own separation scores,
  * gated on `isAutoClusterColumn` above. One string rather than one per surface: it exists to stop
  * a number being misread, so the legend strips and the metadata panel must not be able to word it

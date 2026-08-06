@@ -1,6 +1,6 @@
 import type { VisualizationData, NumericAnnotationType, PredictedCell } from '../types.js';
 import { getProteinAnnotationIndices } from './annotation-data-access.js';
-import { isAutoClusterColumn } from './annotation-statistics.js';
+import { isAutoClusterColumnName } from './annotation-statistics.js';
 import { getPredictedCell, getPredictedCellValues } from './eat-overlay.js';
 import { getNumericBinLabelMap } from './numeric-binning.js';
 import { toInternalValue } from './missing-values.js';
@@ -128,8 +128,13 @@ function buildAnnotationBlock(
   // cluster columns the one annotation that shows a separation score per protein.
   // Dropped on read, not only at write time, because bundles prepared before this
   // still carry the suffix.
+  //
+  // Judged from the column name, never from `data.statisticsRows`: a filtered or isolated
+  // view clears those rows, so a bundle exported from one still carries this column and its
+  // suffix but nothing to recognise it by — and the score would come back mislabelled
+  // "Bitscore", which `getAnnotationHeaderType` assigns to any surviving score.
   let scores: (number[] | null)[] = [];
-  if (!isAutoClusterColumn(data.statisticsRows, key)) {
+  if (!isAutoClusterColumnName(key)) {
     scores = predicted
       ? (predicted.scores?.map((values) => (values ? [...values] : null)) ?? [])
       : getProteinScores(data, proteinIdx, key);

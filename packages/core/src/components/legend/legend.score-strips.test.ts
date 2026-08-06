@@ -330,4 +330,39 @@ describe('legend score strips', () => {
     expect(legend.shadowRoot!.querySelector('protspace-score-strip')).toBeNull();
     expect(legend.shadowRoot!.querySelector('.score-strips-note')).toBeNull();
   });
+
+  it('drops the note after switching to an annotation that was never scored', async () => {
+    // The sticky flag must be keyed on the annotation it was earned by. Testing it
+    // against `this.selectedAnnotation` cannot work: `_handleAnnotationChange` assigns
+    // that property before it calls `forceSync()`, so by the time the data-change
+    // handler runs the two are already equal and the reset never fires — leaving a
+    // filtered view claiming scores are "hidden" for an annotation that has none.
+    const { legend, plot, data } = await setup();
+    expect(legend.shadowRoot!.querySelector('protspace-score-strip')).not.toBeNull();
+
+    // Filter first, so the flag is genuinely load-bearing at this point.
+    plot.filtersActive = true;
+    plot.dispatchEvent(
+      new CustomEvent(LEGEND_EVENTS.DATA_CHANGE, {
+        detail: { data: { ...data, statisticsRows: undefined } },
+      }),
+    );
+    await legend.updateComplete;
+    expect(legend.shadowRoot!.querySelector('.score-strips-note')).not.toBeNull();
+
+    // Now switch to an annotation the run never scored, still filtered.
+    const withUnscored = {
+      ...data,
+      annotations: { ...data.annotations, unscored: data.annotations.family },
+      annotation_data: { ...data.annotation_data, unscored: new Int32Array([0, 1]) },
+      statisticsRows: undefined,
+    };
+    plot.selectedAnnotation = 'unscored';
+    plot.dispatchEvent(
+      new CustomEvent(LEGEND_EVENTS.DATA_CHANGE, { detail: { data: withUnscored } }),
+    );
+    await legend.updateComplete;
+
+    expect(legend.shadowRoot!.querySelector('.score-strips-note')).toBeNull();
+  });
 });

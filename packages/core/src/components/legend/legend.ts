@@ -179,6 +179,11 @@ export class ProtspaceLegend extends LitElement {
    */
   @state() private _hadCategoryScores = false;
   /**
+   * Which annotation `_hadCategoryScores` was earned by, so the flag survives a filter resync of
+   * that annotation but clears on a switch to any other. Not reactive: only the flag is rendered.
+   */
+  private _scoredAnnotation: string | null = null;
+  /**
    * Whether the current annotation is one of the backend's auto-clustering membership
    * columns, whose separation scores are optimistic by construction. Derived alongside
    * `_categoryScores` because both need `statisticsRows`, which render time does not see.
@@ -701,17 +706,29 @@ export class ProtspaceLegend extends LitElement {
    */
   private _sortLegendItemsForDisplay(): LegendItem[] {
     const items = [...this._legendItems];
-    if (this._currentSortMode !== 'silhouette-desc') {
+    const mode = this._currentSortMode;
+    if (mode !== 'silhouette-desc' && mode !== 'silhouette-asc') {
       return items.sort((a, b) => a.zOrder - b.zOrder);
     }
+    // Indexed once rather than a `.find()` per comparison: the comparator runs
+    // O(items · log items) times and the scan is O(categories), so a legend with a few
+    // hundred categories paid hundreds of thousands of string compares per rebuild.
+    const scoreByCategory = new Map(
+      this._categoryScores.map((score) => [score.category, score.silhouette]),
+    );
     const scoreOf = (value: string): number =>
-      this._categoryScores.find((score) => score.category === value)?.silhouette ??
-      Number.NEGATIVE_INFINITY;
+      scoreByCategory.get(value) ?? Number.NEGATIVE_INFINITY;
+    // Ascending is the header reverse button's result. Unscored categories keep sorting last
+    // either way: they sit at -Infinity, so the ascending branch negates only the scored gap.
+    const descending = mode === 'silhouette-desc';
     return items.sort((a, b) => {
       // "Other" is a bucket, not a category, so it has no score and stays last.
       if (a.value === LEGEND_VALUES.OTHER) return 1;
       if (b.value === LEGEND_VALUES.OTHER) return -1;
-      const diff = scoreOf(b.value) - scoreOf(a.value);
+      const scoreA = scoreOf(a.value);
+      const scoreB = scoreOf(b.value);
+      const unscored = scoreA === Number.NEGATIVE_INFINITY || scoreB === Number.NEGATIVE_INFINITY;
+      const diff = unscored || descending ? scoreB - scoreA : scoreA - scoreB;
       // `||` (not `!== 0 ? … :`) so an unscored pair, where diff is NaN, also falls
       // through to the zOrder tiebreak instead of coercing to a no-op comparator.
       return diff || a.zOrder - b.zOrder;
@@ -1197,10 +1214,6 @@ export class ProtspaceLegend extends LitElement {
     selectedProjectionName: string,
   ): void {
     this._clearKeyboardReorderState();
-    // Captured before `this.selectedAnnotation` is overwritten below, so `_hadCategoryScores`
-    // only resets on a genuine annotation switch, not on a filter/isolation resync that
-    // clears `statisticsRows` for the SAME annotation.
-    const annotationChanged = selectedAnnotation !== this.selectedAnnotation;
     const scatterplot = this._scatterplotController.scatterplot;
     this._eatOverlayEnabled = scatterplot?.eatOverlayEnabled ?? true;
     // The reliability slider position is legend-owned now (it drives the query
@@ -1233,9 +1246,15 @@ export class ProtspaceLegend extends LitElement {
     this._isClusterAnnotation = isAutoClusterColumn(data.statisticsRows, selectedAnnotation);
     // Sticky per annotation: a filter/isolation view clears `statisticsRows`, which must not
     // read as "this annotation was never scored" -- only a genuine annotation switch may.
+    //
+    // Keyed on the annotation the flag was actually earned by, NOT on whether
+    // `this.selectedAnnotation` differs from the incoming one: `_handleAnnotationChange` assigns
+    // `this.selectedAnnotation` before it calls `forceSync()`, so by the time this runs the two
+    // are already equal on every annotation switch and a difference test never fires.
     if (this._categoryScores.length > 0) {
       this._hadCategoryScores = true;
-    } else if (annotationChanged) {
+      this._scoredAnnotation = selectedAnnotation;
+    } else if (selectedAnnotation !== this._scoredAnnotation) {
       this._hadCategoryScores = false;
     }
     this.proteinIds = data.protein_ids;
