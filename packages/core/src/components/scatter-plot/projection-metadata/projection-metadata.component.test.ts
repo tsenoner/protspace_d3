@@ -78,10 +78,42 @@ describe('protspace-projection-metadata quality rows', () => {
 
     expect(rows(el)).toEqual([
       ['N Components', '2'],
-      ['Knn Overlap (local)', '0.578'],
+      // The registry's spelling, not the prettified column name: a known metric is named the
+      // way it is written in the literature ("kNN"), which title-casing the key cannot do.
+      ['kNN Overlap (local)', '0.578'],
       ['Trustworthiness (local)', '0.975'],
       ['Random Triplet (global)', '0.711'],
     ]);
+  });
+
+  it('explains every faithfulness metric behind an info popover', async () => {
+    // These names ("Random Triplet", "Spearman Distance") say least to a biologist of
+    // anything in the panel, and the separation metrics below them already carry an ⓘ.
+    // Leaving them bare made the section that most needed explaining the only one without it.
+    const el = await setup({
+      n_components: 2,
+      quality: {
+        knn_overlap: qualityEntry(0.57, 'local'),
+        trustworthiness: qualityEntry(0.97, 'local'),
+        continuity: qualityEntry(0.96, 'local'),
+        random_triplet: qualityEntry(0.71, 'global'),
+        spearman_distance: qualityEntry(0.53, 'global'),
+      },
+    });
+
+    const qualityRows = [...el.shadowRoot!.querySelectorAll('[data-section="quality"] .item')];
+    expect(qualityRows).toHaveLength(5);
+    for (const row of qualityRows) {
+      const popover = row.querySelector('protspace-info-popover') as
+        | (HTMLElement & { description: string })
+        | null;
+      expect(popover, row.querySelector('dt')!.textContent!.trim()).not.toBeNull();
+      expect(popover!.description.length).toBeGreaterThan(0);
+    }
+
+    // Reduction parameters are the reducer's own knobs and get no icon.
+    const parameterRow = el.shadowRoot!.querySelector('[data-section="parameters"] .item');
+    expect(parameterRow!.querySelector('protspace-info-popover')).toBeNull();
   });
 
   it('never leaves a serialized object in a value', async () => {

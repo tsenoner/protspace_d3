@@ -2495,10 +2495,11 @@ export class ProtspaceLegend extends LitElement {
    * and a metric added to that map arrives here already labelled.
    */
   private _renderScoreStrip(metric: string, points: ScoreStripPoint[], domain: [number, number]) {
-    const { label, higherIsBetter } = metricDisplay(metric);
+    const { label, higherIsBetter, description } = metricDisplay(metric);
     return html`
       <protspace-score-strip
         label=${label}
+        .description=${description}
         .higherIsBetter=${higherIsBetter}
         .points=${points}
         .domain=${domain}

@@ -61,6 +61,51 @@ const METRIC_DISPLAY: Record<
       'scale. Unlike ARI it is not corrected for chance, so it reads higher, and the gap ' +
       'between the two widens as the cluster count grows.',
   },
+
+  // Faithfulness: how well the 2D picture reproduces the embedding it came from, independent
+  // of any annotation. Same registry as the metrics above so every surface reads names,
+  // directions and explanations from one place; they never share a sorted list, so their
+  // position in `METRIC_ORDER` is immaterial.
+  knn_overlap: {
+    label: 'kNN Overlap',
+    higherIsBetter: true,
+    description:
+      "The share of each protein's nearest neighbours in the full embedding that are still " +
+      'among its nearest neighbours here, on a 0 to 1 scale. The strictest of the local ' +
+      'measures: it asks for the same neighbours, not merely nearby ones.',
+  },
+  trustworthiness: {
+    label: 'Trustworthiness',
+    higherIsBetter: true,
+    description:
+      'How much you can trust the neighbours you see: it penalises proteins drawn close ' +
+      'together here that are far apart in the full embedding. Near 1 means few such false ' +
+      'neighbours, so clusters you see on screen are unlikely to be artefacts.',
+  },
+  continuity: {
+    label: 'Continuity',
+    higherIsBetter: true,
+    description:
+      "Trustworthiness' opposite: it penalises proteins that are neighbours in the full " +
+      'embedding but got pulled apart here. Near 1 means little was torn apart, so a gap ' +
+      'you see is unlikely to hide a real relationship.',
+  },
+  random_triplet: {
+    label: 'Random Triplet',
+    higherIsBetter: true,
+    description:
+      'Take three proteins at random: does this projection agree with the full embedding ' +
+      'about which two are the closer pair? This is the share of such triplets it gets ' +
+      'right, so 0.5 is a coin flip. It reads long-range layout, not local neighbourhoods.',
+  },
+  spearman_distance: {
+    label: 'Spearman Distance',
+    higherIsBetter: true,
+    description:
+      'The rank correlation between every pairwise distance here and the same distance in ' +
+      'the full embedding. Near 1 means the overall spacing is preserved, so distances ' +
+      'across the whole plot can be compared, not just within a cluster.',
+  },
 };
 
 /**

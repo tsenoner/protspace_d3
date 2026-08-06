@@ -74,3 +74,35 @@ Angular-style commit messages, subject under 72 characters:
 - `docs(scope): description` — documentation changes
 - `test(scope): description` — test additions/changes
 - `chore(scope): description` — maintenance tasks
+
+## Do not mix frontend and backend in one PR
+
+`protspace-release.yml` is the repo's only semantic-release and the version authority for the
+**PyPI package alone**. Two rules decide whether merging cuts a release, in this order:
+
+1. **Path filter.** The workflow is `paths:`-filtered to `apps/protspace/**` plus its own
+   workflow file. A PR touching none of those **cannot** release, whatever its commit types.
+   Web-only work (`packages/**`, `apps/web/**`, `openspec/**`) triggers `deploy.yml` — a
+   GitHub Pages deploy, not a version bump. `publish-images.yml` is likewise filtered to
+   `apps/prep/**`, `apps/protspace/**`, root `pyproject.toml` / `uv.lock`.
+2. **Commit type — of the whole message, not the subject.** Once the path filter matches,
+   python-semantic-release parses the **entire** commit message. GitHub's default squash body
+   lists every branch commit, so a branch containing any `feat:` or `fix:` releases even when
+   the PR title is `refactor:` or `chore:`. (Observed: PR #387, titled
+   `refactor(protspace): …`, carried `fix(ci): relock uv.lock` and cut v4.9.1.)
+
+**Therefore: keep frontend and backend changes in separate PRs.** A web-only fix that
+incidentally touches one Python file inherits the whole release machinery and ships a PyPI
+version nobody asked for. Splitting them is cheaper than untangling a bad release.
+
+When a PR does touch `apps/protspace/**`, decide the release deliberately:
+
+- Want no release? Keep **every** branch commit a non-releasing type
+  (`ci` / `chore` / `refactor` / `test` / `docs`) — see the dev-tooling rule below.
+- Want a release? A real `fix:` or `feat:` in the branch earns it; that is correct.
+- Merging someone else's branch you cannot retype? Edit the squash body to drop the
+  `fix:` / `feat:` lines before confirming.
+
+Use `feat:` only for changes visible to **package users**. Dev-only work — tooling, CI, test
+harnesses, internal refactors — takes `chore:` / `ci:` / `test:` / `refactor:`, so it cannot
+trigger an unwanted minor bump.

@@ -18,9 +18,24 @@ import {
   hasAnnotationStats,
   isAutoClusterColumn,
   metricDescription,
+  metricDisplay,
 } from '@protspace/utils';
 import { projectionMetadataStyles } from './projection-metadata.styles';
 import '../../common/info-popover';
+
+/** One rendered `<dt>/<dd>` pair. An empty `description` renders no ⓘ. */
+interface MetadataRow {
+  label: string;
+  value: string;
+  description: string;
+}
+
+/** A faithfulness metric before display: the raw key is kept so it can be looked up. */
+interface QualityEntry {
+  metric: string;
+  scope: string | null;
+  value: unknown;
+}
 
 @customElement('protspace-projection-metadata')
 class ProtspaceProjectionMetadata extends LitElement {
@@ -88,17 +103,32 @@ class ProtspaceProjectionMetadata extends LitElement {
     `;
   }
 
-  /** One labelled block. Absent rather than empty when the projection carries no such data. */
-  private _renderSection(title: string, id: string, entries: Array<[string, string]>) {
-    if (entries.length === 0) return nothing;
+  /**
+   * One labelled block. Absent rather than empty when the projection carries no such data.
+   *
+   * A row carrying a `description` gets the same ⓘ as the separation metrics below it. The
+   * faithfulness names ("Random Triplet", "Spearman Distance") say least to a biologist of
+   * anything in this panel, so leaving them bare made the one section that most needed
+   * explaining the only one without it.
+   */
+  private _renderSection(title: string, id: string, rows: MetadataRow[]) {
+    if (rows.length === 0) return nothing;
     return html`
       <div class="section-heading">${title}</div>
       <dl data-section="${id}">
-        ${entries.map(
-          ([key, value]) => html`
+        ${rows.map(
+          (row) => html`
             <div class="item">
-              <dt>${key}</dt>
-              <dd>${value}</dd>
+              <dt>
+                ${row.label}
+                ${row.description
+                  ? html`<protspace-info-popover
+                      .description=${row.description}
+                      label=${row.label}
+                    ></protspace-info-popover>`
+                  : nothing}
+              </dt>
+              <dd>${row.value}</dd>
             </div>
           `,
         )}
@@ -229,14 +259,14 @@ class ProtspaceProjectionMetadata extends LitElement {
    * a single flat list invites reading `n_neighbors` and `trustworthiness` as peers.
    */
   private _splitMetadata(): {
-    parameters: Array<[string, string]>;
-    quality: Array<[string, string]>;
+    parameters: MetadataRow[];
+    quality: MetadataRow[];
   } {
     if (!this.projection?.metadata) return { parameters: [], quality: [] };
 
     const rawMetadata = this.projection.metadata;
     const parameterEntries: Array<[string, unknown]> = [];
-    const qualityEntries: Array<[string, unknown]> = [];
+    const qualityEntries: QualityEntry[] = [];
 
     for (const [key, value] of Object.entries(rawMetadata)) {
       const lowerKey = key.toLowerCase();
@@ -271,13 +301,28 @@ class ProtspaceProjectionMetadata extends LitElement {
       parameterEntries.push([key, value]);
     }
 
-    const format = (entries: Array<[string, unknown]>): Array<[string, string]> =>
-      entries.map(([key, value]) => [
-        this._formatMetadataKey(key),
-        this._formatMetadataValue(value, key),
-      ]);
+    const parameters: MetadataRow[] = parameterEntries.map(([key, value]) => ({
+      label: this._formatMetadataKey(key),
+      value: this._formatMetadataValue(value, key),
+      // Reduction parameters are the reducer's own knobs, documented by the reducer; only
+      // the metrics below have a registry entry to explain them.
+      description: '',
+    }));
 
-    return { parameters: format(parameterEntries), quality: format(qualityEntries) };
+    const quality: MetadataRow[] = qualityEntries.map(({ metric, scope, value }) => {
+      const display = metricDisplay(metric);
+      // A description is exactly what "the registry knows this metric" means, so it also
+      // decides whether the registry's spelling ("kNN Overlap") beats the prettified key.
+      const known = display.description.length > 0;
+      const name = known ? display.label : this._formatMetadataKey(metric);
+      return {
+        label: scope ? `${name} (${scope})` : name,
+        value: this._formatMetadataValue(value, metric),
+        description: display.description,
+      };
+    });
+
+    return { parameters, quality };
   }
 
   /**
@@ -285,11 +330,13 @@ class ProtspaceProjectionMetadata extends LitElement {
    * layout). The shared provenance each metric carries (k, seed, sampling, source embedding) is
    * dropped: it repeats per metric and would bury the five numbers worth reading.
    */
-  private _qualityEntries(quality: Record<string, unknown>): Array<[string, unknown]> {
-    return Object.entries(quality).map(([metric, entry]): [string, unknown] => {
-      if (!entry || typeof entry !== 'object' || !('value' in entry)) return [metric, entry];
+  private _qualityEntries(quality: Record<string, unknown>): QualityEntry[] {
+    return Object.entries(quality).map(([metric, entry]): QualityEntry => {
+      if (!entry || typeof entry !== 'object' || !('value' in entry)) {
+        return { metric, scope: null, value: entry };
+      }
       const { value, scope } = entry as { value: unknown; scope?: unknown };
-      return [typeof scope === 'string' ? `${metric} (${scope})` : metric, value];
+      return { metric, scope: typeof scope === 'string' ? scope : null, value };
     });
   }
 

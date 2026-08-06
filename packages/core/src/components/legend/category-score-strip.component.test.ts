@@ -9,6 +9,7 @@ type ScoreStripElement = HTMLElement & {
   points: ScoreStripPoint[];
   highlighted: string | null;
   label: string;
+  description: string;
   domain: [number, number];
   higherIsBetter: boolean;
   updateComplete: Promise<unknown>;
@@ -33,6 +34,24 @@ async function setup(points: ScoreStripPoint[] = POINTS): Promise<ScoreStripElem
 describe('protspace-score-strip', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
+  });
+
+  it('puts an info popover beside the header only when it has an explanation', async () => {
+    // The strips are where these numbers are actually read; a user scanning the legend may
+    // never open the projection-metadata panel, which explains the very same metrics.
+    const bare = await setup();
+    expect(bare.shadowRoot!.querySelector('protspace-info-popover')).toBeNull();
+
+    bare.description = 'Runs from -1 to 1.';
+    await bare.updateComplete;
+
+    const popover = bare.shadowRoot!.querySelector('protspace-info-popover') as HTMLElement & {
+      description: string;
+    };
+    expect(popover).not.toBeNull();
+    expect(popover.description).toBe('Runs from -1 to 1.');
+    // Inside the label, so it tracks the header rather than the axis.
+    expect(popover.closest('.strip-label')).not.toBeNull();
   });
 
   it('draws one dot per category, in that category colour', async () => {

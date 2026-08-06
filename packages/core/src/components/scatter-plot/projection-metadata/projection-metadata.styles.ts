@@ -9,6 +9,14 @@ export const projectionMetadataStyles = [
       top: 0.5rem;
       left: 0.5rem;
       z-index: 10;
+
+      /* protspace-info-popover is shared with the legend and themes itself from these two
+         hooks, defaulting to a neutral grey (#6b7280). This panel is built on the cool slate
+         ramp below, so an unthemed info icon sat a whole hue family away from the label
+         beside it. Set them here rather than restyling the popover: the component already
+         exposes the seam, and the legend keeps its own values. */
+      --legend-text-secondary: #64748b;
+      --legend-text-color: #334155;
     }
 
     .trigger {

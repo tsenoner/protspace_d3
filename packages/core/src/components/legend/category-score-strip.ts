@@ -3,6 +3,7 @@ import { property } from 'lit/decorators.js';
 import { formatStatValue } from '@protspace/utils';
 import { customElement } from '../../utils/safe-custom-element';
 import { srOnlyMixin } from '../../styles/mixins';
+import '../common/info-popover';
 
 /** One category's position on a score axis, painted in its legend colour. */
 export interface ScoreStripPoint {
@@ -45,6 +46,12 @@ class ProtspaceScoreStrip extends LitElement {
   @property({ type: String }) highlighted: string | null = null;
   @property({ type: String }) label = '';
   /**
+   * Explanation behind the header's ⓘ, from the shared metric registry. Empty renders no icon.
+   * The strips are where these numbers are actually read — a user scanning the legend may never
+   * open the projection-metadata panel, which explains the very same metrics.
+   */
+  @property({ type: String }) description = '';
+  /**
    * Axis bounds. Fixed at [-1, 1] for silhouette so every dataset's strip is directly
    * comparable; derived from the data for unbounded metrics such as Davies-Bouldin.
    */
@@ -70,6 +77,11 @@ class ProtspaceScoreStrip extends LitElement {
       .strip-label {
         font-weight: 600;
         color: var(--legend-text-color, #222);
+        /* Keeps the ⓘ on the label's baseline rather than letting the 18px button
+           stretch the header row. */
+        display: inline-flex;
+        align-items: center;
+        gap: 0.15rem;
       }
 
       /* Centring lands the readout on the axis line: the svg's layout box is
@@ -149,7 +161,14 @@ class ProtspaceScoreStrip extends LitElement {
 
     return html`
       <div class="strip-header">
-        <span class="strip-label">${this.label}</span>
+        <span class="strip-label"
+          >${this.label}${this.description
+            ? html`<protspace-info-popover
+                .description=${this.description}
+                label=${this.label}
+              ></protspace-info-popover>`
+            : nothing}</span
+        >
         <span>${this.higherIsBetter ? 'higher is better' : 'lower is better'}</span>
       </div>
       <div class="strip-body">

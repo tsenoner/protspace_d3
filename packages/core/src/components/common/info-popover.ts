@@ -67,7 +67,10 @@ class ProtspaceInfoPopover extends LitElement {
     }
 
     .info-button:focus-visible {
-      outline: 2px solid var(--accent-color, #3b82f6);
+      /* The repo's accent is --protspace-highlight-color (6 uses, bound to --primary in
+         scatter-plot.styles.ts). --accent-color was a second, undefined token whose #3b82f6
+         fallback rendered a different blue from the one every other focus/accent uses. */
+      outline: 2px solid var(--protspace-highlight-color, #00a3e0);
       outline-offset: 1px;
     }
 
