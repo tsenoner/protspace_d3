@@ -1,7 +1,6 @@
 """Biocentral API prediction retriever for per-protein annotations."""
 
 import logging
-import re
 import warnings
 
 from protspace.data.annotations.retrievers.base_retriever import BaseAnnotationRetriever
@@ -218,8 +217,8 @@ class BiocentralPredictionRetriever(BaseAnnotationRetriever):
         if topology is None:
             return ""
 
-        has_helix = bool(re.search(r"[Hh]", topology))
-        has_beta = bool(re.search(r"[Bb]", topology))
+        has_helix = "H" in topology or "h" in topology
+        has_beta = "B" in topology or "b" in topology
         if has_helix and has_beta:
             return "alpha-helical;beta-barrel"
         elif has_helix:
