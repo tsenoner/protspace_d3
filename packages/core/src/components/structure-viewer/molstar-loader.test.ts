@@ -62,18 +62,15 @@ describe('Mol* color theme adapter', () => {
     } as unknown as typeof window.molstar;
 
     const viewer = await createMolstarViewer(document.createElement('div'));
-    const colorViewer = viewer as typeof viewer & {
-      setColorTheme?: (mode: 'plddt' | 'ted-domains', values?: TedDomain[]) => Promise<void>;
-    };
 
     expect(addTheme).toHaveBeenCalledOnce();
-    expect(colorViewer.setColorTheme).toBeTypeOf('function');
+    expect(viewer.setColorTheme).toBeTypeOf('function');
 
-    await colorViewer.setColorTheme?.('ted-domains', domains);
+    await viewer.setColorTheme('ted-domains', domains);
     expect(updateTheme).toHaveBeenLastCalledWith(components, { color: 'protspace-ted-domain' });
     expect(rawViewer.loadStructureFromUrl).not.toHaveBeenCalled();
 
-    await colorViewer.setColorTheme?.('plddt');
+    await viewer.setColorTheme('plddt');
     expect(updateTheme).toHaveBeenLastCalledWith(components, { color: 'plddt-confidence' });
   });
 });
