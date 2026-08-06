@@ -72,3 +72,27 @@
 - [x] 12.2 Run Ruff, the complete relevant Python and hosted-prep suites, strict OpenSpec
       validation, and `pnpm precommit`.
 - [x] 12.3 Prepare the verified change for inline review replies and pushed CI.
+
+## 13. Source Precedence and Optimized-Path Regressions
+
+- [x] 13.1 Add a manager regression proving InterPro prefers a UniProt canonical
+      sequence while Biocentral prefers the submitted FASTA sequence, and observe it
+      fail.
+- [x] 13.2 Add a CLI regression proving UniProt-only FASTA annotation does not parse or
+      retain sequences, and observe it fail.
+- [x] 13.3 Extend the optimized bundle conversion contract with the negative and missing
+      TMbed sentinel assertions.
+
+## 14. Source-Aware Sequence Handling and Documentation
+
+- [x] 14.1 Apply source-specific sequence precedence in the annotation manager.
+- [x] 14.2 Parse FASTA sequences only when a requested annotation source consumes them.
+- [x] 14.3 Document that mixed TMbed predictions expose both transmembrane categories.
+
+## 15. Latest Review Verification
+
+- [x] 15.1 Run focused annotation-manager, CLI, and bundle-contract checks.
+- [x] 15.2 Run Ruff, the complete relevant Python and hosted-prep suites, strict OpenSpec
+      validation, and `pnpm precommit`.
+- [x] 15.3 Prepare the verified changes and per-item dispositions for the newest review
+      reply.

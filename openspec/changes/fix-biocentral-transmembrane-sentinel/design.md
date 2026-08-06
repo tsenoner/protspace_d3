@@ -67,13 +67,21 @@ optional topology payload. A shared extractor therefore owns the missing-payload
 before either annotation interprets the topology, preventing one annotation from
 inventing a completed negative result when the other reports missing data.
 
-### Pass FASTA sequences through the standalone annotation command
+### Pass FASTA sequences to the sources that consume them
 
-The standalone `annotate` command will parse the FASTA into a canonical identifier to
-sequence map and pass it to `ProteinAnnotationManager`. The manager already gives local
-sequences priority and uses UniProt sequences only as fallback, so this closes the input
-handoff without changing annotation-source behavior. HDF5 inputs continue to omit a
-local sequence map and retain their existing UniProt-fallback behavior.
+When a requested source consumes sequences, the standalone `annotate` command will
+parse the FASTA into a canonical identifier-to-sequence map and pass it to
+`ProteinAnnotationManager`. UniProt-only and taxonomy-only requests will retain the
+streaming identifier scan without materializing the full sequence map. HDF5 inputs
+continue to omit a local sequence map and retain their existing UniProt-fallback
+behavior.
+
+Sequence precedence is source-specific. Biocentral predicts the sequence supplied in
+the FASTA, using UniProt only as a fallback for identifiers with no local sequence.
+InterPro indexes precomputed matches by sequence hash, so it uses UniProt's canonical
+sequence when available and falls back to the FASTA sequence for identifiers UniProt
+cannot resolve. This keeps FASTA-only identifiers annotatable without replacing valid
+canonical InterPro matches when the submitted sequence differs.
 
 The hosted prep service already normalizes FASTA headers and supplies that normalized
 file to `protspace annotate`; regression coverage pins that normalization preserves the
@@ -97,6 +105,9 @@ producer and contract fixtures to drift apart.
   contract correction and document the new vocabulary in both CLI and web metadata.
 - [Contract fixture imports more producer code] → Use a minimal synthetic TMbed
   prediction and retain the real bundle CLI as the serialization boundary.
+- [FASTA and UniProt sequences differ] → Keep the submitted sequence authoritative
+  for Biocentral predictions and the canonical sequence authoritative for InterPro's
+  precomputed hash lookup, with the other source as fallback in each case.
 
 ## Migration Plan
 

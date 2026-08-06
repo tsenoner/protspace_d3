@@ -306,6 +306,16 @@ describe('the optimized conversion path real datasets take', () => {
     expect(data.annotations.family.values.join('|')).not.toContain('%3B');
     expect(data.annotations.domains.values).toContain('DomA');
     expect(data.annotations.domains.values).toContain('DomB');
+    expect(data.annotations.predicted_transmembrane.values).toContain(
+      manifest.negativeTransmembraneCategory,
+    );
+    expect(
+      getProteinAnnotationValues(
+        data,
+        manifest.missingTransmembraneIndex,
+        'predicted_transmembrane',
+      ),
+    ).toEqual(['__NA__']);
 
     const lengths = data.numeric_annotation_data?.length;
     expect(lengths).toHaveLength(manifest.largeProteinCount);

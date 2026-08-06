@@ -12,8 +12,9 @@ N/A and cannot be distinguished from proteins whose prediction is actually absen
 - Preserve absent or malformed Biocentral predictions, including TMbed prediction
   objects whose optional payload is `None`, empty, non-string, or contains unsupported
   topology labels, as missing values for both derived TMbed annotations.
-- Preserve FASTA sequences through the standalone `annotate` command so
-  sequence-backed predictions do not depend on UniProt resolving the identifier.
+- Preserve FASTA sequences through the standalone `annotate` command when a requested
+  source needs them, using source-appropriate precedence when UniProt also supplies a
+  canonical sequence.
 - Add regression coverage across the Python annotation producer and TypeScript
   bundle consumer boundary.
 - Update generated annotation documentation to describe the corrected category.
