@@ -75,34 +75,40 @@ Angular-style commit messages, subject under 72 characters:
 - `test(scope): description` — test additions/changes
 - `chore(scope): description` — maintenance tasks
 
-## Do not mix frontend and backend in one PR
+## Never squash-merge a PR that touches `apps/protspace/`
 
-`protspace-release.yml` is the repo's only semantic-release and the version authority for the
-**PyPI package alone**. Two rules decide whether merging cuts a release, in this order:
+**Mixing frontend and backend in one PR is fine** — it is one of the reasons the two repos
+were merged. The release tooling is built for it, and it works _per commit_:
 
-1. **Path filter.** The workflow is `paths:`-filtered to `apps/protspace/**` plus its own
-   workflow file. A PR touching none of those **cannot** release, whatever its commit types.
-   Web-only work (`packages/**`, `apps/web/**`, `openspec/**`) triggers `deploy.yml` — a
-   GitHub Pages deploy, not a version bump. `publish-images.yml` is likewise filtered to
-   `apps/prep/**`, `apps/protspace/**`, root `pyproject.toml` / `uv.lock`.
-2. **Commit type — of the whole message, not the subject.** Once the path filter matches,
-   python-semantic-release parses the **entire** commit message. GitHub's default squash body
-   lists every branch commit, so a branch containing any `feat:` or `fix:` releases even when
-   the PR title is `refactor:` or `chore:`. (Observed: PR #387, titled
-   `refactor(protspace): …`, carried `fix(ci): relock uv.lock` and cut v4.9.1.)
+- `protspace-release.yml` is the repo's only semantic-release and the version authority for
+  the **PyPI package alone**. It is `paths:`-filtered to `apps/protspace/**` plus its own
+  workflow file, so a PR touching neither cannot release at all. Web-only work triggers
+  `deploy.yml` (a Pages deploy, not a version bump).
+- Once it runs, `commit_parser = "conventional-monorepo"` with `path_filters = ["."]`
+  (`apps/protspace/pyproject.toml`) counts **only commits that touch `apps/protspace/`**. A
+  `feat(core):` commit in the same PR that only touches `packages/` is ignored — it cannot
+  inflate the Python version or land in its changelog.
 
-**Therefore: keep frontend and backend changes in separate PRs.** A web-only fix that
-incidentally touches one Python file inherits the whole release machinery and ships a PyPI
-version nobody asked for. Splitting them is cheaper than untangling a bad release.
+**Squash-merging destroys that scoping.** Squashing collapses every branch commit into one
+commit that touches _all_ the paths at once, so:
 
-When a PR does touch `apps/protspace/**`, decide the release deliberately:
+- it passes the path filter as long as _anything_ in the PR touched `apps/protspace/`, and
+- there are no longer separate commits to scope — the single message is parsed as a whole,
+  and GitHub's default squash body (`squash_merge_commit_message: COMMIT_MESSAGES`) lists
+  every branch commit subject.
 
-- Want no release? Keep **every** branch commit a non-releasing type
-  (`ci` / `chore` / `refactor` / `test` / `docs`) — see the dev-tooling rule below.
-- Want a release? A real `fix:` or `feat:` in the branch earns it; that is correct.
-- Merging someone else's branch you cannot retype? Edit the squash body to drop the
-  `fix:` / `feat:` lines before confirming.
+A frontend `feat:` therefore bumps the Python package. Observed 2026-07-24: PR #387, titled
+`refactor(protspace): …`, carried `fix(ci): relock uv.lock` in its squash body and cut v4.9.1.
 
-Use `feat:` only for changes visible to **package users**. Dev-only work — tooling, CI, test
-harnesses, internal refactors — takes `chore:` / `ci:` / `test:` / `refactor:`, so it cannot
-trigger an unwanted minor bump.
+**So: use a merge commit or rebase merge.** Both keep each commit's own paths and own type,
+which is exactly what the monorepo parser needs. Squash is only safe for a PR that touches
+no Python at all — and such a PR cannot release anyway.
+
+Commit types still matter, per commit:
+
+- Want no release from a backend-touching commit? Give it a non-releasing type
+  (`ci` / `chore` / `refactor` / `test` / `docs`).
+- A real `fix:` or `feat:` under `apps/protspace/` earns a release; that is correct.
+- Use `feat:` only for changes visible to **package users**. Dev-only work — tooling, CI,
+  test harnesses, internal refactors — takes `chore:` / `ci:` / `test:` / `refactor:`, so it
+  cannot trigger an unwanted minor bump.
