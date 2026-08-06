@@ -13,6 +13,11 @@ provide a sequence length.
 - **THEN** the output length equals the number of residues in that FASTA
   sequence
 
+#### Scenario: FASTA sequence contains non-residue markers
+
+- **WHEN** a matching FASTA sequence contains `*` terminator or `-` gap markers
+- **THEN** those markers are excluded from the derived residue count
+
 #### Scenario: UniProt provides a sequence length
 
 - **WHEN** a protein has both a non-empty UniProt sequence length and a matching
@@ -38,6 +43,20 @@ provide a sequence length.
 - **WHEN** a complete annotation cache has a non-empty sequence length and a
   matching FASTA sequence is available
 - **THEN** the warm-cache output retains the cached sequence length
+
+#### Scenario: Directory-based HDF5 input supplies a FASTA file
+
+- **WHEN** `protspace prepare` receives a directory of HDF5 files and a FASTA
+  file through `-f`
+- **THEN** the annotation pipeline can use matching sequences from that FASTA
+  file for the missing-length fallback
+
+#### Scenario: UniProt retrieval fails before producing rows
+
+- **WHEN** UniProt retrieval fails and a matching local FASTA sequence is
+  available for only some proteins
+- **THEN** the output retains a uniform length column and fills the matching
+  proteins independently of row order
 
 #### Scenario: No source provides a sequence length
 

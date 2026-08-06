@@ -29,7 +29,9 @@ FASTA sequence is available.
 - Preserve non-empty UniProt sequence lengths.
 - Apply the fallback before annotation rows are merged and formatted.
 - Apply the fallback when `protspace annotate` receives FASTA input.
+- Preserve the supplied FASTA path for directory-based HDF5 input.
 - Apply the fallback to complete cache hits without refetching API annotations.
+- Exclude FASTA terminator and gap markers from the derived residue count.
 - Protect both fallback and precedence behavior with focused tests.
 - Keep the annotation references synchronized with the fallback and precedence
   behavior.
@@ -68,6 +70,10 @@ Any non-empty UniProt `length` value remains unchanged, even if it differs from
 the local sequence length. The issue concerns unmapped proteins; defining
 canonical-versus-construct reconciliation is outside this change.
 
+The derived value counts amino-acid residues. FASTA `*` terminator markers and
+`-` alignment-gap markers are accepted input syntax but are not residues, so
+they are excluded from the fallback count.
+
 ### Enrich complete cache hits before returning them
 
 When the cache contains all requested columns and annotation refetching is not
@@ -93,6 +99,21 @@ the reduction pipeline. The command will pass that map to
 This repairs both direct CLI usage and the hosted preparation service without
 duplicating fallback logic or changing FASTA parsing and normalization policy.
 
+### Preserve FASTA access for directory-based HDF5 input
+
+`protspace prepare -i <directory> -f <fasta>` loads the directory into one
+embedding set. Attach the supplied FASTA path to that set exactly as the
+single-HDF5 branch already does so sequence extraction and annotation fallback
+have identical inputs in both supported HDF5 forms.
+
+### Keep failed UniProt rows schema-uniform
+
+If the top-level UniProt request fails, create empty rows with the complete
+UniProt annotation schema, matching the retriever's invalid-identifier and
+batch-failure paths. Downstream formatters derive their columns from the first
+row, so uniform keys prevent FASTA-derived lengths from being retained or
+dropped based on row order.
+
 ## Risks / Trade-offs
 
 - **[Identifier mismatch prevents fallback]** → Continue using the pipeline's
@@ -108,6 +129,10 @@ duplicating fallback logic or changing FASTA parsing and normalization policy.
 - **[Standalone identifiers and sequence keys diverge]** → Normalize parsed
   FASTA keys with the existing `parse_identifier` helper before passing them to
   the manager.
+- **[FASTA syntax inflates the derived length]** → Exclude `*` terminator and
+  `-` gap markers from the residue count.
+- **[UniProt failure creates heterogeneous rows]** → Reuse the complete
+  `UNIPROT_ANNOTATIONS` key set for top-level failure rows.
 
 ## Migration Plan
 

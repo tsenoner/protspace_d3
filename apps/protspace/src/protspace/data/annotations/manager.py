@@ -46,7 +46,9 @@ def _resolve_fasta_sequence_length(
 ) -> object:
     """Return a FASTA-derived length only when the existing value is empty."""
     sequence = sequences.get(identifier, "") if sequences else ""
-    return length if length or not sequence else str(len(sequence))
+    if length or not sequence:
+        return length
+    return str(sum(character not in "*-" for character in sequence))
 
 
 class ProteinAnnotationManager:
@@ -251,9 +253,13 @@ class ProteinAnnotationManager:
         except Exception as e:
             failed_sources.append(f"UniProt ({str(e)})")
             logger.warning(f"Failed to retrieve UniProt annotations: {e}")
-            # Create minimal annotation set with just identifiers
+            # Preserve the same row schema as normal UniProt responses so later
+            # formatting cannot drop columns based on which protein comes first.
             return [
-                ProteinAnnotations(identifier=header, annotations={"organism_id": ""})
+                ProteinAnnotations(
+                    identifier=header,
+                    annotations=dict.fromkeys(UNIPROT_ANNOTATIONS, ""),
+                )
                 for header in self.headers
             ]
 

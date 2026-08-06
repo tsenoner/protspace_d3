@@ -10,7 +10,10 @@ to display the sequence length as unavailable.
 - Derive a missing sequence length from the matching local FASTA sequence.
 - Supply normalized FASTA sequences to the standalone `protspace annotate`
   command used by the hosted preparation service.
+- Preserve FASTA access when `protspace prepare` loads a directory of HDF5
+  embeddings with `-f`.
 - Apply the same fallback when a complete annotation cache satisfies the run.
+- Count amino-acid residues rather than FASTA terminator or gap markers.
 - Preserve a non-empty length returned by UniProt.
 - Keep the existing missing-value behavior when neither source provides a
   sequence length.
@@ -32,8 +35,8 @@ None.
 
 - Affects the Python annotation orchestration in
   `apps/protspace/src/protspace/data/annotations/manager.py`, the standalone
-  annotation command, and the complete-cache branch in
-  `apps/protspace/src/protspace/data/processors/pipeline.py`.
+  annotation command, the HDF5-directory preparation path, and the
+  complete-cache branch in `apps/protspace/src/protspace/data/processors/pipeline.py`.
 - Adds focused manager, standalone annotation, and warm-cache pipeline tests.
 - Updates both annotation references to describe FASTA fallback behavior.
 - Does not change public APIs, file formats, dependencies, or UniProt precedence.

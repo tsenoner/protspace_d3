@@ -33,3 +33,15 @@
 - [x] 5.3 Update both annotation references with missing-only FASTA fallback and
       UniProt-over-FASTA precedence.
 - [x] 5.4 Run focused, package, docs, OpenSpec, and repository verification gates.
+
+## 6. Review Follow-up: Edge Cases
+
+- [x] 6.1 Add regressions for FASTA marker counting, UniProt failure schema
+      uniformity, and directory-HDF5 FASTA propagation; record the expected RED
+      failures.
+- [x] 6.2 Exclude `*` and `-` from FASTA-derived residue counts.
+- [x] 6.3 Preserve the complete UniProt schema on top-level retrieval failure.
+- [x] 6.4 Attach `-f` FASTA input to directory-loaded HDF5 embedding sets.
+- [x] 6.5 Synchronize user-facing annotation metadata and identifier-matching
+      documentation.
+- [x] 6.6 Run focused, package, docs, OpenSpec, and repository verification gates.
