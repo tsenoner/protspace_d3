@@ -445,6 +445,7 @@ class ReductionPipeline:
                     return self._merge_csv(api_df, csv_df)
 
                 from protspace.data.annotations.configuration import (
+                    TAXONOMY_LOOKUP_ANNOTATION,
                     AnnotationConfiguration,
                 )
 
@@ -466,9 +467,6 @@ class ReductionPipeline:
                         logger.info(f"--refetch: re-fetching {', '.join(refetched)}")
                     # Drop cached columns for refetched sources so manager
                     # re-fetches them
-                    from protspace.data.annotations.configuration import (
-                        TAXONOMY_LOOKUP_ANNOTATION,
-                    )
                     from protspace.data.annotations.configuration import (
                         AnnotationConfiguration as AnnCfg,
                     )

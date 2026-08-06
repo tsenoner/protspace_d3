@@ -186,7 +186,7 @@ class ProteinAnnotationManager:
         # 5. Remove internal-only columns from final output
         # (organism_id for taxonomy, sequence for InterPro)
         # Keep columns that the user explicitly requested
-        internal_columns = ["organism_id", "sequence"]
+        internal_columns = [TAXONOMY_LOOKUP_ANNOTATION, "sequence"]
         if self.user_annotations:
             internal_columns = [
                 col for col in internal_columns if col not in self.user_annotations
@@ -218,7 +218,9 @@ class ProteinAnnotationManager:
             logger.warning(f"Failed to retrieve UniProt annotations: {e}")
             # Create minimal annotation set with just identifiers
             return [
-                ProteinAnnotations(identifier=header, annotations={"organism_id": ""})
+                ProteinAnnotations(
+                    identifier=header, annotations={TAXONOMY_LOOKUP_ANNOTATION: ""}
+                )
                 for header in self.headers
             ]
 
