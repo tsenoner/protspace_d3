@@ -23,16 +23,7 @@ as a spec **before** writing implementation code.
 - **Trivial changes** (typo, one-line fix, formatting, dependency bump) do not need a full
   proposal — use judgment.
 
-**Local setup (one time per machine):**
-
-```bash
-npm i -g @fission-ai/openspec   # the workflow skills shell out to this CLI
-openspec init                   # generates per-tool skills/commands for this repo
-```
-
-Only this `AGENTS.md` and the `openspec/` directory (specs + changes) are committed. The per-tool
-skills/commands under `.claude/` and `.codex/`, and Codex's global prompts in `~/.codex/prompts/`,
-are CLI-generated and gitignored — regenerate them with `openspec init` / `openspec update`.
+One-time CLI setup is in [CONTRIBUTING.md](CONTRIBUTING.md#openspec-one-time-per-machine).
 
 ## Before committing
 
@@ -51,38 +42,22 @@ explicitly when you have not staged everything.
 
 ## End-to-end tests (Playwright)
 
-`e2e.yml` is the only suite that drives the real app in a browser, and it is the only place
-several whole subsystems are covered at all — EAT provenance connectors, isolation, dataset
-swap. Nothing in `pnpm precommit` touches them.
+`e2e.yml` is the only suite that drives the real app in a browser, so several subsystems —
+EAT provenance connectors, isolation, dataset swap — have no other coverage at all.
+`pnpm precommit` does not touch them.
 
-When it runs:
-
-| Trigger                                                            | Runs?                           |
-| ------------------------------------------------------------------ | ------------------------------- |
-| PR touching `apps/web/**`, `packages/core/**`, `packages/utils/**` | yes, on every push              |
-| Backend-only PR                                                    | no — dispatch by hand if wanted |
-| Nightly on `main` (03:00 UTC)                                      | yes                             |
-| `gh workflow run e2e.yml --ref <branch>`                           | yes, any branch                 |
-
-A `concurrency` group cancels superseded PR runs, so a burst of pushes costs one ~8-minute
-run rather than one per commit. Cancellation is scoped to `pull_request`: the nightly and
-manual dispatches always finish.
-
-**Why the paths filter and not a label.** Until 2026-08-06 this suite was gated on a
-`run-e2e` label that did not exist, so it had never run on a pull request — 56 consecutive
-`skipped`. PR #389 merged a regression that deleted every EAT provenance connector on a
-projection change; every other check was green, and only the nightly would have caught it,
-on `main`, the next morning. A label cannot be the fix here: a `paths:` filter suppresses
-the webhook itself, so a label added to a PR outside those paths can never start a run.
-
-**A red E2E run is worth reproducing before you dismiss it.** That regression failed 6/6 in
-CI and 0/17 locally. Local passes prove nothing about it; compare against the nightly's
-history on `main` instead (`gh run list --workflow=e2e.yml --event=schedule`), which is the
-only long-running green baseline. To run it locally:
+It runs on PRs touching `apps/web/**`, `packages/core/**` or `packages/utils/**`, and
+nightly on `main`. For anything else, dispatch it:
 
 ```bash
-npx playwright test -c apps/web/tests/playwright.config.ts
+gh workflow run e2e.yml --ref <branch>                       # in CI, any branch
+npx playwright test -c apps/web/tests/playwright.config.ts   # locally
 ```
+
+**Never dismiss a red run as flaky on the strength of local passes.** The regression that
+prompted this section failed 6/6 in CI and 0/17 locally. The baseline worth comparing
+against is the nightly's history on `main` (`gh run list --workflow=e2e.yml
+--event=schedule`), not your machine.
 
 ## Python workspace members (uv)
 
