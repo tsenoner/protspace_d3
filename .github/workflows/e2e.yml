@@ -4,17 +4,10 @@ on:
   schedule:
     - cron: '0 3 * * *'
   pull_request:
-    # `synchronize` is deliberately included: the value of this suite is that the state
-    # actually being merged is green. PR #389's connector regression arrived mid-branch,
-    # days after the PR opened, so running only on `opened` would have missed it.
+    # Keep `synchronize`: the state that gets merged is the one worth testing.
     types: [opened, reopened, synchronize]
-    # Only the trees these tests can exercise. Backend-only PRs — 16 of the last 20 merged —
-    # never start the suite.
-    #
-    # This replaces the previous `run-e2e` label gate rather than joining it: a `paths:`
-    # filter suppresses the webhook itself, so a label added to a PR outside these paths
-    # could never start a run. To cover such a PR, dispatch it by hand:
-    #   gh workflow run e2e.yml --ref <branch>
+    # Do not add a label gate alongside this. `paths:` suppresses the webhook, so a label
+    # on a PR outside these paths can never start a run; use `workflow_dispatch` instead.
     paths:
       - 'apps/web/**'
       - 'packages/core/**'
@@ -22,12 +15,10 @@ on:
       - '.github/workflows/e2e.yml'
   workflow_dispatch:
 
-# One run per ref. A burst of pushes cancels its own superseded runs, so an active branch
-# costs one ~8-minute run per burst rather than one per commit — only the last push, the
-# one that gets merged, runs to completion. Never cancels outside a PR: the nightly on main
-# and any manual dispatch must always finish.
 concurrency:
   group: e2e-${{ github.ref }}
+  # PRs only: a burst of pushes should cancel its superseded runs, but the nightly on main
+  # and manual dispatches must always finish.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
