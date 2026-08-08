@@ -42,7 +42,13 @@ export default defineConfig({
 
   // Headless WebGL (SwiftShader) is CPU-bound, so leave cores free for the dev
   // server and OS; 50% of cores is a good balance. CI runners are smaller.
-  workers: process.env.CI ? 2 : '50%',
+  //
+  // 3 of the CI runner's 4 vCPUs. At 2 the suite ran 800s of test time in 455s of wall
+  // clock -- 1.76x on a 4-core box, with a core idle. The risk of going higher is not
+  // throughput but stability: `failOnFlakyTests` means a timeout lost to CPU contention
+  // turns the run red, and this suite polls on real rendering. Trialled over repeated CI
+  // runs before landing; if reds appear, drop back to 2 rather than raising the timeouts.
+  workers: process.env.CI ? 3 : '50%',
 
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
 
