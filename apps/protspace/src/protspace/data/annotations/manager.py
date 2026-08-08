@@ -39,6 +39,18 @@ from protspace.data.io.writers import AnnotationWriter
 logger = logging.getLogger(__name__)
 
 
+def _resolve_fasta_sequence_length(
+    identifier: str,
+    length: object,
+    sequences: dict[str, str] | None,
+) -> object:
+    """Return a FASTA-derived length only when the existing value is empty."""
+    sequence = sequences.get(identifier, "") if sequences else ""
+    if length or not sequence:
+        return length
+    return str(sum(character not in "*-" for character in sequence))
+
+
 class ProteinAnnotationManager:
     """Orchestrator for protein annotation extraction workflow."""
 
@@ -132,6 +144,7 @@ class ProteinAnnotationManager:
             if self.sources_to_fetch["uniprot"]
             else cached_uniprot
         )
+        uniprot_annotations = self._fill_missing_fasta_lengths(uniprot_annotations)
         taxonomy_annotations = (
             self._fetch_taxonomy(uniprot_annotations, failed_sources)
             if self.sources_to_fetch["taxonomy"]
@@ -199,6 +212,36 @@ class ProteinAnnotationManager:
 
         return df
 
+    def _fill_missing_fasta_lengths(
+        self, proteins: list[ProteinAnnotations]
+    ) -> list[ProteinAnnotations]:
+        """Fill empty sequence lengths from matching local FASTA sequences."""
+        if not self.sequences:
+            return proteins
+
+        result = []
+        for protein in proteins:
+            length = protein.annotations.get("length")
+            resolved_length = _resolve_fasta_sequence_length(
+                protein.identifier,
+                length,
+                self.sequences,
+            )
+            if resolved_length == length:
+                result.append(protein)
+                continue
+
+            result.append(
+                ProteinAnnotations(
+                    identifier=protein.identifier,
+                    annotations={
+                        **protein.annotations,
+                        "length": resolved_length,
+                    },
+                )
+            )
+        return result
+
     def _fetch_uniprot(self, failed_sources: list) -> list[ProteinAnnotations]:
         """Fetch UniProt annotations."""
         try:
@@ -210,9 +253,13 @@ class ProteinAnnotationManager:
         except Exception as e:
             failed_sources.append(f"UniProt ({str(e)})")
             logger.warning(f"Failed to retrieve UniProt annotations: {e}")
-            # Create minimal annotation set with just identifiers
+            # Preserve the same row schema as normal UniProt responses so later
+            # formatting cannot drop columns based on which protein comes first.
             return [
-                ProteinAnnotations(identifier=header, annotations={"organism_id": ""})
+                ProteinAnnotations(
+                    identifier=header,
+                    annotations=dict.fromkeys(UNIPROT_ANNOTATIONS, ""),
+                )
                 for header in self.headers
             ]
 

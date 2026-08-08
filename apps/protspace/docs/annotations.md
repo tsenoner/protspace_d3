@@ -20,10 +20,12 @@ Annotation sources have different requirements for protein identifiers:
 
 | Requirement | Sources | Works with `-f` FASTA? |
 | ----------- | ------- | ---------------------- |
-| **UniProt accession** | UniProt, Taxonomy, TED | No — accession needed |
+| **UniProt accession** | UniProt, Taxonomy, TED | No* — accession needed |
 | **Protein sequence** | InterPro, Biocentral, Pfam CLANS | Yes — provide `-f` |
 
-If your H5 keys are not valid UniProt accessions (e.g., `NCBI|...`, custom IDs), accession-dependent annotations will be empty. Sequence-dependent annotations can still work if you provide the original FASTA file with `-f`.
+\* `length` is the exception: when UniProt does not provide a sequence length, ProtSpace derives it from a matching FASTA sequence. A non-empty UniProt length remains authoritative, even when a FASTA sequence is available.
+
+If your H5 keys are not valid UniProt accessions, other accession-dependent annotations will be empty. Sequence-dependent annotations and the missing-length fallback can still work when the H5 keys match the identifiers parsed from the FASTA file supplied with `-f` (for example, the same bare accession or custom ID).
 
 ## Group Presets
 
@@ -75,7 +77,7 @@ With `--keep-tmp`, only API-fetched annotations are cached; the CSV is always re
 | `go_cc`                   | GO — Cellular Component              | `nucleus\|IDA;cytoplasm\|IEA`                                  |
 | `go_mf`                   | GO — Molecular Function              | `DNA binding\|IDA;protein binding\|IEA`                        |
 | `keyword`                 | UniProt keywords                     | `KW-0002 (3D-structure);KW-0025 (Alternative splicing)`        |
-| `length`                  | Sequence length (amino acids)        | `393`                                                          |
+| `length`                  | Sequence length (UniProt-preferred; FASTA fallback when missing; `*` and `-` are not counted as residues) | `393`                                                          |
 | `protein_existence`       | Evidence level for protein existence | `Evidence at protein level`                                    |
 | `protein_families`        | First protein family                 | `Protein kinase superfamily\|ISS`                              |
 | `reviewed`                | Swiss-Prot / TrEMBL                  | `true` / `false`                                               |

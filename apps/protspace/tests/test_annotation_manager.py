@@ -439,6 +439,83 @@ class TestUniProtTransformer:
 class TestIntegration:
     """Integration tests for complete workflows."""
 
+    @patch("src.protspace.data.annotations.manager.UniProtRetriever")
+    def test_uses_fasta_sequence_length_when_uniprot_length_is_missing(
+        self, mock_uniprot_retriever
+    ):
+        mock_uniprot_retriever.return_value.fetch_annotations.return_value = [
+            ProteinAnnotations(
+                identifier="custom_protein",
+                annotations={"length": ""},
+            )
+        ]
+        extractor = ProteinAnnotationExtractor(
+            headers=["custom_protein"],
+            annotations=["length"],
+            sequences={"custom_protein": "MPEPTIDE"},
+        )
+
+        result = extractor.to_pd()
+
+        assert result.loc[0, "length"] == "8"
+
+    @patch("src.protspace.data.annotations.manager.UniProtRetriever")
+    def test_preserves_uniprot_length_when_fasta_sequence_is_available(
+        self, mock_uniprot_retriever
+    ):
+        mock_uniprot_retriever.return_value.fetch_annotations.return_value = [
+            ProteinAnnotations(
+                identifier="P01308",
+                annotations={"length": "110"},
+            )
+        ]
+        extractor = ProteinAnnotationExtractor(
+            headers=["P01308"],
+            annotations=["length"],
+            sequences={"P01308": "MPEPTIDE"},
+        )
+
+        result = extractor.to_pd()
+
+        assert result.loc[0, "length"] == "110"
+
+    @patch("src.protspace.data.annotations.manager.UniProtRetriever")
+    def test_counts_residues_not_fasta_gap_or_terminator_markers(
+        self, mock_uniprot_retriever
+    ):
+        mock_uniprot_retriever.return_value.fetch_annotations.return_value = [
+            ProteinAnnotations(
+                identifier="custom_protein",
+                annotations={"length": ""},
+            )
+        ]
+        extractor = ProteinAnnotationExtractor(
+            headers=["custom_protein"],
+            annotations=["length"],
+            sequences={"custom_protein": "M-PEP*"},
+        )
+
+        result = extractor.to_pd()
+
+        assert result.loc[0, "length"] == "4"
+
+    @patch("src.protspace.data.annotations.manager.UniProtRetriever")
+    def test_retains_length_column_when_uniprot_request_fails(
+        self, mock_uniprot_retriever
+    ):
+        mock_uniprot_retriever.return_value.fetch_annotations.side_effect = (
+            RuntimeError("offline")
+        )
+        extractor = ProteinAnnotationExtractor(
+            headers=["no_sequence", "custom_protein"],
+            annotations=["length"],
+            sequences={"custom_protein": "MPEPTIDE"},
+        )
+
+        result = extractor.to_pd()
+
+        assert result["length"].tolist() == ["", "8"]
+
     @patch("src.protspace.data.annotations.manager.TaxonomyRetriever")
     @patch("src.protspace.data.annotations.manager.UniProtRetriever")
     def test_to_pd_complete_workflow(

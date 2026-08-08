@@ -491,7 +491,10 @@ def prepare(
                     if not h5s:
                         logger.warning(f"No embedding files in: {path}")
                         continue
-                    embedding_sets.append(load_h5(h5s, name_override=name_override))
+                    emb_set = load_h5(h5s, name_override=name_override)
+                    if fasta_for_similarity:
+                        emb_set.fasta_path = fasta_for_similarity
+                    embedding_sets.append(emb_set)
                 elif path.suffix.lower() in EMBEDDING_EXTENSIONS:
                     emb_set = load_h5([path], name_override=name_override)
                     # Attach FASTA path from -f flag if provided (for sequence reuse)

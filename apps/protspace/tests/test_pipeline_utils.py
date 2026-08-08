@@ -3,6 +3,7 @@
 from collections import Counter
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from protspace.data.loaders.embedding_set import (
@@ -343,6 +344,57 @@ class TestResolveAnnotationNames:
 
     def test_tsv_path(self):
         assert self._resolve(["data.tsv", "ec"]) == (["ec"], "data.tsv")
+
+
+# ---------------------------------------------------------------------------
+# complete annotation cache
+# ---------------------------------------------------------------------------
+
+
+class TestCompleteAnnotationCache:
+    def test_fills_only_missing_cached_lengths_from_fasta(self, tmp_path):
+        fasta_path = tmp_path / "input.fasta"
+        fasta_path.write_text(">custom_protein\nMPEPTIDE\n>cached_protein\nMPEPTIDE\n")
+        cache_path = tmp_path / "all_annotations.parquet"
+        cached = pd.DataFrame(
+            [
+                {
+                    "identifier": "custom_protein",
+                    "length": "",
+                    "gene_name": "",
+                    "protein_name": "",
+                    "uniprot_kb_id": "",
+                },
+                {
+                    "identifier": "cached_protein",
+                    "length": "110",
+                    "gene_name": "",
+                    "protein_name": "",
+                    "uniprot_kb_id": "",
+                },
+            ]
+        )
+        cached.to_parquet(cache_path, index=False)
+        embedding_set = EmbeddingSet(
+            name="test",
+            data=np.zeros((2, 2), dtype=np.float32),
+            headers=["custom_protein", "cached_protein"],
+            fasta_path=fasta_path,
+        )
+        pipeline = ReductionPipeline(
+            PipelineConfig(
+                methods=[MethodSpec("pca", 2)],
+                output_path=tmp_path / "out.zip",
+                keep_tmp=True,
+                intermediate_dir=tmp_path,
+                annotations=["length"],
+            )
+        )
+
+        result = pipeline._fetch_annotations(embedding_set.headers, [embedding_set])
+
+        assert result["length"].tolist() == ["8", "110"]
+        assert pd.read_parquet(cache_path)["length"].tolist() == ["", "110"]
 
 
 # ---------------------------------------------------------------------------
