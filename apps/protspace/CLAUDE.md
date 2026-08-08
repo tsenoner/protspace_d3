@@ -269,7 +269,7 @@ For a live count run `uv run pytest tests/ --collect-only -q`.
 | `test_interpro_annotation_retriever.py` | InterPro API mocking, parsing |
 | `test_settings_converter.py` | Settings table ↔ visualization state conversion |
 | `test_uniprot_annotation_retriever.py` | UniProt API mocking, inactive entry resolution |
-| `test_pipeline_utils.py` | ReductionPipeline, EmbeddingSet, method parsing, multi-input merging, inline param overrides |
+| `test_pipeline_utils.py` | ReductionPipeline, notebook input/annotation/projection cache identity, EmbeddingSet, method parsing, multi-input merging, inline param overrides |
 | `test_stats.py` | Projection statistics: elbow, annotation-based validity (silhouette/DBI/CH per annotation), auto-cluster ARI/NMI agreement, auto-cluster self-validity (filed under the membership column, gated on it, and equal to driving `AnnotationValidityStatistic` directly so an out-of-band re-score cannot drift), faithfulness (dual continuity + global metrics), cluster-selection (elbow/silhouette/both), subsample determinism/order-invariance, silhouette consistency, `_align` no-id guard, silhouette→elbow fallback |
 | `test_stats_cli.py` | `protspace stats` CLI + `prepare` stats wiring, `--stats-annotation` (auto/list) wiring, `--settings-out` guard, `--cluster-selection` validation |
 | `test_stats_carriage.py` | Routing rows to bundle parts (metadata quality, annotation columns, cluster legend) |
@@ -277,9 +277,10 @@ For a live count run `uv run pytest tests/ --collect-only -q`.
 | `test_annotation_select.py` | Annotation selection: suitability filter (cardinality/numeric/id-like exclusion), `auto` vs explicit-list label building (explicit names bypass the heuristic), missing-value dropping |
 | `test_annotation_validity.py` | `AnnotationValidityStatistic`: silhouette/DBI/CH scored per annotation on `ctx.coords`, embedding vs. projection `space_kind`, missing-value exclusion, single-category no-op, id-canonical subsample determinism |
 | `test_biocentral_embedder.py` | Biocentral API client, embedding flow |
-| `test_backend_switch.py` | Embedding backend switch: `resolve_default_backend` (Colab+GPU→local), `embed_fasta` local/biocentral dispatch (short key vs resolved name), `protspace embed --backend` CLI wiring + enum validation + non-positive batch_size rejection |
+| `test_backend_switch.py` | Embedding backend switch: notebook cache ownership/reuse, `resolve_default_backend` (Colab+GPU→local), `embed_fasta` local/biocentral dispatch (short key vs resolved name), `protspace embed --backend` CLI wiring + enum validation + non-positive batch_size rejection |
 | `test_local_embedder.py` | Local embedding backend: checkpoint resolution (12 short keys, Synthyra ESM-C), per-family preprocessing/residue pooling, `/`-in-header guard, LocalEmbedConfig validation, empty-output guard, esm2_8m end-to-end + resume (slow) |
 | `test_fasta.py` | FASTA parsing, edge cases, CSV annotation loading |
+| `test_query.py` | UniProt query FASTA download validation and atomic cache publication |
 | `test_biocentral_retriever.py` | Biocentral prediction retriever (TMbed parsing, per-sequence) |
 | `test_taxonomy_annotation_retriever.py` | Taxonomy via UniProt Taxonomy API (mocked + integration) |
 | `test_config_validation.py` | DimensionReductionConfig parameter validation |
