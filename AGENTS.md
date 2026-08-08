@@ -46,12 +46,13 @@ explicitly when you have not staged everything.
 EAT provenance connectors, isolation, dataset swap — have no other coverage at all.
 `pnpm precommit` does not touch them.
 
-It runs on PRs touching `apps/web/**`, `packages/core/**` or `packages/utils/**`, and
-nightly on `main`. For anything else, dispatch it:
+It runs nightly on `main`, and on any PR touching the web app, the packages it builds on, or
+the root files that decide what those resolve to — `e2e.yml` owns the exact list. For anything
+else, dispatch it:
 
 ```bash
-gh workflow run e2e.yml --ref <branch>                       # in CI, any branch
-npx playwright test -c apps/web/tests/playwright.config.ts   # locally
+gh workflow run e2e.yml --ref <branch>   # in CI, any branch
+pnpm test:e2e                            # locally
 ```
 
 **Never dismiss a red run as flaky on the strength of local passes.** The regression that

@@ -6,19 +6,24 @@ on:
   pull_request:
     # Keep `synchronize`: the state that gets merged is the one worth testing.
     types: [opened, reopened, synchronize]
-    # Do not add a label gate alongside this. `paths:` suppresses the webhook, so a label
-    # on a PR outside these paths can never start a run; use `workflow_dispatch` instead.
+    # Err broad: a wrong filter does not fail the job, it silently never runs, which reads
+    # like a pass (see bundle-contract.yml). Hence `packages/**` and the root files the app
+    # resolves through, not just the two packages it imports today.
+    # Do not add a label gate alongside this: `paths:` suppresses the webhook, so a label on
+    # a PR outside these paths can never start a run. Use `workflow_dispatch` instead.
     paths:
       - 'apps/web/**'
-      - 'packages/core/**'
-      - 'packages/utils/**'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - 'turbo.json'
+      - 'pnpm-workspace.yaml'
       - '.github/workflows/e2e.yml'
   workflow_dispatch:
 
 concurrency:
   group: e2e-${{ github.ref }}
-  # PRs only: a burst of pushes should cancel its superseded runs, but the nightly on main
-  # and manual dispatches must always finish.
+  # Cancel superseded PR runs; let the nightly and manual dispatches finish.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -58,8 +63,9 @@ jobs:
         id: pw
         run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
 
-      # Browser binaries only. The system libraries that `--with-deps` installs are 181 apt
-      # packages outside this directory, so they are reinstalled either way.
+      # Keyed on the browser build, not the lockfile: a lockfile hash would rewrite ~456MB
+      # on every dependency bump. No restore-keys for the same reason — a prefix match
+      # restores superseded browser dirs that then get re-saved.
       - name: Cache Playwright browsers
         id: pw-cache
         uses: actions/cache@v4
@@ -67,16 +73,17 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ steps.pw.outputs.version }}
 
+      # Unconditional on purpose. `--with-deps` always installs the apt packages (which live
+      # outside the cached directory), and skips the download of any browser whose
+      # INSTALLATION_COMPLETE marker the cache restored. One step covers hit and miss.
       - name: Install Playwright browsers
-        if: steps.pw-cache.outputs.cache-hit != 'true'
         run: pnpm exec playwright install --with-deps chromium firefox webkit
 
-      - name: Install Playwright system dependencies
-        if: steps.pw-cache.outputs.cache-hit == 'true'
-        run: pnpm exec playwright install-deps chromium firefox webkit
-
+      # Only the packages the dev server resolves through node_modules. The tests are served
+      # by `pnpm dev:app` (a Vite dev server, see webServer in playwright.config.ts), so
+      # `@protspace/app#build` produced an 89MB bundle nothing here reads.
       - name: Build workspace packages
-        run: pnpm build
+        run: pnpm build --filter=@protspace/core --filter=@protspace/utils
 
       - name: Run Playwright tests
         run: pnpm test:e2e
