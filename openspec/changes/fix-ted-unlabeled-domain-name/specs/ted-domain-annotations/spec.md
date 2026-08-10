@@ -21,3 +21,14 @@ SHALL retain that domain's pLDDT score.
 - **WHEN** ProtSpace reuses an annotation cache whose `ted_domains` values include a domain labeled
   `unclassified`
 - **THEN** ProtSpace warns that `--refetch ted` is required to refresh those stored values
+
+#### Scenario: Only some annotations are missing from the cache
+
+- **WHEN** ProtSpace fetches a missing annotation source but reuses the cached `ted_domains` column
+- **THEN** ProtSpace still warns about the legacy label, because that cached column reaches the
+  output unchanged
+
+#### Scenario: The stale TED column is already being refetched
+
+- **WHEN** ProtSpace runs with `--refetch ted` (or a shorthand that includes it)
+- **THEN** ProtSpace does not warn, because the run already replaces the stored values

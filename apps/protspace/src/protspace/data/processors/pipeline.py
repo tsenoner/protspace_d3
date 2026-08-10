@@ -409,6 +409,28 @@ class ReductionPipeline:
 
                 missing = required - cached_annotations
 
+                # The cache stores already-formatted TED values, so a stale
+                # `unclassified` label survives every path that reuses it: the
+                # short-circuit below, and the partial-fetch path, where
+                # determine_sources_to_fetch leaves `ted` cached because the
+                # column is present. Check once here to cover both.
+                ted_selected = (
+                    annotations_list is None or "ted_domains" in annotations_list
+                )
+                legacy_ted = cached_df.get("ted_domains")
+                if (
+                    ted_selected
+                    and "ted" not in refetch
+                    and legacy_ted is not None
+                    and legacy_ted.str.contains(
+                        r"(?:^|;)unclassified(?=\|)", regex=True, na=False
+                    ).any()
+                ):
+                    logger.warning(
+                        "Cached TED annotations use the legacy 'unclassified' "
+                        "label. Run with --refetch ted to refresh them."
+                    )
+
                 if not missing and not refetching_annotations:
                     logger.warning("Using cached annotations")
                     if annotations_list:
@@ -418,18 +440,6 @@ class ReductionPipeline:
                         api_df = cached_df[cols]
                     else:
                         api_df = cached_df
-
-                    legacy_ted = api_df.get("ted_domains")
-                    if (
-                        legacy_ted is not None
-                        and legacy_ted.str.contains(
-                            r"(?:^|;)unclassified(?=\|)", regex=True, na=False
-                        ).any()
-                    ):
-                        logger.warning(
-                            "Cached TED annotations use the legacy 'unclassified' "
-                            "label. Run with --refetch ted to refresh them."
-                        )
 
                     # Warn if cached annotations are all empty
                     data_cols = [c for c in api_df.columns if c != "identifier"]

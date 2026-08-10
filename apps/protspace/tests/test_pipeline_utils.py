@@ -2,6 +2,7 @@
 
 import logging
 from collections import Counter
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
@@ -353,7 +354,9 @@ class TestResolveAnnotationNames:
 
 
 class TestAnnotationCacheGuidance:
-    def test_legacy_ted_label_warns_with_targeted_refetch(self, tmp_path, caplog):
+    @staticmethod
+    def _write_legacy_cache(tmp_path):
+        """Write an annotation cache holding a pre-fix TED value."""
         pd.DataFrame(
             {
                 "identifier": ["W6JQJ9"],
@@ -363,6 +366,13 @@ class TestAnnotationCacheGuidance:
                 "uniprot_kb_id": [""],
             }
         ).to_parquet(tmp_path / "all_annotations.parquet", index=False)
+
+    @staticmethod
+    def _has_legacy_warning(messages):
+        return any("--refetch ted" in m and "legacy" in m for m in messages)
+
+    def test_legacy_ted_label_warns_with_targeted_refetch(self, tmp_path, caplog):
+        self._write_legacy_cache(tmp_path)
         pipeline = ReductionPipeline(
             PipelineConfig(
                 methods=[],
@@ -377,10 +387,60 @@ class TestAnnotationCacheGuidance:
             result = pipeline._fetch_annotations(["W6JQJ9"])
 
         assert result.loc[0, "ted_domains"].endswith("unclassified|96.7")
-        assert any(
-            "--refetch ted" in message and "legacy" in message
-            for message in caplog.messages
+        assert self._has_legacy_warning(caplog.messages)
+
+    def test_legacy_ted_label_warns_when_another_source_is_fetched(
+        self, tmp_path, caplog
+    ):
+        """A partial cache hit reuses the cached TED column, so it must warn too."""
+        self._write_legacy_cache(tmp_path)
+        pipeline = ReductionPipeline(
+            PipelineConfig(
+                methods=[],
+                output_path=None,
+                keep_tmp=True,
+                intermediate_dir=tmp_path,
+                annotations=["ted_domains", "ec"],
+            )
         )
+
+        with patch(
+            "protspace.data.annotations.manager.ProteinAnnotationManager"
+        ) as mock_manager:
+            mock_manager.return_value.to_pd.return_value = pd.DataFrame(
+                {"identifier": ["W6JQJ9"], "ec": [""]}
+            )
+            with caplog.at_level(logging.WARNING):
+                pipeline._fetch_annotations(["W6JQJ9"])
+
+        # `ec` is missing, so `determine_sources_to_fetch` leaves TED cached.
+        assert mock_manager.call_args.kwargs["sources_to_fetch"]["ted"] is False
+        assert self._has_legacy_warning(caplog.messages)
+
+    def test_no_warning_when_ted_is_being_refetched(self, tmp_path, caplog):
+        """--refetch ted already replaces the column; don't ask for it again."""
+        self._write_legacy_cache(tmp_path)
+        pipeline = ReductionPipeline(
+            PipelineConfig(
+                methods=[],
+                output_path=None,
+                keep_tmp=True,
+                intermediate_dir=tmp_path,
+                annotations=["ted_domains"],
+                refetch_stages=frozenset({"ted"}),
+            )
+        )
+
+        with patch(
+            "protspace.data.annotations.manager.ProteinAnnotationManager"
+        ) as mock_manager:
+            mock_manager.return_value.to_pd.return_value = pd.DataFrame(
+                {"identifier": ["W6JQJ9"], "ted_domains": ["3.40.50.2000|94.2;-|96.7"]}
+            )
+            with caplog.at_level(logging.WARNING):
+                pipeline._fetch_annotations(["W6JQJ9"])
+
+        assert not self._has_legacy_warning(caplog.messages)
 
 
 # ---------------------------------------------------------------------------

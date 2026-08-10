@@ -4,12 +4,15 @@
       expected failure against the current formatter.
 - [x] 1.2 Cover the reported mixed labeled/unlabeled W6JQJ9 domain order and serialization.
 - [x] 1.3 Add a regression test for legacy TED values returned by the annotation-cache short-circuit.
+- [x] 1.4 Cover the partial cache hit that reuses the stored TED column, and the `--refetch ted`
+      run that must stay silent.
 
 ## 2. Backend Fix
 
 - [x] 2.1 Make the minimal formatter change that emits `-` for a domain without a CATH label.
 - [x] 2.2 Run the focused regression test and complete TED retriever test module to observe them pass.
-- [x] 2.3 Warn cached-data users to run `--refetch ted` when the legacy label is detected.
+- [x] 2.3 Warn cached-data users to run `--refetch ted` when the legacy label is detected, on every
+      path that reuses the cached column.
 
 ## 3. Documentation
 
