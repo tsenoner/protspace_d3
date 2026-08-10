@@ -91,3 +91,15 @@
       outage fallback end to end on a mixed mapped/unmapped UniProt dataset.
 - [x] 9.5 Run focused, affected, full Python, Ruff, strict OpenSpec, docs/generated,
       and repository precommit verification.
+
+## 10. Cache Version Semantics Review Follow-up
+
+- [x] 10.1 Add a failing regression proving a later version entry re-runs the PDB
+      refresh for caches already stamped for it and loses the column.
+- [x] 10.2 Map each cache version to the columns whose meaning changed at it, derive
+      the cache version from that table, and derive the stale columns and the sources
+      to refresh from it instead of naming `xref_pdb` in the pipeline.
+- [x] 10.3 Verify the unrequested-column drop, the outage fallback, and the taxonomy
+      carve-out still hold once they are keyed on the derived stale set.
+- [x] 10.4 Run focused, affected, full Python, Ruff, strict OpenSpec, docs/generated,
+      and repository precommit verification.

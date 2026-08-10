@@ -483,6 +483,69 @@ class TestAnnotationCacheMigration:
         # xref_pdb still migrates it.
         assert pd.read_parquet(cache_path).attrs == {}
 
+    def test_a_later_semantics_change_refreshes_only_its_own_source(
+        self, tmp_path, monkeypatch
+    ):
+        """The version table drives the refresh, not a hardcoded column.
+
+        A cache already stamped for the v1 (PDB) change must not re-run it when
+        a later version adds an unrelated column from a different source.
+        """
+        from protspace.data.annotations import encoding
+        from protspace.data.annotations.manager import ProteinAnnotationManager
+        from protspace.data.annotations.retrievers.uniprot_retriever import (
+            ProteinAnnotations,
+            UniProtRetriever,
+        )
+
+        monkeypatch.setattr(
+            encoding,
+            "CACHE_SEMANTICS_CHANGES",
+            {1: frozenset({"xref_pdb"}), 2: frozenset({"signal_peptide"})},
+        )
+        monkeypatch.setattr(encoding, "ANNOTATION_CACHE_VERSION", 2)
+
+        cache_path = tmp_path / "all_annotations.parquet"
+        cached = pd.DataFrame(
+            {
+                "identifier": ["P01308"],
+                "xref_pdb": ["True"],
+                "signal_peptide": ["False"],
+                "gene_name": ["INS"],
+                "protein_name": ["Insulin"],
+                "uniprot_kb_id": ["INS_HUMAN"],
+            }
+        )
+        cached.attrs = {"protspace_annotation_cache_version": 1}
+        cached.to_parquet(cache_path, index=False)
+
+        def fail_if_refetched(_self):
+            raise AssertionError("xref_pdb is already current at v1")
+
+        monkeypatch.setattr(UniProtRetriever, "fetch_annotations", fail_if_refetched)
+        monkeypatch.setattr(
+            ProteinAnnotationManager,
+            "_fetch_interpro",
+            lambda _self, _uniprot, _failed: [
+                ProteinAnnotations(
+                    identifier="P01308",
+                    annotations={"signal_peptide": "SIGNAL_PEPTIDE"},
+                )
+            ],
+        )
+
+        result = _cache_pipeline(
+            tmp_path, annotations=["xref_pdb", "signal_peptide"]
+        )._fetch_annotations(["P01308"])
+
+        # Satisfied by the v1 stamp, so reused without touching UniProt.
+        assert result["xref_pdb"].tolist() == ["True"]
+        # Stale at v2, so refreshed from its own source.
+        assert result["signal_peptide"].tolist() == ["True"]
+        assert pd.read_parquet(cache_path).attrs == {
+            "protspace_annotation_cache_version": 2
+        }
+
     def test_unrequested_legacy_pdb_column_is_dropped_before_stamping(
         self, tmp_path, monkeypatch
     ):

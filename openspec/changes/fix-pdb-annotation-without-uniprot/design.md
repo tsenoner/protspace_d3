@@ -46,6 +46,16 @@ PDB hit or a legacy empty value that was transformed twice. The pipeline will th
 drop and refetch the cached UniProt columns once, preserve other source columns, and
 write the current marker with the corrected result.
 
+The version number will drive that decision rather than merely record it. A single
+table maps each version to the columns whose stored meaning changed at that version,
+and the cache version is derived from the table's highest key so the two cannot drift
+apart. The pipeline reads nothing else: it intersects the table's entries newer than a
+cache's stamp with that cache's columns to get the stale set, and derives the sources to
+refresh from those columns. Hardcoding the affected column in the pipeline was rejected
+because it decouples the marker from its meaning — a later version bump would silently
+re-run the PDB refresh for caches already stamped for it, and stamp caches that were
+never migrated for the new change.
+
 Cached taxonomy is source-owned independently, but its cache representation is keyed by
 the UniProt-owned `organism_id`. When taxonomy is reused during a UniProt refresh, the
 pipeline will retain that one dependency until the manager has rehydrated the cached
@@ -58,14 +68,13 @@ annotations. Only an explicit `--refetch` request replaces that derived plan. Th
 newly requested taxonomy, InterPro, TED, and Biocentral annotations fetchable during the
 same run that upgrades a legacy PDB cache.
 
-The migration runs only when the current run actually surfaces `xref_pdb`: an explicit
-annotation selection that omits it, or a run whose output is restricted away from it,
-must not pay a full UniProt refetch for a column nobody reads. `xref_pdb` is absent from
-the default annotation group, so this is the common case rather than the exception. When
-the column is stale but unused, the pipeline drops it from the cached frame instead of
-refreshing it, so it cannot ride along into a cache that this run stamps as current. A
-later run that does request it then sees it as missing and fetches it through the
-ordinary path.
+The migration runs only for stale columns the current run actually surfaces: an explicit
+annotation selection that omits one, or a run whose output is restricted away from it,
+must not pay a source refetch for a column nobody reads. `xref_pdb` is absent from the
+default annotation group, so this is the common case rather than the exception. When a
+stale column is unused, the pipeline drops it from the cached frame instead of refreshing
+it, so it cannot ride along into a cache that this run stamps as current. A later run that
+does request it then sees it as missing and fetches it through the ordinary path.
 
 The retriever exposes UniProt batch-failure state to the manager. A migration-triggered
 write is suppressed when any UniProt batch fails, leaving the unversioned cache in place

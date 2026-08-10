@@ -414,10 +414,7 @@ class ReductionPipeline:
             TAXONOMY_LOOKUP_ANNOTATION,
             AnnotationConfiguration,
         )
-        from protspace.data.annotations.encoding import (
-            ANNOTATION_CACHE_VERSION,
-            read_annotation_cache_version,
-        )
+        from protspace.data.annotations.encoding import stale_cache_columns
         from protspace.data.annotations.manager import ProteinAnnotationManager
 
         # Extract sequences from FASTA files (if available) to avoid re-fetching
@@ -476,36 +473,35 @@ class ReductionPipeline:
                 else:
                     required = set(annotations_list)
 
-                # A cache written before ANNOTATION_CACHE_VERSION 1 cannot be
-                # repaired locally: a mapped "True" may be a genuine PDB hit or a
-                # legacy empty that was transformed twice.
-                stale_pdb_cache = (
-                    "xref_pdb" in cached_annotations
-                    and read_annotation_cache_version(cached_df)
-                    < ANNOTATION_CACHE_VERSION
+                # Values stored under a superseded contract cannot be repaired
+                # locally — a legacy xref_pdb "True", for instance, may be a
+                # genuine PDB hit or an empty that was transformed twice.
+                stale_columns = stale_cache_columns(cached_df)
+                # Only pay a refetch for the ones this run actually surfaces.
+                # Without an explicit -a the whole cached frame is emitted, so
+                # treat that as consuming all of them.
+                refresh_columns = (
+                    stale_columns
+                    if annotations_list is None
+                    else stale_columns & required
                 )
-                # Only pay the UniProt refetch when this run actually surfaces the
-                # column. Without an explicit -a the whole cached frame is emitted,
-                # so treat that as consuming it.
-                migrate_pdb_cache = stale_pdb_cache and (
-                    annotations_list is None or "xref_pdb" in required
-                )
-                if stale_pdb_cache and not migrate_pdb_cache:
-                    # Not surfaced this run, so drop it rather than refetch it: it
-                    # must not ride along into a cache this run stamps as current.
-                    # A later run that requests it sees it missing and fetches it
-                    # through the ordinary path.
+                discard_columns = stale_columns - refresh_columns
+                if discard_columns:
+                    # Unused this run, so drop rather than refetch: they must not
+                    # ride along into a cache this run stamps as current. A later
+                    # run that requests one sees it missing and fetches it through
+                    # the ordinary path.
                     logger.info(
-                        "Dropping the legacy cached 'xref_pdb' column; it is not "
-                        "requested by this run and predates the current PDB "
-                        "availability semantics"
+                        "Dropping legacy cached column(s) "
+                        f"{', '.join(sorted(discard_columns))}: not requested by "
+                        "this run and stored under superseded semantics"
                     )
-                    cached_df = cached_df.drop(columns=["xref_pdb"])
-                    cached_annotations.discard("xref_pdb")
+                    cached_df = cached_df.drop(columns=sorted(discard_columns))
+                    cached_annotations -= discard_columns
 
                 missing = required - cached_annotations
 
-                if not missing and not refetching_annotations and not migrate_pdb_cache:
+                if not missing and not refetching_annotations and not refresh_columns:
                     logger.warning("Using cached annotations")
                     if annotations_list:
                         cols = ["identifier"] + [
@@ -542,15 +538,26 @@ class ReductionPipeline:
                         "--refetch: re-fetching "
                         f"{', '.join(s for s in _ANN_SOURCES if sources[s])}"
                     )
-                if migrate_pdb_cache:
-                    sources["uniprot"] = True
+                migration_sources = set()
+                if refresh_columns:
+                    stale_by_source = (
+                        AnnotationConfiguration.categorize_annotations_by_source(
+                            refresh_columns
+                        )
+                    )
+                    migration_sources = {
+                        source for source, columns in stale_by_source.items() if columns
+                    }
+                    for source in migration_sources:
+                        sources[source] = True
                     logger.warning(
-                        "Refreshing legacy UniProt annotation cache to apply "
-                        "current PDB availability semantics"
+                        "Refreshing legacy annotation cache column(s) "
+                        f"{', '.join(sorted(refresh_columns))} to apply current "
+                        "semantics"
                     )
 
                 legacy_uniprot = None
-                if refetching_annotations or migrate_pdb_cache:
+                if refetching_annotations or refresh_columns:
                     # Drop cached columns for refetched sources so manager
                     # re-fetches them
                     cached_by_source = (
@@ -563,21 +570,21 @@ class ReductionPipeline:
                     )
                     if cached_by_source["taxonomy"] and not sources["taxonomy"]:
                         cols_to_drop.discard(TAXONOMY_LOOKUP_ANNOTATION)
-                    if migrate_pdb_cache and "uniprot" not in refetch:
+                    if "uniprot" in migration_sources and "uniprot" not in refetch:
                         # Keep what the migration is about to discard. If its
                         # refresh fails, these cached values beat the empty
-                        # annotations a failed fetch produces — except xref_pdb,
-                        # whose ambiguity is the whole reason for the migration.
-                        legacy_uniprot = cached_df[
-                            [
-                                "identifier",
-                                *(
-                                    c
-                                    for c in cached_by_source["uniprot"]
-                                    if c != "xref_pdb" and c in cached_df.columns
-                                ),
-                            ]
-                        ].copy()
+                        # annotations a failed fetch produces — except the stale
+                        # columns themselves, whose ambiguity is the whole reason
+                        # for the migration.
+                        preserved = [
+                            c
+                            for c in cached_by_source["uniprot"]
+                            if c not in refresh_columns and c in cached_df.columns
+                        ]
+                        if preserved:
+                            legacy_uniprot = cached_df[
+                                ["identifier", *preserved]
+                            ].copy()
                     cached_df = cached_df.drop(
                         columns=[c for c in cols_to_drop if c in cached_df.columns]
                     )
@@ -591,7 +598,7 @@ class ReductionPipeline:
                     sequences=sequences,
                     cached_data=cached_df,
                     sources_to_fetch=sources,
-                    preserve_existing_cache_on_uniprot_failure=migrate_pdb_cache,
+                    preserve_existing_cache_on_uniprot_failure=bool(refresh_columns),
                 )
                 api_df = manager.to_pd()
                 if legacy_uniprot is not None and manager.uniprot_fetch_failed:
