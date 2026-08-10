@@ -27,11 +27,20 @@ distinction entirely: there is one rule, and the no-match message becomes truthf
 
 **Independent budgets.** Selected entries use a 10-entry budget separate from the 50-entry
 selectable cap. A single shared cap would let 50+ selected matches fill the list and hide
-every addable protein. The scan still exits early once the selectable budget is full and
-the selected budget is either full or exhausted — exhausted meaning every selected ID has
-been walked past, tracked by a `selectedSeen` counter. Requiring both budgets to be _full_
-would never early-exit when fewer than ten matches are selected, so the counter is what
-preserves the sub-millisecond behaviour on 573K IDs.
+every addable protein.
+
+**Bounding the scan.** Requiring both budgets to be _full_ never exits early when fewer
+than ten matches are selected, so the selected budget needs a second termination condition.
+Tracking how many selected IDs the scan has walked past does terminate, but only at the
+highest index any selected ID occupies — and since selections come from clicking
+scatter-plot points, that index is arbitrary: one selection cost ~400K of 573K index reads
+per recompute, paid per debounced keystroke, per Enter/Arrow flush, and per selection echo.
+The scan instead counts up front how many selected IDs the query can actually match
+(O(|selection|), capped at the budget) and stops once it has emitted that many. That target
+is reachable, so scan length is proportional to the budgets rather than to the dataset, and
+marked rows still come out in `availableProteinIds` order because the scan still finds them
+there — unlike the cheaper alternative of topping the budget up from the selection directly,
+which would order overflow marked rows by selection instead.
 
 **Natural order, not grouped.** Entries stay in `availableProteinIds` order and are
 interleaved. Grouping would reorder results relative to what users see today.

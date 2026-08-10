@@ -42,6 +42,15 @@ The protein search SHALL remove a protein from the selection when its marked sug
 - **WHEN** a user presses Enter on a highlighted suggestion marked as already selected
 - **THEN** that protein is removed from the selection
 
+#### Scenario: Focusing the empty input arms no keyboard cursor
+
+Removal is destructive, and the first row of an empty-query list is typically a marked row,
+so the cursor must be one the user established rather than one focus supplied.
+
+- **WHEN** a user focuses the search input with an empty query
+- **THEN** no suggestion is highlighted and the input exposes no `aria-activedescendant`
+- **AND** pressing Enter before moving the highlight neither adds nor removes a protein
+
 ### Requirement: The suggestion list is navigable by assistive technology
 
 The protein search SHALL expose the suggestion list as a multi-selectable listbox owned by the input, so that `aria-selected` denotes membership of the protein selection and the keyboard cursor is conveyed separately by `aria-activedescendant`.
@@ -66,3 +75,9 @@ The protein search SHALL show generic no-match feedback only when a non-empty qu
 
 - **WHEN** a non-empty query prefix-matches no available protein ID
 - **THEN** the search feedback displays `No matching protein IDs found`
+
+#### Scenario: No-match feedback is a rendered popup
+
+- **WHEN** the no-match feedback is displayed
+- **THEN** the input reports `aria-expanded` as true and `aria-controls` names the rendered popup
+- **AND** the message is announced to assistive technology

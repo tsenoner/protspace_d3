@@ -26,3 +26,12 @@
 - [x] 4.1 Run `openspec validate mark-selected-proteins-in-search --strict`.
 - [x] 4.2 Run the full JS suite, `pnpm format:check`, and `pnpm precommit`.
 - [x] 4.3 Reproduce the original demo-dataset flow in the browser and check console health.
+
+## 5. Review Follow-Up
+
+- [x] 5.1 Bound the scan by matchable selected entries instead of by walked-past selections;
+      pin it with iteration-count tests and a differential fuzz against the prior behaviour.
+- [x] 5.2 Stop a bare focus seeding row 0, which armed Enter to remove an unpointed protein.
+- [x] 5.3 Report the no-match popup as an expanded listbox and announce its message.
+- [x] 5.4 Split `render()` into `_renderSuggestions()` / `_renderSuggestion()` so the ARIA and
+      the rendered popup cannot drift apart.
