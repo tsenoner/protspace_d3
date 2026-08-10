@@ -348,6 +348,324 @@ class TestResolveAnnotationNames:
         assert self._resolve(["data.tsv", "ec"]) == (["ec"], "data.tsv")
 
 
+def _cache_pipeline(tmp_path, **overrides):
+    """A pipeline wired to read and write the annotation cache in ``tmp_path``."""
+    return ReductionPipeline(
+        PipelineConfig(
+            methods=[],
+            output_path=None,
+            keep_tmp=True,
+            intermediate_dir=tmp_path,
+            **overrides,
+        )
+    )
+
+
+class TestAnnotationCacheMigration:
+    def test_legacy_pdb_migration_fetches_newly_required_taxonomy(
+        self, tmp_path, monkeypatch
+    ):
+        """Migration must add its UniProt refresh to missing-source fetches."""
+        from protspace.data.annotations.retrievers.taxonomy_retriever import (
+            TaxonomyRetriever,
+        )
+        from protspace.data.annotations.retrievers.uniprot_retriever import (
+            ProteinAnnotations,
+            UniProtRetriever,
+        )
+
+        pd.DataFrame(
+            {
+                "identifier": ["P01308"],
+                "xref_pdb": ["True"],
+                "gene_name": ["STALE_GENE"],
+                "protein_name": ["Protein"],
+                "uniprot_kb_id": ["INS_HUMAN"],
+                "organism_id": ["9606"],
+            }
+        ).to_parquet(tmp_path / "all_annotations.parquet", index=False)
+
+        monkeypatch.setattr(
+            UniProtRetriever,
+            "fetch_annotations",
+            lambda _self: [
+                ProteinAnnotations(
+                    identifier="P01308",
+                    annotations={
+                        "xref_pdb": "1A7F",
+                        "gene_name": "INS",
+                        "protein_name": "Insulin",
+                        "uniprot_kb_id": "INS_HUMAN",
+                        "organism_id": "9606",
+                    },
+                )
+            ],
+        )
+        monkeypatch.setattr(
+            TaxonomyRetriever,
+            "fetch_annotations",
+            lambda _self: {9606: {"annotations": {"genus": "Homo"}}},
+        )
+
+        result = _cache_pipeline(
+            tmp_path, annotations=["xref_pdb", "genus"]
+        )._fetch_annotations(["P01308"])
+
+        assert result["xref_pdb"].tolist() == ["True"]
+        assert result["genus"].tolist() == ["Homo"]
+
+    def test_failed_uniprot_migration_leaves_legacy_cache_for_retry(
+        self, tmp_path, monkeypatch, caplog
+    ):
+        """A partial migration fetch must not certify or replace legacy data."""
+        from protspace.data.annotations.retrievers import uniprot_retriever
+
+        cache_path = tmp_path / "all_annotations.parquet"
+        pd.DataFrame(
+            {
+                "identifier": ["P01308"],
+                "xref_pdb": ["True"],
+                "gene_name": ["LEGACY_GENE"],
+                "protein_name": ["Legacy protein"],
+                "uniprot_kb_id": ["INS_HUMAN"],
+            }
+        ).to_parquet(cache_path, index=False)
+
+        def fail_batch(_accessions):
+            raise RuntimeError("temporary UniProt failure")
+
+        monkeypatch.setattr(uniprot_retriever, "_fetch_many_accessions", fail_batch)
+        pipeline = _cache_pipeline(tmp_path, annotations=["xref_pdb"])
+
+        result = pipeline._fetch_annotations(["P01308"])
+
+        assert result["xref_pdb"].tolist() == [""]
+        preserved_cache = pd.read_parquet(cache_path)
+        assert preserved_cache.attrs == {}
+        assert preserved_cache["gene_name"].tolist() == ["LEGACY_GENE"]
+        assert "1 UniProt batch failed; 1 protein has empty annotations" in caplog.text
+        # The failed refresh must not make this run's output worse than the
+        # cache it declined to overwrite: only xref_pdb is genuinely unknown.
+        assert result["gene_name"].tolist() == ["LEGACY_GENE"]
+        assert result["protein_name"].tolist() == ["Legacy protein"]
+
+    def test_legacy_pdb_cache_is_not_refetched_when_pdb_is_not_requested(
+        self, tmp_path, monkeypatch
+    ):
+        """A run that never surfaces xref_pdb must not pay a UniProt refetch."""
+        from protspace.data.annotations.retrievers.uniprot_retriever import (
+            UniProtRetriever,
+        )
+
+        cache_path = tmp_path / "all_annotations.parquet"
+        pd.DataFrame(
+            {
+                "identifier": ["P01308"],
+                "xref_pdb": ["True"],
+                "gene_name": ["INS"],
+                "protein_name": ["Insulin"],
+                "uniprot_kb_id": ["INS_HUMAN"],
+            }
+        ).to_parquet(cache_path, index=False)
+
+        def fail_if_refetched(_self):
+            raise AssertionError("xref_pdb is unused; UniProt must not be refetched")
+
+        monkeypatch.setattr(UniProtRetriever, "fetch_annotations", fail_if_refetched)
+
+        result = _cache_pipeline(
+            tmp_path, annotations=["gene_name"]
+        )._fetch_annotations(["P01308"])
+
+        assert result["gene_name"].tolist() == ["INS"]
+        assert "xref_pdb" not in result.columns
+        # Untouched and still unversioned, so a later run that does request
+        # xref_pdb still migrates it.
+        assert pd.read_parquet(cache_path).attrs == {}
+
+    def test_a_later_semantics_change_refreshes_only_its_own_source(
+        self, tmp_path, monkeypatch
+    ):
+        """The version table drives the refresh, not a hardcoded column.
+
+        A cache already stamped for the v1 (PDB) change must not re-run it when
+        a later version adds an unrelated column from a different source.
+        """
+        from protspace.data.annotations import encoding
+        from protspace.data.annotations.manager import ProteinAnnotationManager
+        from protspace.data.annotations.retrievers.uniprot_retriever import (
+            ProteinAnnotations,
+            UniProtRetriever,
+        )
+
+        monkeypatch.setattr(
+            encoding,
+            "CACHE_SEMANTICS_CHANGES",
+            {1: frozenset({"xref_pdb"}), 2: frozenset({"signal_peptide"})},
+        )
+        monkeypatch.setattr(encoding, "ANNOTATION_CACHE_VERSION", 2)
+
+        cache_path = tmp_path / "all_annotations.parquet"
+        cached = pd.DataFrame(
+            {
+                "identifier": ["P01308"],
+                "xref_pdb": ["True"],
+                "signal_peptide": ["False"],
+                "gene_name": ["INS"],
+                "protein_name": ["Insulin"],
+                "uniprot_kb_id": ["INS_HUMAN"],
+            }
+        )
+        cached.attrs = {"protspace_annotation_cache_version": 1}
+        cached.to_parquet(cache_path, index=False)
+
+        def fail_if_refetched(_self):
+            raise AssertionError("xref_pdb is already current at v1")
+
+        monkeypatch.setattr(UniProtRetriever, "fetch_annotations", fail_if_refetched)
+        monkeypatch.setattr(
+            ProteinAnnotationManager,
+            "_fetch_interpro",
+            lambda _self, _uniprot, _failed: [
+                ProteinAnnotations(
+                    identifier="P01308",
+                    annotations={"signal_peptide": "SIGNAL_PEPTIDE"},
+                )
+            ],
+        )
+
+        result = _cache_pipeline(
+            tmp_path, annotations=["xref_pdb", "signal_peptide"]
+        )._fetch_annotations(["P01308"])
+
+        # Satisfied by the v1 stamp, so reused without touching UniProt.
+        assert result["xref_pdb"].tolist() == ["True"]
+        # Stale at v2, so refreshed from its own source.
+        assert result["signal_peptide"].tolist() == ["True"]
+        assert pd.read_parquet(cache_path).attrs == {
+            "protspace_annotation_cache_version": 2
+        }
+
+    def test_unrequested_legacy_pdb_column_is_dropped_before_stamping(
+        self, tmp_path, monkeypatch
+    ):
+        """A stamped cache must not carry an xref_pdb the run never refreshed."""
+        from protspace.data.annotations.manager import ProteinAnnotationManager
+        from protspace.data.annotations.retrievers.uniprot_retriever import (
+            ProteinAnnotations,
+            UniProtRetriever,
+        )
+
+        cache_path = tmp_path / "all_annotations.parquet"
+        pd.DataFrame(
+            {
+                "identifier": ["P01308"],
+                "xref_pdb": ["True"],
+                "gene_name": ["INS"],
+                "protein_name": ["Insulin"],
+                "uniprot_kb_id": ["INS_HUMAN"],
+            }
+        ).to_parquet(cache_path, index=False)
+
+        def fail_if_refetched(_self):
+            raise AssertionError("xref_pdb is unused; UniProt must not be refetched")
+
+        monkeypatch.setattr(UniProtRetriever, "fetch_annotations", fail_if_refetched)
+        monkeypatch.setattr(
+            ProteinAnnotationManager,
+            "_fetch_ted",
+            lambda _self, _failed: [
+                ProteinAnnotations(
+                    identifier="P01308",
+                    annotations={"ted_domains": "3.40.50.2000|94.2"},
+                )
+            ],
+        )
+
+        result = _cache_pipeline(
+            tmp_path, annotations=["gene_name", "ted_domains"]
+        )._fetch_annotations(["P01308"])
+
+        assert result["ted_domains"].tolist() == ["3.40.50.2000|94.2"]
+        rewritten = pd.read_parquet(cache_path)
+        assert rewritten.attrs == {"protspace_annotation_cache_version": 1}
+        assert "xref_pdb" not in rewritten.columns
+
+    def test_legacy_pdb_migration_preserves_cached_taxonomy(
+        self, tmp_path, monkeypatch
+    ):
+        """Migration must retain taxonomy while replacing stale UniProt values."""
+        from protspace.data.annotations.retrievers.uniprot_retriever import (
+            ProteinAnnotations,
+            UniProtRetriever,
+        )
+
+        legacy_cache = pd.DataFrame(
+            {
+                "identifier": ["unresolved", "resolved_without_pdb"],
+                "xref_pdb": ["True", "True"],
+                "gene_name": ["", "STALE_GENE"],
+                "protein_name": ["", "Protein"],
+                "uniprot_kb_id": ["", "NO_PDB_HUMAN"],
+                "organism_id": ["", "9606"],
+                "genus": ["", "Homo"],
+                "signal_peptide": ["True", "False"],
+            }
+        )
+        cache_path = tmp_path / "all_annotations.parquet"
+        legacy_cache.to_parquet(cache_path, index=False)
+
+        def fetch_current_annotations(_self):
+            return [
+                ProteinAnnotations(
+                    identifier="unresolved",
+                    annotations={
+                        "xref_pdb": "",
+                        "gene_name": "",
+                        "protein_name": "",
+                        "uniprot_kb_id": "",
+                        "organism_id": "",
+                    },
+                ),
+                ProteinAnnotations(
+                    identifier="resolved_without_pdb",
+                    annotations={
+                        "xref_pdb": "",
+                        "gene_name": "GENE",
+                        "protein_name": "Protein",
+                        "uniprot_kb_id": "NO_PDB_HUMAN",
+                        "organism_id": "9606",
+                    },
+                ),
+            ]
+
+        monkeypatch.setattr(
+            UniProtRetriever, "fetch_annotations", fetch_current_annotations
+        )
+        pipeline = _cache_pipeline(
+            tmp_path, annotations=["xref_pdb", "genus", "signal_peptide"]
+        )
+
+        headers = ["unresolved", "resolved_without_pdb"]
+        result = pipeline._fetch_annotations(headers)
+
+        assert result["xref_pdb"].tolist() == ["", "False"]
+        assert result["gene_name"].tolist() == ["", "GENE"]
+        assert result["genus"].tolist() == ["", "Homo"]
+        assert result["signal_peptide"].tolist() == ["True", "False"]
+        migrated_cache = pd.read_parquet(cache_path)
+        assert migrated_cache["genus"].tolist() == ["", "Homo"]
+        assert migrated_cache.attrs == {"protspace_annotation_cache_version": 1}
+
+        def fail_if_refetched(_self):
+            raise AssertionError("current cache should use the fast path")
+
+        monkeypatch.setattr(UniProtRetriever, "fetch_annotations", fail_if_refetched)
+        cached_result = pipeline._fetch_annotations(headers)
+        assert cached_result["xref_pdb"].tolist() == ["", "False"]
+        assert cached_result["genus"].tolist() == ["", "Homo"]
+
+
 # ---------------------------------------------------------------------------
 # legacy TED label migration in the annotation cache
 # ---------------------------------------------------------------------------
@@ -370,17 +688,7 @@ class TestLegacyTedLabelMigration:
             }
         ).to_parquet(tmp_path / "all_annotations.parquet", index=False)
 
-    @staticmethod
-    def _pipeline(tmp_path, **overrides):
-        return ReductionPipeline(
-            PipelineConfig(
-                methods=[],
-                output_path=None,
-                keep_tmp=True,
-                intermediate_dir=tmp_path,
-                **overrides,
-            )
-        )
+    _pipeline = staticmethod(_cache_pipeline)
 
     def test_full_cache_hit_returns_the_repaired_label(self, tmp_path):
         """The short-circuit must not hand back the pre-fix literal."""
