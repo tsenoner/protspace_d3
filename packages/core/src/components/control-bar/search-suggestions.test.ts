@@ -181,6 +181,14 @@ describe('computeSearchSuggestions', () => {
       const result = computeSearchSuggestions(ids, ['A2', 'A4'], 'a', true);
       expect(idsOf(result)).toEqual(['A1', 'A2', 'A3', 'A4']);
     });
+
+    it('emits a duplicated selected ID once, not once per occurrence', () => {
+      // The marked budget is spent against the number of marked rows this query can
+      // produce, which counts distinct IDs — so a repeated entry must not render twice
+      // (two rows for one protein, each claiming to remove it).
+      const result = computeSearchSuggestions(['A1', 'A1', 'A2'], ['A1'], 'a', true);
+      expect(idsOf(result)).toEqual(['A1', 'A2']);
+    });
   });
 
   describe('custom limit param', () => {
@@ -226,6 +234,29 @@ describe('computeSearchSuggestions', () => {
       computeSearchSuggestions(ids, [], 'p', true);
 
       expect(reads()).toBeLessThan(100);
+    });
+
+    it('stops scanning when the query cannot match any selected ID', () => {
+      const { ids, reads } = countingIds(100_000);
+
+      // The selection sits at the far end of the array and cannot match this query, so the
+      // scan must stop at the selectable budget instead of walking out to reach it. This is
+      // the common case while typing a new accession with a few points already picked.
+      const result = computeSearchSuggestions(ids, ['P099999'], 'P00', true);
+
+      expect(result.every((entry) => !entry.isSelected)).toBe(true);
+      expect(reads()).toBeLessThan(100);
+    });
+
+    it('still emits a matching selected ID that sits past the selectable budget', () => {
+      const ids = Array.from({ length: 100_000 }, (_, i) => `P${String(i).padStart(6, '0')}`);
+
+      // The selectable budget fills at index 49, but the one marked row this query can
+      // produce is at index 900 — the scan must keep going until it has emitted it.
+      const result = computeSearchSuggestions(ids, ['P000900'], 'P000', true);
+
+      expect(selectedIdsOf(result)).toEqual(['P000900']);
+      expect(selectableIdsOf(result)).toHaveLength(MAX_SEARCH_SUGGESTIONS);
     });
   });
 

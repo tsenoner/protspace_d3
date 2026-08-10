@@ -16,6 +16,36 @@ export interface SearchSuggestion {
 }
 
 /**
+ * How many marked rows this query can actually produce, capped at `cap`.
+ *
+ * The scan needs a target it can *reach*: `selectedLimit` alone is unreachable whenever the
+ * selection is smaller than the budget, and "every selected ID walked past" is only reached
+ * at the highest index any selected ID happens to occupy — which, for selections made by
+ * clicking scatter-plot points, is an arbitrary position in a 573K-entry array. Either way
+ * the loop would keep scanning long after it had emitted every row it can, on every
+ * debounced keystroke, every Enter/Arrow flush, and every selection echo.
+ *
+ * Counting the matches up front is O(|selection|) and bounded by `cap`, and it leaves the
+ * ordering contract alone — marked rows still come out in `availableIds` order, because the
+ * scan still finds them there.
+ *
+ * Two assumptions about `availableIds`, both of which the caller already relies on
+ * everywhere else it treats a protein ID as a key:
+ * - Every selected ID appears in it. One that does not inflates the target and degrades the
+ *   scan to a full pass — correct, just slow, and the two lists come from the same dataset.
+ * - No ID appears twice. A duplicate of a *selected* ID is emitted once rather than once per
+ *   occurrence, since the target counts distinct IDs.
+ */
+function countMatchingSelected(selected: Iterable<string>, q: string, cap: number): number {
+  let matches = 0;
+  for (const id of selected) {
+    if (q && !id.toLowerCase().startsWith(q)) continue;
+    if (++matches >= cap) return cap;
+  }
+  return matches;
+}
+
+/**
  * Compute capped autocomplete suggestions with an early-exit scan.
  * - Empty query + focused: current selections plus the first selectable IDs.
  * - Empty query + not focused: none.
@@ -26,20 +56,9 @@ export interface SearchSuggestion {
  * selectable entries draw from independent budgets and are returned in natural
  * `availableIds` order — they are interleaved, not grouped.
  *
- * Stops scanning once the selectable budget is full AND the selected budget is either
- * full or exhausted (every selected ID has been walked past, tracked by `selectedSeen`).
- *
- * With no selection that is sub-ms even at 573K. With one, the exhausted clause can only
- * fire after the loop passes the *highest index* of any selected ID — and since selections
- * come from clicking scatter-plot points, those indices are arbitrary, so the expected scan
- * length for k selections is `N·k/(k+1)`: half the array for one selection, 90% for three.
- * Measured at 573K that is ~4 ms for one selection and ~9-10 ms for three or more, per
- * debounced keystroke plus every Enter/Arrow flush and every selection echo. That is the
- * typical cost of having a selection, not a worst case.
- *
- * Bounding it properly means breaking on the selectable budget alone and topping the
- * selected budget up from `selectedIds` directly — O(50 + |selection|), ~0.2 ms — at the
- * price of ordering overflow marked rows by selection rather than by `availableIds` index.
+ * Stops scanning once both budgets are met, so the scan length is proportional to the
+ * budgets rather than to the dataset. Meeting the selected budget is the subtle half —
+ * see `countMatchingSelected`.
  */
 export function computeSearchSuggestions(
   availableIds: readonly string[],
@@ -52,35 +71,27 @@ export function computeSearchSuggestions(
   const q = query.trim().toLowerCase();
   if (!q && !isInputFocused) return [];
   const selectedSet = selectedIds instanceof Set ? selectedIds : new Set(selectedIds);
+  const selectedTarget = countMatchingSelected(selectedSet, q, selectedLimit);
   const out: SearchSuggestion[] = [];
   let selectableCount = 0;
   let selectedCount = 0;
-  let selectedSeen = 0;
 
   for (let i = 0; i < availableIds.length; i++) {
-    // The selected budget is done when it is full OR when every selected ID has been
-    // passed — without the second clause a selection smaller than `selectedLimit` would
-    // keep this loop scanning to the end of a 573K-entry array on every recompute.
-    if (
-      selectableCount >= limit &&
-      (selectedCount >= selectedLimit || selectedSeen >= selectedSet.size)
-    ) {
-      break;
-    }
+    if (selectableCount >= limit && selectedCount >= selectedTarget) break;
     const id = availableIds[i];
     const isSelected = selectedSet.has(id);
-    if (isSelected) selectedSeen++;
+    // Budget before prefix test: an entry whose own budget is full is dropped either way,
+    // so testing it first skips a throwaway `toLowerCase()` on every entry the scan passes
+    // while waiting for the other budget to fill. The marked side tests `selectedTarget`,
+    // not `selectedLimit` — once every marked row this query can produce has been emitted
+    // no further selected entry can qualify, so a duplicate occurrence of an already-emitted
+    // ID is skipped rather than rendered twice.
+    if (isSelected ? selectedCount >= selectedTarget : selectableCount >= limit) continue;
     if (q && !id.toLowerCase().startsWith(q)) continue;
 
-    if (isSelected) {
-      if (selectedCount >= selectedLimit) continue;
-      out.push({ id, isSelected: true });
-      selectedCount++;
-    } else {
-      if (selectableCount >= limit) continue;
-      out.push({ id, isSelected: false });
-      selectableCount++;
-    }
+    out.push({ id, isSelected });
+    if (isSelected) selectedCount++;
+    else selectableCount++;
   }
 
   return out;
