@@ -26,6 +26,8 @@ A protein that already had a curated value gets no prediction at all, so the thr
 
 Annotations carrying predictions are marked with an **EAT** badge in the [Annotation dropdown](/explore/control-bar#_2-annotation-selector), beside the annotation's name. The badge appears only for columns that have at least one transferred value, so it doubles as the list of what is worth exploring. If no annotation carries the badge, the bundle has no predictions in it.
 
+![The EAT badge in the annotation dropdown](./images/eat-annotation-badge.png)
+
 This is not the ⚡ **Predicted** badge, which marks a whole column as computational based on its name. An **EAT** badge means the opposite: the column is curated, and only some of its cells were filled in. See [Predicted Annotations](/explore/legend#predicted-annotations).
 
 Select a badged annotation and the legend grows an extra section at the top.
@@ -33,6 +35,8 @@ Select a badged annotation and the legend grows an extra section at the top.
 ## The Legend Section
 
 At the top of the [legend panel](/explore/legend), above the separation strips and the category list, a block titled **Predicted (transferred)** appears whenever the annotation you are colouring by has predictions. It holds three things.
+
+![The Predicted (transferred) legend controls](./images/eat-legend-section.png)
 
 **Show** turns the overlay on and off. It is on by default. With it on, every transferred protein is coloured by its borrowed value and joins that value's legend row, so the row counts and the plot both reflect the filled-in column. Turn it off and those proteins fall straight back to their curated cell, which is empty, so they return to `N/A`. The curated data is never modified, so toggling is cheap and lossless.
 
@@ -65,6 +69,8 @@ Provenance is also drawable. With the overlay on, clicking a point in the plot t
 - **Click a transferred protein** and one dashed line joins it to its source, the protein whose label it borrowed for the currently active annotation.
 - **Click a source protein** and dashed lines fan out to every protein that borrowed from it.
 
+![Tracing a transferred value back to its source, then fanning out from that source](./images/eat-connectors.gif)
+
 A protein that is both a transferred protein and a source for others takes the first case: only its own source line is drawn. If that source's legend category is hidden, the click draws nothing at all.
 
 Endpoints get an unfilled halo so you can find the termini without the emphasis covering the markers underneath. Clicking still selects the protein exactly as it always did: the connectors are drawn on top of normal selection, not instead of it.
@@ -86,6 +92,8 @@ With the default `cosine` metric the reliability index is a bounded cosine simil
 ## Filtering By Reliability
 
 **Hide below reliability** hides predictions whose confidence falls below the threshold. It starts at 0, meaning nothing is hidden, and the slider and the `%` box are two views of the same number.
+
+![Raising the threshold thins out the ringed points and leaves the curated ones](./images/eat-reliability.gif)
 
 Curated values are never affected. The threshold applies only to transferred cells, so raising it leaves the observed data whole. This is a different outcome from turning **Show** off: **Show** returns transferred proteins to `N/A`, while the threshold removes them from the view the way any other filter condition does.
 

@@ -39,6 +39,10 @@ const VIDEO_TO_GIF_MAP: Record<string, string> = {
   'legend-others': 'legend-others.gif',
   'duplicate-badges-gif---cross-projection-duplicate-badge-and-spiderfy': 'duplicate-badges.gif',
   'duplicate-badges': 'duplicate-badges.gif',
+  'eat-connectors-gif---tracing-where-a-transferred-value-came-from': 'eat-connectors.gif',
+  'eat-connectors': 'eat-connectors.gif',
+  'eat-reliability-gif---hiding-predictions-below-a-reliability-threshold': 'eat-reliability.gif',
+  'eat-reliability': 'eat-reliability.gif',
 };
 
 // Mapping for videos that need trimming (remove loading screen from start)
@@ -67,6 +71,12 @@ const VIDEO_TRIM_MAP: Record<string, number> = {
   // Duplicate-badges animation
   'duplicate-badges-gif---cross-projection-duplicate-badge-and-spiderfy': 2.5,
   'duplicate-badges': 2.5,
+  // EAT provenance connectors
+  'eat-connectors-gif---tracing-where-a-transferred-value-came-from': 2.5,
+  'eat-connectors': 2.5,
+  // EAT reliability threshold
+  'eat-reliability-gif---hiding-predictions-below-a-reliability-threshold': 2.5,
+  'eat-reliability': 2.5,
 };
 
 // Per-video frame-rate override (falls back to GIF_FPS).

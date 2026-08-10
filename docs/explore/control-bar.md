@@ -71,6 +71,8 @@ annotation and open the [projection metadata panel](/explore/scatterplot#project
 read the numbers, or see [Separation Scores](/explore/separation-scores) for what they mean.
 :::
 
+![The EAT and STATS badges in the annotation dropdown](./images/eat-annotation-badge.png)
+
 ::: info EAT badge
 An **EAT** badge marks an annotation in which some proteins carry a value **transferred from a
 nearby annotated protein** instead of a curated record of their own, not to be confused with the ⚡
