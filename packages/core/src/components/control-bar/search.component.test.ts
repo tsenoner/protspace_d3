@@ -60,6 +60,7 @@ const rowText = (row: HTMLElement): string => row.textContent!.trim();
 
 describe('protspace-protein-search feedback', () => {
   // jsdom does not implement scrollIntoView, so it is assigned rather than spied on.
+  const hadScrollIntoView = 'scrollIntoView' in Element.prototype;
   const originalScrollIntoView = Element.prototype.scrollIntoView;
   let scrollIntoViewMock: ReturnType<typeof vi.fn>;
 
@@ -70,7 +71,11 @@ describe('protspace-protein-search feedback', () => {
   });
 
   afterEach(() => {
-    Element.prototype.scrollIntoView = originalScrollIntoView;
+    // Restoring by assignment would leave an own `scrollIntoView: undefined` on
+    // Element.prototype, so `'scrollIntoView' in el` would answer true for the rest of
+    // the file. Delete it instead when jsdom never had one.
+    if (hadScrollIntoView) Element.prototype.scrollIntoView = originalScrollIntoView;
+    else delete (Element.prototype as Partial<Element>).scrollIntoView;
     document.body.innerHTML = '';
     vi.useRealTimers();
   });
@@ -115,6 +120,21 @@ describe('protspace-protein-search feedback', () => {
     );
   });
 
+  it('reports the combobox as expanded while the no-match message is on screen', async () => {
+    const element = await setupSearch();
+    await typeQuery(element, 'zzz');
+
+    const input = inputOf(element);
+    const popup = element.shadowRoot!.querySelector('.search-suggestions')!;
+    // The message is a rendered popup. A combobox reporting itself collapsed while the
+    // popup is visible tells a screen-reader user the opposite of what sighted users see.
+    expect(input.getAttribute('aria-expanded')).toBe('true');
+    expect(input.getAttribute('aria-controls')).toBe(popup.id);
+    // `aria-controls` has to name an actual popup, so the empty state is still a listbox.
+    expect(popup.getAttribute('role')).toBe('listbox');
+    expect(element.shadowRoot!.querySelector('.no-results')!.getAttribute('role')).toBe('status');
+  });
+
   it('surfaces current selections when the empty input is focused', async () => {
     const element = await setupSearch();
     const input = inputOf(element);
@@ -125,6 +145,30 @@ describe('protspace-protein-search feedback', () => {
     const rows = rowsOf(element);
     expect(rows.map(rowText)).toEqual(['P00595', 'Q12345']);
     expect(rows.map((row) => row.classList.contains('selected'))).toEqual([true, false]);
+  });
+
+  it('does not seed a keyboard cursor on a bare focus, so Enter cannot remove a selection', async () => {
+    const element = await setupSearch();
+    const input = inputOf(element);
+    input.focus();
+    input.dispatchEvent(new Event('focus', { bubbles: true, composed: true }));
+    await element.updateComplete;
+
+    // Row 0 is the current selection; a seeded highlight there would make a reflexive
+    // Enter silently drop a protein the user never pointed at.
+    expect(rowsOf(element).some((row) => row.classList.contains('active'))).toBe(false);
+    expect(input.hasAttribute('aria-activedescendant')).toBe(false);
+
+    const removed = captureIds(element, 'remove-selection');
+    const added = captureIds(element, 'add-selection');
+    press(element, 'Enter');
+    expect(removed).toEqual([]);
+    expect(added).toEqual([]);
+
+    // Arrow keys still start at row 0 from the unseeded state.
+    press(element, 'ArrowDown');
+    await element.updateComplete;
+    expect(rowsOf(element)[0].classList.contains('active')).toBe(true);
   });
 
   it('marks rows with aria-selected for assistive technology', async () => {
@@ -155,6 +199,7 @@ describe('protspace-protein-search feedback', () => {
     press(element, 'ArrowDown', 2);
     await element.updateComplete;
 
+    // Landing on row 2 also pins that the highlight advances past the first row.
     const rows = rowsOf(element);
     expect(rows[2].classList.contains('active')).toBe(true);
     expect(input.getAttribute('aria-activedescendant')).toBe(rows[2].id);
@@ -257,17 +302,6 @@ describe('protspace-protein-search feedback', () => {
     expect(element.shadowRoot!.querySelector('.no-results')).toBeNull();
   });
 
-  it('advances the highlight past the first row on repeated ArrowDown', async () => {
-    const element = await setupSearch([...FIVE, 'Q12345'], []);
-    await typeQuery(element, 'P0059');
-
-    press(element, 'ArrowDown', 2);
-    await element.updateComplete;
-
-    const rows = rowsOf(element);
-    expect(rows[2].classList.contains('active')).toBe(true);
-  });
-
   it('activates the arrow-highlighted row on Enter, not the first row', async () => {
     const element = await setupSearch([...FIVE, 'Q12345'], []);
     await typeQuery(element, 'P0059');
@@ -314,7 +348,11 @@ describe('protspace-protein-search feedback', () => {
     expect(rows[9].classList.contains('active')).toBe(true);
   });
 
-  it('scrolls the highlighted row into view when ArrowDown moves past the visible area', async () => {
+  /**
+   * A 20-row dropdown — more than the ~8 the container shows — arrowed down to row 15.
+   * Typing the query seeds the highlight at row 0, so 15 presses land on row 15.
+   */
+  async function listArrowedToRow15(): Promise<ProteinSearchElement> {
     const ids = Array.from({ length: 20 }, (_, i) => `B${String(i + 1).padStart(2, '0')}`);
     const element = await setupSearch(ids, []);
     await typeQuery(element, 'B');
@@ -322,22 +360,19 @@ describe('protspace-protein-search feedback', () => {
 
     press(element, 'ArrowDown', 15);
     await element.updateComplete;
+    expect(rowsOf(element)[15].classList.contains('active')).toBe(true);
+    return element;
+  }
 
-    // Typing the query seeds the highlight at row 0, so 15 ArrowDown presses land on row 15.
-    const rows = rowsOf(element);
-    expect(rows[15].classList.contains('active')).toBe(true);
+  it('scrolls the highlighted row into view when ArrowDown moves past the visible area', async () => {
+    const element = await listArrowedToRow15();
+
     expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: 'nearest', behavior: 'smooth' });
-    expect(scrollIntoViewMock.mock.contexts.at(-1)).toBe(rows[15]);
+    expect(scrollIntoViewMock.mock.contexts.at(-1)).toBe(rowsOf(element)[15]);
   });
 
   it('scrolls the highlighted row into view when ArrowUp travels back up', async () => {
-    const ids = Array.from({ length: 20 }, (_, i) => `B${String(i + 1).padStart(2, '0')}`);
-    const element = await setupSearch(ids, []);
-    await typeQuery(element, 'B');
-
-    press(element, 'ArrowDown', 15);
-    await element.updateComplete;
-    expect(rowsOf(element)[15].classList.contains('active')).toBe(true);
+    const element = await listArrowedToRow15();
 
     scrollIntoViewMock.mockClear();
     press(element, 'ArrowUp', 10);
@@ -386,8 +421,7 @@ describe('protspace-protein-search feedback', () => {
     expect(rowsOf(element).map(rowText)).toEqual(['NEW1']);
     expect(element.shadowRoot!.querySelector('.no-results')).toBeNull();
 
-    const input = element.shadowRoot!.querySelector('#protein-search-input') as HTMLInputElement;
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    press(element, 'Escape');
     await element.updateComplete;
     expect(element.shadowRoot!.querySelector('.search-suggestions')).toBeNull();
 

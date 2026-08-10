@@ -40,6 +40,18 @@ class ProtspaceProteinSearch extends LitElement {
     return this.isSuggestionDropdownOpen && this.searchSuggestions.length > 0;
   }
 
+  /**
+   * True whenever `render()` emits a popup at all — the listbox *or* the no-match message.
+   * `aria-expanded` tracks this rather than `_isListboxRendered`: a combobox whose popup is
+   * on screen must report itself expanded, and the no-match state is a rendered popup.
+   */
+  private get _isPopupRendered(): boolean {
+    return (
+      this._isListboxRendered ||
+      (this.isSuggestionDropdownOpen && this.searchQuery.trim().length > 0)
+    );
+  }
+
   render() {
     return html`
       <div class="search-container">
@@ -52,8 +64,8 @@ class ProtspaceProteinSearch extends LitElement {
             placeholder="Search or paste protein IDs"
             role="combobox"
             aria-autocomplete="list"
-            aria-expanded=${this._isListboxRendered}
-            aria-controls=${this._isListboxRendered ? SUGGESTIONS_LIST_ID : nothing}
+            aria-expanded=${this._isPopupRendered}
+            aria-controls=${this._isPopupRendered ? SUGGESTIONS_LIST_ID : nothing}
             aria-activedescendant=${this.highlightedSuggestionIndex >= 0
               ? suggestionRowId(this.highlightedSuggestionIndex)
               : nothing}
@@ -69,48 +81,58 @@ class ProtspaceProteinSearch extends LitElement {
           </div>
         </div>
 
-        ${this.isSuggestionDropdownOpen
-          ? this.searchSuggestions.length > 0
-            ? html`
-                <div
-                  class="search-suggestions"
-                  id=${SUGGESTIONS_LIST_ID}
-                  role="listbox"
-                  aria-multiselectable="true"
-                >
-                  ${this.searchSuggestions.map(
-                    (suggestion, i) => html`
-                      <div
-                        class="search-suggestion ${i === this.highlightedSuggestionIndex
-                          ? 'active'
-                          : ''} ${suggestion.isSelected ? 'selected' : ''}"
-                        id=${suggestionRowId(i)}
-                        role="option"
-                        aria-selected=${suggestion.isSelected}
-                        title=${suggestion.isSelected ? 'Remove from selection' : nothing}
-                        aria-label=${suggestion.isSelected
-                          ? `${suggestion.id}, remove from selection`
-                          : suggestion.id}
-                        @mousedown=${(e: Event) => {
-                          // Use mousedown to avoid blur before click
-                          e.preventDefault();
-                          this._activateSuggestion(suggestion);
-                        }}
-                      >
-                        ${suggestion.id}
-                      </div>
-                    `,
-                  )}
-                </div>
-              `
-            : this.searchQuery.trim()
-              ? html`
-                  <div class="search-suggestions">
-                    <div class="no-results">No matching protein IDs found</div>
-                  </div>
-                `
-              : ''
-          : ''}
+        ${this._renderSuggestions()}
+      </div>
+    `;
+  }
+
+  /** The listbox, the no-match message, or nothing — driven by the same open flag. */
+  private _renderSuggestions() {
+    if (this._isListboxRendered) {
+      return html`
+        <div
+          class="search-suggestions"
+          id=${SUGGESTIONS_LIST_ID}
+          role="listbox"
+          aria-multiselectable="true"
+        >
+          ${this.searchSuggestions.map((suggestion, i) => this._renderSuggestion(suggestion, i))}
+        </div>
+      `;
+    }
+    if (this._isPopupRendered) {
+      // Same id and role as the listbox branch: `aria-controls` has to name whichever popup
+      // is on screen, and a combobox's controlled popup has to *be* one — an empty listbox
+      // is valid, a bare div is not. Only one of the two branches ever renders.
+      return html`
+        <div class="search-suggestions" id=${SUGGESTIONS_LIST_ID} role="listbox">
+          <div class="no-results" role="status">No matching protein IDs found</div>
+        </div>
+      `;
+    }
+    return nothing;
+  }
+
+  private _renderSuggestion(suggestion: SearchSuggestion, index: number) {
+    return html`
+      <div
+        class="search-suggestion ${index === this.highlightedSuggestionIndex
+          ? 'active'
+          : ''} ${suggestion.isSelected ? 'selected' : ''}"
+        id=${suggestionRowId(index)}
+        role="option"
+        aria-selected=${suggestion.isSelected}
+        title=${suggestion.isSelected ? 'Remove from selection' : nothing}
+        aria-label=${suggestion.isSelected
+          ? `${suggestion.id}, remove from selection`
+          : suggestion.id}
+        @mousedown=${(e: Event) => {
+          // Use mousedown to avoid blur before click
+          e.preventDefault();
+          this._activateSuggestion(suggestion);
+        }}
+      >
+        ${suggestion.id}
       </div>
     `;
   }
@@ -332,9 +354,16 @@ class ProtspaceProteinSearch extends LitElement {
     // `Math.min` alone, so a preserved -1 stays -1: an input-driven refresh must not
     // invent a keyboard cursor the user never moved, or Enter would activate a row
     // they never highlighted.
-    this.highlightedSuggestionIndex = preserveHighlight
-      ? Math.min(previousIndex, this.searchSuggestions.length - 1)
-      : 0;
+    if (preserveHighlight) {
+      this.highlightedSuggestionIndex = Math.min(previousIndex, this.searchSuggestions.length - 1);
+      return;
+    }
+    // Seed row 0 only for a typed query, where Enter plainly means "take this match".
+    // On a bare focus the list is the *current selection* plus arbitrary head-of-dataset
+    // entries, and row 0 is usually a marked row — seeding it there would make a reflexive
+    // Enter (or a screen reader following `aria-activedescendant`) silently REMOVE a
+    // protein the user never pointed at. Arrow keys still start at row 0 from -1.
+    this.highlightedSuggestionIndex = this.searchQuery.trim() ? 0 : -1;
   }
 
   private _activateSuggestion(suggestion: SearchSuggestion) {
