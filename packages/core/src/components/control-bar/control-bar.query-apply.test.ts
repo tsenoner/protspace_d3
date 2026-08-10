@@ -327,10 +327,14 @@ describe('control-bar EAT reliability slider <-> query mirror', () => {
         },
       }),
     );
-    expect(mirror).toHaveBeenLastCalledWith(expect.objectContaining({ detail: { value: 0.6 } }));
+    expect(mirror).toHaveBeenLastCalledWith(
+      expect.objectContaining({ detail: expect.objectContaining({ value: 0.6 }) }),
+    );
 
     controlBar._handleQueryChanged(new CustomEvent('query-changed', { detail: { query: [] } }));
-    expect(mirror).toHaveBeenLastCalledWith(expect.objectContaining({ detail: { value: 0 } }));
+    expect(mirror).toHaveBeenLastCalledWith(
+      expect.objectContaining({ detail: expect.objectContaining({ value: 0 }) }),
+    );
   });
 
   it('guards the loop: a query change echoing the forward value does not re-emit', () => {
@@ -463,10 +467,189 @@ describe('control-bar per-base EAT reliability filter (multi-EAT)', () => {
 
     controlBar.selectedAnnotation = 'ec';
     await controlBar.updateComplete;
-    expect(mirror).toHaveBeenLastCalledWith(expect.objectContaining({ detail: { value: 0.5 } }));
+    expect(mirror).toHaveBeenLastCalledWith(
+      expect.objectContaining({ detail: expect.objectContaining({ value: 0.5 }) }),
+    );
 
     controlBar.selectedAnnotation = 'go';
     await controlBar.updateComplete;
-    expect(mirror).toHaveBeenLastCalledWith(expect.objectContaining({ detail: { value: 0.8 } }));
+    expect(mirror).toHaveBeenLastCalledWith(
+      expect.objectContaining({ detail: expect.objectContaining({ value: 0.8 }) }),
+    );
+  });
+});
+
+/**
+ * #380 — "make the EAT reliability filtering work for all kind of different
+ * settings: smaller then, larger then, and between and sync between filter and drag."
+ *
+ * The mirror used to recognise exactly one condition shape, `NOT(conf < X)` matched on
+ * operator AND logical op, at the top level only. Everything else was invisible: a
+ * drag appended a second, contradictory condition instead of replacing the first, and
+ * the slider read 0% while the plot was heavily filtered.
+ */
+describe('control-bar EAT reliability filter — all operators (#380)', () => {
+  let controlBar: ControlBarInternals;
+  let scatter: StubScatterplot;
+
+  beforeEach(async () => {
+    document.body.innerHTML = '';
+    controlBar = document.createElement('protspace-control-bar') as ControlBarInternals;
+    controlBar.autoSync = false;
+    document.body.appendChild(controlBar);
+    await controlBar.updateComplete;
+
+    scatter = {
+      selectedProteinIds: ['sentinel'],
+      isolateSelection: vi.fn(),
+      resetIsolation: vi.fn(),
+      getCurrentData: vi.fn(() => makeEatData()),
+      getMaterializedData: vi.fn(() => makeEatData()),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    };
+    controlBar._scatterplotElement = scatter;
+    controlBar._currentData = makeEatData();
+    controlBar.selectedAnnotation = 'family';
+    await controlBar.updateComplete;
+  });
+
+  function eatConditions(query: FilterQuery) {
+    return query.filter(
+      (item) => 'kind' in item && item.kind === 'numeric' && item.annotation === EAT_KEY,
+    );
+  }
+
+  it('replaces a hand-built "greater than" rather than appending beside it', () => {
+    // The query builder DEFAULTS to `gt` when an eat-confidence column is picked, so
+    // this is the most likely thing a user has on screen.
+    controlBar._handleQueryChanged(
+      new CustomEvent('query-changed', {
+        detail: {
+          query: [
+            { id: 'x', kind: 'numeric', annotation: EAT_KEY, operator: 'gt', min: 0.5, max: null },
+          ],
+        },
+      }),
+    );
+
+    controlBar.setEatConfidenceThreshold('family', 0.3);
+
+    // Exactly one reliability condition survives — no silently AND-ed contradiction.
+    expect(eatConditions(controlBar.filterQuery)).toHaveLength(1);
+  });
+
+  it('replaces a hand-built "between" rather than appending beside it', () => {
+    controlBar._handleQueryChanged(
+      new CustomEvent('query-changed', {
+        detail: {
+          query: [
+            {
+              id: 'x',
+              kind: 'numeric',
+              annotation: EAT_KEY,
+              operator: 'between',
+              min: 0.4,
+              max: 0.9,
+            },
+          ],
+        },
+      }),
+    );
+
+    controlBar.setEatConfidenceThreshold('family', 0.6);
+    expect(eatConditions(controlBar.filterQuery)).toHaveLength(1);
+  });
+
+  it('replaces a NON-negated "less than", which used to blank the canvas', () => {
+    // conf < 0.5 AND NOT(conf < 0.5) evaluates to the empty set. That used to be
+    // pushed as an ACTIVE filter, hiding every point with no way back.
+    controlBar._handleQueryChanged(
+      new CustomEvent('query-changed', {
+        detail: {
+          query: [
+            { id: 'x', kind: 'numeric', annotation: EAT_KEY, operator: 'lt', min: null, max: 0.5 },
+          ],
+        },
+      }),
+    );
+
+    controlBar.setEatConfidenceThreshold('family', 0.5);
+
+    expect(eatConditions(controlBar.filterQuery)).toHaveLength(1);
+    expect(scatter.filteredProteinIds?.length ?? 0).toBeGreaterThan(0);
+  });
+
+  it('never hides the curated points, in any mode', () => {
+    // p0-p4 carry a null confidence: they are curated, and the slider's own help text
+    // promises they always stay visible. Only a NOT-complement keeps them.
+    const curated = ['p0', 'p1', 'p2', 'p3', 'p4'];
+    const modes = [
+      { mode: 'atLeast' as const, min: 0.5, max: 1 },
+      { mode: 'atMost' as const, min: 0, max: 0.5 },
+      { mode: 'between' as const, min: 0.4, max: 0.8 },
+    ];
+
+    for (const state of modes) {
+      controlBar.setEatReliability('family', state);
+      for (const id of curated) {
+        expect(scatter.filteredProteinIds).toContain(id);
+      }
+    }
+  });
+
+  it('applies an upper bound that actually removes the high-confidence points', () => {
+    controlBar.setEatReliability('family', { mode: 'atMost', min: 0, max: 0.5 });
+    // p19 has confidence 0.95 — above the bound, so it must be gone; p5 (0.25) stays.
+    expect(scatter.filteredProteinIds).not.toContain('p19');
+    expect(scatter.filteredProteinIds).toContain('p5');
+  });
+
+  it('applies a band from both sides', () => {
+    controlBar.setEatReliability('family', { mode: 'between', min: 0.4, max: 0.6 });
+    expect(scatter.filteredProteinIds).not.toContain('p5'); // 0.25, below the band
+    expect(scatter.filteredProteinIds).not.toContain('p19'); // 0.95, above the band
+    expect(scatter.filteredProteinIds).toContain('p10'); // 0.50, inside
+  });
+
+  it('finds and replaces a reliability condition nested in a group', () => {
+    controlBar._handleQueryChanged(
+      new CustomEvent('query-changed', {
+        detail: {
+          query: [
+            {
+              id: 'g',
+              conditions: [
+                {
+                  id: 'x',
+                  kind: 'numeric',
+                  annotation: EAT_KEY,
+                  operator: 'lt',
+                  min: null,
+                  max: 0.2,
+                  logicalOp: 'NOT',
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+
+    controlBar.setEatConfidenceThreshold('family', 0.7);
+
+    // The nested one is gone rather than duplicated at top level.
+    const all = JSON.stringify(controlBar.filterQuery);
+    expect(all.match(/eat_confidence/g) ?? []).toHaveLength(1);
+  });
+
+  it('does not blank the plot when the query matches nothing', () => {
+    // An impossible band: nothing sits above 0.9 AND below 0.91 except by luck.
+    controlBar.setEatReliability('family', { mode: 'between', min: 0.99, max: 0.995 });
+    // Whatever the outcome, the filter channel must never be left "active but empty",
+    // which reads as "hide everything".
+    if ((scatter.filteredProteinIds?.length ?? 0) === 0) {
+      expect(scatter.filtersActive).toBe(false);
+    }
   });
 });

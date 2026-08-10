@@ -1,4 +1,5 @@
 import '@protspace/core'; // Registers all web components
+import type { EatReliabilityState } from '@protspace/utils';
 import { startProductTour } from '../tour/product-tour';
 import { bindControlBarEvents } from './control-bar-events';
 import { createDatasetController } from './dataset-controller';
@@ -287,14 +288,27 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
   // that filter pulls the slider back. Each direction guards on the threshold
   // value so they can't ping-pong.
   addTrackedEventListener(lifecycle, legendElement, 'eat-overlay-change', (event: Event) => {
-    const { confidenceThreshold } = (
-      event as CustomEvent<{ enabled: boolean; confidenceThreshold: number }>
+    const { confidenceThreshold, reliability } = (
+      event as CustomEvent<{
+        enabled: boolean;
+        confidenceThreshold: number;
+        reliability?: EatReliabilityState;
+      }>
     ).detail;
-    controlBar.setEatConfidenceThreshold(legendElement.selectedAnnotation, confidenceThreshold);
+    // Prefer the full state (mode + both bounds) so "hide above" and "keep between"
+    // reach the query; fall back to the scalar for any emitter that predates it.
+    if (reliability) {
+      controlBar.setEatReliability(legendElement.selectedAnnotation, reliability);
+    } else {
+      controlBar.setEatConfidenceThreshold(legendElement.selectedAnnotation, confidenceThreshold);
+    }
   });
   addTrackedEventListener(lifecycle, controlBar, 'eat-threshold-mirror', (event: Event) => {
-    const { value } = (event as CustomEvent<{ value: number }>).detail;
-    legendElement.setReliabilityThreshold(value);
+    const { value, state } = (
+      event as CustomEvent<{ value: number; base?: string; state?: EatReliabilityState }>
+    ).detail;
+    if (state) legendElement.setReliabilityState(state);
+    else legendElement.setReliabilityThreshold(value);
   });
   addTrackedEventListener(
     lifecycle,

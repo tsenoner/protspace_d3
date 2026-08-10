@@ -15,6 +15,23 @@ export const EAT_COMPANION_SUFFIXES = {
 export type EatCompanionKind = keyof typeof EAT_COMPANION_SUFFIXES;
 
 export const EAT_CONFIDENCE_SUFFIX = '__eat_confidence';
+
+/**
+ * Which side(s) of the reliability scale the EAT filter constrains (#380).
+ *
+ * Lives here rather than beside the query-condition translation in `core` because
+ * both the legend control and the control bar need the vocabulary, and neither
+ * should have to import from the other.
+ */
+export type EatReliabilityMode = 'atLeast' | 'atMost' | 'between';
+
+export interface EatReliabilityState {
+  mode: EatReliabilityMode;
+  /** Lower bound, used by `atLeast` and `between`. 0 means "no lower bound". */
+  min: number;
+  /** Upper bound, used by `atMost` and `between`. 1 means "no upper bound". */
+  max: number;
+}
 /**
  * Default reliability-slider position. `0` means "show everything": the slider
  * derives a `NOT(EAT_confidence < x)` filter only when dragged above 0, so a

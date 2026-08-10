@@ -181,6 +181,29 @@ export const layoutStyles = css`
     flex: 0 0 auto;
   }
 
+  /*
+   * The mode select replaces what used to be a static "Hide below reliability"
+   * label, so it must not grow the row: the EAT legend is asserted to stay inside
+   * its group with no horizontal overflow down to a 320px viewport.
+   */
+  .eat-threshold-mode {
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+    padding: 0.1rem 0.2rem;
+    border: 1px solid var(--legend-border);
+    border-radius: 0.25rem;
+    background: var(--legend-bg);
+    color: var(--legend-text-color);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .eat-threshold-mode:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+
   .eat-legend-counts {
     display: grid;
     gap: 0.1rem;
