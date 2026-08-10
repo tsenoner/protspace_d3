@@ -109,6 +109,28 @@ export class ProtspaceControlBar extends LitElement {
   private _onDataIsolationReset = (event: Event) => this._handleDataIsolationReset(event);
   private _onAutoDisableSelection = (event: Event) => this._handleAutoDisableSelection(event);
   private _onBrushSelection = (event: Event) => this._handleBrushSelection(event);
+  // Bound fields, not inline closures: an inline closure cannot be removed, so every
+  // re-attach of this element stacked another handler (and leaked the detached element).
+  private _onAnnotationOpened = () => {
+    this.showProjectionMenu = false;
+    this.showFilterMenu = false;
+    this.showExportMenu = false;
+    this.showImportMenu = false;
+    // Close search when annotation opens
+    this.shadowRoot
+      ?.querySelector('protspace-protein-search')
+      ?.dispatchEvent(new CustomEvent('close-search', { bubbles: false }));
+  };
+  private _onSearchOpened = () => {
+    this.showProjectionMenu = false;
+    this.showFilterMenu = false;
+    this.showExportMenu = false;
+    this.showImportMenu = false;
+    // Close annotation when search opens
+    this.shadowRoot
+      ?.querySelector('protspace-annotation-select')
+      ?.dispatchEvent(new CustomEvent('close-dropdown', { bubbles: false }));
+  };
 
   static styles = controlBarStyles;
 
@@ -1042,29 +1064,9 @@ export class ProtspaceControlBar extends LitElement {
     document.addEventListener('click', this._onDocumentClick);
     document.addEventListener('keydown', this._onDocumentKeydown);
 
-    // Listen for annotation opening
-    this.addEventListener('annotation-opened', () => {
-      this.showProjectionMenu = false;
-      this.showFilterMenu = false;
-      this.showExportMenu = false;
-      this.showImportMenu = false;
-      // Close search when annotation opens
-      this.shadowRoot
-        ?.querySelector('protspace-protein-search')
-        ?.dispatchEvent(new CustomEvent('close-search', { bubbles: false }));
-    });
-
-    // Listen for search opening
-    this.addEventListener('search-opened', () => {
-      this.showProjectionMenu = false;
-      this.showFilterMenu = false;
-      this.showExportMenu = false;
-      this.showImportMenu = false;
-      // Close annotation when search opens
-      this.shadowRoot
-        ?.querySelector('protspace-annotation-select')
-        ?.dispatchEvent(new CustomEvent('close-dropdown', { bubbles: false }));
-    });
+    // Listen for annotation / search opening
+    this.addEventListener('annotation-opened', this._onAnnotationOpened);
+    this.addEventListener('search-opened', this._onSearchOpened);
 
     if (this.autoSync) {
       this._setupAutoSync();
@@ -1075,6 +1077,8 @@ export class ProtspaceControlBar extends LitElement {
     super.disconnectedCallback();
     document.removeEventListener('click', this._onDocumentClick);
     document.removeEventListener('keydown', this._onDocumentKeydown);
+    this.removeEventListener('annotation-opened', this._onAnnotationOpened);
+    this.removeEventListener('search-opened', this._onSearchOpened);
 
     if (this._scatterplotElement) {
       this._scatterplotElement.removeEventListener('data-change', this._onDataChange);

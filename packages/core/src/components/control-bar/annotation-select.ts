@@ -41,13 +41,22 @@ class ProtspaceAnnotationSelect extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    // Listen for parent-initiated close
-    this.addEventListener('close-dropdown', () => {
-      this.open = false;
-      this.query = '';
-      this.highlightIndex = -1;
-    });
+    // Listen for parent-initiated close. Bound field, not an inline closure: an inline
+    // one cannot be removed, so every re-attach of this element would stack another
+    // handler and leak the detached element.
+    this.addEventListener('close-dropdown', this._handleCloseDropdown);
   }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.removeEventListener('close-dropdown', this._handleCloseDropdown);
+  }
+
+  private _handleCloseDropdown = () => {
+    this.open = false;
+    this.query = '';
+    this.highlightIndex = -1;
+  };
 
   private toggleDropdown(event?: Event) {
     event?.stopPropagation();
