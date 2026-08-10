@@ -96,7 +96,7 @@ describe('legend-owned EAT controls', () => {
     ).toBe('73');
     expect(listener).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        detail: { enabled: true, confidenceThreshold: 0.73 },
+        detail: expect.objectContaining({ enabled: true, confidenceThreshold: 0.73 }),
       }),
     );
 
@@ -106,7 +106,9 @@ describe('legend-owned EAT controls', () => {
     percent.dispatchEvent(new Event('change'));
     await legend.updateComplete;
     expect(listener).toHaveBeenLastCalledWith(
-      expect.objectContaining({ detail: { enabled: true, confidenceThreshold: 0.34 } }),
+      expect.objectContaining({
+        detail: expect.objectContaining({ enabled: true, confidenceThreshold: 0.34 }),
+      }),
     );
     expect(range.value).toBe('0.34');
   });
@@ -136,7 +138,9 @@ describe('legend-owned EAT controls', () => {
     vi.advanceTimersByTime(150);
     expect(listener).toHaveBeenCalledTimes(1);
     expect(listener).toHaveBeenLastCalledWith(
-      expect.objectContaining({ detail: { enabled: true, confidenceThreshold: 0.62 } }),
+      expect.objectContaining({
+        detail: expect.objectContaining({ enabled: true, confidenceThreshold: 0.62 }),
+      }),
     );
   });
 
@@ -158,7 +162,9 @@ describe('legend-owned EAT controls', () => {
     vi.advanceTimersByTime(150);
     expect(listener).toHaveBeenCalledTimes(1);
     expect(listener).toHaveBeenLastCalledWith(
-      expect.objectContaining({ detail: { enabled: true, confidenceThreshold: 0.45 } }),
+      expect.objectContaining({
+        detail: expect.objectContaining({ enabled: true, confidenceThreshold: 0.45 }),
+      }),
     );
   });
 
@@ -179,7 +185,9 @@ describe('legend-owned EAT controls', () => {
     range.dispatchEvent(new Event('change'));
     expect(listener).toHaveBeenCalledTimes(1);
     expect(listener).toHaveBeenLastCalledWith(
-      expect.objectContaining({ detail: { enabled: true, confidenceThreshold: 0.4 } }),
+      expect.objectContaining({
+        detail: expect.objectContaining({ enabled: true, confidenceThreshold: 0.4 }),
+      }),
     );
 
     // The already-flushed timer must not fire a duplicate emit.
@@ -200,7 +208,9 @@ describe('legend-owned EAT controls', () => {
     // The toggle is a discrete action, not a drag — it emits synchronously.
     expect(listener).toHaveBeenCalledTimes(1);
     expect(listener).toHaveBeenLastCalledWith(
-      expect.objectContaining({ detail: { enabled: false, confidenceThreshold: 0 } }),
+      expect.objectContaining({
+        detail: expect.objectContaining({ enabled: false, confidenceThreshold: 0 }),
+      }),
     );
   });
 
@@ -284,5 +294,72 @@ describe('legend-owned EAT controls', () => {
     legend.requestUpdate();
     await legend.updateComplete;
     expect(legend.shadowRoot!.querySelector('.eat-legend')).toBeNull();
+  });
+});
+
+/**
+ * #380 — the legend must be able to express the three filter directions the issue
+ * names, not just "hide below". Each mode emits the full state so the control bar
+ * can translate it into NOT-form conditions that keep curated points visible.
+ */
+describe('legend EAT reliability modes (#380)', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  async function selectMode(mode: 'atLeast' | 'atMost' | 'between') {
+    const { legend } = await setup();
+    const listener = vi.fn();
+    legend.addEventListener('eat-overlay-change', listener);
+    const select = legend.shadowRoot!.querySelector<HTMLSelectElement>('.eat-threshold-mode')!;
+    select.value = mode;
+    select.dispatchEvent(new Event('change'));
+    await legend.updateComplete;
+    return { legend, listener };
+  }
+
+  it('offers all three directions', async () => {
+    const { legend } = await setup();
+    const options = Array.from(
+      legend.shadowRoot!.querySelectorAll<HTMLOptionElement>('.eat-threshold-mode option'),
+    ).map((o) => o.value);
+    expect(options).toEqual(['atLeast', 'atMost', 'between']);
+  });
+
+  it('emits the mode immediately, without waiting out the drag debounce', async () => {
+    const { listener } = await selectMode('atMost');
+    expect(listener).toHaveBeenCalled();
+    expect(listener.mock.lastCall?.[0].detail.reliability.mode).toBe('atMost');
+  });
+
+  it('reveals a second bound only for a band', async () => {
+    const { legend } = await selectMode('between');
+    expect(legend.shadowRoot!.querySelector('#eat-reliability-upper')).not.toBeNull();
+
+    const { legend: atLeast } = await selectMode('atLeast');
+    expect(atLeast.shadowRoot!.querySelector('#eat-reliability-upper')).toBeNull();
+  });
+
+  it('clears the bound a mode no longer uses, so no invisible constraint survives', async () => {
+    const { legend } = await setup();
+    legend.setReliabilityState({ mode: 'between', min: 0.2, max: 0.6 });
+    await legend.updateComplete;
+
+    const select = legend.shadowRoot!.querySelector<HTMLSelectElement>('.eat-threshold-mode')!;
+    select.value = 'atLeast';
+    select.dispatchEvent(new Event('change'));
+    await legend.updateComplete;
+
+    // The upper bound is no longer editable, so it must not still be filtering.
+    expect(legend.reliabilityState.max).toBe(1);
+  });
+
+  it('round-trips the full state through the reverse mirror', async () => {
+    const { legend } = await setup();
+    legend.setReliabilityState({ mode: 'between', min: 0.25, max: 0.75 });
+    await legend.updateComplete;
+    expect(legend.reliabilityState).toEqual({ mode: 'between', min: 0.25, max: 0.75 });
   });
 });

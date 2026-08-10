@@ -1,5 +1,8 @@
 import { createNumericCondition } from './query-types';
 import type { NumericCondition } from './query-types';
+import type { EatReliabilityState } from '@protspace/utils';
+
+export type { EatReliabilityState };
 
 /**
  * The EAT reliability filter's user-facing model, and its translation to and from
@@ -25,16 +28,6 @@ import type { NumericCondition } from './query-types';
  * A band needs two conditions rather than one `between`: `NOT(between(a,b))` is the
  * band's *complement*, the inverse of what the control means.
  */
-
-export type EatReliabilityMode = 'atLeast' | 'atMost' | 'between';
-
-export interface EatReliabilityState {
-  mode: EatReliabilityMode;
-  /** Lower bound, used by `atLeast` and `between`. 0 means "no lower bound". */
-  min: number;
-  /** Upper bound, used by `atMost` and `between`. 1 means "no upper bound". */
-  max: number;
-}
 
 /**
  * "Show everything." Emits no condition at all, so a fresh dataset — or a bundle with
