@@ -69,3 +69,44 @@ def test_multiple_id_prefixes_use_or_semantics():
     qi, ri = classify(_table(), q, r)
     assert qi == [0, 1, 2]
     assert ri == [3]
+
+
+# ── Open (unrestricted) rules ──────────────────────────────────────────────
+#
+# A rule with no clauses means "no restriction", not "match nothing". Both
+# rules open is the self-transfer case (#393): every protein is a candidate on
+# both sides, and `run_transfer` does the real partitioning per column on
+# missing-vs-present, which is why the candidate sets are allowed to overlap.
+
+
+def test_both_rules_open_makes_every_protein_a_candidate_on_both_sides():
+    qi, ri = classify(_table(), Rule(), Rule())
+    assert qi == [0, 1, 2, 3]
+    assert ri == [0, 1, 2, 3]
+
+
+def test_open_reference_rule_does_not_starve_references():
+    # Query rule is explicit; an open reference rule must still offer every
+    # other protein as a reference instead of returning an empty set.
+    qi, ri = classify(_table(), Rule(id_prefixes=["TRINITY_"]), Rule())
+    assert qi == [0, 1]
+    assert ri == [0, 1, 2, 3]
+
+
+def test_open_query_rule_does_not_starve_queries():
+    qi, ri = classify(_table(), Rule(), Rule(id_prefixes=["P0"]))
+    assert qi == [0, 1, 2, 3]
+    assert ri == [2, 3]
+
+
+def test_open_rule_does_not_consume_proteins_from_the_other_set():
+    # The precedence rule applies only between two explicit rules. An open
+    # rule that "matches" a protein must not remove it from the other set.
+    _, ri = classify(_table(), Rule(), Rule(id_prefixes=["TRINITY_"]))
+    assert ri == [0, 1]
+
+
+def test_open_query_rule_on_empty_table_raises_a_rule_free_message():
+    empty = pa.table({"identifier": [], "protein_category": []})
+    with pytest.raises(ValueError, match="no proteins"):
+        classify(empty, Rule(), Rule())
