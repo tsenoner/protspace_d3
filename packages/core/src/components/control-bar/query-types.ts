@@ -1,10 +1,22 @@
 export type LogicalOp = 'AND' | 'OR' | 'NOT';
 export type NumericOperator = 'gt' | 'lt' | 'between';
 
+/**
+ * Marks a condition as owned by a dedicated control rather than hand-built.
+ *
+ * The EAT reliability slider used to find "its" condition by pattern-matching the
+ * shape `NOT(<eatKey> < X)` — operator AND logical op — which made every other
+ * operator invisible to it (#380). Ownership is now declared, so the slider can own
+ * `<`, `>` or a two-sided band and still recognise it, and a condition the user built
+ * by hand on an eat-confidence column is the same object the slider owns.
+ */
+export type ConditionOwner = 'eat-reliability';
+
 interface BaseCondition {
   id: string;
   logicalOp?: LogicalOp;
   annotation: string;
+  owner?: ConditionOwner;
 }
 
 export interface CategoricalCondition extends BaseCondition {

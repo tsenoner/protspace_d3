@@ -27,9 +27,21 @@ import {
 import './search';
 import './annotation-select';
 import './query-builder';
-import type { FilterQuery, FilterQueryItem, NumericCondition } from './query-types';
-import { createCondition, createNumericCondition, isFilterGroup } from './query-types';
+import type { FilterQuery } from './query-types';
+import { createCondition } from './query-types';
 import { evaluateQuery, hasConfiguredCondition } from './query-evaluate';
+import { findOwnedCondition, replaceOwnedConditions } from './query-owned';
+import {
+  DEFAULT_EAT_RELIABILITY,
+  conditionsForReliability,
+  reliabilityFromConditions,
+} from './eat-reliability';
+import type { EatReliabilityState } from './eat-reliability';
+
+/** Structural equality for a reliability state — the mirror's de-dupe comparison. */
+function isSameReliability(a: EatReliabilityState, b: EatReliabilityState): boolean {
+  return a.mode === b.mode && a.min === b.min && a.max === b.max;
+}
 
 /** Stable empty statistics — a fresh [] per render would dirty the child on every update. */
 const NO_STATISTICS: readonly ProjectionStatisticRow[] = [];
@@ -84,10 +96,13 @@ export class ProtspaceControlBar extends LitElement {
   @state() private showProjectionMenu: boolean = false;
   @state() private filterQuery: FilterQuery = [];
   @state() private filterActive = false;
-  // Last reliability threshold reflected across the slider<->query mirror. Both
-  // directions compare against it so the forward (slider->query) and reverse
-  // (query->slider) paths can't ping-pong on an unchanged value (#6b).
-  private _lastEmittedThreshold = 0;
+  // Last reliability state reflected across the slider<->query mirror, PER
+  // eat-confidence column. Both directions compare against it so the forward
+  // (slider->query) and reverse (query->slider) paths can't ping-pong on an
+  // unchanged value (#6b). It is keyed because a single shared scalar let a drag on
+  // one base be de-duplicated against another base's threshold, silently dropping
+  // the drag or writing it onto the wrong annotation (#380).
+  private _lastMirroredState = new Map<string, EatReliabilityState>();
   @state() private _currentData: ProtspaceData | undefined;
   @state() private projectionHighlightIndex: number = -1;
 
@@ -535,7 +550,7 @@ export class ProtspaceControlBar extends LitElement {
     // filter channel is reset in parallel by applyPlotState.
     this.filterQuery = [];
     this.filterActive = false;
-    this._lastEmittedThreshold = 0;
+    this._lastMirroredState.clear();
   }
 
   private openFileDialog() {
@@ -1101,7 +1116,7 @@ export class ProtspaceControlBar extends LitElement {
     // NEW base's threshold: re-derive from that base's eat-confidence condition and
     // mirror it out. The value-compare guard inside keeps this from ping-ponging.
     if (changed.has('selectedAnnotation')) {
-      this._emitEatThresholdMirror();
+      this._emitEatThresholdMirror(true);
     }
   }
 
@@ -1570,6 +1585,19 @@ export class ProtspaceControlBar extends LitElement {
       .map((i) => proteinIds[i])
       .filter((id): id is string => id !== undefined);
 
+    // A query that matches nothing used to be pushed as an ACTIVE filter, which
+    // blanked the canvas: `_getVisibleProteinIdsSet()` reads an empty
+    // `filteredProteinIds` as "nothing is visible". Reaching that state was easy —
+    // a self-contradicting pair like `conf < 0.5 AND NOT(conf < 0.5)` — and there
+    // was no way back, because Apply is disabled and Cancel does not revert. Leave
+    // the plot as it is instead; the query builder still reports the 0 count (#380).
+    if (matchedIds.length === 0) {
+      sp.filteredProteinIds = [];
+      sp.filtersActive = false;
+      this.filterActive = false;
+      return;
+    }
+
     sp.filteredProteinIds = matchedIds;
     sp.filtersActive = true;
     this.filterActive = true;
@@ -1619,45 +1647,70 @@ export class ProtspaceControlBar extends LitElement {
       this._currentData = sp.getMaterializedData?.() ?? sp.getCurrentData?.() ?? this._currentData;
     }
 
-    const threshold = Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 0;
-    const key = this._findEatConfidenceAnnotationKey(baseKey);
-    // Scope the read/write to THIS base's eat-confidence column so tuning one
-    // transferred base's slider can't clobber or misread another base's filter.
-    const current = this._thresholdForKey(key);
-    // Value-compare guard: the query already reflects this threshold, so
-    // re-applying would be redundant and could ping-pong with the reverse mirror.
-    if (threshold === current) return;
+    this.setEatReliability(baseKey, {
+      mode: 'atLeast',
+      min: Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 0,
+      max: 1,
+    });
+  }
 
-    this._lastEmittedThreshold = threshold;
-    // Remove ONLY this base's reliability condition; every other condition
-    // (other bases' eat filters, unrelated user filters) is preserved.
-    const next = key
-      ? this.filterQuery.filter((item) => !this._isReliabilityConditionForKey(item, key))
-      : [...this.filterQuery];
-    if (threshold > 0 && key) {
-      next.push(
-        createNumericCondition({
-          annotation: key,
-          operator: 'lt',
-          max: threshold,
-          logicalOp: 'NOT',
-        }),
-      );
+  /**
+   * Forward mirror, generalised (#380). The slider owns the reliability conditions
+   * for one base annotation and replaces them wholesale on every change, at any
+   * depth in the query. It used to pattern-match `NOT(conf < X)` at the top level
+   * only, so a hand-built `>`, a band, or anything inside a group was invisible —
+   * and a drag appended a second, contradictory condition beside it.
+   */
+  public setEatReliability(baseKey: string, state: EatReliabilityState): void {
+    // Always resync `_currentData` from the scatter plot's materialized snapshot
+    // before deriving the condition. On a dataset switch the seed can fire before
+    // the plot's data-change event has refreshed `_currentData`, and
+    // clearForNewDataset does NOT reset it — so a stale snapshot would resolve the
+    // eat-confidence column and map matched indices against the PREVIOUS dataset's
+    // protein ids.
+    if (this._scatterplotElement) {
+      const sp = this._scatterplotElement as ScatterplotElementLike;
+      this._currentData = sp.getMaterializedData?.() ?? sp.getCurrentData?.() ?? this._currentData;
     }
-    this.filterQuery = next;
+
+    const key = this._findEatConfidenceAnnotationKey(baseKey);
+    if (!key) return;
+
+    // Value-compare guard, scoped to THIS base: the query already reflects this
+    // state, so re-applying would be redundant and could ping-pong with the reverse
+    // mirror. Keyed, so a drag on one base is never de-duplicated against another's.
+    const current = this._reliabilityForKey(key);
+    if (isSameReliability(current, state)) return;
+    this._lastMirroredState.set(key, state);
+
+    this.filterQuery = replaceOwnedConditions(
+      this.filterQuery,
+      'eat-reliability',
+      key,
+      conditionsForReliability(key, state),
+    );
     this._applyQuery();
   }
 
-  private _emitEatThresholdMirror(): void {
-    // Scope to the SELECTED base: the slider shows the threshold for the base the
-    // user is currently coloring by, so switching annotation moves it to that base.
+  /**
+   * Reverse mirror: tell the legend what the query currently says for the SELECTED
+   * base.
+   *
+   * `force` is set when the selected annotation changed. The slider is then showing
+   * the PREVIOUS base's position and must be repositioned even if this base's state
+   * is unchanged since the control bar last wrote it — the de-dupe guard exists only
+   * to stop the forward and reverse paths ping-ponging within one base.
+   */
+  private _emitEatThresholdMirror(force = false): void {
     const key = this._findEatConfidenceAnnotationKey(this.selectedAnnotation);
-    const derived = this._thresholdForKey(key);
-    if (derived === this._lastEmittedThreshold) return;
-    this._lastEmittedThreshold = derived;
+    if (!key) return;
+    const derived = this._reliabilityForKey(key);
+    const last = this._lastMirroredState.get(key);
+    if (!force && last && isSameReliability(last, derived)) return;
+    this._lastMirroredState.set(key, derived);
     this.dispatchEvent(
       new CustomEvent('eat-threshold-mirror', {
-        detail: { value: derived },
+        detail: { base: this.selectedAnnotation, state: derived, value: derived.min },
         bubbles: true,
         composed: true,
       }),
@@ -1677,35 +1730,13 @@ export class ProtspaceControlBar extends LitElement {
   }
 
   /**
-   * True when `item` is the reliability filter `NOT(<key> < X)` for the specific
-   * eat-confidence column `key` — numeric, that exact column, `lt`, negated.
+   * The reliability state currently expressed by the conditions the slider owns for
+   * eat-confidence column `key`, at any depth. Conditions are matched by their
+   * declared `owner`, not by their shape, which is what lets every operator mirror.
    */
-  private _isReliabilityConditionForKey(
-    item: FilterQueryItem,
-    key: string,
-  ): item is NumericCondition {
-    return (
-      !isFilterGroup(item) &&
-      item.kind === 'numeric' &&
-      item.annotation === key &&
-      item.operator === 'lt' &&
-      item.logicalOp === 'NOT'
-    );
-  }
-
-  /** The reliability `NOT(<key> < X)` condition for eat-confidence column `key`, if present. */
-  private _findReliabilityConditionForKey(
-    query: FilterQuery,
-    key: string,
-  ): NumericCondition | undefined {
-    return query.find((item): item is NumericCondition =>
-      this._isReliabilityConditionForKey(item, key),
-    );
-  }
-
-  /** The current reliability threshold for eat-confidence column `key` (0 if none/unresolved). */
-  private _thresholdForKey(key: string | undefined): number {
-    return key ? (this._findReliabilityConditionForKey(this.filterQuery, key)?.max ?? 0) : 0;
+  private _reliabilityForKey(key: string | undefined): EatReliabilityState {
+    if (!key) return DEFAULT_EAT_RELIABILITY;
+    return reliabilityFromConditions(findOwnedCondition(this.filterQuery, 'eat-reliability', key));
   }
 
   private _handleQueryReset() {
