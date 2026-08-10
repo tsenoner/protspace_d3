@@ -391,32 +391,33 @@ class ProtspaceProteinSearch extends LitElement {
     );
   }
 
+  /**
+   * The dataset's own spelling of `id`, or `undefined` when it names no protein.
+   *
+   * Exact hit first — that is the path every suggestion activation takes, and `includes`
+   * stops at the match. Only a miss (a hand-typed ID in the wrong case, or one that is not
+   * in the dataset at all) pays for the case-insensitive sweep, and `id.toLowerCase()` is
+   * hoisted out of the predicate: inside it, a value that never changes was recomputed once
+   * per available protein — 573K throwaway strings per keystroke-committing Enter.
+   */
+  private _canonicalProteinId(id: string): string | undefined {
+    if (this.availableProteinIds.includes(id)) return id;
+    const lowerId = id.toLowerCase();
+    return this.availableProteinIds.find((p) => p.toLowerCase() === lowerId);
+  }
+
   private _addSelection(id: string) {
     if (!id) return;
 
-    // Validate and normalize the ID
-    let validId = id;
-    if (!this.availableProteinIds.includes(id)) {
-      // Try case-insensitive exact match
-      const exact = this.availableProteinIds.find((p) => p.toLowerCase() === id.toLowerCase());
-      if (exact) {
-        validId = exact;
-      } else {
-        // ID not found in available proteins - ignore
-        this._resetSearch();
-        return;
-      }
-    }
-
-    // Check if already selected
-    if (this.selectedProteinIds.includes(validId)) {
+    // Unknown IDs and already-selected ones both just clear the box: there is nothing to add.
+    const validId = this._canonicalProteinId(id);
+    if (!validId || this.selectedProteinIds.includes(validId)) {
       this._resetSearch();
       return;
     }
 
     this._resetSearch();
 
-    // Dispatch selection change event
     this.dispatchEvent(
       new CustomEvent('add-selection', {
         detail: { proteinId: validId },

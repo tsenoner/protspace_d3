@@ -328,6 +328,24 @@ describe('protspace-protein-search feedback', () => {
     expect(added).toEqual(['P00595']);
   });
 
+  it('resolves a typed ID case-insensitively when Enter has no highlighted row', async () => {
+    const element = await setupSearch(['OLD1'], []);
+    await typeQuery(element, 'new1');
+    expect(inputOf(element).hasAttribute('aria-activedescendant')).toBe(false);
+
+    // A dataset change brings the protein in, and the absent cursor is preserved — so
+    // Enter falls through to resolving the raw query rather than activating a row.
+    element.availableProteinIds = ['NEW1'];
+    await element.updateComplete;
+    expect(rowsOf(element).some((row) => row.classList.contains('active'))).toBe(false);
+
+    const added = captureIds(element, 'add-selection');
+    press(element, 'Enter');
+
+    // Dispatched with the dataset's spelling, not the user's.
+    expect(added).toEqual(['NEW1']);
+  });
+
   it('clamps the highlight when a selection change shortens the list', async () => {
     const ids = Array.from({ length: 12 }, (_, i) => `A${String(i + 1).padStart(2, '0')}`);
     // 11 selected: 10 fit the selected budget, A12 remains selectable => 11 rows.
