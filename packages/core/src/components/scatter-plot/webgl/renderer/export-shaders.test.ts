@@ -19,8 +19,22 @@ describe('point shaders', () => {
     );
     expect(POINT_FRAGMENT_SHADER).toContain('uniform vec3 u_knockoutColor;');
     expect(POINT_FRAGMENT_SHADER).toContain('v_predicted < 0.5');
-    expect(POINT_FRAGMENT_SHADER).toContain('clamp(aa * 1.75, 0.30, 0.55)');
-    expect(POINT_FRAGMENT_SHADER).toContain('min(aa, (1.0 - ringWidth) * 0.5)');
+    expect(POINT_FRAGMENT_SHADER).toContain('clamp(pixelScale * 1.75, 0.30, 0.55)');
+    expect(POINT_FRAGMENT_SHADER).toContain('min(pixelScale, (1.0 - ringWidth) * 0.5)');
+  });
+
+  it('sizes the ring from an isotropic pixel scale so the hole stays round', () => {
+    expect(POINT_FRAGMENT_SHADER).toContain(
+      'float pixelScale = max(length(dFdx(coord)), length(dFdy(coord)));',
+    );
+    // fwidth() is the L1 norm of the partials, so on a radial distance field it reads ~41%
+    // larger along the diagonals than along the axes. Any `aa` in the ring block makes the ring
+    // width angle-dependent, which pinches the hole into a cross instead of a circle.
+    const ringStart = POINT_FRAGMENT_SHADER.indexOf('if (v_predicted > 0.5)');
+    const ringEnd = POINT_FRAGMENT_SHADER.indexOf('if (shapeAlpha < 0.001)');
+    expect(ringStart).toBeGreaterThan(-1);
+    expect(ringEnd).toBeGreaterThan(ringStart);
+    expect(POINT_FRAGMENT_SHADER.slice(ringStart, ringEnd)).not.toMatch(/\baa\b/);
   });
 
   it('makes the predicted interior hollow via a single revertible flag', () => {
