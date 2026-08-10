@@ -371,7 +371,8 @@ class TestAnnotationCacheGuidance:
     def _has_legacy_warning(messages):
         return any("--refetch ted" in m and "legacy" in m for m in messages)
 
-    def test_legacy_ted_label_warns_with_targeted_refetch(self, tmp_path, caplog):
+    def test_legacy_ted_label_warns_on_full_cache_hit(self, tmp_path, caplog):
+        """The short-circuit returns the stored value verbatim, so it must warn."""
         self._write_legacy_cache(tmp_path)
         pipeline = ReductionPipeline(
             PipelineConfig(
@@ -407,8 +408,13 @@ class TestAnnotationCacheGuidance:
         with patch(
             "protspace.data.annotations.manager.ProteinAnnotationManager"
         ) as mock_manager:
+            # The manager merges the untouched cached TED column back in.
             mock_manager.return_value.to_pd.return_value = pd.DataFrame(
-                {"identifier": ["W6JQJ9"], "ec": [""]}
+                {
+                    "identifier": ["W6JQJ9"],
+                    "ted_domains": ["3.40.50.2000|94.2;unclassified|96.7"],
+                    "ec": [""],
+                }
             )
             with caplog.at_level(logging.WARNING):
                 pipeline._fetch_annotations(["W6JQJ9"])
@@ -416,6 +422,30 @@ class TestAnnotationCacheGuidance:
         # `ec` is missing, so `determine_sources_to_fetch` leaves TED cached.
         assert mock_manager.call_args.kwargs["sources_to_fetch"]["ted"] is False
         assert self._has_legacy_warning(caplog.messages)
+
+    def test_no_warning_when_ted_is_not_in_the_produced_output(self, tmp_path, caplog):
+        """Without -a the manager filters to the default group, which drops TED."""
+        self._write_legacy_cache(tmp_path)
+        pipeline = ReductionPipeline(
+            PipelineConfig(
+                methods=[],
+                output_path=None,
+                keep_tmp=True,
+                intermediate_dir=tmp_path,
+            )
+        )
+
+        with patch(
+            "protspace.data.annotations.manager.ProteinAnnotationManager"
+        ) as mock_manager:
+            mock_manager.return_value.to_pd.return_value = pd.DataFrame(
+                {"identifier": ["W6JQJ9"], "ec": [""]}
+            )
+            with caplog.at_level(logging.WARNING):
+                pipeline._fetch_annotations(["W6JQJ9"])
+
+        assert mock_manager.called  # the partial-fetch path, not the short-circuit
+        assert not self._has_legacy_warning(caplog.messages)
 
     def test_no_warning_when_ted_is_being_refetched(self, tmp_path, caplog):
         """--refetch ted already replaces the column; don't ask for it again."""

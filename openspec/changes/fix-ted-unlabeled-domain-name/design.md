@@ -36,12 +36,14 @@ semicolon joining remain unchanged, which keeps the behavioral impact limited to
 
 ### Detect legacy formatted cache values without migrating them
 
-When a `ted_domains` value with the old domain-boundary `unclassified|score` shape is read back from
-the annotation cache, ProtSpace will warn users to run `--refetch ted`. The check sits at the
-cache-read boundary rather than inside the full-hit short-circuit, because a partial cache hit also
-reuses the stored TED column: `determine_sources_to_fetch` reports `ted: False` whenever the column
-is present, so the manager merges the legacy value straight through. It is suppressed when the run
-already refetches TED, so the warning never asks for the command being run.
+When a `ted_domains` value with the old domain-boundary `unclassified|score` shape reaches the
+annotation frame a run produces, ProtSpace will warn users to run `--refetch ted`. The check runs on
+that produced frame rather than on the raw cache, at both reuse sites: the full-hit short-circuit and
+the partial-fetch path, where `determine_sources_to_fetch` reports `ted: False` whenever the column
+is present so the manager merges the legacy value straight through. Inspecting the output rather
+than the cache makes the condition exact — no run-shape heuristic has to predict whether the stored
+column survives the manager's filter to the requested annotations — and it is self-suppressing when
+the run already refetches TED, because the refetched values no longer carry the old label.
 
 The cache itself remains unchanged; automatic schema versioning or mutation would broaden this
 source-label fix into cache migration infrastructure and could alter unrelated cached annotations.

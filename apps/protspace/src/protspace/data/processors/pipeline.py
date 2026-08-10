@@ -26,6 +26,40 @@ from protspace.utils.constants import MDS_NAME
 
 logger = logging.getLogger(__name__)
 
+# Before the source-label fix, a TED domain with no CATH assignment was
+# formatted as `unclassified|{plddt}`; it now keeps TED's own `-`. Annotation
+# caches store already-formatted values, so the old label survives until the
+# column is refetched. Anchored to a domain boundary so an encoded CATH name
+# that merely contains the word cannot trigger it.
+_LEGACY_TED_LABEL_RE = r"(?:^|;)unclassified(?=\|)"
+
+
+def _warn_on_legacy_ted_label(df: pd.DataFrame) -> None:
+    """Warn when a produced annotation frame still carries the legacy TED label.
+
+    Checked on the frame that is actually returned, not on the raw cache, so it
+    covers every path that reuses a stored TED column (the full-cache-hit
+    short-circuit and the partial-fetch path, where ``determine_sources_to_fetch``
+    leaves ``ted`` cached because the column is present) while staying silent
+    when the column was refetched or is not part of this run's output.
+    """
+    from protspace.data.annotations.retrievers.ted_retriever import TED_ANNOTATIONS
+
+    for column in TED_ANNOTATIONS:
+        values = df.get(column)
+        if values is None:
+            continue
+        # Literal pre-filter: the anchored regex costs ~10x more per row, and
+        # every run after the one-time refetch scans a clean column.
+        if not values.str.contains("unclassified", regex=False, na=False).any():
+            continue
+        if values.str.contains(_LEGACY_TED_LABEL_RE, regex=True, na=False).any():
+            logger.warning(
+                "Cached TED annotations use the legacy 'unclassified' label. "
+                "Run with --refetch ted to refresh them."
+            )
+            return
+
 
 @dataclass(frozen=True)
 class ReducerParams:
@@ -409,28 +443,6 @@ class ReductionPipeline:
 
                 missing = required - cached_annotations
 
-                # The cache stores already-formatted TED values, so a stale
-                # `unclassified` label survives every path that reuses it: the
-                # short-circuit below, and the partial-fetch path, where
-                # determine_sources_to_fetch leaves `ted` cached because the
-                # column is present. Check once here to cover both.
-                ted_selected = (
-                    annotations_list is None or "ted_domains" in annotations_list
-                )
-                legacy_ted = cached_df.get("ted_domains")
-                if (
-                    ted_selected
-                    and "ted" not in refetch
-                    and legacy_ted is not None
-                    and legacy_ted.str.contains(
-                        r"(?:^|;)unclassified(?=\|)", regex=True, na=False
-                    ).any()
-                ):
-                    logger.warning(
-                        "Cached TED annotations use the legacy 'unclassified' "
-                        "label. Run with --refetch ted to refresh them."
-                    )
-
                 if not missing and not refetching_annotations:
                     logger.warning("Using cached annotations")
                     if annotations_list:
@@ -455,6 +467,7 @@ class ReductionPipeline:
                                 "a FASTA file with -f."
                             )
 
+                    _warn_on_legacy_ted_label(api_df)
                     return self._merge_csv(api_df, csv_df)
 
                 from protspace.data.annotations.configuration import (
@@ -496,6 +509,7 @@ class ReductionPipeline:
                     cached_data=cached_df,
                     sources_to_fetch=sources,
                 ).to_pd()
+                _warn_on_legacy_ted_label(api_df)
                 return self._merge_csv(api_df, csv_df)
             else:
                 api_df = ProteinAnnotationManager(

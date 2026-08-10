@@ -86,7 +86,10 @@ class TedRetriever(BaseAnnotationRetriever):
         parts = []
         for domain in domains:
             cath_label = domain.get("cath_label") or _UNLABELED_CATH
-            plddt = domain.get("plddt", 0)
+            # `or 0` (not a `.get` default): the key can be present and null,
+            # and formatting None would raise inside the caller's blanket
+            # `except`, silently dropping every domain of this accession.
+            plddt = domain.get("plddt") or 0
 
             name = (
                 self._resolve_cath_name(cath_label)

@@ -141,6 +141,30 @@ class TestTedRetriever:
 
     @patch(_CATH_NAMES_PATCH)
     @patch(_REQUESTS_PATCH)
+    def test_null_plddt_does_not_drop_the_other_domains(
+        self, mock_requests, mock_cath_names
+    ):
+        """A null pLDDT must not blank the whole accession via the outer except."""
+        mock_cath_names.return_value = {}
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = _make_alphafold_response(
+            [
+                _make_domain("3.40.50.2000", None),
+                _make_domain("2.60.40.720", 88.25),
+            ]
+        )
+        mock_resp.raise_for_status = MagicMock()
+        mock_requests.get.return_value = mock_resp
+
+        retriever = TedRetriever(headers=["W6JQJ9"], annotations=TED_ANNOTATIONS)
+        result = retriever.fetch_annotations()
+
+        assert (
+            result[0].annotations["ted_domains"] == "3.40.50.2000|0.0;2.60.40.720|88.2"
+        )
+
+    @patch(_CATH_NAMES_PATCH)
+    @patch(_REQUESTS_PATCH)
     def test_api_error_returns_empty(self, mock_requests, mock_cath_names):
         """API error returns empty annotation."""
         mock_cath_names.return_value = {}
