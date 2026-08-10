@@ -2,7 +2,7 @@ import { LitElement, html, type PropertyValues } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { customElement } from '../../utils/safe-custom-element';
 import { annotationSelectStyles } from './annotation-select.styles';
-import { handleDropdownEscape } from '../../utils/dropdown-helpers';
+import { handleDropdownEscape, scrollHighlightedIntoView } from '../../utils/dropdown-helpers';
 import { groupAnnotations, type GroupedAnnotation } from './annotation-categories';
 import {
   annotationLabel,
@@ -41,13 +41,22 @@ class ProtspaceAnnotationSelect extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    // Listen for parent-initiated close
-    this.addEventListener('close-dropdown', () => {
-      this.open = false;
-      this.query = '';
-      this.highlightIndex = -1;
-    });
+    // Listen for parent-initiated close. Bound field, not an inline closure: an inline
+    // one cannot be removed, so every re-attach of this element would stack another
+    // handler and leak the detached element.
+    this.addEventListener('close-dropdown', this._handleCloseDropdown);
   }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.removeEventListener('close-dropdown', this._handleCloseDropdown);
+  }
+
+  private _handleCloseDropdown = () => {
+    this.open = false;
+    this.query = '';
+    this.highlightIndex = -1;
+  };
 
   private toggleDropdown(event?: Event) {
     event?.stopPropagation();
@@ -127,12 +136,9 @@ class ProtspaceAnnotationSelect extends LitElement {
   }
 
   private scrollToHighlighted() {
-    this.updateComplete.then(() => {
-      const highlighted = this.shadowRoot?.querySelector('.dropdown-item.highlighted');
-      if (highlighted) {
-        highlighted.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      }
-    });
+    this.updateComplete.then(() =>
+      scrollHighlightedIntoView(this.shadowRoot, '.dropdown-item.highlighted'),
+    );
   }
 
   private selectAnnotation(annotation: string, event?: Event) {

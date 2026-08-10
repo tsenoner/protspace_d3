@@ -15,13 +15,26 @@ as a spec **before** writing implementation code.
 - **Use the workflow commands/skills:**
   - `/opsx:propose <idea>` — create a change and generate its artifacts (proposal, design, specs, tasks)
   - `/opsx:apply` — implement the change's tasks
-  - `/opsx:archive` — merge spec deltas into `openspec/specs/` and archive the change
+  - `/opsx:archive` — merge spec deltas into `openspec/specs/` and archive the change.
+    Run it as the **last commit on the branch, before the merge** — see below.
   - `/opsx:explore` — investigate/clarify before committing to a change
   - If slash commands are unavailable, invoke the equivalent OpenSpec skill or run the `openspec` CLI directly.
 - **`openspec/specs/` is the source of truth** for current behavior. Read the relevant specs
   before proposing a change.
 - **Trivial changes** (typo, one-line fix, formatting, dependency bump) do not need a full
   proposal — use judgment.
+
+### Archive before the merge, not after
+
+`/opsx:archive` is what makes `openspec/specs/` true, so it belongs in the change rather than
+after it: run it on the branch, commit the result, and let CI go green on that commit.
+Deferred to "after the merge" it does not happen — the PR is closed and the branch is gone —
+leaving `openspec/specs/` describing behavior the code no longer has, which the next change
+reads as current.
+
+Before archiving, tick off `tasks.md` including anything the review added, and reread
+`proposal.md` / `design.md` against the final diff: rationale written before a review is
+often stale by the end of it, and archiving freezes it.
 
 One-time CLI setup is in [CONTRIBUTING.md](CONTRIBUTING.md#openspec-one-time-per-machine).
 
