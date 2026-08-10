@@ -15,13 +15,35 @@ as a spec **before** writing implementation code.
 - **Use the workflow commands/skills:**
   - `/opsx:propose <idea>` — create a change and generate its artifacts (proposal, design, specs, tasks)
   - `/opsx:apply` — implement the change's tasks
-  - `/opsx:archive` — merge spec deltas into `openspec/specs/` and archive the change
+  - `/opsx:archive` — merge spec deltas into `openspec/specs/` and archive the change.
+    **Run this on the branch as the last commit before merging the PR — never "after the
+    merge".** See below.
   - `/opsx:explore` — investigate/clarify before committing to a change
   - If slash commands are unavailable, invoke the equivalent OpenSpec skill or run the `openspec` CLI directly.
 - **`openspec/specs/` is the source of truth** for current behavior. Read the relevant specs
   before proposing a change.
 - **Trivial changes** (typo, one-line fix, formatting, dependency bump) do not need a full
   proposal — use judgment.
+
+### Archive before the merge, not after
+
+`/opsx:archive` is what makes `openspec/specs/` true. Treat it as part of the change, not as
+cleanup: run it on the branch, commit the result, and let it merge with everything else.
+
+Deferring it to "after the merge" does not work in practice — the PR closes, the branch is
+gone, attention moves on, and nobody comes back for it. Every deferral leaves
+`openspec/specs/` describing behavior the code no longer has, which is worse than no spec at
+all: the next change reads it as current and plans against a fiction.
+
+Concretely, before requesting or performing a merge:
+
+1. Tick off `tasks.md`, and add any task the review turned up so the archived record matches
+   what actually shipped.
+2. Reread `proposal.md` / `design.md` against the final diff. Rationale written before the
+   review is often stale by the end of it, and archiving freezes it.
+3. Run `openspec validate <change> --strict`, then `/opsx:archive`.
+4. Commit, push, and let CI go green on that commit — the archive is the last commit on the
+   branch.
 
 **Local setup (one time per machine):**
 
