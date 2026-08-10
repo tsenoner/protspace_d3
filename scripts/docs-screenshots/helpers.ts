@@ -47,12 +47,16 @@ export async function waitForDataLoad(page: Page, timeout = 30000): Promise<void
   // Wait for the data property AND the post-render derived state used by
   // the animation tests (`_plotData`, `_scales`). When both are populated
   // the canvas has rendered at least once.
+  //
+  // `_plotData` is a struct of typed arrays carrying its own `length`, not an
+  // Array, so probe the property. An `Array.isArray` check here never passes
+  // and silently starves every capture into a hook timeout.
   await page.waitForFunction(
     () => {
       const plot = document.querySelector('#myPlot') as any;
       if (!plot) return false;
       if (!plot.data?.protein_ids?.length) return false;
-      if (!Array.isArray(plot._plotData) || plot._plotData.length === 0) return false;
+      if (!(plot._plotData?.length > 0)) return false;
       if (!plot._scales) return false;
       return true;
     },
