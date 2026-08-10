@@ -18,7 +18,10 @@ describe('point shaders', () => {
       'mix(finalColor * v_color.a, linearKnockoutColor * PREDICTED_INTERIOR_FILL, predictedInterior)',
     );
     expect(POINT_FRAGMENT_SHADER).toContain('uniform vec3 u_knockoutColor;');
-    expect(POINT_FRAGMENT_SHADER).toContain('v_predicted < 0.5');
+    // The interior cut-out is the ONLY thing still gated on the predicted flag. This used to
+    // also assert `v_predicted < 0.5`, which pinned the outline being skipped on rings — the
+    // exact behaviour #369 asked to reconcile. The outline now applies to both classes (see
+    // the outline describe block), so the hollow interior is what distinguishes them.
     expect(POINT_FRAGMENT_SHADER).toContain('clamp(pixelScale * 1.75, 0.30, 0.55)');
     expect(POINT_FRAGMENT_SHADER).toContain('min(pixelScale, (1.0 - ringWidth) * 0.5)');
   });
@@ -42,5 +45,53 @@ describe('point shaders', () => {
     expect(POINT_FRAGMENT_SHADER).toContain(
       'mix(v_color.a, PREDICTED_INTERIOR_FILL, predictedInterior)',
     );
+  });
+
+  describe('outline (#369)', () => {
+    // The outline used to be a fraction of the sprite (strokeWidth = 0.15), so its absolute
+    // width shrank with point size AND with export scale. At the app's own nature-1col preset
+    // (89 mm @ 300 dpi) that put it below the reproducible-line floor for print, while the
+    // predicted ring survived — so the published figure had an outline on one glyph class only.
+    it('measures the outline in device pixels, not as a fraction of the sprite', () => {
+      expect(POINT_FRAGMENT_SHADER).toContain('OUTLINE_DEVICE_PX');
+      // The old sprite-fraction constant must be gone, or the width is size-dependent again.
+      expect(POINT_FRAGMENT_SHADER).not.toContain('float strokeWidth = 0.15;');
+    });
+
+    it('derives the outline width from the same isotropic pixel scale as the ring', () => {
+      // pixelScale is hoisted so both the ring and the outline share one definition; deriving
+      // the outline from fwidth() instead would make it ~41% wider on the diagonals.
+      const shader = POINT_FRAGMENT_SHADER;
+      const scaleDecl = shader.indexOf(
+        'float pixelScale = max(length(dFdx(coord)), length(dFdy(coord)));',
+      );
+      const ringBlock = shader.indexOf('if (v_predicted > 0.5)');
+      expect(scaleDecl).toBeGreaterThan(-1);
+      expect(scaleDecl).toBeLessThan(ringBlock);
+      expect(shader).toContain('OUTLINE_DEVICE_PX * pixelScale');
+    });
+
+    it('outlines predicted rings as well as filled dots', () => {
+      // The literal "reconcile" of #369: both glyph classes get the same outline treatment,
+      // and each keeps its own identity (filled vs hollow) as the primary encoding.
+      expect(POINT_FRAGMENT_SHADER).not.toContain('v_predicted < 0.5 && v_color.a > 0.5');
+    });
+
+    it('budget-caps the outline against ring width so it cannot eat the annulus', () => {
+      // An unclamped outer darken consumes 27-50% of the ring at every size, and specifically
+      // the outer part, where shapeAlpha is already fading it out.
+      expect(POINT_FRAGMENT_SHADER).toContain('OUTLINE_RING_BUDGET');
+    });
+
+    it('anti-aliases the outline inner edge', () => {
+      // The old inner edge was a hard `if` threshold on a field whose outer edge is smoothed.
+      expect(POINT_FRAGMENT_SHADER).toMatch(/smoothstep\([^)]*outline/i);
+    });
+
+    it('keeps the ring width free of any angle-dependent term', () => {
+      const ringStart = POINT_FRAGMENT_SHADER.indexOf('if (v_predicted > 0.5)');
+      const ringEnd = POINT_FRAGMENT_SHADER.indexOf('if (shapeAlpha < 0.001)');
+      expect(POINT_FRAGMENT_SHADER.slice(ringStart, ringEnd)).not.toMatch(/\baa\b/);
+    });
   });
 });

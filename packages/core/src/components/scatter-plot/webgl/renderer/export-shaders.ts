@@ -70,6 +70,19 @@ const float PI = 3.14159265359;
 const float SQRT3 = 1.73205080757;
 const float PREDICTED_INTERIOR_FILL = 0.0; // 1.0 = filled knockout (old), 0.0 = hollow
 
+// Outline width in DEVICE PIXELS. It used to be a fraction of the sprite (0.15), which meant
+// the absolute width shrank with point size and with export scale: 0.35px at gl_PointSize 48,
+// 1.13px at 512. At the app's own nature-1col preset (89mm @ 300dpi) that put the observed-dot
+// outline at ~0.24pt of tint — below the reproducible-line floor — while the predicted ring
+// (0.49pt solid) survived, so a published figure carried an outline on one glyph class only.
+// Measuring in device pixels makes the outline reproduce at the same physical weight at any
+// point size, any dpr and any export scale.
+const float OUTLINE_DEVICE_PX = 1.0;
+// Share of the ring an outline may consume. The ring IS the predicted glyph's border, and its
+// outer edge is already where shapeAlpha fades to zero, so an unbudgeted outer darken would
+// eat 27-50% of the annulus at every size and smear the hollow cue the encoding depends on.
+const float OUTLINE_RING_BUDGET = 0.35;
+
 void main() {
   vec2 coord = gl_PointCoord * 2.0 - 1.0;
 
@@ -113,18 +126,20 @@ void main() {
   // screen-space derivatives of the distance field.
   float aa = fwidth(edgeDist);
   float shapeAlpha = smoothstep(0.0, aa, edgeDist);
+  // Isotropic field-units-per-pixel. Hoisted out of the predicted branch so the ring and the
+  // outline share one definition: dFdx/dFdy of coord are 2/gl_PointSize in every direction,
+  // whereas fwidth is the L1 norm of the partials and reads ~41% larger along the diagonals.
+  float pixelScale = max(length(dFdx(coord)), length(dFdy(coord)));
   float predictedInterior = 0.0;
+  float ringWidth = 0.0;
   if (v_predicted > 0.5) {
     // Keep the ring legible at every sprite size without allowing derivative scaling to consume
     // the interior. With PREDICTED_INTERIOR_FILL = 1.0 the opaque surface-color knockout would
     // prevent earlier overlapping points from showing through the hole; at 0.0 (hollow) that
     // show-through is allowed for densely overlapping markers — an accepted trade-off.
-    // The scale MUST come from gl_PointCoord, never from fwidth(edgeDist). fwidth is the L1 norm
-    // of the partials, so on a radial distance field it reads ~41% larger along the diagonals
-    // than along the axes; driving the ring width with it thickened the ring diagonally and
-    // pinched the hole into a cross. dFdx/dFdy of coord are 2/gl_PointSize in every direction.
-    float pixelScale = max(length(dFdx(coord)), length(dFdy(coord)));
-    float ringWidth = clamp(pixelScale * 1.75, 0.30, 0.55);
+    // The scale MUST come from gl_PointCoord, never from fwidth(edgeDist) — see the pixelScale
+    // definition above, which is hoisted for exactly that reason.
+    ringWidth = clamp(pixelScale * 1.75, 0.30, 0.55);
     float interiorAa = min(pixelScale, (1.0 - ringWidth) * 0.5);
     predictedInterior = smoothstep(ringWidth, ringWidth + interiorAa, edgeDist);
   }
@@ -157,11 +172,22 @@ void main() {
     finalColor = pow(max(texColor.rgb, vec3(0.0)), vec3(u_gamma));
   }
 
-  // Darken near the edge to mimic a border/outline.
-  // Skip for faded points (low alpha) where the darkening is disproportionately visible.
-  float strokeWidth = 0.15;
-  if (v_predicted < 0.5 && v_color.a > 0.5 && max(edgeDist, 0.0) < strokeWidth) {
-    finalColor = finalColor * 0.5;
+  // Darken near the edge to mimic a border/outline. Applied to BOTH filled dots and predicted
+  // rings so the two glyph classes share one outline treatment (#369) — filled-vs-hollow stays
+  // the encoding that tells them apart, which is a pre-attentive categorical difference and far
+  // stronger than a difference in outline weight.
+  // Still skipped for faded points (low alpha), where the darkening is disproportionately visible.
+  float outlineWidth = OUTLINE_DEVICE_PX * pixelScale;
+  // On a ring, cap the outline so it can never eat into the annulus (see OUTLINE_RING_BUDGET).
+  if (v_predicted > 0.5) {
+    outlineWidth = min(outlineWidth, ringWidth * OUTLINE_RING_BUDGET);
+  }
+  if (v_color.a > 0.5 && outlineWidth > 0.0) {
+    // Smooth the inner edge over one pixel. The outer edge is already anti-aliased by
+    // shapeAlpha, so a hard threshold here left the outline smooth outside and stepped inside.
+    float outlineMix =
+      1.0 - smoothstep(outlineWidth - pixelScale, outlineWidth, max(edgeDist, 0.0));
+    finalColor = mix(finalColor, finalColor * 0.5, outlineMix);
   }
 
   // Predicted interiors mix toward PREDICTED_INTERIOR_FILL (hollow=0.0, filled-knockout=1.0).
