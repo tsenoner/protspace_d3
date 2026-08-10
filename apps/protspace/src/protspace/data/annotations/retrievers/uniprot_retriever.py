@@ -97,7 +97,6 @@ class UniProtRetriever(BaseAnnotationRetriever):
         """
         super().__init__(headers, annotations)
         self.failed_batch_count = 0
-        self.failed_protein_count = 0
 
     @staticmethod
     def _extract_annotations(entry: UniProtEntry) -> dict:
@@ -265,10 +264,8 @@ class UniProtRetriever(BaseAnnotationRetriever):
         result = []
         total_resolved = 0
         total_deleted = 0
-        total_batch_failures = 0
         total_failed_proteins = 0
-        self.failed_batch_count = 0
-        self.failed_protein_count = 0
+        self.failed_batch_count = 0  # reset so a re-fetch does not accumulate
 
         # Separate valid UniProt accessions from non-UniProt identifiers
         # to prevent invalid IDs from causing entire batch failures
@@ -322,7 +319,7 @@ class UniProtRetriever(BaseAnnotationRetriever):
                         total_deleted += del_count
 
                 except Exception as e:
-                    total_batch_failures += 1
+                    self.failed_batch_count += 1
                     total_failed_proteins += len(batch)
                     logger.debug(
                         f"Failed to fetch UniProt batch {i}-{i + batch_size}: {e}"
@@ -339,17 +336,15 @@ class UniProtRetriever(BaseAnnotationRetriever):
                 pbar.update(len(batch))
 
         # Summary
-        self.failed_batch_count = total_batch_failures
-        self.failed_protein_count = total_failed_proteins
         seq_count = sum(1 for p in result if p.annotations.get("sequence", ""))
 
-        if total_batch_failures:
-            batch_noun = "batch" if total_batch_failures == 1 else "batches"
-            protein_noun = "protein" if total_failed_proteins == 1 else "proteins"
-            protein_verb = "has" if total_failed_proteins == 1 else "have"
+        if self.failed_batch_count:
             logger.warning(
-                f"{total_batch_failures} UniProt {batch_noun} failed; "
-                f"{total_failed_proteins} {protein_noun} {protein_verb} empty annotations"
+                f"{self.failed_batch_count} UniProt "
+                f"{'batch' if self.failed_batch_count == 1 else 'batches'} failed; "
+                f"{total_failed_proteins} "
+                f"{'protein has' if total_failed_proteins == 1 else 'proteins have'} "
+                "empty annotations"
             )
 
         if invalid_headers:

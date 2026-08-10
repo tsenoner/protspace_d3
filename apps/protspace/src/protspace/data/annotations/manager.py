@@ -10,9 +10,11 @@ from pathlib import Path
 import pandas as pd
 
 from protspace.data.annotations.configuration import (
+    INTERNAL_ANNOTATIONS,
     TAXONOMY_LOOKUP_ANNOTATION,
     AnnotationConfiguration,
 )
+from protspace.data.annotations.encoding import annotation_cache_version_attrs
 from protspace.data.annotations.merging import AnnotationMerger
 from protspace.data.annotations.retrievers.biocentral_retriever import (
     BIOCENTRAL_ANNOTATIONS,
@@ -40,9 +42,6 @@ from protspace.data.io.formatters import DataFormatter
 from protspace.data.io.writers import AnnotationWriter
 
 logger = logging.getLogger(__name__)
-
-ANNOTATION_CACHE_VERSION_ATTR = "protspace_annotation_cache_version"
-ANNOTATION_CACHE_VERSION = 1
 
 
 class ProteinAnnotationManager:
@@ -196,7 +195,7 @@ class ProteinAnnotationManager:
         # 5. Remove internal-only columns from final output
         # (organism_id for taxonomy, sequence for InterPro)
         # Keep columns that the user explicitly requested
-        internal_columns = [TAXONOMY_LOOKUP_ANNOTATION, "sequence"]
+        internal_columns = INTERNAL_ANNOTATIONS
         if self.user_annotations:
             internal_columns = [
                 col for col in internal_columns if col not in self.user_annotations
@@ -223,10 +222,7 @@ class ProteinAnnotationManager:
                 annotations=self.config.uniprot_annotations,
             )
             annotations = retriever.fetch_annotations()
-            failed_batch_count = getattr(retriever, "failed_batch_count", 0)
-            self.uniprot_fetch_failed = (
-                isinstance(failed_batch_count, int) and failed_batch_count > 0
-            )
+            self.uniprot_fetch_failed = retriever.failed_batch_count > 0
             return annotations
         except Exception as e:
             self.uniprot_fetch_failed = True
@@ -341,9 +337,9 @@ class ProteinAnnotationManager:
         self.writer.write_parquet(
             proteins,
             self.output_path,
-            apply_transforms=False,
-            dataframe_attrs={ANNOTATION_CACHE_VERSION_ATTR: ANNOTATION_CACHE_VERSION},
-        )  # Already transformed
+            apply_transforms=False,  # Already transformed
+            dataframe_attrs=annotation_cache_version_attrs(),
+        )
         return pd.read_parquet(self.output_path)
 
     @staticmethod

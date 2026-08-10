@@ -386,11 +386,11 @@ class ReductionPipeline:
         self, headers: list[str], embedding_sets: list[EmbeddingSet] = None
     ) -> pd.DataFrame:
         """Fetch annotations from APIs with incremental caching support."""
-        from protspace.data.annotations.manager import (
+        from protspace.data.annotations.encoding import (
             ANNOTATION_CACHE_VERSION,
-            ANNOTATION_CACHE_VERSION_ATTR,
-            ProteinAnnotationManager,
+            read_annotation_cache_version,
         )
+        from protspace.data.annotations.manager import ProteinAnnotationManager
 
         # Extract sequences from FASTA files (if available) to avoid re-fetching
         sequences = self._extract_sequences(embedding_sets) if embedding_sets else {}
@@ -448,8 +448,8 @@ class ReductionPipeline:
                 cached_annotations = set(cached_df.columns) - {"identifier"}
                 legacy_pdb_cache = (
                     "xref_pdb" in cached_annotations
-                    and cached_df.attrs.get(ANNOTATION_CACHE_VERSION_ATTR)
-                    != ANNOTATION_CACHE_VERSION
+                    and read_annotation_cache_version(cached_df)
+                    < ANNOTATION_CACHE_VERSION
                 )
 
                 if annotations_list is None:
@@ -498,37 +498,36 @@ class ReductionPipeline:
                     cached_annotations, required
                 )
 
-                if refetching_annotations or legacy_pdb_cache:
-                    if refetching_annotations:
-                        # Override with explicitly requested sources
-                        sources = {src: src in refetch for src in _ANN_SOURCES}
-                    if legacy_pdb_cache:
-                        sources["uniprot"] = True
-                        logger.warning(
-                            "Refreshing legacy UniProt annotation cache to apply "
-                            "current PDB availability semantics"
-                        )
-                    refetched = [s for s in _ANN_SOURCES if sources[s]]
-                    if refetching_annotations:
-                        logger.info(f"--refetch: re-fetching {', '.join(refetched)}")
-                    # Drop cached columns for refetched sources so manager
-                    # re-fetches them
-                    from protspace.data.annotations.configuration import (
-                        AnnotationConfiguration as AnnCfg,
+                if refetching_annotations:
+                    # Override with explicitly requested sources
+                    sources = {src: src in refetch for src in _ANN_SOURCES}
+                    logger.info(
+                        "--refetch: re-fetching "
+                        f"{', '.join(s for s in _ANN_SOURCES if sources[s])}"
+                    )
+                if legacy_pdb_cache:
+                    sources["uniprot"] = True
+                    logger.warning(
+                        "Refreshing legacy UniProt annotation cache to apply "
+                        "current PDB availability semantics"
                     )
 
-                    cached_by_source = AnnCfg.categorize_annotations_by_source(
-                        cached_annotations
+                if refetching_annotations or legacy_pdb_cache:
+                    # Drop cached columns for refetched sources so manager
+                    # re-fetches them
+                    cached_by_source = (
+                        AnnotationConfiguration.categorize_annotations_by_source(
+                            cached_annotations
+                        )
                     )
-                    cols_to_drop = set()
-                    for src in refetched:
-                        cols_to_drop |= cached_by_source.get(src, set())
+                    cols_to_drop = set().union(
+                        *(cached_by_source[s] for s in _ANN_SOURCES if sources[s])
+                    )
                     if cached_by_source["taxonomy"] and not sources["taxonomy"]:
                         cols_to_drop.discard(TAXONOMY_LOOKUP_ANNOTATION)
-                    if cols_to_drop:
-                        cached_df = cached_df.drop(
-                            columns=[c for c in cols_to_drop if c in cached_df.columns]
-                        )
+                    cached_df = cached_df.drop(
+                        columns=[c for c in cols_to_drop if c in cached_df.columns]
+                    )
                 else:
                     logger.info(f"Missing annotations: {missing}")
 

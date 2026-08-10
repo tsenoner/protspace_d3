@@ -444,6 +444,7 @@ class TestIntegration:
         self, mock_uniprot_retriever
     ):
         """Refetching UniProt must not rewrite cached InterPro booleans."""
+        mock_uniprot_retriever.return_value.failed_batch_count = 0
         mock_uniprot_retriever.return_value.fetch_annotations.return_value = [
             ProteinAnnotations(
                 identifier=identifier,
@@ -517,6 +518,7 @@ class TestIntegration:
         """Test complete workflow from initialization to DataFrame creation."""
         # Setup mocks
         mock_uniprot_instance = Mock()
+        mock_uniprot_instance.failed_batch_count = 0
         mock_uniprot_instance.fetch_annotations.return_value = (
             SAMPLE_PROTEIN_ANNOTATIONS
         )
@@ -550,6 +552,7 @@ class TestIntegration:
         """Test workflow with file output."""
         # Setup mocks
         mock_uniprot_instance = Mock()
+        mock_uniprot_instance.failed_batch_count = 0
         mock_uniprot_instance.fetch_annotations.return_value = (
             SAMPLE_PROTEIN_ANNOTATIONS
         )
@@ -585,6 +588,7 @@ class TestIntegration:
         """Test that only requested annotations are returned."""
         # Setup mocks
         mock_uniprot_instance = Mock()
+        mock_uniprot_instance.failed_batch_count = 0
         mock_uniprot_instance.fetch_annotations.return_value = (
             SAMPLE_PROTEIN_ANNOTATIONS
         )
@@ -617,6 +621,7 @@ class TestIntegration:
         """Test that internal columns (organism_id) are removed from final output."""
         # Setup mocks
         mock_uniprot_instance = Mock()
+        mock_uniprot_instance.failed_batch_count = 0
         mock_uniprot_instance.fetch_annotations.return_value = (
             SAMPLE_PROTEIN_ANNOTATIONS
         )
@@ -650,6 +655,7 @@ class TestIntegration:
         """Test that internal columns are kept in cache file but removed from returned DataFrame."""
         # Setup mocks
         mock_uniprot_instance = Mock()
+        mock_uniprot_instance.failed_batch_count = 0
         mock_uniprot_instance.fetch_annotations.return_value = (
             SAMPLE_PROTEIN_ANNOTATIONS
         )

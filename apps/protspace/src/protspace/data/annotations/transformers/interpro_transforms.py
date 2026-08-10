@@ -14,6 +14,7 @@ from pathlib import Path
 import requests
 
 from protspace.data.annotations.encoding import encode_field
+from protspace.data.annotations.transformers.canonical import CANONICAL_BOOLEANS
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +108,7 @@ class InterProTransformer:
         Returns:
             "True" if signal peptide present, "False" otherwise
         """
-        if value in ("False", "True"):
+        if value in CANONICAL_BOOLEANS:
             return value
         if not value:
             return "False"

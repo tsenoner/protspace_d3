@@ -348,6 +348,19 @@ class TestResolveAnnotationNames:
         assert self._resolve(["data.tsv", "ec"]) == (["ec"], "data.tsv")
 
 
+def _cache_pipeline(tmp_path, **overrides):
+    """A pipeline wired to read and write the annotation cache in ``tmp_path``."""
+    return ReductionPipeline(
+        PipelineConfig(
+            methods=[],
+            output_path=None,
+            keep_tmp=True,
+            intermediate_dir=tmp_path,
+            **overrides,
+        )
+    )
+
+
 class TestAnnotationCacheMigration:
     def test_legacy_pdb_migration_fetches_newly_required_taxonomy(
         self, tmp_path, monkeypatch
@@ -394,14 +407,8 @@ class TestAnnotationCacheMigration:
             lambda _self: {9606: {"annotations": {"genus": "Homo"}}},
         )
 
-        result = ReductionPipeline(
-            PipelineConfig(
-                methods=[],
-                output_path=tmp_path / "unused.parquetbundle",
-                annotations=["xref_pdb", "genus"],
-                keep_tmp=True,
-                intermediate_dir=tmp_path,
-            )
+        result = _cache_pipeline(
+            tmp_path, annotations=["xref_pdb", "genus"]
         )._fetch_annotations(["P01308"])
 
         assert result["xref_pdb"].tolist() == ["True"]
@@ -428,15 +435,7 @@ class TestAnnotationCacheMigration:
             raise RuntimeError("temporary UniProt failure")
 
         monkeypatch.setattr(uniprot_retriever, "_fetch_many_accessions", fail_batch)
-        pipeline = ReductionPipeline(
-            PipelineConfig(
-                methods=[],
-                output_path=tmp_path / "unused.parquetbundle",
-                annotations=["xref_pdb"],
-                keep_tmp=True,
-                intermediate_dir=tmp_path,
-            )
-        )
+        pipeline = _cache_pipeline(tmp_path, annotations=["xref_pdb"])
 
         result = pipeline._fetch_annotations(["P01308"])
 
@@ -497,14 +496,8 @@ class TestAnnotationCacheMigration:
         monkeypatch.setattr(
             UniProtRetriever, "fetch_annotations", fetch_current_annotations
         )
-        pipeline = ReductionPipeline(
-            PipelineConfig(
-                methods=[],
-                output_path=tmp_path / "unused.parquetbundle",
-                annotations=["xref_pdb", "genus", "signal_peptide"],
-                keep_tmp=True,
-                intermediate_dir=tmp_path,
-            )
+        pipeline = _cache_pipeline(
+            tmp_path, annotations=["xref_pdb", "genus", "signal_peptide"]
         )
 
         headers = ["unresolved", "resolved_without_pdb"]
@@ -549,17 +542,7 @@ class TestLegacyTedLabelMigration:
             }
         ).to_parquet(tmp_path / "all_annotations.parquet", index=False)
 
-    @staticmethod
-    def _pipeline(tmp_path, **overrides):
-        return ReductionPipeline(
-            PipelineConfig(
-                methods=[],
-                output_path=None,
-                keep_tmp=True,
-                intermediate_dir=tmp_path,
-                **overrides,
-            )
-        )
+    _pipeline = staticmethod(_cache_pipeline)
 
     def test_full_cache_hit_returns_the_repaired_label(self, tmp_path):
         """The short-circuit must not hand back the pre-fix literal."""
