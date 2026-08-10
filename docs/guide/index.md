@@ -1,6 +1,6 @@
 # What is ProtSpace?
 
-**ProtSpace** is a browser-based tool for exploring protein language model (pLM) embeddings. It maps the embedding space, not a sequence-similarity network, to reveal relationships that sequence similarity misses, letting you overlay biological annotations and turn high-dimensional protein data into testable hypotheses. Bundles you explore are never uploaded.
+**ProtSpace** is a browser-based tool for exploring protein language model (pLM) embeddings. It maps the embedding space, not a sequence-similarity network, so it reveals relationships that sequence similarity misses. Overlay biological annotations to turn high-dimensional protein data into testable hypotheses. Bundles you explore are never uploaded.
 
 ## Why Use ProtSpace?
 
@@ -49,7 +49,7 @@ Exploring a `.parquetbundle` happens entirely in your browser:
 
 ## Performance
 
-ProtSpace can handle datasets with **570,000+ proteins** (full Swiss-Prot scale) directly in your browser, with no server rendering the data for you.
+ProtSpace can handle datasets with **570,000+ proteins** (full Swiss-Prot scale) directly in your browser.
 
 ## Next Steps
 

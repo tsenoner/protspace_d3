@@ -44,9 +44,8 @@ Export a `.parquetbundle` file that can be loaded back into ProtSpace or shared.
 - **Figure editor settings**: When legend settings are included, the Figure Editor state (dimensions, DPI, legend layout, overlays, insets) is also saved. This lets you reopen the Figure Editor exactly where you left off.
 
 If the bundle you loaded carried statistics (prepared with `protspace ... --stats`), the export
-re-emits them byte for byte. That makes the file a five-part bundle even with **Include legend
-settings** off: the settings slot is then written as zero bytes so the statistics stay at position
-five. See [Separation Scores](/explore/separation-scores) for what those scores drive.
+re-emits them byte for byte, even with **Include legend settings** off. See
+[Separation Scores](/explore/separation-scores) for what those scores drive.
 
 ::: warning Export fails on a reserved value
 Export stops with an error, rather than writing a corrupt file, if any annotation value or category
@@ -67,8 +66,8 @@ Exports a plain text file with one protein ID per line. Useful for downstream an
 
 Use isolation to export specific subsets.
 
-A subset export also drops the statistics part, deliberately. The scores were computed once over
-the whole dataset, so carrying them into a slice would make them read as describing that slice.
+A subset export drops the statistics: the scores were computed over the whole dataset, so keeping
+them in a slice would make them read as describing that slice.
 
 ## Next Steps
 

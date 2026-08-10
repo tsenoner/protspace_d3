@@ -137,7 +137,7 @@ given without `-e`, `prot_t5` is used.
 Methods require a dimension suffix: `2` for 2D, `3` for 3D.
 
 ::: warning Dimension Suffix Required
-Specify `pca2` or `pca3`, not `pca` alone, the dimension suffix is mandatory.
+Specify `pca2` or `pca3`, not `pca` alone.
 :::
 
 | Method   | 2D          | 3D          | Description                            |
@@ -453,8 +453,7 @@ protspace stats -i embeddings/prot_t5.h5 -p projections/ -o statistics.parquet \
   are additionally emitted per category, on rows carrying a `category` value (aggregate rows leave
   it null); Calinski–Harabasz stays aggregate-only. A one-member category gets no per-category row
   and is excluded from the Davies–Bouldin and Calinski–Harabasz input, so an annotation with a few
-  singleton categories now scores on the rest instead of suppressing both indices outright.
-  Requires `-a`.
+  singleton categories still scores on the rest. Requires `-a`.
 - **Auto-clustering and its agreement with annotations**, KMeans labels the projection, with K
   chosen by the inertia elbow and/or maximum silhouette. Each selection becomes a per-protein
   membership column (`cluster_elbow_<projection>`, `cluster_silhouette_<projection>`) holding a
@@ -476,7 +475,7 @@ Statistics are opt-in because the extra compute can be slow on large runs. A fai
 or projection is logged and skipped rather than failing the run, and above 5000 points the heavier
 metrics run on a deterministic, id-seeded subsample.
 
-Since a `cluster_*` column occupies the same `annotation` column as a curated one, filter on
+Cluster rows share the `annotation` column with curated ones, so filter on
 `label_kind == 'annotation'` to isolate the columns you named.
 
 ## `protspace bundle`
@@ -505,11 +504,10 @@ A bundle written with `-s` has five parts and the web app renders that table, se
 
 ## `protspace transfer`
 
-Embedding Annotation Transfer (EAT): fill missing annotation values for query proteins by
-transferring the annotation of the nearest annotated reference protein in embedding space. For every
-query protein with no value in the requested column, the command finds the closest reference by
-distance in the original high-dimensional embedding space, not in the 2D/3D projection, and copies
-that label along with a reliability index in [0, 1].
+Embedding Annotation Transfer (EAT): fill missing annotation values from the nearest annotated
+reference protein. For every query protein with no value in the requested column, the command finds
+the closest reference by distance in the original high-dimensional embedding space, not in the 2D/3D
+projection, and copies that label along with a reliability index in [0, 1].
 
 The curated source column (`COL`) is left untouched; three new columns are written:
 `COL__pred_value` (string), `COL__pred_confidence` (float) and `COL__pred_source` (string, the
@@ -582,7 +580,7 @@ The output path is only required when you are writing styles, not for `--dump-se
 ## `protspace serve`
 
 Run a local Dash viewer. Most users should explore bundles in the hosted viewer at
-[protspace.app/explore](https://protspace.app/explore), nothing to install, and drag & drop works.
+[protspace.app/explore](https://protspace.app/explore): nothing to install, and drag & drop works.
 Use `serve` for offline viewing; it also renders 3D projections.
 
 ```bash

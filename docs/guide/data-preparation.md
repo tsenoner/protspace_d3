@@ -10,7 +10,7 @@ The Colab notebook converts protein embeddings into a visualization-ready `.parq
 
 1. Reads your embeddings from an HDF5 file (.h5)
 2. Applies dimensionality reduction (PCA, UMAP, t-SNE, PaCMAP, MDS, LocalMAP)
-3. Retrieves annotations from UniProt, InterPro, and NCBI Taxonomy
+3. Retrieves annotations from UniProt, InterPro, Taxonomy, TED, and Biocentral
 4. Creates the `.parquetbundle` file ready for ProtSpace
 
 ## Quickest path: drop a FASTA
@@ -79,7 +79,7 @@ For advanced users with custom embeddings, save them as an HDF5 file where each 
 
 ## Step 2: Run the Notebook
 
-1. Click the Colab badge above to open the notebook
+1. Click the Colab badge at the top of this page to open the notebook
 2. Run the first cell to install dependencies (~1 minute)
 3. Upload your `.h5` embeddings file
 
@@ -87,7 +87,7 @@ For advanced users with custom embeddings, save them as an HDF5 file where each 
 
 ### Annotations
 
-Choose which annotations to include. They come from five sources, UniProt, InterPro, Taxonomy, TED,
+Choose which annotations to include. They come from five sources: UniProt, InterPro, Taxonomy, TED,
 and Biocentral (predicted).
 
 See the [Annotations reference](/guide/annotations) for the complete per-column catalogue: what each
@@ -126,7 +126,7 @@ Tick **Compute quality statistics** to score how well your annotations separate,
 each projection preserves the original embedding. This is the notebook's equivalent of the CLI's
 `--stats` flag. It is off by default, and the cost grows with dataset size.
 
-ProtSpace renders these scores in the legend and the projection metadata panel, see
+ProtSpace renders these scores in the legend and the projection metadata panel. See
 [Separation Scores](/explore/separation-scores).
 
 ## Step 4: Generate and Download
@@ -145,9 +145,9 @@ ProtSpace renders these scores in the legend and the projection metadata panel, 
 
 The Preparation notebook has an **Embedding Annotation Transfer** panel below the Generate button.
 It fills blank annotation values on your query proteins from their nearest annotated neighbour in
-embedding space, with a reliability score attached. For a standalone walkthrough of the same thing
-via the `protspace transfer` CLI, open the
-[Transfer notebook](https://colab.research.google.com/github/tsenoner/protspace/blob/main/apps/protspace/notebooks/ProtSpace_Transfer.ipynb).
+embedding space, with a reliability score attached. The
+[Transfer notebook](https://colab.research.google.com/github/tsenoner/protspace/blob/main/apps/protspace/notebooks/ProtSpace_Transfer.ipynb)
+runs the same transfer on its own, using the `protspace transfer` CLI.
 
 ## Tips
 

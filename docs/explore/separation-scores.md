@@ -12,7 +12,7 @@ Without `--stats` the bundle carries no statistics part, so the legend shows no 
 
 ## Where They Appear
 
-**Above the legend**, two strips place one dot per category on a shared axis, one strip for silhouette and one for Davies–Bouldin. Each dot carries its category's colour, so you can see at a glance whether an annotation separates uniformly or whether one group is dragging the average down. Hovering a dot marks the matching legend row, and hovering a legend row marks its dot. Either way, the readout to the right of each axis gives that category's exact value, so you get its silhouette and its Davies–Bouldin together rather than one at a time. Idle, that readout shows `—`, and it stays at `—` for a category the metric could not score: Davies–Bouldin has no value for a one-member category. Clicking a dot toggles that category's visibility, exactly as clicking its legend row does.
+**At the top of the legend panel, above the category list**, two strips place one dot per category on a shared axis, one strip for silhouette and one for Davies–Bouldin. Each dot carries its category's colour, so you can see at a glance whether an annotation separates uniformly or whether one group is dragging the average down. Hovering a dot marks the matching legend row, and hovering a legend row marks its dot. Either way, the readout to the right of each axis gives that category's exact value, so you get its silhouette and its Davies–Bouldin together rather than one at a time. Idle, that readout shows `—`, and it stays at `—` for a category the metric could not score: Davies–Bouldin has no value for a one-member category. Clicking a dot toggles that category's visibility, exactly as clicking its legend row does.
 
 **In the projection metadata panel**, opened with the chart button at the top left of the plot, the Separation section carries the whole-annotation scores for all three metrics and names the annotation it was scored on. It comes first because the score blocks are what change when you recolour. Below it sit Recovers (for a cluster annotation only, described further down), then Faithfulness to the embedding, which holds measures such as trustworthiness that describe the layout itself and involve no annotation at all, and finally How it was made, the reduction's own settings.
 
@@ -26,7 +26,7 @@ Without `--stats` the bundle carries no statistics part, so the legend shows no 
 
 Only silhouette is on a fixed scale, so it is the one number that means the same thing across datasets. The other two have no upper bound: read them by comparing projections of the same data, not against a threshold.
 
-Each metric carries an ⓘ popover with that same explanation wherever it is shown: on each strip's header in the legend, on each metric row in the panel's Separation block, on the two metric column heads in Recovers, and on each Faithfulness row. The Separation and Recovers headings carry one of their own too, explaining what the two value columns mean and how to read ARI against a category count. So you never have to leave the page to interpret a number.
+Each metric carries an ⓘ popover with that same explanation wherever it is shown: on each strip's header in the legend, on each metric row in the panel's Separation block, on the two metric column heads in Recovers, and on each Faithfulness row. The Separation and Recovers headings carry one of their own too, explaining what the two value columns mean. So you never have to leave the page to interpret a number.
 
 ## Why Only Two Metrics Have Per-Category Scores
 
@@ -42,7 +42,7 @@ A silhouette of 0.30 against an embedding value of 0.35 means the projection kep
 
 ## Categories With A Single Member
 
-A category holding one protein has no spread: the protein is its own centre. Any separation score for it would describe its neighbours rather than itself, so single-member categories are left out. Legend rows carry no score cell, so the strips are where this shows: a single-member category gets no dot on either one, and hovering its legend row leaves both readouts at their `—` idle state.
+A category holding one protein has no spread: the protein is its own centre. Any separation score for it would describe its neighbours rather than itself, so single-member categories are left out. The strips are where this shows, since legend rows carry no score cell of their own: a single-member category gets no dot on either one, and hovering its legend row leaves both readouts at their `—` idle state.
 
 Davies–Bouldin and Calinski–Harabasz are computed over the remaining categories, since both weight every category equally regardless of size and a single one-member category would otherwise take a full share of the average.
 
@@ -52,7 +52,7 @@ The practical effect shows up most on deep taxonomic ranks. Scoring a venom data
 
 ## Scores Cover The Whole Dataset
 
-Scores are computed once, during preparation, over every protein. Hiding legend values or filtering the view does not recompute them, so the panel states it once at the card level: a footer reading `All scores are for the full dataset.`, which becomes `All scores are for the full dataset, not this view.` while the view is narrowed. It sits at the card's foot rather than inside Separation because it governs Faithfulness to the embedding just as much. The Separation section's own scope line reports coverage instead, as in `5 categories · 1,427 proteins scored`.
+Scores are computed once, during preparation, over every protein. Hiding legend values or filtering the view does not recompute them, so the panel states it once in a footer: `All scores are for the full dataset.`, which becomes `All scores are for the full dataset, not this view.` while the view is narrowed. It sits at the panel's foot rather than inside Separation because it governs Faithfulness to the embedding just as much. The Separation section's own scope line reports coverage instead, as in `5 categories · 1,427 proteins scored`.
 
 Because a filtered view and a whole-dataset score would contradict each other on screen, the strips are replaced by "Separation scores are hidden while the view is filtered" whenever a filter is active. This includes the EAT reliability slider. Clear the filter and the strips return.
 
@@ -66,7 +66,7 @@ Preparing with `--stats` also adds `cluster_elbow_*` and `cluster_silhouette_*` 
 
 These clusterings also carry their own separation scores, so the strips work on them exactly as on any annotation. Earlier versions instead attached each protein's own silhouette to its cluster value, so it showed up when you hovered that point in the plot. That was the only place in ProtSpace where a separation score was reported per protein rather than per group, and it is gone: a cluster is read through the strips, like every other annotation. Read those scores as descriptive rather than as a verdict, which is what the note under the strips warns about: K-means drew the boundaries being scored, in the very projection they are scored in, so it starts with an advantage no curated annotation has. A `cluster_silhouette_*` column goes further, since its K was chosen by maximising exactly the silhouette being reported. The per-category numbers are the part worth reading: they say which cluster is tight and which is mush, which the average cannot. The Recovers block is the independent half, comparing the clustering against something it did not choose.
 
-A clustering belongs to the projection it was found in, and the two halves treat that differently. Separation and the legend strips are scoped to the projection on screen, so selecting `cluster_elbow_ProtT5 — PCA 2` while viewing `ProtT5 — UMAP 2` shows the groups with no separation scores: none were ever computed for that pair. Recovers is deliberately not scoped that way. ARI and NMI describe the clustering itself, not whichever projection the panel happens to be open on, so PCA 2's agreement numbers stay readable while you look at UMAP 2.
+A clustering belongs to the projection it was found in, and the panel's two score blocks treat that differently. Separation and the legend strips are scoped to the projection on screen, so selecting `cluster_elbow_ProtT5 — PCA 2` while viewing `ProtT5 — UMAP 2` shows the groups with no separation scores: none were ever computed for that pair. Recovers is deliberately not scoped that way. ARI and NMI describe the clustering itself, not whichever projection the panel happens to be open on, so PCA 2's agreement numbers stay readable while you look at UMAP 2.
 
 ## Next Steps
 

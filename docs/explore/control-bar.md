@@ -44,10 +44,6 @@ The Annotation dropdown features:
 
 Only categories present in your dataset appear in the dropdown. Any columns that don't match a known category appear under **Other**. See the [ProtSpace Python package](https://github.com/tsenoner/protspace) for the complete list of available annotations per source.
 
-::: info Shareable view state
-The selected annotation is also stored in the page URL together with the current projection. This makes the current Explore view shareable and restorable across refreshes without reloading the page.
-:::
-
 ::: info ⚡ Predicted badge
 A ⚡ badge next to an annotation name marks a **computational prediction** rather than curated or
 experimental data. Hover it for the tooltip "Predicted: computational, not experimentally
@@ -66,14 +62,13 @@ curated data (UniProt, Taxonomy) are deliberately **not** flagged. See
 :::
 
 ::: info STATS badge
-A **STATS** badge marks an annotation the bundle scored **for the projection you are currently
-viewing**. It carries no number, it only says the scores exist. Hover it for the tooltip "Quality
+A **STATS** badge marks an annotation that the bundle scored **for the projection you are currently
+viewing**. It carries no number; it only says the scores exist. Hover it for the tooltip "Quality
 statistics available: select this annotation and open the projection metadata panel".
 
-Because the badge is projection-scoped, it disappears when you switch to a projection the annotation
-was not scored on. Select the annotation and open the
-[projection metadata panel](/explore/scatterplot#projection-metadata) to read the numbers, or see
-[Separation Scores](/explore/separation-scores) for what they mean.
+The badge disappears when you switch to a projection the annotation was not scored on. Select the
+annotation and open the [projection metadata panel](/explore/scatterplot#projection-metadata) to
+read the numbers, or see [Separation Scores](/explore/separation-scores) for what they mean.
 :::
 
 ::: info Tooltip-only annotations

@@ -2,7 +2,7 @@
 
 Custom colors, shapes, and legend settings for annotation categories.
 
-**Two approaches:**
+**Two approaches** (this page is the CLI reference):
 
 - **Web UI**, interactive editing in the [legend panel](/explore/legend), then save to download the
   updated bundle
@@ -42,7 +42,8 @@ distinct-value count.
 
 ::: tip What makes a column numeric
 The web app decides per column, not per cell: a column is numeric only if **every** non-missing
-value parses as a plain finite number. Any non-missing value that is not a plain finite number,including anything containing `;` or `|`, makes the whole column categorical.
+value parses as a plain finite number. One value that does not, including anything containing `;` or
+`|`, makes the whole column categorical.
 :::
 
 **Two ways to color a numeric column instead:**
@@ -98,7 +99,7 @@ consumed during generation, only their effects (the resulting categories with `z
 `shape`) are written.
 
 > **Value keys are display values.** In `colors`/`shapes`/`pinnedValues`/`hiddenValues`, a _value_ is
-> the human-readable category as `--generate-template` lists it and as the legend shows it, the
+> the human-readable category as `--generate-template` lists it and the legend shows it: the
 > percent-decoded name with any `|score` suffix trimmed, not the raw wire cell. A template therefore
 > round-trips even when a name legitimately contains `;`, `|`, or `%` (bundle format v2
 > percent-encodes those on the wire; see
@@ -134,8 +135,8 @@ the key `__NA__` (the frontend's internal format).
 
 ProtSpace ships eleven built-in palettes, split by data type: **six categorical** palettes (discrete
 colors, one per category) and **five numeric gradients** (a continuous sequential scale). The two
-sets do not overlap and are not interchangeable, a numeric column can only use a gradient, and a
-categorical column can only use a categorical palette.
+sets are not interchangeable: a numeric column can only use a gradient, a categorical column only a
+categorical palette.
 
 The palettes are defined in the web frontend, the single source of truth:
 [`color-scheme.ts`](https://github.com/tsenoner/protspace/blob/main/packages/utils/src/visualization/color-scheme.ts)
@@ -170,14 +171,13 @@ the numbers and colors the bins along the gradient.
 | `inferno` | Inferno | High-contrast sequential gradient            |
 | `plasma`  | Plasma  | Vivid sequential gradient                    |
 
-> **`selectedPaletteId` behaves differently per column type.** For a **categorical** column it picks
-> the categorical palette, and a gradient or unknown ID silently resets to `kellys`. For a
-> **numeric** column the frontend instead reads `selectedPaletteId` as the gradient: a gradient ID
-> (`batlow` / `viridis` / `cividis` / `inferno` / `plasma`) is used as-is, and a categorical or
-> unknown ID resets to `batlow`. What `protspace style` cannot set for a numeric column is the
-> **binning**, the strategy and reverse-gradient toggle live in the per-annotation `numericSettings`
-> object, which is UI-only. `protspace style` warns when `selectedPaletteId` is a gradient or unknown
-> ID **on a categorical column** (where it would reset to `kellys`).
+> **`selectedPaletteId` behaves differently per column type.** Both tables above apply: on a
+> **categorical** column a gradient or unknown ID silently resets to `kellys`, on a **numeric**
+> column a categorical or unknown ID resets to `batlow`. What `protspace style` cannot set for a
+> numeric column is the **binning**: the strategy and reverse-gradient toggle live in the
+> per-annotation `numericSettings` object, which is UI-only. `protspace style` warns when
+> `selectedPaletteId` is a gradient or unknown ID **on a categorical column** (where it would reset
+> to `kellys`).
 
 ## Legend ordering
 

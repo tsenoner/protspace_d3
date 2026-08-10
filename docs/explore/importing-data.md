@@ -102,21 +102,17 @@ For datasets beyond these limits, use the
 [Colab notebook](/guide/data-preparation) or the [Python CLI](/guide/python-cli) instead, then
 import the resulting `.parquetbundle`.
 
-## Example Datasets
-
-Don't have data yet? Download example `.parquetbundle` files from the [GitHub data folder](https://github.com/tsenoner/protspace/tree/main/apps/web/public/data).
-
 ## What Happens When You Load Data
 
 After successfully loading a file:
 
 1. **Scatterplot populates**: All proteins appear as colored points
-2. **View restored or initialized**: ProtSpace restores the requested URL annotation and projection when they exist in the dataset; otherwise it falls back to the first available options
+2. **View restored or initialized**: ProtSpace uses the annotation and projection named in the URL if the dataset has them, and the first available options if it doesn't
 3. **Settings restored**: Previously saved or bundled customizations are applied
 4. **Legend appears**: Shows all categories with color assignments
 5. **Ready to explore**: You can now pan, zoom, and interact with the data
 
-A bundle prepared with `--stats` additionally lights up [separation scores](/explore/separation-scores):
+A bundle prepared with `--stats` also lights up [separation scores](/explore/separation-scores):
 score strips above the legend and a Separation section in the projection metadata panel. That is a
 property of the file, not a setting you toggle.
 

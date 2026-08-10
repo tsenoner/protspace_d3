@@ -95,9 +95,6 @@ protspace prepare -i embeddings.h5 -m pca2,umap2 --stats -o output
 protspace stats -i embeddings.h5 -p project_dir -o statistics.parquet
 ```
 
-Because the parts are positional, a bundle that carries statistics **without** settings still writes
-the settings slot, as zero bytes, so the statistics table stays at position five.
-
 ::: info What the web app does with the statistics part
 The loader parses it and the app renders it: separation-score strips above the legend, the
 Separation section of the projection metadata panel, per-category values in the strip tooltips, and
@@ -107,10 +104,6 @@ Python CLI or any Parquet reader.
 
 The faithfulness metrics do not depend on it: they travel in the projection metadata
 (`info_json.quality`) and render for both four- and five-part bundles.
-
-On export the part is carried through byte for byte, including columns this app version does not
-model. A subset export (isolation, or an active filter) drops it instead, because whole-dataset
-scores would misdescribe a slice.
 :::
 
 ## Annotation Types
@@ -150,8 +143,6 @@ bundling, for example `cluster_1` / `cluster_2` instead of `1` / `2`.
 
 For numeric annotations:
 
-- raw numeric values are stored and exported as numbers
-- legend bins are generated client-side from the raw values plus the saved numeric settings
 - the selected distribution can be `linear`, `quantile`, or `logarithmic`
 - numeric palettes are sequential gradients, not categorical swatches
 - the gradient direction can also be reversed and is persisted as part of the numeric settings
@@ -255,8 +246,8 @@ When displayed in ProtSpace, the decoded names render as "Superfamily; old" and 
 
 - A numeric Parquet type does **not** by itself make a column numeric. Numeric-ness is decided by the content scan described in [Numeric Annotations](#numeric-annotations); the declared type is consulted in only two cases, to upgrade an already-numeric column's type to `int`, and to rescue a column whose every row is missing. A column with any real value stays categorical whatever the schema says.
 - Only an _integer_ physical type (`INT32`/`INT64`) is authoritative for the int/float distinction: bundles written before this writer stored **every** numeric column as `DOUBLE`, so `FLOAT`/`DOUBLE` carries no int/float information and the reader lets value inference decide there, since trusting it would re-label those bundles' integer annotations (legend labels `10 - 25` → `10.0 - 25.0`)
-- Only an _unannotated_ physical type counts. A logical or converted type means the physical type is a carrier rather than the identity — pyarrow stores an all-null column as `INT32` + logical `NULL`, and `DECIMAL` rides on `INT32`/`INT64` — so those fall back to inference too
-- This matters for a column whose rows are all missing — for example an isolation-mode or query-filtered export — which has no values left to infer from and would otherwise reload as a categorical column with a single N/A category
+- Only an _unannotated_ physical type counts. A logical or converted type means the physical type is a carrier rather than the identity (pyarrow stores an all-null column as `INT32` + logical `NULL`, and `DECIMAL` rides on `INT32`/`INT64`), so those fall back to inference too
+- This matters for a column whose rows are all missing, for example an isolation-mode or query-filtered export. Such a column has no values left to infer from and would otherwise reload as a categorical column with a single N/A category
 - Bundles that store annotations as text (the `protspace` CLI writes its annotation frame stringified) carry no such type, and fall back to inferring numeric-ness from the values as before
 
 **Known formatting:**
@@ -282,5 +273,5 @@ What else an export from the web app does:
 - an integral numeric column is written as `INT32` (`INT64` when a value is out of `INT32` range) and a fractional one as `DOUBLE`. Older exports widened every numeric column to `DOUBLE`, which is why a value could read back as `100.0` where it now reads back as `100`.
 - a statistics part read from the source bundle is re-emitted byte for byte, including columns this app version does not model.
 - a bundle that carries statistics but no settings has five parts, with a zero-byte settings slot at position four.
-- a subset export (isolation, or an active filter) drops the statistics part.
+- a subset export (isolation, or an active filter) drops the statistics part, because whole-dataset scores would misdescribe a slice.
 - the export fails with an error, rather than writing a corrupt file, if any annotation value or category name contains the literal `---PARQUET_DELIMITER---`. The delimiter is in-band and unescaped, so such a value would split one part into two on read-back.

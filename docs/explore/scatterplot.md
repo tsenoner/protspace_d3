@@ -93,9 +93,9 @@ When multiple proteins share the exact same coordinates, a **count badge** appea
 
 A small bar-chart icon sits in the **top-left corner** of the scatterplot. Hover it (or focus it with
 the keyboard) to open a **Projection Metadata** panel describing the currently selected projection.
-Click the icon to pin the panel open, so you can scroll it and read the ⓘ popovers inside without the
-pointer having to stay on the card; press **Escape** or click anywhere outside to close it again.
-Switching projections updates the panel.
+Click the icon to pin the panel open, so you can scroll it and read the ⓘ popovers inside without
+keeping the pointer on the card. Press **Escape** or click outside to close it again. Switching
+projections updates the panel.
 
 ::: tip
 The icon only appears when the loaded bundle has something to show for that projection: reduction
@@ -114,9 +114,9 @@ The card's header is the projection's own name. Below it, in order:
 - **Faithfulness to the embedding**, described below.
 - **How it was made**, the reduction's own parameters.
 
-Whenever the card carries any scores at all, separation or faithfulness, it ends with a footer
-reading `All scores are for the full dataset.`, or `All scores are for the full dataset, not this
-view.` while a filter or isolation narrows the plot.
+Whenever the card carries any scores at all, separation or faithfulness, it ends with the footer
+`All scores are for the full dataset.` When a filter or isolation narrows the plot, that footer reads
+`All scores are for the full dataset, not this view.` instead.
 
 **How it was made** lists the parameters the dimensionality-reduction method was run with, taken from
 the bundle's projection metadata table. The exact rows depend on the method:
@@ -127,8 +127,9 @@ the bundle's projection metadata table. The exact rows depend on the method:
 - **Source**, the name of the embedding the projection was computed from, useful when a bundle
   contains projections from several embeddings
 
-The projection's dimension count is omitted from this list, you already pick it in the
-[Projection selector](/explore/control-bar), and its name is the card header rather than a row.
+Two things are deliberately absent from the list: the dimension count, which you already pick in the
+[Projection selector](/explore/control-bar), and the projection's name, which is the card header
+rather than a row.
 
 Values are formatted for readability: whole numbers print as-is, other numbers are rounded to three
 decimals (two for explained-variance values), booleans show as **Yes**/**No**, lists are
@@ -154,11 +155,11 @@ high-dimensional embedding. It renders one labelled row per metric, split under 
 | Random Triplet    | Fraction of random point triplets whose relative ordering survives         |
 | Spearman Distance | Rank correlation between high-dimensional and projected pairwise distances |
 
-Every row carries its value and its own ⓘ popover explaining the metric. The per-metric provenance
-(the neighborhood size `k`, the high-dimensional distance metric, the source embedding) is not shown:
-it is identical for every metric in a projection, so the section prints a single scope line instead,
-`811 proteins compared`, gaining `· subsampled` when the comparison ran on a subsample rather than on
-everything. A metric that could not be computed shows `N/A`.
+Every row carries its value and its own ⓘ popover explaining the metric. The neighborhood size `k`,
+the high-dimensional distance metric, and the source embedding are the same for every metric, so no
+row repeats them. Instead the section prints one scope line for all of them, such as
+`811 proteins compared`, gaining `· subsampled` when the comparison ran on a subsample. A metric that
+could not be computed shows `N/A`.
 
 These metrics travel in the projection metadata (`info_json.quality`), not in the statistics part, so
 they appear whether or not the bundle was built with `--stats`.

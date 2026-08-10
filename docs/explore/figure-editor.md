@@ -187,7 +187,7 @@ The connector logic auto-picks 2 of the 4 corner pairs based on the relative pos
 
 #### Geometric zoom (true vector-quality magnification)
 
-Insets are rendered as a **fresh WebGL pass scoped to the source's data domain** at the target rectangle's exact pixel size. Points keep native pixel size, the inset is not a raster crop-and-upscale, so quality keeps improving as the inset's pixel budget grows instead of plateauing at a fixed boost factor.
+Insets are rendered as a **fresh WebGL pass scoped to the source's data domain** at the target rectangle's exact pixel size, not as a raster crop-and-upscale. Points keep their native pixel size, so quality keeps improving as the inset gets larger instead of plateauing at a fixed boost factor.
 
 While you drag-resize an inset, redraws are throttled to the browser's animation frames. Very fast resizes reuse the last fresh render (slightly stretched) for instant feedback, then a fresh full-resolution render is computed once activity settles.
 

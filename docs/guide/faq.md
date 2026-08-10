@@ -131,9 +131,8 @@ Three to five Parquet tables bundled together:
 2. Projection metadata (methods, parameters)
 3. Projection coordinates (x, y, z)
 4. Settings (optional, legend colors, shapes, export options)
-5. Statistics (optional, from `protspace stats`, per-annotation and per-category
-   [separation scores](/explore/separation-scores) plus cluster-agreement metrics, which the web app
-   reads and renders)
+5. Statistics (optional, from `protspace stats`, [separation scores](/explore/separation-scores)
+   and cluster-agreement metrics)
 
 The optional settings table is included when you export with "Include legend/export settings" enabled. See [Data Format](/guide/data-format) for details.
 
