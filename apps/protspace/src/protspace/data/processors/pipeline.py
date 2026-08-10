@@ -27,38 +27,40 @@ from protspace.utils.constants import MDS_NAME
 logger = logging.getLogger(__name__)
 
 # Before the source-label fix, a TED domain with no CATH assignment was
-# formatted as `unclassified|{plddt}`; it now keeps TED's own `-`. Annotation
-# caches store already-formatted values, so the old label survives until the
-# column is refetched. Anchored to a domain boundary so an encoded CATH name
-# that merely contains the word cannot trigger it.
-_LEGACY_TED_LABEL_RE = r"(?:^|;)unclassified(?=\|)"
+# formatted as `unclassified|{plddt}`; it now keeps TED's own `-`. Anchored to a
+# domain boundary so an encoded CATH name that merely contains the word cannot
+# match. The boundary itself is captured so the rewrite can restore it.
+_LEGACY_TED_LABEL_RE = r"(^|;)unclassified(?=\|)"
 
 
-def _warn_on_legacy_ted_label(df: pd.DataFrame) -> None:
-    """Warn when a produced annotation frame still carries the legacy TED label.
+def _migrate_legacy_ted_labels(df: pd.DataFrame) -> bool:
+    """Rewrite pre-fix TED labels in *df* in place. True if anything changed.
 
-    Checked on the frame that is actually returned, not on the raw cache, so it
-    covers every path that reuses a stored TED column (the full-cache-hit
-    short-circuit and the partial-fetch path, where ``determine_sources_to_fetch``
-    leaves ``ted`` cached because the column is present) while staying silent
-    when the column was refetched or is not part of this run's output.
+    Annotation caches store already-formatted values and never re-run the
+    formatter, so a cache written before the source-label fix keeps serving
+    `unclassified`. Rewriting the stored string is the exact inverse of that
+    fix: the old formatter's unlabeled branch differed from today's only in the
+    literal it emitted, so this reproduces a refetch of the column without a
+    single HTTP call — the alternative being one sequential request per
+    accession. Mirrors how `encoding.migrate_legacy_annotation_table` repairs
+    v1 cells on read.
     """
     from protspace.data.annotations.retrievers.ted_retriever import TED_ANNOTATIONS
 
+    migrated = False
     for column in TED_ANNOTATIONS:
         values = df.get(column)
         if values is None:
             continue
         # Literal pre-filter: the anchored regex costs ~10x more per row, and
-        # every run after the one-time refetch scans a clean column.
+        # every run after the migration scans a clean column.
         if not values.str.contains("unclassified", regex=False, na=False).any():
             continue
-        if values.str.contains(_LEGACY_TED_LABEL_RE, regex=True, na=False).any():
-            logger.warning(
-                "Cached TED annotations use the legacy 'unclassified' label. "
-                "Run with --refetch ted to refresh them."
-            )
-            return
+        repaired = values.str.replace(_LEGACY_TED_LABEL_RE, r"\1-", regex=True)
+        if not repaired.equals(values):
+            df[column] = repaired
+            migrated = True
+    return migrated
 
 
 @dataclass(frozen=True)
@@ -430,6 +432,15 @@ class ReductionPipeline:
 
             if cache_path.exists():
                 cached_df = pd.read_parquet(cache_path)
+                # Repair at the cache-read boundary, which dominates every path
+                # that reuses a stored column, then persist so it stays a
+                # one-time cost rather than a rewrite on every resumed run.
+                if _migrate_legacy_ted_labels(cached_df):
+                    logger.info(
+                        "Rewrote legacy 'unclassified' TED domain labels in the "
+                        "cached annotations to TED's '-'."
+                    )
+                    cached_df.to_parquet(cache_path, index=False)
                 cached_annotations = set(cached_df.columns) - {"identifier"}
 
                 if annotations_list is None:
@@ -467,7 +478,6 @@ class ReductionPipeline:
                                 "a FASTA file with -f."
                             )
 
-                    _warn_on_legacy_ted_label(api_df)
                     return self._merge_csv(api_df, csv_df)
 
                 from protspace.data.annotations.configuration import (
@@ -509,7 +519,6 @@ class ReductionPipeline:
                     cached_data=cached_df,
                     sources_to_fetch=sources,
                 ).to_pd()
-                _warn_on_legacy_ted_label(api_df)
                 return self._merge_csv(api_df, csv_df)
             else:
                 api_df = ProteinAnnotationManager(

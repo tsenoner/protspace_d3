@@ -180,9 +180,7 @@ Structure-based domain annotations from [TED (The Encyclopedia of Domains)](http
 | ------------- | ---------------------------------------------------------- |
 | `ted_domains` | Structural domains with CATH classification and confidence |
 
-**Output format**: `2.60.40.720 (Immunoglobulin-like)|95.1;3.40.50.300|88.3` — semicolon-separated domains. Each domain has a CATH superfamily code, name (when available, resolved from InterPro CATH-Gene3D cache), and pLDDT confidence score. Domains without a CATH label show as `-|{plddt}`.
-
-After upgrading from a version that emitted `unclassified`, rerun any existing cached output once with `protspace prepare ... --refetch ted`; otherwise `{output}/tmp/all_annotations.parquet` continues to supply the old formatted TED value.
+**Output format**: `2.60.40.720 (Immunoglobulin-like)|95.1;3.40.50.300|88.3` — semicolon-separated domains. Each domain has a CATH superfamily code, name (when available, resolved from InterPro CATH-Gene3D cache), and pLDDT confidence score. Domains without a CATH label show as `-|{plddt}`. An annotation cache written by an older version that emitted `unclassified` is rewritten to `-` automatically the next time it is read, so no refetch is needed.
 
 **Data source**: Per-protein lookup via `alphafold.ebi.ac.uk/api/domains/{accession}`. Domains are predicted from AlphaFold structures using a consensus of Chainsaw, Merizo, and UniDoc methods.
 

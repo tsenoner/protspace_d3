@@ -4,22 +4,24 @@
       expected failure against the current formatter.
 - [x] 1.2 Cover the reported mixed labeled/unlabeled W6JQJ9 domain order and serialization.
 - [x] 1.3 Add a regression test for legacy TED values returned by the annotation-cache short-circuit.
-- [x] 1.4 Cover the partial cache hit that reuses the stored TED column, and the `--refetch ted`
-      run that must stay silent.
+- [x] 1.4 Cover the partial cache hit that reuses the stored TED column, the persisted repair, and
+      the CATH name that merely contains the legacy word.
+- [x] 1.5 Cover a present-but-null pLDDT, which must not discard the accession's other domains.
 
 ## 2. Backend Fix
 
 - [x] 2.1 Make the minimal formatter change that emits `-` for a domain without a CATH label.
 - [x] 2.2 Run the focused regression test and complete TED retriever test module to observe them pass.
-- [x] 2.3 Warn cached-data users to run `--refetch ted` when the legacy label is detected, on every
-      path that reuses the cached column.
+- [x] 2.3 Rewrite the legacy label to `-` when the annotation cache is read, and persist the repair,
+      so every path that reuses the cached column sees the corrected value.
+- [x] 2.4 Stop a present-but-null pLDDT from raising into the retriever's blanket `except`.
 
 ## 3. Documentation
 
 - [x] 3.1 Update the TED annotation documentation sources to describe `-|{plddt}` output.
 - [x] 3.2 Regenerate the annotation reference and verify generated documentation is current.
-- [x] 3.3 Document the one-time `--refetch ted` requirement for existing formatted annotation
-      caches in the user-facing references and migration plan.
+- [x] 3.3 Document that existing formatted annotation caches are migrated automatically, in the
+      user-facing references and the migration plan.
 - [x] 3.4 Refresh the public phosphatase example bundle's stored unlabeled TED domains.
 
 ## 4. Verification

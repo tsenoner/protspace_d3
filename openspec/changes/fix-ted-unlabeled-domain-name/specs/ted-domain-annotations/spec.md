@@ -18,17 +18,18 @@ SHALL retain that domain's pLDDT score.
 
 #### Scenario: A reused cache contains the legacy TED label
 
-- **WHEN** ProtSpace reuses an annotation cache and the `ted_domains` values it produces include a
-  domain labeled `unclassified`
-- **THEN** ProtSpace warns that `--refetch ted` is required to refresh those stored values
+- **WHEN** ProtSpace reads an annotation cache whose `ted_domains` values include a domain labeled
+  `unclassified`
+- **THEN** ProtSpace rewrites each such domain to `-`, retaining its pLDDT score, and persists the
+  repaired cache so no refetch is required
 
 #### Scenario: Only some annotations are missing from the cache
 
 - **WHEN** ProtSpace fetches a missing annotation source but reuses the cached `ted_domains` column
-- **THEN** ProtSpace still warns about the legacy label, because that cached column reaches the
-  output unchanged
+- **THEN** the reused column is already repaired, so the legacy label cannot reach the output
 
-#### Scenario: The stale TED column is already being refetched
+#### Scenario: A CATH name contains the legacy word
 
-- **WHEN** ProtSpace runs with `--refetch ted` (or a shorthand that includes it)
-- **THEN** ProtSpace does not warn, because the run already replaces the stored values
+- **WHEN** a cached `ted_domains` value contains `unclassified` inside a resolved CATH name rather
+  than as a whole domain label
+- **THEN** ProtSpace leaves that value unchanged
