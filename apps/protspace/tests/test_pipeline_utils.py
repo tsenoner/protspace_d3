@@ -444,6 +444,89 @@ class TestAnnotationCacheMigration:
         assert preserved_cache.attrs == {}
         assert preserved_cache["gene_name"].tolist() == ["LEGACY_GENE"]
         assert "1 UniProt batch failed; 1 protein has empty annotations" in caplog.text
+        # The failed refresh must not make this run's output worse than the
+        # cache it declined to overwrite: only xref_pdb is genuinely unknown.
+        assert result["gene_name"].tolist() == ["LEGACY_GENE"]
+        assert result["protein_name"].tolist() == ["Legacy protein"]
+
+    def test_legacy_pdb_cache_is_not_refetched_when_pdb_is_not_requested(
+        self, tmp_path, monkeypatch
+    ):
+        """A run that never surfaces xref_pdb must not pay a UniProt refetch."""
+        from protspace.data.annotations.retrievers.uniprot_retriever import (
+            UniProtRetriever,
+        )
+
+        cache_path = tmp_path / "all_annotations.parquet"
+        pd.DataFrame(
+            {
+                "identifier": ["P01308"],
+                "xref_pdb": ["True"],
+                "gene_name": ["INS"],
+                "protein_name": ["Insulin"],
+                "uniprot_kb_id": ["INS_HUMAN"],
+            }
+        ).to_parquet(cache_path, index=False)
+
+        def fail_if_refetched(_self):
+            raise AssertionError("xref_pdb is unused; UniProt must not be refetched")
+
+        monkeypatch.setattr(UniProtRetriever, "fetch_annotations", fail_if_refetched)
+
+        result = _cache_pipeline(
+            tmp_path, annotations=["gene_name"]
+        )._fetch_annotations(["P01308"])
+
+        assert result["gene_name"].tolist() == ["INS"]
+        assert "xref_pdb" not in result.columns
+        # Untouched and still unversioned, so a later run that does request
+        # xref_pdb still migrates it.
+        assert pd.read_parquet(cache_path).attrs == {}
+
+    def test_unrequested_legacy_pdb_column_is_dropped_before_stamping(
+        self, tmp_path, monkeypatch
+    ):
+        """A stamped cache must not carry an xref_pdb the run never refreshed."""
+        from protspace.data.annotations.manager import ProteinAnnotationManager
+        from protspace.data.annotations.retrievers.uniprot_retriever import (
+            ProteinAnnotations,
+            UniProtRetriever,
+        )
+
+        cache_path = tmp_path / "all_annotations.parquet"
+        pd.DataFrame(
+            {
+                "identifier": ["P01308"],
+                "xref_pdb": ["True"],
+                "gene_name": ["INS"],
+                "protein_name": ["Insulin"],
+                "uniprot_kb_id": ["INS_HUMAN"],
+            }
+        ).to_parquet(cache_path, index=False)
+
+        def fail_if_refetched(_self):
+            raise AssertionError("xref_pdb is unused; UniProt must not be refetched")
+
+        monkeypatch.setattr(UniProtRetriever, "fetch_annotations", fail_if_refetched)
+        monkeypatch.setattr(
+            ProteinAnnotationManager,
+            "_fetch_ted",
+            lambda _self, _failed: [
+                ProteinAnnotations(
+                    identifier="P01308",
+                    annotations={"ted_domains": "3.40.50.2000|94.2"},
+                )
+            ],
+        )
+
+        result = _cache_pipeline(
+            tmp_path, annotations=["gene_name", "ted_domains"]
+        )._fetch_annotations(["P01308"])
+
+        assert result["ted_domains"].tolist() == ["3.40.50.2000|94.2"]
+        rewritten = pd.read_parquet(cache_path)
+        assert rewritten.attrs == {"protspace_annotation_cache_version": 1}
+        assert "xref_pdb" not in rewritten.columns
 
     def test_legacy_pdb_migration_preserves_cached_taxonomy(
         self, tmp_path, monkeypatch

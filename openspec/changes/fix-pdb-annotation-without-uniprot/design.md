@@ -58,11 +58,25 @@ annotations. Only an explicit `--refetch` request replaces that derived plan. Th
 newly requested taxonomy, InterPro, TED, and Biocentral annotations fetchable during the
 same run that upgrades a legacy PDB cache.
 
-UniProt batch failures remain represented as empty annotations for the current run, but
-the retriever exposes that failure state to the manager. A migration-triggered write is
-suppressed when any UniProt batch fails, leaving the unversioned cache in place so the
-next run retries instead of certifying partial empty results as current. Explicit
-refetches and ordinary first-time cache writes retain their existing behavior.
+The migration runs only when the current run actually surfaces `xref_pdb`: an explicit
+annotation selection that omits it, or a run whose output is restricted away from it,
+must not pay a full UniProt refetch for a column nobody reads. `xref_pdb` is absent from
+the default annotation group, so this is the common case rather than the exception. When
+the column is stale but unused, the pipeline drops it from the cached frame instead of
+refreshing it, so it cannot ride along into a cache that this run stamps as current. A
+later run that does request it then sees it as missing and fetches it through the
+ordinary path.
+
+The retriever exposes UniProt batch-failure state to the manager. A migration-triggered
+write is suppressed when any UniProt batch fails, leaving the unversioned cache in place
+so the next run retries instead of certifying partial empty results as current. The
+current run additionally falls back to the preserved cached UniProt values rather than
+emitting the empty annotations a failed fetch produces, so a transient outage cannot make
+a migration run's output worse than the cache it declined to overwrite. `xref_pdb` is
+excluded from that fallback because repairing its ambiguity is the point of the
+migration, so it stays missing until a refresh succeeds. Explicit refetches keep their
+existing behavior: a user who asked for fresh UniProt data is not silently served cached
+values.
 
 Using the existing Parquet metadata channel avoids a sidecar file and does not expose
 an internal version column to bundle consumers. Invalidating every annotation cache was

@@ -78,3 +78,16 @@
       problem cannot discard a successful fetch.
 - [x] 8.7 Run focused, affected, full Python, Ruff, strict OpenSpec, docs/generated,
       and repository precommit verification.
+
+## 9. Migration Scope and Outage Safety Review Follow-up
+
+- [x] 9.1 Add a failing regression proving a run that never surfaces `xref_pdb` still
+      pays a full UniProt refetch, and gate the migration on actual consumption.
+- [x] 9.2 Add a failing regression proving an unrequested stale `xref_pdb` is carried
+      into a cache stamped as current, and drop the column instead of refreshing it.
+- [x] 9.3 Extend the migration-failure regression to prove the run's own output is
+      blanked, and fall back to the preserved cached UniProt values.
+- [x] 9.4 Verify the three PDB states, the migration, the no-refetch gate, and the
+      outage fallback end to end on a mixed mapped/unmapped UniProt dataset.
+- [x] 9.5 Run focused, affected, full Python, Ruff, strict OpenSpec, docs/generated,
+      and repository precommit verification.
