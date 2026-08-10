@@ -79,15 +79,18 @@ def detect_data_format(input_path: str) -> str:
         )
 
 
-_NA_LABELS = {"", "<NA>", "NaN"}
+_NA_LABELS = {"", "<NA>", "NaN", "__NA__", "None"}
 
 
 def _resolve_na(value: str, all_values: set[str]) -> str | None:
     """If *value* is an NA-like label, return the matching label in *all_values*.
 
-    Different data sources represent missing values as ``""``, ``"<NA>"``, or
-    ``"NaN"``.  This helper maps between them so styles using one form still
-    work when the data uses another.  Returns *None* when no match is found.
+    Different data sources represent missing values as ``""``, ``"<NA>"``,
+    ``"NaN"``, or the frontend's ``"__NA__"`` sentinel.  ``"None"`` is what
+    ``str()`` yields for a parquet NULL, which is how the frontend writer stores
+    a missing categorical cell.  This helper maps between them so styles using
+    one form still work when the data uses another.  Returns *None* when no
+    match is found.
     """
     if value not in _NA_LABELS:
         return None
@@ -95,6 +98,46 @@ def _resolve_na(value: str, all_values: set[str]) -> str | None:
         if candidate in all_values:
             return candidate
     return None
+
+
+def _resolve_numeric(value: str, all_values: set[str]) -> str | None:
+    """Match *value* against *all_values* numerically (``'100.0'`` → ``'100'``).
+
+    A numeric column's physical parquet type decides the spelling its values read
+    back as. The frontend writer stores an integral column as INT32, where it used
+    to widen every numeric column to DOUBLE, so a styles file written against an
+    older export is keyed ``'100.0'`` while the same column now reads ``'100'``.
+    Returns *None* when neither side is numeric or nothing matches.
+    """
+    try:
+        target = float(value)
+    except ValueError:
+        return None
+    for candidate in all_values:
+        try:
+            if float(candidate) == target:
+                return candidate
+        except ValueError:
+            continue
+    return None
+
+
+def _resolve_style_value(value: str, all_values: set[str], annotation: str) -> str:
+    """Return the key in *all_values* that a styles file's *value* refers to.
+
+    Raises:
+        ValueError: when *value* names no value of *annotation*.
+    """
+    if value in all_values:
+        return value
+    for resolver in (_resolve_na, _resolve_numeric):
+        resolved = resolver(value, all_values)
+        if resolved is not None:
+            return resolved
+    raise ValueError(
+        f"Value '{value}' does not exist for annotation '{annotation}'. "
+        f"Available values: {sorted(all_values)}"
+    )
 
 
 def _to_display_value(raw: str, *, decode: bool = True) -> list[str]:
@@ -276,29 +319,13 @@ def add_annotation_styles_parquet(
         # Add colors
         if "colors" in styles:
             for value, color in styles["colors"].items():
-                resolved = str(value)
-                if resolved not in all_values:
-                    na_match = _resolve_na(resolved, all_values)
-                    if na_match is not None:
-                        resolved = na_match
-                    else:
-                        raise ValueError(
-                            f"Value '{value}' does not exist for annotation '{annotation}'. Available values: {sorted(all_values)}"
-                        )
+                resolved = _resolve_style_value(str(value), all_values, annotation)
                 reader.update_annotation_color(annotation, resolved, color)
 
         # Add shapes
         if "shapes" in styles:
             for value, shape in styles["shapes"].items():
-                resolved = str(value)
-                if resolved not in all_values:
-                    na_match = _resolve_na(resolved, all_values)
-                    if na_match is not None:
-                        resolved = na_match
-                    else:
-                        raise ValueError(
-                            f"Value '{value}' does not exist for annotation '{annotation}'. Available values: {sorted(all_values)}"
-                        )
+                resolved = _resolve_style_value(str(value), all_values, annotation)
                 reader.update_marker_shape(annotation, resolved, shape)
 
     # Save the updated data
@@ -368,30 +395,12 @@ def add_annotation_styles_bundle(
 
         if "colors" in styles:
             for value, color in styles["colors"].items():
-                resolved = str(value)
-                if resolved not in all_values:
-                    na_match = _resolve_na(resolved, all_values)
-                    if na_match is not None:
-                        resolved = na_match
-                    else:
-                        raise ValueError(
-                            f"Value '{value}' does not exist for annotation "
-                            f"'{annotation}'. Available values: {sorted(all_values)}"
-                        )
+                resolved = _resolve_style_value(str(value), all_values, annotation)
                 reader.update_annotation_color(annotation, resolved, color)
 
         if "shapes" in styles:
             for value, shape in styles["shapes"].items():
-                resolved = str(value)
-                if resolved not in all_values:
-                    na_match = _resolve_na(resolved, all_values)
-                    if na_match is not None:
-                        resolved = na_match
-                    else:
-                        raise ValueError(
-                            f"Value '{value}' does not exist for annotation "
-                            f"'{annotation}'. Available values: {sorted(all_values)}"
-                        )
+                resolved = _resolve_style_value(str(value), all_values, annotation)
                 reader.update_marker_shape(annotation, resolved, shape)
 
     # Convert updated visualization_state back to settings_json

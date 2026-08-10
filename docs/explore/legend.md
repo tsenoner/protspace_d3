@@ -54,6 +54,8 @@ Categorical annotations support three sort modes:
 - `Alphabetical`
 - `Manual order`
 
+A fourth mode, `By separation`, appears when the dataset carries [separation scores](/explore/separation-scores) and orders categories by how cleanly each one separates in the current projection.
+
 Numeric annotations support two sort modes:
 
 - `By numeric value`
@@ -213,5 +215,6 @@ When proteins have multiple values, such as multiple EC numbers:
 
 ## Next Steps
 
+- [Separation Scores](/explore/separation-scores) - the strips above the legend, and how well each category separates
 - [Control Bar Features](/explore/control-bar) - projections, filters, export, and import
 - [Viewing 3D Structures](/explore/structures) - AlphaFold integration

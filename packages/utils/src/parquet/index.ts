@@ -1,5 +1,6 @@
 // Bundle writer
 export {
+  concatenateBuffers,
   createParquetBundle,
   exportParquetBundle,
   generateBundleFilename,
@@ -14,6 +15,7 @@ export {
   findBundleDelimiterPositions,
   isParquetBundle,
   countBundleDelimiters,
+  assertNoBundleDelimiter,
 } from './delimiter-utils';
 
 // BigInt utilities

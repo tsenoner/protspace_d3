@@ -119,8 +119,13 @@ void main() {
     // the interior. With PREDICTED_INTERIOR_FILL = 1.0 the opaque surface-color knockout would
     // prevent earlier overlapping points from showing through the hole; at 0.0 (hollow) that
     // show-through is allowed for densely overlapping markers — an accepted trade-off.
-    float ringWidth = clamp(aa * 1.75, 0.30, 0.55);
-    float interiorAa = min(aa, (1.0 - ringWidth) * 0.5);
+    // The scale MUST come from gl_PointCoord, never from fwidth(edgeDist). fwidth is the L1 norm
+    // of the partials, so on a radial distance field it reads ~41% larger along the diagonals
+    // than along the axes; driving the ring width with it thickened the ring diagonally and
+    // pinched the hole into a cross. dFdx/dFdy of coord are 2/gl_PointSize in every direction.
+    float pixelScale = max(length(dFdx(coord)), length(dFdy(coord)));
+    float ringWidth = clamp(pixelScale * 1.75, 0.30, 0.55);
+    float interiorAa = min(pixelScale, (1.0 - ringWidth) * 0.5);
     predictedInterior = smoothstep(ringWidth, ringWidth + interiorAa, edgeDist);
   }
   if (shapeAlpha < 0.001) discard;

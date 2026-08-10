@@ -223,6 +223,13 @@ When displayed in ProtSpace, the decoded names render as "Superfamily; old" and 
 - v1 bundles (no version key present, or version < 2) render using the legacy parser, which does not decode percent-encoded sequences
 - This ensures backward compatibility: existing v1 bundles load unchanged without requiring special-case handling
 
+**Numeric column typing:**
+
+- When an annotation is stored with a numeric Parquet type, that type marks the column as numeric. Only an _integer_ physical type (`INT32`/`INT64`) is authoritative for the int/float distinction: bundles written before this writer stored **every** numeric column as `DOUBLE`, so `FLOAT`/`DOUBLE` carries no int/float information and the reader lets value inference decide there — trusting it would re-label those bundles' integer annotations (legend labels `10 - 25` → `10.0 - 25.0`)
+- Only an _unannotated_ physical type counts. A logical or converted type means the physical type is a carrier rather than the identity — pyarrow stores an all-null column as `INT32` + logical `NULL`, and `DECIMAL` rides on `INT32`/`INT64` — so those fall back to inference too
+- This matters for a column whose rows are all missing — for example an isolation-mode or query-filtered export — which has no values left to infer from and would otherwise reload as a categorical column with a single N/A category
+- Bundles that store annotations as text (the `protspace` CLI writes its annotation frame stringified) carry no such type, and fall back to inferring numeric-ness from the values as before
+
 **Known formatting:**
 
 - Unnamed CATH superfamilies from TED domains display the bare code without a decoding step (see [#57](https://github.com/tsenoner/protspace/issues/57))
