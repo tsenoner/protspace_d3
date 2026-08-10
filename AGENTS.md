@@ -16,8 +16,7 @@ as a spec **before** writing implementation code.
   - `/opsx:propose <idea>` — create a change and generate its artifacts (proposal, design, specs, tasks)
   - `/opsx:apply` — implement the change's tasks
   - `/opsx:archive` — merge spec deltas into `openspec/specs/` and archive the change.
-    **Run this on the branch as the last commit before merging the PR — never "after the
-    merge".** See below.
+    Run it as the **last commit on the branch, before the merge** — see below.
   - `/opsx:explore` — investigate/clarify before committing to a change
   - If slash commands are unavailable, invoke the equivalent OpenSpec skill or run the `openspec` CLI directly.
 - **`openspec/specs/` is the source of truth** for current behavior. Read the relevant specs
@@ -27,34 +26,17 @@ as a spec **before** writing implementation code.
 
 ### Archive before the merge, not after
 
-`/opsx:archive` is what makes `openspec/specs/` true. Treat it as part of the change, not as
-cleanup: run it on the branch, commit the result, and let it merge with everything else.
+`/opsx:archive` is what makes `openspec/specs/` true, so it belongs in the change rather than
+after it: run it on the branch, commit the result, and let CI go green on that commit.
+Deferred to "after the merge" it does not happen — the PR is closed and the branch is gone —
+leaving `openspec/specs/` describing behavior the code no longer has, which the next change
+reads as current.
 
-Deferring it to "after the merge" does not work in practice — the PR closes, the branch is
-gone, attention moves on, and nobody comes back for it. Every deferral leaves
-`openspec/specs/` describing behavior the code no longer has, which is worse than no spec at
-all: the next change reads it as current and plans against a fiction.
+Before archiving, tick off `tasks.md` including anything the review added, and reread
+`proposal.md` / `design.md` against the final diff: rationale written before a review is
+often stale by the end of it, and archiving freezes it.
 
-Concretely, before requesting or performing a merge:
-
-1. Tick off `tasks.md`, and add any task the review turned up so the archived record matches
-   what actually shipped.
-2. Reread `proposal.md` / `design.md` against the final diff. Rationale written before the
-   review is often stale by the end of it, and archiving freezes it.
-3. Run `openspec validate <change> --strict`, then `/opsx:archive`.
-4. Commit, push, and let CI go green on that commit — the archive is the last commit on the
-   branch.
-
-**Local setup (one time per machine):**
-
-```bash
-npm i -g @fission-ai/openspec   # the workflow skills shell out to this CLI
-openspec init                   # generates per-tool skills/commands for this repo
-```
-
-Only this `AGENTS.md` and the `openspec/` directory (specs + changes) are committed. The per-tool
-skills/commands under `.claude/` and `.codex/`, and Codex's global prompts in `~/.codex/prompts/`,
-are CLI-generated and gitignored — regenerate them with `openspec init` / `openspec update`.
+One-time CLI setup is in [CONTRIBUTING.md](CONTRIBUTING.md#openspec-one-time-per-machine).
 
 ## Before committing
 
@@ -66,6 +48,30 @@ Always run `pnpm precommit` before creating any git commit. It runs:
 - Vitest (tests)
 
 It is JS-only; Python workspace members are covered by their own CI workflows (see below).
+
+Note that `pnpm precommit` runs lint-staged, so it only inspects **staged** files. Unstaged
+work passes it and still fails CI's `format:check`. Run `pnpm format:check` and `pnpm test`
+explicitly when you have not staged everything.
+
+## End-to-end tests (Playwright)
+
+`e2e.yml` is the only suite that drives the real app in a browser, so several subsystems —
+EAT provenance connectors, isolation, dataset swap — have no other coverage at all.
+`pnpm precommit` does not touch them.
+
+It runs nightly on `main`, and on any PR touching the web app, the packages it builds on, or
+the root files that decide what those resolve to — `e2e.yml` owns the exact list. For anything
+else, dispatch it:
+
+```bash
+gh workflow run e2e.yml --ref <branch>   # in CI, any branch
+pnpm test:e2e                            # locally
+```
+
+**Never dismiss a red run as flaky on the strength of local passes.** The regression that
+prompted this section failed 6/6 in CI and 0/17 locally. The baseline worth comparing
+against is the nightly's history on `main` (`gh run list --workflow=e2e.yml
+--event=schedule`), not your machine.
 
 ## Python workspace members (uv)
 

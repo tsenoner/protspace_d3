@@ -1,6 +1,22 @@
 # CHANGELOG
 
 
+## v4.10.1 (2026-08-07)
+
+### Bug Fixes
+
+- **bundle**: Close the review gaps in numeric typing and N/A handling
+  ([`abe27bc`](https://github.com/tsenoner/protspace/commit/abe27bcdc8bad9ff59ba6174497f2ab639b3152c))
+
+- **settings**: Read and preserve the frontend settings envelope in Python
+  ([`1c33e62`](https://github.com/tsenoner/protspace/commit/1c33e62ee897f4df261069f98ddf068262ffdebc))
+
+### Refactoring
+
+- **bundle**: Derive numeric column types from the parquet schema
+  ([`614cb42`](https://github.com/tsenoner/protspace/commit/614cb420c7612e997d2d80f78d4900793cb87c41))
+
+
 ## v4.10.0 (2026-08-06)
 
 ### Bug Fixes
