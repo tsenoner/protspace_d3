@@ -386,6 +386,11 @@ class ReductionPipeline:
         self, headers: list[str], embedding_sets: list[EmbeddingSet] = None
     ) -> pd.DataFrame:
         """Fetch annotations from APIs with incremental caching support."""
+        from protspace.data.annotations.configuration import (
+            ANNOTATION_GROUPS,
+            TAXONOMY_LOOKUP_ANNOTATION,
+            AnnotationConfiguration,
+        )
         from protspace.data.annotations.encoding import (
             ANNOTATION_CACHE_VERSION,
             read_annotation_cache_version,
@@ -410,10 +415,6 @@ class ReductionPipeline:
                 csv_df = csv_df.rename(columns={id_col: "identifier"})
 
         if annotation_names:
-            from protspace.data.annotations.configuration import (
-                AnnotationConfiguration,
-            )
-
             annotations_list = AnnotationConfiguration(
                 annotation_names
             ).user_annotations
@@ -453,10 +454,6 @@ class ReductionPipeline:
                 )
 
                 if annotations_list is None:
-                    from protspace.data.annotations.configuration import (
-                        ANNOTATION_GROUPS,
-                    )
-
                     required = set(ANNOTATION_GROUPS["default"])
                 else:
                     required = set(annotations_list)
@@ -488,11 +485,6 @@ class ReductionPipeline:
                             )
 
                     return self._merge_csv(api_df, csv_df)
-
-                from protspace.data.annotations.configuration import (
-                    TAXONOMY_LOOKUP_ANNOTATION,
-                    AnnotationConfiguration,
-                )
 
                 sources = AnnotationConfiguration.determine_sources_to_fetch(
                     cached_annotations, required

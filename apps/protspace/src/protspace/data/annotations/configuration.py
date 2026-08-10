@@ -36,8 +36,9 @@ ALWAYS_INCLUDED_ANNOTATIONS = ["gene_name", "protein_name", "uniprot_kb_id"]
 TAXONOMY_LOOKUP_ANNOTATION = "organism_id"
 NEEDED_UNIPROT_ANNOTATIONS = ["accession", TAXONOMY_LOOKUP_ANNOTATION]
 # Fetched only to drive other lookups (taxonomy, InterPro); stripped from output
-# unless the user asked for them explicitly.
-INTERNAL_ANNOTATIONS = [TAXONOMY_LOOKUP_ANNOTATION, "sequence"]
+# unless the user asked for them explicitly. A tuple so callers that bind it
+# directly cannot mutate the shared constant.
+INTERNAL_ANNOTATIONS = (TAXONOMY_LOOKUP_ANNOTATION, "sequence")
 
 # User-facing UniProt annotations (excludes internal: sequence, organism_id)
 _UNIPROT_USER_ANNOTATIONS = [

@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from protspace.data.io.formatters import DataFormatter
+
 ProteinAnnotations = namedtuple("ProteinAnnotations", ["identifier", "annotations"])
 
 
@@ -30,21 +32,13 @@ class AnnotationWriter:
     ) -> tuple[list[str], list[list]]:
         """Build the header row and data rows shared by every output format.
 
-        Headers are the union across all records, in first-seen order: merging
-        only inserts keys when a source lookup hits, so proteins with no
-        taxonomy/InterPro/TED match carry shorter annotation dicts.
+        Schema derivation lives in :class:`DataFormatter` so the file writers and
+        the in-memory DataFrame path cannot disagree about which columns exist.
         """
-        headers = [
-            "identifier",
-            *dict.fromkeys(
-                header for protein in proteins for header in protein.annotations
-            ),
-        ]
+        headers = DataFormatter.build_headers(proteins)
         rows = []
         for protein in proteins:
-            row = [protein.identifier] + [
-                protein.annotations.get(header, "") for header in headers[1:]
-            ]
+            row = DataFormatter.build_row(protein, headers)
             if apply_transforms and self.transformer:
                 row = self.transformer.transform_row(row, headers)
             rows.append(row)

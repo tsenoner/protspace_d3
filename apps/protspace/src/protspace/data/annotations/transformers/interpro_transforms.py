@@ -13,8 +13,10 @@ from pathlib import Path
 
 import requests
 
-from protspace.data.annotations.encoding import encode_field
-from protspace.data.annotations.transformers.canonical import CANONICAL_BOOLEANS
+from protspace.data.annotations.encoding import (
+    CANONICAL_BOOLEANS,
+    encode_field,
+)
 
 logger = logging.getLogger(__name__)
 

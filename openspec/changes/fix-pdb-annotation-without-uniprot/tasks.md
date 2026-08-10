@@ -59,3 +59,22 @@
 - [x] 7.5 Correct the design's missing-context statement and run focused, affected,
       full Python, Ruff, strict OpenSpec, bundle contract, docs/generated, and
       repository precommit verification.
+
+## 8. Simplification and Code Review Follow-up
+
+- [x] 8.1 Consolidate the annotation-cache version marker beside the existing bundle
+      format version, read it through a named helper, and compare with `<` so a newer
+      cache is not refetched and downgraded by older code.
+- [x] 8.2 Fold the mapping-state rule into `transform_xref_pdb` and name the persisted
+      `"True"`/`"False"` vocabulary once, shared by the UniProt and InterPro transforms.
+- [x] 8.3 Remove the write-only failure counter and the production-side guard that
+      existed only to tolerate bare test doubles, setting the attribute on the mocks.
+- [x] 8.4 Share header and row construction between `DataFormatter` and
+      `AnnotationWriter`, and add a failing regression proving a later-only annotation
+      key is dropped from the in-memory path.
+- [x] 8.5 Treat a `NaN` cell as missing in PDB transformation and add a failing
+      regression proving it was otherwise read as a PDB hit.
+- [x] 8.6 Read the UniProt failure counter outside the broad `except` so a counter
+      problem cannot discard a successful fetch.
+- [x] 8.7 Run focused, affected, full Python, Ruff, strict OpenSpec, docs/generated,
+      and repository precommit verification.

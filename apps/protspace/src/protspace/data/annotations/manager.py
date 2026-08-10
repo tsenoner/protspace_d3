@@ -222,8 +222,6 @@ class ProteinAnnotationManager:
                 annotations=self.config.uniprot_annotations,
             )
             annotations = retriever.fetch_annotations()
-            self.uniprot_fetch_failed = retriever.failed_batch_count > 0
-            return annotations
         except Exception as e:
             self.uniprot_fetch_failed = True
             failed_sources.append(f"UniProt ({str(e)})")
@@ -235,6 +233,11 @@ class ProteinAnnotationManager:
                 )
                 for header in self.headers
             ]
+
+        # Read outside the try: a problem reading the failure counter must not be
+        # swallowed as "UniProt is unreachable" and discard a successful fetch.
+        self.uniprot_fetch_failed = retriever.failed_batch_count > 0
+        return annotations
 
     def _fetch_taxonomy(
         self, uniprot_annotations: list[ProteinAnnotations], failed_sources: list

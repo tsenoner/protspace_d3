@@ -31,6 +31,12 @@ FORMAT_VERSION_KEY = b"protspace_format_version"
 ANNOTATION_CACHE_VERSION = 1
 ANNOTATION_CACHE_VERSION_ATTR = "protspace_annotation_cache_version"
 
+# Boolean-ish annotations (``xref_pdb``, ``signal_peptide``, ...) persist as these
+# exact strings. Cached values are read back and re-transformed on resumed runs,
+# so every transform that emits one must also accept one unchanged — otherwise a
+# second pass reinterprets its own output as raw source data.
+CANONICAL_BOOLEANS = ("False", "True")
+
 # Chars that must be percent-encoded inside any free-text token.
 _RESERVED = {";", "|", "%"} | {chr(c) for c in range(0x20)} | {chr(0x7F)}
 _ENCODE_TABLE = str.maketrans({c: f"%{ord(c):02X}" for c in _RESERVED})

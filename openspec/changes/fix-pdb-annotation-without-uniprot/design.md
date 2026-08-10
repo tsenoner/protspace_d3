@@ -78,18 +78,25 @@ retrieved annotations. The transformer will preserve exact canonical `"True"` an
 cached InterPro positives stable when a separate source such as UniProt is refetched,
 without changing raw InterPro interpretation.
 
-### Derive the Parquet schema from every annotation record
+### Derive the annotation schema from every record, on every output path
 
 Merged annotation records can have non-uniform keys: for example, an unresolved first
 protein has no taxonomy fields while a later resolved protein can carry cached `genus`.
-The Parquet writer will therefore collect annotation keys across all records before
+Schema derivation will therefore collect annotation keys across all records before
 building rows, preserving their first-seen order and filling absent values with the
 existing empty-string representation. This keeps schema membership independent of row
 order without introducing source ownership knowledge into the generic writer.
 
+`DataFormatter` owns that derivation and `AnnotationWriter` calls it, so the file
+writers and the in-memory DataFrame path cannot disagree about which columns exist.
+Both paths are reachable for the same data: `protspace annotate`, a `prepare` run
+without `--keep-tmp`, and the suppressed-write migration-failure branch all return the
+in-memory frame rather than reading back a written Parquet file.
+
 ## Risks / Trade-offs
 
-- **[Risk] A transformed record could omit `uniprot_kb_id`.** → Absence means the caller did not supply mapping context (for example, a partial-header writer call), so preserve the established value-only PDB conversion. An explicitly empty identifier remains the unresolved-entry signal.
+- **[Risk] A transformed record could omit `uniprot_kb_id`.** → Absence means the caller did not supply mapping context (for example, a partial-header writer call), so preserve the established value-only PDB conversion. An explicitly blank identifier remains the unresolved-entry signal.
+- **[Risk] A cell read back through pandas is `NaN`, not `""`.** → `NaN` is truthy and stringifies to `"nan"`, so a plain truthiness test would read a missing cell as a PDB hit. Blankness is therefore tested explicitly for both the value and the mapping context, while `None` continues to mean "no context supplied".
 - **[Risk] Existing consumers may have counted unmapped values as `False`.** → The change intentionally corrects that semantic category while leaving mapped entries unchanged.
 - **[Risk] A raw retriever value could resemble a canonical boolean string.** → UniProt PDB cross-references use PDB identifiers, so exact `"True"` and `"False"` values are reserved for ProtSpace's persisted representation.
 - **[Risk] A legacy cache is reused while offline.** → The affected UniProt values are
