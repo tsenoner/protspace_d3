@@ -31,8 +31,10 @@ it to a **numeric** column (`length`, pLDDT, a score) does not do what you expec
 
 - `--generate-template` lists **every distinct number as its own category**, hundreds to thousands
   of rows to hand-color.
-- `colors` / `shapes` / `pinnedValues` only match values by exact string, so a range like
-  `"200-300"` or an interpolated `"3.5"` raises `Value '…' does not exist`.
+- `colors` / `shapes` / `pinnedValues` match one existing value at a time, so a range like
+  `"200-300"` or an interpolated `"3.5"` raises `Value '…' does not exist`. A key that is a number
+  is resolved numerically rather than textually, so `"100.0"` still finds the value `100` in a
+  bundle whose integral columns are now written as integers.
 - There is no continuous colormap, binning, or range-legend concept on the CLI side.
 
 `protspace style` emits a **warning** when it detects a numeric column, naming it and its
@@ -104,8 +106,10 @@ consumed during generation, only their effects (the resulting categories with `z
 
 ### N/A values
 
-Missing values (`""`, `"<NA>"`, `"NaN"`) are normalized automatically, use any form in the styles
-file. In the output bundle N/A is stored with the key `__NA__` (the frontend's internal format).
+Missing values (`""`, `"<NA>"`, `"NaN"`, `"__NA__"`, `"None"`) are normalized automatically, use any
+form in the styles file. `"None"` is the form a web-app-exported bundle reads back as: it writes a
+missing cell as a Parquet NULL, which stringifies to `None`. In the output bundle N/A is stored with
+the key `__NA__` (the frontend's internal format).
 
 ### Example: custom colors and shapes
 

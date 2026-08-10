@@ -48,6 +48,8 @@ The main visualization shows your proteins as points in 2D space. Points close t
 - **Escape** to clear selection / exit selection mode
 - **⌘/Ctrl + K** to focus search
 
+The bar-chart icon in the plot's top-left corner opens the [projection metadata panel](/explore/scatterplot#projection-metadata) with the current projection's quality scores and settings.
+
 ## Legend
 
 ![Legend panel - showing categories and controls](./images/legend-panel.png)
@@ -57,6 +59,7 @@ The legend shows the current coloring scheme:
 - Click labels to hide/show categories
 - Drag labels to reorder (changes drawing order in the scatterplot)
 - Use the settings cog for advanced options
+- Scored datasets add [separation score strips](/explore/separation-scores) above the category list
 
 ## Structure Viewer
 

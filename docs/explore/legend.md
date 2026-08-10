@@ -33,6 +33,16 @@ Categorical annotations can group less frequent values into `Other` once the vis
 
 Numeric annotations do **not** use `Other`. They are binned directly from the raw numeric values.
 
+## Separation Score Strips
+
+When the dataset was prepared with statistics and the selected annotation was scored in the current projection, two strips appear at the top of the legend panel, above the category list: one for `Silhouette`, one for `Davies–Bouldin`. Each plots one dot per category, in that category's legend color, so you can see which values sit apart from the rest and which overlap.
+
+- Hovering a dot highlights the matching legend row, and hovering a row highlights its dot.
+- Clicking a dot toggles that category, exactly like clicking its legend row.
+- While a filter or isolation narrows the view, the strips are replaced by the note `Separation scores are hidden while the view is filtered.`
+
+See [Separation Scores](/explore/separation-scores) for what the numbers mean and how they are computed.
+
 ## Settings
 
 Click the cog icon in the top-right corner of the legend for advanced options.
@@ -54,7 +64,7 @@ Categorical annotations support three sort modes:
 - `Alphabetical`
 - `Manual order`
 
-A fourth mode, `By separation`, appears when the dataset carries [separation scores](/explore/separation-scores) and orders categories by how cleanly each one separates in the current projection.
+A fourth mode, `By separation`, appears only when the selected annotation carries per-category [separation scores](/explore/separation-scores) for the current projection, and orders categories by how cleanly each one separates. It is display-only: it reorders the list without changing which categories fall into `Other`, and it keeps working while the view is filtered.
 
 Numeric annotations support two sort modes:
 
@@ -65,6 +75,7 @@ The arrow button next to the cog reverses the current sort direction:
 
 - Numeric `By numeric value`: low-to-high vs high-to-low
 - Numeric `Manual order`: reverses the current manual order
+- Categorical `By separation`: best-separating first vs worst-separating first
 - Categorical: preserves the legacy reverse behavior
 
 ### Numeric Bin Distribution
@@ -215,6 +226,6 @@ When proteins have multiple values, such as multiple EC numbers:
 
 ## Next Steps
 
-- [Separation Scores](/explore/separation-scores) - the strips above the legend, and how well each category separates
+- [Separation Scores](/explore/separation-scores) - the strips at the top of the legend panel, and how well each category separates
 - [Control Bar Features](/explore/control-bar) - projections, filters, export, and import
 - [Viewing 3D Structures](/explore/structures) - AlphaFold integration

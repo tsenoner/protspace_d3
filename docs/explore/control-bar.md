@@ -38,7 +38,9 @@ The Annotation dropdown features:
 
 - **Grouped categories**: Features are organized into sections (UniProt, InterPro, Taxonomy, Other)
 - **Search**: Type to filter features by name (case-insensitive)
-- **Keyboard navigation**: Use arrow keys to navigate, Enter to select, Escape to close
+- **Keyboard navigation**: Use arrow keys to move the highlight, Enter to select, Escape to close.
+  Hovering does not move the arrow-key highlight, and Enter picks the row under the pointer whenever
+  one is hovered.
 
 Only categories present in your dataset appear in the dropdown. Any columns that don't match a known category appear under **Other**. See the [ProtSpace Python package](https://github.com/tsenoner/protspace) for the complete list of available annotations per source.
 
@@ -48,7 +50,7 @@ The selected annotation is also stored in the page URL together with the current
 
 ::: info ⚡ Predicted badge
 A ⚡ badge next to an annotation name marks a **computational prediction** rather than curated or
-experimental data. Hover it for the tooltip "Predicted, computational, not experimentally
+experimental data. Hover it for the tooltip "Predicted: computational, not experimentally
 curated". The same badge appears next to the legend title when a predicted annotation is active.
 
 Flagged annotations are:
@@ -61,6 +63,17 @@ Flagged annotations are:
 Reference signature-database matches (Pfam, CATH-Gene3D, SUPERFAMILY, SMART, CDD, PANTHER) and
 curated data (UniProt, Taxonomy) are deliberately **not** flagged. See
 [Annotations](/guide/annotations) for the full column reference.
+:::
+
+::: info STATS badge
+A **STATS** badge marks an annotation the bundle scored **for the projection you are currently
+viewing**. It carries no number, it only says the scores exist. Hover it for the tooltip "Quality
+statistics available: select this annotation and open the projection metadata panel".
+
+Because the badge is projection-scoped, it disappears when you switch to a projection the annotation
+was not scored on. Select the annotation and open the
+[projection metadata panel](/explore/scatterplot#projection-metadata) to read the numbers, or see
+[Separation Scores](/explore/separation-scores) for what they mean.
 :::
 
 ::: info Tooltip-only annotations

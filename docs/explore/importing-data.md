@@ -116,6 +116,10 @@ After successfully loading a file:
 4. **Legend appears**: Shows all categories with color assignments
 5. **Ready to explore**: You can now pan, zoom, and interact with the data
 
+A bundle prepared with `--stats` additionally lights up [separation scores](/explore/separation-scores):
+score strips above the legend and a Separation section in the projection metadata panel. That is a
+property of the file, not a setting you toggle.
+
 ::: info Loading Time
 Small datasets (< 10K proteins) load instantly. Larger datasets may take a few seconds to process and render.
 :::

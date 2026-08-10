@@ -7,6 +7,7 @@ Thanks for your interest in contributing! All types of contributions are welcome
 - [Contributing to ProtSpace](#contributing-to-protspace)
   - [Table of Contents](#table-of-contents)
   - [Quick Start](#quick-start)
+    - [OpenSpec (one time per machine)](#openspec-one-time-per-machine)
   - [Development Workflow](#development-workflow)
   - [Reporting Issues](#reporting-issues)
     - [Bug Reports](#bug-reports)
@@ -17,6 +18,7 @@ Thanks for your interest in contributing! All types of contributions are welcome
     - [Technology Stack](#technology-stack)
     - [Making Changes](#making-changes)
     - [Code Quality Standards](#code-quality-standards)
+    - [Messaging Consistency](#messaging-consistency)
     - [Testing](#testing)
   - [Documentation](#documentation)
   - [Pull Request Process](#pull-request-process)
@@ -206,6 +208,11 @@ pnpm docs:build   # Verify the documentation build
 4. Build compilation
 5. Test suite execution
 6. Documentation build
+7. Bundle format contract (`bundle-contract.yml`), `pnpm test:contract` against a real Python-produced
+   bundle. Deliberately **unfiltered**: it runs on every PR, including PRs that touch no code it covers.
+8. E2E, Playwright (`e2e.yml`), on PRs touching `apps/web/**`, `packages/**` or the root files those
+   resolve through (`package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `turbo.json`), plus
+   nightly on `main`. Outside those paths, dispatch it: `gh workflow run e2e.yml --ref <branch>`.
 
 **Code style requirements:**
 
@@ -245,9 +252,18 @@ pnpm docs:build   # Verify the documentation build
 ### Testing
 
 ```bash
-pnpm test         # Run tests in watch mode
-pnpm test:ci      # Run the non-watch CI test suite
-pnpm test:e2e     # Run Playwright browser coverage
+pnpm test          # Run tests in watch mode
+pnpm test:ci       # Run the non-watch CI test suite
+pnpm test:e2e      # Run Playwright browser coverage
+pnpm test:contract # Bundle format contract: Python producer vs TypeScript reader
+```
+
+`pnpm test:contract` shells out to the real `protspace bundle` CLI, so it needs `uv` on your
+PATH and a synced Python workspace. Without them it fails rather than skipping (deliberately, a
+missing producer must not read as a pass):
+
+```bash
+uv sync --package protspace --no-dev --locked   # what bundle-contract.yml does
 ```
 
 **Manual testing:** start `pnpm dev`, then load one of the example bundles in

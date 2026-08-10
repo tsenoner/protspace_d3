@@ -7,6 +7,13 @@ conventions, pull requests and the release process, lives in one place:
 
 Read that first. This page only covers the component patterns specific to the web front end.
 
+::: danger Never squash-merge a PR that touches `apps/protspace/`
+Use a merge commit or a rebase merge. Squashing collapses every branch commit into one that
+touches all the paths at once, which destroys the per-commit release scoping and lets a
+front-end `feat:` cut a PyPI release. Full rationale in
+[AGENTS.md](https://github.com/tsenoner/protspace/blob/main/AGENTS.md#never-squash-merge-a-pr-that-touches-appsprotspace).
+:::
+
 ## Web component patterns
 
 The visual components in `packages/core` are [Lit](https://lit.dev) elements. `apps/web` is a React

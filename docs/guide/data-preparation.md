@@ -120,9 +120,18 @@ Fine-tune settings for each method:
 | MDS      | N Init, Max Iter                |
 | LocalMAP | N Neighbors, MN Ratio, FP Ratio |
 
+### Quality statistics (Optional)
+
+Tick **Compute quality statistics** to score how well your annotations separate, and how faithfully
+each projection preserves the original embedding. This is the notebook's equivalent of the CLI's
+`--stats` flag. It is off by default, and the cost grows with dataset size.
+
+ProtSpace renders these scores in the legend and the projection metadata panel, see
+[Separation Scores](/explore/separation-scores).
+
 ## Step 4: Generate and Download
 
-1. Click **"Generate Bundle"**
+1. Click **Generate**
 2. Wait for processing (time depends on dataset size)
 3. Download your `.parquetbundle` file
 
@@ -131,6 +140,14 @@ Fine-tune settings for each method:
 1. Go to [protspace.app/explore](https://protspace.app/explore)
 2. Drag & drop your `.parquetbundle` file onto the scatterplot
 3. Start exploring!
+
+## Optional: fill missing annotations (EAT)
+
+The Preparation notebook has an **Embedding Annotation Transfer** panel below the Generate button.
+It fills blank annotation values on your query proteins from their nearest annotated neighbour in
+embedding space, with a reliability score attached. For a standalone walkthrough of the same thing
+via the `protspace transfer` CLI, open the
+[Transfer notebook](https://colab.research.google.com/github/tsenoner/protspace/blob/main/apps/protspace/notebooks/ProtSpace_Transfer.ipynb).
 
 ## Tips
 

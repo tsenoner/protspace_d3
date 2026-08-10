@@ -132,17 +132,6 @@ given without `-e`, `prot_t5` is used.
 | `--no-log`                   | Skip writing `run.log` to the output directory.                                                                                                                              | off     |
 | `-v, --verbose`              | Verbosity: `-v` = INFO, `-vv` = DEBUG.                                                                                                                                       | -       |
 
-::: info Statistics table is not yet shown in the web app
-A `--stats` bundle has five parts and **opens** in the web app: the loader reads the core data and
-settings and ignores the trailing statistics table. Rendering that table in-app is a separate
-follow-up.
-
-The faithfulness metrics show regardless: they travel in the projection metadata
-(`info_json.quality`) and render in the Projection Metadata panel. See
-[Data Format Reference](/guide/data-format#statistics-optional-5th-part) for the bundle-parts
-details.
-:::
-
 ## Projection Methods
 
 Methods require a dimension suffix: `2` for 2D, `3` for 3D.
@@ -420,10 +409,13 @@ Score the quality of the projections in an existing project directory and write 
 `statistics.parquet`, the optional fifth part of a
 [`.parquetbundle`](/guide/data-format).
 
-Folding it in with `bundle -s` produces a five-part bundle that **opens** in the web app: the loader
-ignores the statistics table, which is not rendered in-app yet. The faithfulness metrics ride in the
-projection metadata (`info_json.quality`) and render in the Projection Metadata panel either way. See
-[Data Format Reference](/guide/data-format#statistics-optional-5th-part).
+Folding it in with `bundle -s` produces a five-part bundle, and the web app reads that table: it
+draws separation-score strips in the legend, adds a `By separation` legend sort mode and fills the
+Separation section of the projection metadata panel. See
+[Separation Scores](/explore/separation-scores) for how the scores read in the app, and
+[Data Format Reference](/guide/data-format#statistics-optional-5th-part) for the bundle parts. The
+faithfulness metrics ride in the projection metadata (`info_json.quality`), so they show even in a
+bundle written without statistics.
 
 ```bash
 # Faithfulness only (no annotations needed)
@@ -443,10 +435,10 @@ protspace stats -i embeddings/prot_t5.h5 -p projections/ -o statistics.parquet \
 | `-i, --input`         | HDF5 embedding file(s), required. Repeatable; `-i file.h5:name` to override the name.               | -           |
 | `-p, --projections`   | Directory with `projections_metadata.parquet` and `projections_data.parquet`, required.             | -           |
 | `-o, --output`        | Output `statistics.parquet` path, required.                                                         | -           |
-| `-a, --annotations`   | Annotations parquet to enrich in place with per-protein cluster-membership columns and to score.    | -           |
+| `-a, --annotations`   | Annotations parquet, enriched in place with per-protein `cluster_*` membership columns and scored for annotation-based validity plus ARI/NMI agreement. | -           |
 | `--settings-out`      | Write auto-generated cluster legend styles here (JSON) for `bundle --settings`. Requires `-a`.      | -           |
 | `--cluster-selection` | How to choose the cluster count K: `elbow`, `silhouette`, or `both`.                                | `elbow`     |
-| `--stats-annotation`  | Which annotation column(s) to score: `auto` or a comma-separated list. Requires `-a`.               | `auto`      |
+| `--stats-annotation`  | Which curated annotation column(s) to score: `auto` or a comma-separated list. Requires `-a`. The `cluster_*` membership columns are scored regardless of this. | `auto`      |
 | `--metric`            | High-dimensional distance metric for faithfulness when the projection metadata omits one (PCA/MDS). | `euclidean` |
 | `--seed`              | Random seed.                                                                                        | `42`        |
 
@@ -457,20 +449,35 @@ protspace stats -i embeddings/prot_t5.h5 -p projections/ -o statistics.parquet \
 - **Annotation-based validity**, silhouette, Davies–Bouldin and Calinski–Harabasz scored on an
   annotation's own category labels, computed once for the source embedding (a separability ceiling)
   and again for each projection. Rows land in `statistics.parquet` with
-  `space_kind ∈ {embedding, projection}` and an `annotation` column. Requires `-a`.
-- **Auto-cluster agreement**, KMeans labels the projection, with K chosen by the inertia elbow
-  and/or maximum silhouette. Each selection becomes a per-protein membership column
-  (`cluster_elbow_<projection>`, `cluster_silhouette_<projection>`) whose value carries the
-  per-point silhouette as `cluster N|<silhouette>`, and its ARI/NMI agreement with each scored
-  annotation is recorded as `stat_family=cluster_agreement`.
+  `space_kind ∈ {embedding, projection}` and an `annotation` column. Silhouette and Davies–Bouldin
+  are additionally emitted per category, on rows carrying a `category` value (aggregate rows leave
+  it null); Calinski–Harabasz stays aggregate-only. A one-member category gets no per-category row
+  and is excluded from the Davies–Bouldin and Calinski–Harabasz input, so an annotation with a few
+  singleton categories now scores on the rest instead of suppressing both indices outright.
+  Requires `-a`.
+- **Auto-clustering and its agreement with annotations**, KMeans labels the projection, with K
+  chosen by the inertia elbow and/or maximum silhouette. Each selection becomes a per-protein
+  membership column (`cluster_elbow_<projection>`, `cluster_silhouette_<projection>`) holding a
+  bare `cluster N` label, the same shape as a curated categorical annotation. Each clustering is
+  then scored on its own categories exactly as an annotation is, aggregate and per-category, filed
+  under the membership column's name and tagged `label_kind=kmeans_elbow|kmeans_silhouette`,
+  whether or not `--stats-annotation` named anything. Read those scores as descriptive rather than
+  as a verdict: KMeans drew the boundaries being graded, and a `silhouette`-selected K was chosen by
+  maximising the very number reported. Separately, each clustering's ARI/NMI agreement with every
+  scored annotation is recorded as `stat_family=cluster_agreement`. `--no-scores` does not touch
+  these columns, they carry no score to strip; bundles written by older versions, whose values were
+  `cluster N|0.41`, still load because the app drops the suffix by column name.
 - **Faithfulness**, how well the projection preserves the embedding's structure: kNN-overlap,
   trustworthiness and continuity (local), plus random-triplet accuracy and Spearman distance
   correlation (global). These ride in each projection's `info_json.quality`, not in
   `statistics.parquet`.
 
 Statistics are opt-in because the extra compute can be slow on large runs. A failure for one metric
-or projection is logged and skipped rather than failing the run, and the heavier metrics are
-subsampled with a deterministic seed at scale.
+or projection is logged and skipped rather than failing the run, and above 5000 points the heavier
+metrics run on a deterministic, id-seeded subsample.
+
+Since a `cluster_*` column occupies the same `annotation` column as a curated one, filter on
+`label_kind == 'annotation'` to isolate the columns you named.
 
 ## `protspace bundle`
 
@@ -493,13 +500,8 @@ protspace bundle -p projections/ -a annotations.parquet \
 | `-s, --statistics`  | Projection-statistics parquet → fifth bundle part.               | -       |
 | `--settings`        | Settings JSON (for example cluster legend styles) → fourth part. | -       |
 
-::: info `-s` adds a statistics table not yet shown in the web app
-A bundle written with statistics has five parts and **opens** in the web app: the loader ignores the
-statistics table, which is not rendered in-app yet. The projection faithfulness metrics computed by
-`protspace stats` ride in the projection metadata (`info_json.quality`) and render in the
-Projection Metadata panel either way. See
-[Data Format Reference](/guide/data-format#statistics-optional-5th-part).
-:::
+A bundle written with `-s` has five parts and the web app renders that table, see
+[Separation Scores](/explore/separation-scores).
 
 ## `protspace transfer`
 

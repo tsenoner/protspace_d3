@@ -13,11 +13,15 @@ A `.parquetbundle` is a single file containing three core Parquet tables bundled
 ├── projections_metadata.parquet  # Projection method information
 ├── ---PARQUET_DELIMITER---       # Separator
 ├── projections_data.parquet      # 2D/3D coordinates
-├── ---PARQUET_DELIMITER---       # Optional separator
+├── ---PARQUET_DELIMITER---       # Present when a 4th part follows
 ├── settings.parquet              # Optional: one-row Parquet table with settings_json
-├── ---PARQUET_DELIMITER---       # Optional separator
+├── ---PARQUET_DELIMITER---       # Present when a 5th part follows
 └── statistics.parquet            # Optional: projection quality metrics (protspace stats)
 ```
+
+Part positions are fixed, not counted. Once a statistics part is present, the settings separator
+and the settings slot are mandatory, even when there are no settings to store: the slot is then
+written as zero bytes so statistics stay at position five.
 
 This bundled format allows efficient loading in the browser while keeping everything in one convenient file.
 
@@ -57,19 +61,29 @@ The columns `gene_name`, `protein_name`, and `uniprot_kb_id` are **tooltip-only*
 ### Statistics (Optional, 5th Part)
 
 The optional fifth part, `statistics.parquet`, holds projection quality metrics. It is a tidy
-long-format table, one row per space, annotation, label kind and metric:
+long-format table, one row per space, annotation, label kind, metric and category:
 
-| Column        | Type   | Description                                        |
-| ------------- | ------ | -------------------------------------------------- |
-| `space_kind`  | string | `embedding` or `projection`                        |
-| `space_name`  | string | Which embedding or projection was scored           |
-| `annotation`  | string | Annotation column the metric was computed against  |
-| `stat_family` | string | Metric group (e.g. `cluster_agreement`)            |
-| `label_kind`  | string | Which labels were used                             |
-| `metric`      | string | Metric name (e.g. silhouette, Davies-Bouldin, ARI) |
-| `metric_kind` | string | Metric category                                    |
-| `value`       | float  | Metric value                                       |
-| `extra_json`  | string | Extra per-row detail as JSON                       |
+| Column        | Type   | Description                                                                              |
+| ------------- | ------ | ----------------------------------------------------------------------------------------- |
+| `space_kind`  | string | `embedding` or `projection`                                                              |
+| `space_name`  | string | Which embedding or projection was scored                                                 |
+| `annotation`  | string | Annotation column the metric was computed against                                        |
+| `stat_family` | string | One of `annotation_validity`, `cluster_validity`, `cluster_agreement`                    |
+| `label_kind`  | string | One of `annotation`, `kmeans_elbow`, `kmeans_silhouette`                                 |
+| `metric`      | string | Metric name (e.g. silhouette, Davies-Bouldin, ARI)                                       |
+| `metric_kind` | string | One of `validity`, `meta`, `agreement`                                                   |
+| `value`       | float  | Metric value                                                                             |
+| `category`    | string | The category this metric was decomposed for; NULL (not `""`) on aggregate rows           |
+| `extra_json`  | string | Extra per-row detail as JSON                                                             |
+
+A reader must find the eight required columns `space_kind`, `space_name`, `annotation`,
+`stat_family`, `label_kind`, `metric`, `metric_kind` and `value`. `category` and `extra_json` are
+optional, so bundles written before either column existed still load, and so do bundles from a newer
+producer that adds columns this app does not model.
+
+`annotation` can also name an auto-generated `cluster_elbow_*` / `cluster_silhouette_*` column
+rather than a column you prepared, which is why `label_kind == 'annotation'` is the filter for rows
+scored on a curated annotation.
 
 Two CLI paths produce it:
 
@@ -84,14 +98,19 @@ protspace stats -i embeddings.h5 -p project_dir -o statistics.parquet
 Because the parts are positional, a bundle that carries statistics **without** settings still writes
 the settings slot, as zero bytes, so the statistics table stays at position five.
 
-::: info Statistics table is not yet shown in the web app
-Five-part `--stats` bundles **open** in the web app: the loader reads the core data and settings and
-ignores the trailing statistics table. Rendering that table in-app is a separate follow-up.
+::: info What the web app does with the statistics part
+The loader parses it and the app renders it: separation-score strips above the legend, the
+Separation section of the projection metadata panel, per-category values in the strip tooltips, and
+a `STATS` badge on the annotations that carry scores. See
+[Separation Scores](/explore/separation-scores). The table is of course also readable with the
+Python CLI or any Parquet reader.
 
 The faithfulness metrics do not depend on it: they travel in the projection metadata
-(`info_json.quality`) and render in the [Projection Metadata panel](/explore/scatterplot#quality-metrics)
-for both four- and five-part bundles. The full `statistics.parquet` table is also readable with the
-Python CLI or any Parquet reader.
+(`info_json.quality`) and render for both four- and five-part bundles.
+
+On export the part is carried through byte for byte, including columns this app version does not
+model. A subset export (isolation, or an active filter) drops it instead, because whole-dataset
+scores would misdescribe a slice.
 :::
 
 ## Annotation Types
@@ -147,7 +166,7 @@ Examples:
 - Linear or logarithmic intervals can be empty and therefore disappear from the legend.
 - Quantile cut points can collapse when many proteins share the same value.
 - Constant numeric columns produce a single bin.
-- All-null numeric columns produce zero bins.
+- All-null numeric columns produce zero numeric bins and a single N/A entry covering every protein.
 - Very narrow decimal ranges can require extra precision in the displayed labels.
 
 Numeric legend labels are summaries of the observed values in each realized bin. They are meant for readability, not as the exact bin-membership rule.
@@ -161,7 +180,16 @@ canonical "N/A" legend category:
 - Empty or whitespace-only strings (`""`, `"   "`)
 - Non-finite numbers (`NaN`, `Infinity`, `-Infinity`)
 - These string spellings (case-insensitive, trimmed): `"NA"`, `"N/A"`, `"NaN"`,
-  `"null"`, `"None"`
+  `"null"`, `"None"`, `"__NA__"`
+
+`__NA__` is a **reserved** spelling, not just another synonym: it is the token ProtSpace uses
+in memory for a missing cell, and the exporter drops it unconditionally. A genuine category
+literally named `__NA__` therefore collapses into N/A on load. Give such a category a different
+name before bundling.
+
+How missing values are stored: on export a missing categorical cell is written as a Parquet NULL,
+not as a sentinel string. Bundles from older web builds may still hold literal `__NA__` cells;
+those normalize to N/A on load, as above.
 
 The single "N/A" legend row covers every missing-value protein. Its default
 color is light grey (`#DDDDDD`) and circle shape, matching every other
@@ -225,7 +253,8 @@ When displayed in ProtSpace, the decoded names render as "Superfamily; old" and 
 
 **Numeric column typing:**
 
-- When an annotation is stored with a numeric Parquet type, that type marks the column as numeric. Only an _integer_ physical type (`INT32`/`INT64`) is authoritative for the int/float distinction: bundles written before this writer stored **every** numeric column as `DOUBLE`, so `FLOAT`/`DOUBLE` carries no int/float information and the reader lets value inference decide there — trusting it would re-label those bundles' integer annotations (legend labels `10 - 25` → `10.0 - 25.0`)
+- A numeric Parquet type does **not** by itself make a column numeric. Numeric-ness is decided by the content scan described in [Numeric Annotations](#numeric-annotations); the declared type is consulted in only two cases, to upgrade an already-numeric column's type to `int`, and to rescue a column whose every row is missing. A column with any real value stays categorical whatever the schema says.
+- Only an _integer_ physical type (`INT32`/`INT64`) is authoritative for the int/float distinction: bundles written before this writer stored **every** numeric column as `DOUBLE`, so `FLOAT`/`DOUBLE` carries no int/float information and the reader lets value inference decide there, since trusting it would re-label those bundles' integer annotations (legend labels `10 - 25` → `10.0 - 25.0`)
 - Only an _unannotated_ physical type counts. A logical or converted type means the physical type is a carrier rather than the identity — pyarrow stores an all-null column as `INT32` + logical `NULL`, and `DECIMAL` rides on `INT32`/`INT64` — so those fall back to inference too
 - This matters for a column whose rows are all missing — for example an isolation-mode or query-filtered export — which has no values left to infer from and would otherwise reload as a categorical column with a single N/A category
 - Bundles that store annotations as text (the `protspace` CLI writes its annotation frame stringified) carry no such type, and fall back to inferring numeric-ness from the values as before
@@ -247,3 +276,11 @@ Numeric annotations round-trip differently from categorical annotations:
 - when a bundle is imported again, ProtSpace rebuilds the numeric bins from the raw values and the saved numeric settings
 
 If the saved numeric topology no longer matches the realized one, incompatible numeric hidden/manual state is dropped instead of being applied to the wrong bins.
+
+What else an export from the web app does:
+
+- an integral numeric column is written as `INT32` (`INT64` when a value is out of `INT32` range) and a fractional one as `DOUBLE`. Older exports widened every numeric column to `DOUBLE`, which is why a value could read back as `100.0` where it now reads back as `100`.
+- a statistics part read from the source bundle is re-emitted byte for byte, including columns this app version does not model.
+- a bundle that carries statistics but no settings has five parts, with a zero-byte settings slot at position four.
+- a subset export (isolation, or an active filter) drops the statistics part.
+- the export fails with an error, rather than writing a corrupt file, if any annotation value or category name contains the literal `---PARQUET_DELIMITER---`. The delimiter is in-band and unescaped, so such a value would split one part into two on read-back.

@@ -92,16 +92,34 @@ When multiple proteins share the exact same coordinates, a **count badge** appea
 ### Projection Metadata
 
 A small bar-chart icon sits in the **top-left corner** of the scatterplot. Hover it (or focus it with
-the keyboard) to open a **Projection Metadata** panel describing how the currently selected
-projection was computed. Switching projections updates the panel.
+the keyboard) to open a **Projection Metadata** panel describing the currently selected projection.
+Click the icon to pin the panel open, so you can scroll it and read the ⓘ popovers inside without the
+pointer having to stay on the card; press **Escape** or click anywhere outside to close it again.
+Switching projections updates the panel.
 
 ::: tip
-The icon only appears when the loaded bundle carries metadata for that projection. Bundles built
-without projection metadata show no icon at all.
+The icon only appears when the loaded bundle has something to show for that projection: reduction
+parameters, faithfulness metrics, or separation statistics for the annotation you are colouring by.
+Any one of the three is enough, so a bundle prepared with `--stats` but no projection metadata still
+gets a panel. A bundle carrying none of them shows no icon at all.
 :::
 
-The panel lists the parameters the dimensionality-reduction method was run with, taken from the
-bundle's projection metadata table. The exact rows depend on the method:
+The card's header is the projection's own name. Below it, in order:
+
+- **Separation, scored on `<annotation>`**, how cleanly the current annotation's categories separate
+  in this projection, and the same metrics on the source embedding as a ceiling. See
+  [Separation Scores](/explore/separation-scores).
+- **Recovers**, present only when the current annotation is one of the `cluster_elbow_*` /
+  `cluster_silhouette_*` clusterings: how closely that clustering reproduces each real annotation.
+- **Faithfulness to the embedding**, described below.
+- **How it was made**, the reduction's own parameters.
+
+Whenever the card carries any scores at all, separation or faithfulness, it ends with a footer
+reading `All scores are for the full dataset.`, or `All scores are for the full dataset, not this
+view.` while a filter or isolation narrows the plot.
+
+**How it was made** lists the parameters the dimensionality-reduction method was run with, taken from
+the bundle's projection metadata table. The exact rows depend on the method:
 
 - **PCA**, `N Components`, plus `Explained Variance Ratio` (one value per component)
 - **UMAP**, `N Neighbors`, `Min Dist`, `Metric`, `Random State`, and the rest of the UMAP
@@ -109,38 +127,38 @@ bundle's projection metadata table. The exact rows depend on the method:
 - **Source**, the name of the embedding the projection was computed from, useful when a bundle
   contains projections from several embeddings
 
-The projection name and its dimension count are omitted from the panel, you already pick those in
-the [Projection selector](/explore/control-bar).
+The projection's dimension count is omitted from this list, you already pick it in the
+[Projection selector](/explore/control-bar), and its name is the card header rather than a row.
 
 Values are formatted for readability: whole numbers print as-is, other numbers are rounded to three
 decimals (two for explained-variance values), booleans show as **Yes**/**No**, lists are
 comma-separated, and a missing value shows as `N/A`.
 
-#### Quality metrics
+#### Faithfulness to the embedding
 
-If the bundle carries faithfulness metrics, the panel also includes a **Quality** row, how well the
-2D or 3D layout preserves the structure of the original high-dimensional embedding:
+This section measures how well the 2D or 3D layout preserves the structure of the original
+high-dimensional embedding. It renders one labelled row per metric, split under two group headings.
 
-| Metric              | Meaning                                                                    |
-| ------------------- | -------------------------------------------------------------------------- |
-| `knn_overlap`       | Fraction of each point's k nearest neighbors preserved in the projection   |
-| `trustworthiness`   | Penalizes points pulled together in the projection that were far apart     |
-| `continuity`        | Penalizes points pushed apart in the projection that were close together   |
-| `random_triplet`    | Fraction of random point triplets whose relative ordering survives         |
-| `spearman_distance` | Rank correlation between high-dimensional and projected pairwise distances |
+**Local — are the same proteins still neighbours?**
 
-Each metric carries its value plus provenance, the neighborhood size `k`, the high-dimensional
-distance metric, the source embedding, and whether the computation was sampled. Metrics that could
-not be computed (for example on very large datasets) are recorded with a skip marker instead of a
-value.
+| Metric            | Meaning                                                                  |
+| ----------------- | ------------------------------------------------------------------------ |
+| kNN Overlap       | Fraction of each point's k nearest neighbors preserved in the projection |
+| Trustworthiness   | Penalizes points pulled together in the projection that were far apart   |
+| Continuity        | Penalizes points pushed apart in the projection that were close together |
 
-::: warning
-Run `protspace stats` standalone and then `protspace bundle` **without** `-s`. A bundle written with
-statistics has five parts, and the web app currently rejects five-part bundles, so a `--stats` bundle
-will not open at all. The faithfulness metrics travel in the projection metadata
-(`info_json.quality`), so they still reach this panel from a bundle built without the statistics
-part. See [Data Format](/guide/data-format) for the full explanation.
+**Global — is the overall layout preserved?**
 
-Quality metrics are also rendered as a single raw JSON row rather than one row per metric, so this
-section is readable but not pretty.
-:::
+| Metric            | Meaning                                                                    |
+| ----------------- | -------------------------------------------------------------------------- |
+| Random Triplet    | Fraction of random point triplets whose relative ordering survives         |
+| Spearman Distance | Rank correlation between high-dimensional and projected pairwise distances |
+
+Every row carries its value and its own ⓘ popover explaining the metric. The per-metric provenance
+(the neighborhood size `k`, the high-dimensional distance metric, the source embedding) is not shown:
+it is identical for every metric in a projection, so the section prints a single scope line instead,
+`811 proteins compared`, gaining `· subsampled` when the comparison ran on a subsample rather than on
+everything. A metric that could not be computed shows `N/A`.
+
+These metrics travel in the projection metadata (`info_json.quality`), not in the statistics part, so
+they appear whether or not the bundle was built with `--stats`.
