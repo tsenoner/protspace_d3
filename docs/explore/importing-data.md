@@ -165,4 +165,8 @@ If you only have sequences, drop the FASTA straight onto the scatterplot, see
 - **[Using Google Colab](/guide/data-preparation)** - No installation required (recommended)
 - **[Using Python CLI](/guide/python-cli)** - For local processing or automation
 
-Or download example datasets from the [GitHub data folder](https://github.com/tsenoner/protspace/tree/main/apps/web/public/data).
+Or download example datasets from the [GitHub data folder](https://github.com/tsenoner/protspace/tree/main/apps/web/public/data),
+then import the downloaded file the same way you would import your own. To try
+[transferred annotations](/explore/eat) and [separation scores](/explore/separation-scores), take
+`venom_eat_stats.parquetbundle`: 811 venom proteins with transferred `ec` and `protein_families`
+columns plus a full statistics table, and the only example that carries both features.

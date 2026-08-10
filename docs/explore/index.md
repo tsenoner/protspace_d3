@@ -59,6 +59,7 @@ The legend shows the current coloring scheme:
 - Drag labels to reorder (changes drawing order in the scatterplot)
 - Use the settings cog for advanced options
 - Scored datasets add [separation score strips](/explore/separation-scores) above the category list
+- Annotations with [transferred values](/explore/eat) add a `Predicted (transferred)` section
 
 ## Structure Viewer
 

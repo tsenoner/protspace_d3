@@ -536,6 +536,9 @@ protspace transfer \
 | `--reference-id-prefix` | Only use references whose ID has this prefix (repeatable).             | -        |
 | `--reference-where`     | Restrict references the same way (`col~substr`).                       | -        |
 
+A bundle carrying these columns renders the transferred proteins as ringed markers with their own
+legend section, see [Transferred Annotations (EAT)](/explore/eat).
+
 ### Reliability index
 
 The exact form of `COL__pred_confidence` depends on `--metric` and `--k`:

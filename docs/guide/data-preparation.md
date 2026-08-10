@@ -135,12 +135,6 @@ ProtSpace renders these scores in the legend and the projection metadata panel. 
 2. Wait for processing (time depends on dataset size)
 3. Download your `.parquetbundle` file
 
-## Step 5: Visualize in ProtSpace
-
-1. Go to [protspace.app/explore](https://protspace.app/explore)
-2. Drag & drop your `.parquetbundle` file onto the scatterplot
-3. Start exploring!
-
 ## Optional: fill missing annotations (EAT)
 
 The Preparation notebook has an **Embedding Annotation Transfer** panel below the Generate button.
@@ -148,6 +142,15 @@ It fills blank annotation values on your query proteins from their nearest annot
 embedding space, with a reliability score attached. The
 [Transfer notebook](https://colab.research.google.com/github/tsenoner/protspace/blob/main/apps/protspace/notebooks/ProtSpace_Transfer.ipynb)
 runs the same transfer on its own, using the `protspace transfer` CLI.
+
+Transferred values get their own legend section and their own marker style in the plot, so you can
+always tell them apart from curated ones. See [Transferred Annotations (EAT)](/explore/eat).
+
+## Step 5: Visualize in ProtSpace
+
+1. Go to [protspace.app/explore](https://protspace.app/explore)
+2. Drag & drop your `.parquetbundle` file onto the scatterplot
+3. Start exploring!
 
 ## Tips
 

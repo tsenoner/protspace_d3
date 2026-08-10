@@ -9,7 +9,8 @@ const navItems = getNavigation(mode);
 
 export default defineConfig({
   title: 'ProtSpace',
-  description: 'Explore protein language model (pLM) embeddings and reveal relationships that sequence similarity misses.',
+  description:
+    'Explore protein language model (pLM) embeddings and reveal relationships that sequence similarity misses.',
 
   base: urls.docs,
 
@@ -23,8 +24,9 @@ export default defineConfig({
     },
   },
 
-  // Internal planning/spec notes and audit reports — not part of the user-facing docs site.
-  srcExclude: ['superpowers/**', 'audits/**'],
+  // Internal planning/spec notes, audit reports, and the screenshot-folder contributor README:
+  // not part of the user-facing docs site.
+  srcExclude: ['superpowers/**', 'audits/**', 'explore/images/README.md'],
 
   head: [['link', { rel: 'icon', href: '/docs/favicon.svg' }]],
 
@@ -88,6 +90,7 @@ export default defineConfig({
           { text: 'Navigating the Scatterplot', link: '/explore/scatterplot' },
           { text: 'Using the Legend', link: '/explore/legend' },
           { text: 'Separation Scores', link: '/explore/separation-scores' },
+          { text: 'Transferred Annotations (EAT)', link: '/explore/eat' },
           { text: 'Control Bar Features', link: '/explore/control-bar' },
           { text: 'Viewing 3D Structures', link: '/explore/structures' },
           { text: 'Exporting Results', link: '/explore/exporting' },

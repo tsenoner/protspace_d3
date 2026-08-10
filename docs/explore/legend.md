@@ -33,9 +33,15 @@ Categorical annotations can group less frequent values into `Other` once the vis
 
 Numeric annotations do **not** use `Other`. They are binned directly from the raw numeric values.
 
+## Transferred Annotations (EAT)
+
+When the selected annotation carries values borrowed from nearby annotated proteins, a `Predicted (transferred)` section appears at the very top of the legend panel, above the separation strips. It holds a `Show` checkbox that adds the borrowed values to the plot and the legend rows, or removes them so those proteins fall back to `N/A`; a `Hide below reliability` slider that hides predictions under the chosen percentage; and a count of observed versus transferred proteins. Curated values are never hidden by the slider, and the section is absent for annotations that have no transferred values.
+
+See [Transferred Annotations (EAT)](/explore/eat) for where the borrowed values come from and how to read them in the plot.
+
 ## Separation Score Strips
 
-When the dataset was prepared with statistics and the selected annotation was scored in the current projection, two strips appear at the top of the legend panel, above the category list: one for `Silhouette`, one for `Davies–Bouldin`. Each plots one dot per category, in that category's legend color, so you can see which values sit apart from the rest and which overlap.
+When the dataset was prepared with statistics and the selected annotation was scored in the current projection, two strips appear near the top of the legend panel, above the category list: one for `Silhouette`, one for `Davies–Bouldin`. Each plots one dot per category, in that category's legend color, so you can see which values sit apart from the rest and which overlap.
 
 - Hovering a dot highlights the matching legend row, and hovering a row highlights its dot.
 - Clicking a dot toggles that category, exactly like clicking its legend row.
@@ -143,6 +149,10 @@ Annotations that carry the badge:
 
 Signature-database annotations such as Pfam, CATH-Gene3D and SUPERFAMILY, and UniProt or Taxonomy
 fields, are not badged.
+
+The ⚡ badge is a property of the whole column and is decided from the annotation's name, not from
+its values, so it is not the same thing as the `EAT` badge, which marks an otherwise curated column
+in which some individual proteins carry a transferred value.
 
 ## Colors, Gradients, And Shapes
 
