@@ -1,6 +1,25 @@
 # CHANGELOG
 
 
+## v4.10.3 (2026-08-10)
+
+### Bug Fixes
+
+- **protspace**: Derive the annotation schema from every record on every path
+  ([`3d31875`](https://github.com/tsenoner/protspace/commit/3d31875c47dc5877791ffcdce3ba4a8a39c8cf5f))
+
+- **protspace**: Scope the pdb cache migration and survive a failed refresh
+  ([`88b8187`](https://github.com/tsenoner/protspace/commit/88b8187bb2be324a71ae8e35d8340b10f258a8b1))
+
+### Refactoring
+
+- **protspace**: Consolidate annotation cache versioning and dedupe transforms
+  ([`e400228`](https://github.com/tsenoner/protspace/commit/e400228402e87f6d0a78dbddc2dd58c518ef2acf))
+
+- **protspace**: Derive cache migrations from a version table
+  ([`36e2894`](https://github.com/tsenoner/protspace/commit/36e28944bfb82ede1fd850b17eeabf6d8ad827d3))
+
+
 ## v4.10.2 (2026-08-10)
 
 ### Bug Fixes
@@ -38,6 +57,24 @@
 - Correct four defects the review agents found in the statistics feature
   ([`87cac68`](https://github.com/tsenoner/protspace/commit/87cac682a4fe353201c488e7ac77a8281713a939))
 
+- **annotations**: Preserve cached annotation semantics
+  ([`3fbe03a`](https://github.com/tsenoner/protspace/commit/3fbe03a837aea83846d5eb166870c9e3dc45f812))
+
+- **annotations**: Preserve cached pdb states
+  ([`ee02c86`](https://github.com/tsenoner/protspace/commit/ee02c86864ae3b6d3568a9b29e05779bfeef5b97))
+
+- **annotations**: Preserve cached taxonomy migration
+  ([`f42426e`](https://github.com/tsenoner/protspace/commit/f42426e81e04e88384c552e6e3bc59a14d97436e))
+
+- **annotations**: Preserve later annotation columns
+  ([`2b2c88e`](https://github.com/tsenoner/protspace/commit/2b2c88e3a575dbffd9a70bf64eb2cb4904da0501))
+
+- **annotations**: Preserve missing pdb availability
+  ([`5d9d5b8`](https://github.com/tsenoner/protspace/commit/5d9d5b89337e245f4ce64fd56c6c972933d87e59))
+
+- **annotations**: Preserve safe cache migration
+  ([`b03b8f3`](https://github.com/tsenoner/protspace/commit/b03b8f3137a52586c8f345565d2942e63c2107ae))
+
 - **protspace**: Address legacy TED cache output
   ([`31c5a93`](https://github.com/tsenoner/protspace/commit/31c5a93496f8e9f53c60b5e42cf03050891da2b6))
 
@@ -73,6 +110,9 @@
 
 - State the metric registry, ceiling rule and cluster caveat once
   ([`510335c`](https://github.com/tsenoner/protspace/commit/510335c1e86619109a3895845204bf257a2b333a))
+
+- **annotations**: Dedupe imports and use taxonomy constant
+  ([`b885e6f`](https://github.com/tsenoner/protspace/commit/b885e6f1473975322a2b89ea90b3cf6de9502cef))
 
 - **protspace**: Collapse TED domain formatting to one emit site
   ([`a66b347`](https://github.com/tsenoner/protspace/commit/a66b3474fad58dd4a32dfa28122135d8048be4a2))
