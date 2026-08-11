@@ -14,7 +14,7 @@ import {
   isAnyDropdownOpen,
   scrollHighlightedIntoView,
 } from '../../utils/dropdown-helpers';
-import { isEatConfidenceAnnotation, type ProjectionStatisticRow } from '@protspace/utils';
+import { isEatConfidenceAnnotation, NA_VALUE, type ProjectionStatisticRow } from '@protspace/utils';
 import {
   EXPORT_DEFAULTS,
   toggleProteinSelection,
@@ -30,6 +30,7 @@ import './query-builder';
 import type { FilterQuery, FilterQueryItem, NumericCondition } from './query-types';
 import { createCondition, createNumericCondition, isFilterGroup } from './query-types';
 import { evaluateQuery, hasConfiguredCondition } from './query-evaluate';
+import { presenceOf } from './query-numeric-helpers';
 
 /** Stable empty statistics — a fresh [] per render would dirty the child on every update. */
 const NO_STATISTICS: readonly ProjectionStatisticRow[] = [];
@@ -1391,7 +1392,7 @@ export class ProtspaceControlBar extends LitElement {
       (a) => !TOOLTIP_ONLY_ANNOTATIONS.has(a),
     );
     // The query-filter column picker can filter on the synthesized `__eat_confidence`
-    // columns (e.g. NOT(EAT_confidence < X)), but they're not meaningful to color by.
+    // columns (e.g. `EAT_confidence >= X or N/A`), but they're not meaningful to color by.
     this._filterableAnnotations = fullAnnotationKeys;
     this.annotations = fullAnnotationKeys.filter(
       (key) => !isEatConfidenceAnnotation(data.annotations?.[key]),
@@ -1541,7 +1542,7 @@ export class ProtspaceControlBar extends LitElement {
   private _handleQueryChanged(e: CustomEvent<{ query: FilterQuery }>) {
     this.filterQuery = e.detail.query;
     // Reverse mirror (#6b): when the user edits the query directly, keep the
-    // legend reliability slider in sync with any NOT(EAT_confidence < X) condition.
+    // legend reliability slider in sync with any `EAT_confidence >= X or N/A` condition.
     this._emitEatThresholdMirror();
   }
 
@@ -1600,8 +1601,10 @@ export class ProtspaceControlBar extends LitElement {
 
   /**
    * Forward mirror (#6b): the legend reliability slider drives the query. For
-   * `x > 0` upsert a single `NOT(EAT_confidence < x)` condition on the selected
-   * base annotation's eat-confidence column; for `x <= 0` remove it. Then run the
+   * `x > 0` upsert a single `EAT_confidence >= x` condition carrying the N/A
+   * presence chip (so curated points, which have no confidence score, stay
+   * visible) on the selected base annotation's eat-confidence column; for
+   * `x <= 0` remove it. Then run the
    * same apply path as a query. The eat-confidence column is resolved by runtime
    * identity (role + base), which also matches the collision-renamed
    * `__eat_confidence__runtime_N` variant that a suffix check would miss.
@@ -1635,12 +1638,18 @@ export class ProtspaceControlBar extends LitElement {
       ? this.filterQuery.filter((item) => !this._isReliabilityConditionForKey(item, key))
       : [...this.filterQuery];
     if (threshold > 0 && key) {
+      // "confidence >= X, or no confidence score at all" — stated directly.
+      // Curated points carry no prediction confidence (null), and the N/A
+      // presence chip is what keeps them visible. This used to be spelled
+      // `NOT(confidence < X)`, which worked only because NOT was a bare index
+      // complement that happened to sweep nulls back in; NOT now means "has a
+      // value AND does not match", so it would hide curated points instead.
       next.push(
         createNumericCondition({
           annotation: key,
-          operator: 'lt',
-          max: threshold,
-          logicalOp: 'NOT',
+          operator: 'gte',
+          min: threshold,
+          presence: [NA_VALUE],
         }),
       );
     }
@@ -1677,8 +1686,9 @@ export class ProtspaceControlBar extends LitElement {
   }
 
   /**
-   * True when `item` is the reliability filter `NOT(<key> < X)` for the specific
-   * eat-confidence column `key` — numeric, that exact column, `lt`, negated.
+   * True when `item` is the reliability filter `<key> >= X or N/A` for the
+   * specific eat-confidence column `key` — numeric, that exact column, `gte`,
+   * un-negated, and carrying the N/A presence chip that retains curated points.
    */
   private _isReliabilityConditionForKey(
     item: FilterQueryItem,
@@ -1688,12 +1698,13 @@ export class ProtspaceControlBar extends LitElement {
       !isFilterGroup(item) &&
       item.kind === 'numeric' &&
       item.annotation === key &&
-      item.operator === 'lt' &&
-      item.logicalOp === 'NOT'
+      item.operator === 'gte' &&
+      item.logicalOp !== 'NOT' &&
+      presenceOf(item).includes(NA_VALUE)
     );
   }
 
-  /** The reliability `NOT(<key> < X)` condition for eat-confidence column `key`, if present. */
+  /** The reliability `<key> >= X or N/A` condition for eat-confidence column `key`, if present. */
   private _findReliabilityConditionForKey(
     query: FilterQuery,
     key: string,
@@ -1705,7 +1716,7 @@ export class ProtspaceControlBar extends LitElement {
 
   /** The current reliability threshold for eat-confidence column `key` (0 if none/unresolved). */
   private _thresholdForKey(key: string | undefined): number {
-    return key ? (this._findReliabilityConditionForKey(this.filterQuery, key)?.max ?? 0) : 0;
+    return key ? (this._findReliabilityConditionForKey(this.filterQuery, key)?.min ?? 0) : 0;
   }
 
   private _handleQueryReset() {

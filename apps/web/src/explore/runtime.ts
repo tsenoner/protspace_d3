@@ -275,7 +275,7 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
     interactionController.handleLegendError,
   );
   // Two-way reliability mirror (#6b): the legend slider drives the shared
-  // NOT(EAT_confidence < x) query filter on the control bar, and a direct edit of
+  // `EAT_confidence >= x or N/A` query filter on the control bar, and a direct edit of
   // that filter pulls the slider back. Each direction guards on the threshold
   // value so they can't ping-pong.
   addTrackedEventListener(lifecycle, legendElement, 'eat-overlay-change', (event: Event) => {
