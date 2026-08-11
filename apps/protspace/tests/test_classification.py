@@ -113,8 +113,10 @@ def test_open_rule_does_not_consume_proteins_from_the_other_set():
 
 
 def test_open_query_rule_on_empty_table_raises_a_rule_free_message():
+    # An open rule cannot "match nothing" — it is the whole table — so the empty
+    # table must blame neither side's filters.
     empty = pa.table({"identifier": [], "protein_category": []})
-    with pytest.raises(ValueError, match="no proteins"):
+    with pytest.raises(ValueError, match="no proteins to use as queries"):
         classify(empty, Rule(), Rule())
 
 
@@ -141,11 +143,3 @@ def test_query_rule_swallowing_every_reference_raises():
     # all to the query set, leaving no references. Naming that beats exiting 0.
     with pytest.raises(ValueError, match="no reference proteins"):
         classify(_table(), Rule(id_prefixes=["P0"]), Rule(id_prefixes=["P0"]))
-
-
-def test_open_reference_rule_is_never_reported_as_matching_nothing():
-    # An open reference rule cannot "match nothing" — it is the whole table — so
-    # the empty-table case must still blame the queries, not the references.
-    empty = pa.table({"identifier": [], "protein_category": []})
-    with pytest.raises(ValueError, match="no proteins to use as queries"):
-        classify(empty, Rule(), Rule())

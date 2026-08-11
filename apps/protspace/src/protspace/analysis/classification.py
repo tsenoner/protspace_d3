@@ -38,13 +38,8 @@ class Rule:
 def _matches_explicit(
     rule: Rule, identifier: str, column_data: dict[str, list], i: int
 ) -> bool:
-    """Match an *explicit* rule, i.e. one carrying at least one clause.
-
-    Open rules must never be passed here: they match every protein, but with no
-    clauses to iterate this returns ``False`` — the opposite. ``classify``
-    answers the open cases from the row count instead of testing row by row,
-    which is both correct and cheaper; the name carries that contract.
-    """
+    """Match an *explicit* rule. Open rules must never be passed here: with no
+    clauses to iterate this returns ``False``, the opposite of what they mean."""
     if any(identifier.startswith(p) for p in rule.id_prefixes):
         return True
     for column, substring in rule.where:
@@ -52,6 +47,17 @@ def _matches_explicit(
         if value is not None and substring.lower() in str(value).lower():
             return True
     return False
+
+
+def _select(
+    rule: Rule, identifiers: list[str], column_data: dict[str, list]
+) -> list[int]:
+    """Indices of the proteins matching an *explicit* rule."""
+    return [
+        i
+        for i, identifier in enumerate(identifiers)
+        if _matches_explicit(rule, identifier, column_data, i)
+    ]
 
 
 def classify(
@@ -96,45 +102,36 @@ def classify(
     # either side, so answer from the row count alone rather than materializing
     # every identifier as a Python str (~570k entries at Swiss-Prot scale).
     if query_rule.is_open and reference_rule.is_open:
-        n_rows = annotations.num_rows if identifiers is None else len(identifiers)
-        if n_rows == 0:
-            # Nothing to blame on the rules — the table itself is empty.
-            raise ValueError("Classifier found no proteins to use as queries.")
-        return list(range(n_rows)), list(range(n_rows))
-
-    # Materialize only the columns the rules actually need (identifier + any
-    # where-columns) instead of the whole table — the latter is ~GB-scale at
-    # Swiss-Prot row counts.
-    if identifiers is None:
-        identifiers = [str(v) for v in annotations.column("identifier").to_pylist()]
-    where_columns = {
-        column for rule in (query_rule, reference_rule) for column, _ in rule.where
-    }
-    column_data = {c: annotations.column(c).to_pylist() for c in where_columns}
-
-    every_index = range(len(identifiers))
-    if query_rule.is_open:
-        query_indices = list(every_index)
-        reference_indices = [
-            i
-            for i in every_index
-            if _matches_explicit(reference_rule, identifiers[i], column_data, i)
-        ]
-    elif reference_rule.is_open:
-        query_indices = [
-            i
-            for i in every_index
-            if _matches_explicit(query_rule, identifiers[i], column_data, i)
-        ]
-        reference_indices = list(every_index)
+        every = list(
+            range(annotations.num_rows if identifiers is None else len(identifiers))
+        )
+        query_indices, reference_indices = every, list(every)
     else:
-        # Both explicit: a protein matching both is a query and never a reference.
-        query_indices, reference_indices = [], []
-        for i, identifier in enumerate(identifiers):
-            if _matches_explicit(query_rule, identifier, column_data, i):
-                query_indices.append(i)
-            elif _matches_explicit(reference_rule, identifier, column_data, i):
-                reference_indices.append(i)
+        # Materialize only the columns the rules actually need (identifier + any
+        # where-columns) instead of the whole table — the latter is ~GB-scale at
+        # Swiss-Prot row counts.
+        if identifiers is None:
+            identifiers = [str(v) for v in annotations.column("identifier").to_pylist()]
+        where_columns = {
+            column for rule in (query_rule, reference_rule) for column, _ in rule.where
+        }
+        column_data = {c: annotations.column(c).to_pylist() for c in where_columns}
+
+        if query_rule.is_open:
+            query_indices = list(range(len(identifiers)))
+            reference_indices = _select(reference_rule, identifiers, column_data)
+        elif reference_rule.is_open:
+            query_indices = _select(query_rule, identifiers, column_data)
+            reference_indices = list(range(len(identifiers)))
+        else:
+            # Both explicit: a protein matching both is a query and never a reference.
+            # The elif is what keeps this to one _matches_explicit call for most rows.
+            query_indices, reference_indices = [], []
+            for i, identifier in enumerate(identifiers):
+                if _matches_explicit(query_rule, identifier, column_data, i):
+                    query_indices.append(i)
+                elif _matches_explicit(reference_rule, identifier, column_data, i):
+                    reference_indices.append(i)
 
     if not query_indices:
         if query_rule.is_open:
@@ -144,11 +141,9 @@ def classify(
             "Classifier matched no query proteins; check --query-id-prefix / "
             "--query-where rules."
         )
-    # Same rule on the reference side. An explicit rule that selects nobody makes
-    # the whole run a no-op: `run_transfer` would skip every column and exit 0
-    # with the bundle written back unchanged. Only the query side used to raise,
-    # which left the reference side as exactly the silent no-op this change set
-    # out to remove.
+    # Same rule on the reference side: an explicit rule selecting nobody makes the
+    # whole run a no-op, since `run_transfer` then skips every column and writes
+    # the bundle back unchanged.
     if not reference_indices and not reference_rule.is_open:
         raise ValueError(
             "Classifier matched no reference proteins; check --reference-id-prefix "
