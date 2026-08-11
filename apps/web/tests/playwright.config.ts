@@ -26,6 +26,15 @@ const TOUR_COMPLETED_STORAGE_STATE = {
 };
 const EMPTY_STORAGE_STATE = { cookies: [], origins: [] };
 
+/**
+ * Include an opt-in project only when its env flag is set to '1'.
+ *
+ * Spreading `[]` is how Playwright configs express "not in the default suite"; this keeps the
+ * three opt-in projects from repeating the same ternary-around-an-array-literal boilerplate.
+ */
+const optIn = <T>(envVar: string, project: T): T[] =>
+  process.env[envVar] === '1' ? [project] : [];
+
 export default defineConfig({
   testDir: TEST_DIR,
 
@@ -139,18 +148,14 @@ export default defineConfig({
     // Fixture-dependent 573k-protein regression — copy
     // protspace/data/other/sprot/sprot_50.parquetbundle to
     // app/tests/fixtures/, then opt in via RUN_LARGE_BUNDLE_E2E=1.
-    ...(process.env.RUN_LARGE_BUNDLE_E2E === '1'
-      ? [
-          {
-            name: 'load-large-bundle',
-            use: {
-              ...devices['Desktop Chrome'],
-              viewport: { width: 1280, height: 720 },
-            },
-            testMatch: /load-large-bundle\.spec\.ts/,
-          },
-        ]
-      : []),
+    ...optIn('RUN_LARGE_BUNDLE_E2E', {
+      name: 'load-large-bundle',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /load-large-bundle\.spec\.ts/,
+    }),
     {
       name: 'figure-editor',
       use: {
@@ -175,14 +180,16 @@ export default defineConfig({
       },
       testMatch: /multi-annotation-tooltip\.spec\.ts/,
     },
-    {
+    // Visual harness, not a CI gate: it asserts nothing beyond the shader compiling and its
+    // only product is a gitignored PNG to look at. Opt in via RUN_GLYPH_HARNESS=1.
+    ...optIn('RUN_GLYPH_HARNESS', {
       name: 'glyph-outline',
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1280, height: 720 },
       },
       testMatch: /glyph-outline\.spec\.ts/,
-    },
+    }),
     {
       name: 'eat-visualization',
       use: {
@@ -203,18 +210,14 @@ export default defineConfig({
     // Live FASTA-prep flow against a real backend — opt-in via RUN_LIVE_E2E=1
     // (requires `docker compose up -d protspace-prep`; see fasta-prep.live.spec.ts
     // for the full prerequisites). Excluded from the default suite.
-    ...(process.env.RUN_LIVE_E2E === '1'
-      ? [
-          {
-            name: 'fasta-prep-live',
-            use: {
-              ...devices['Desktop Chrome'],
-              viewport: { width: 1280, height: 720 },
-            },
-            testMatch: /fasta-prep\.live\.spec\.ts/,
-          },
-        ]
-      : []),
+    ...optIn('RUN_LIVE_E2E', {
+      name: 'fasta-prep-live',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /fasta-prep\.live\.spec\.ts/,
+    }),
   ],
 
   outputDir: '../test-results/',

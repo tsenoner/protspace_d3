@@ -8,34 +8,24 @@
  * sizes: curated (filled) beside EAT-predicted (hollow ring), over both a dark
  * and a light surface.
  *
- * Run:  pnpm exec playwright test -c apps/web/tests/playwright.config.ts --project=glyph-outline
+ * Run:  RUN_GLYPH_HARNESS=1 PLAYWRIGHT_BASE_URL=http://localhost:8080 \
+ *         pnpm exec playwright test -c apps/web/tests/playwright.config.ts --project=glyph-outline
  * Look: apps/web/tests/__screens__/glyphs.png
+ *
+ * PLAYWRIGHT_BASE_URL is what disables the config's `webServer` block. The harness never
+ * navigates — it draws into a canvas via `setContent` — so without it Playwright spends up to
+ * 180 s booting the Vite dev server for a test that never touches it. The URL is never fetched.
  */
 import { test } from '@playwright/test';
-import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import {
+  POINT_FRAGMENT_SHADER as frag,
+  POINT_VERTEX_SHADER as vert,
+} from '../../../packages/core/src/components/scatter-plot/webgl/renderer/export-shaders';
 
-const SHADER_SRC = fileURLToPath(
-  new URL(
-    '../../../packages/core/src/components/scatter-plot/webgl/renderer/export-shaders.ts',
-    import.meta.url,
-  ),
-);
-
-/** Pull a template-literal export out of the shader module without bundling it. */
-function extractShader(source: string, name: string): string {
-  const start = source.indexOf('export const ' + name + ' = `');
-  if (start < 0) throw new Error(name + ' not found');
-  const from = source.indexOf('`', start) + 1;
-  const to = source.indexOf('`;', from);
-  return source.slice(from, to);
-}
+const SCREENSHOT = fileURLToPath(new URL('./__screens__/glyphs.png', import.meta.url));
 
 test('glyph outline appearance across point sizes', async ({ page }) => {
-  const src = readFileSync(SHADER_SRC, 'utf8');
-  const vert = extractShader(src, 'POINT_VERTEX_SHADER');
-  const frag = extractShader(src, 'POINT_FRAGMENT_SHADER');
-
   await page.setViewportSize({ width: 900, height: 640 });
   await page.setContent('<body style="margin:0"><canvas id="c" width="900" height="620"></canvas>');
 
@@ -165,5 +155,5 @@ test('glyph outline appearance across point sizes', async ({ page }) => {
   );
 
   if (error) throw new Error('shader harness failed: ' + error);
-  await page.locator('#c').screenshot({ path: 'apps/web/tests/__screens__/glyphs.png' });
+  await page.locator('#c').screenshot({ path: SCREENSHOT });
 });
