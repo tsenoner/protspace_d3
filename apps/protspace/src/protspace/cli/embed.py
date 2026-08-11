@@ -98,14 +98,22 @@ def embed(
         h5_path = output / f"{model_name}.h5"
 
         logger.info(f"Embedding with {model_name} ({backend.value}) → {h5_path}")
-        embed_sequences(
-            sequences,
-            resolve(model_name),
-            h5_path,
-            embed_config=embed_config,
-        )
+        try:
+            embed_sequences(
+                sequences,
+                resolve(model_name),
+                h5_path,
+                embed_config=embed_config,
+            )
+        except (FileNotFoundError, ValueError) as e:
+            # Mirrors the stage-failure handler in cli/prepare.py. Without it an incomplete
+            # embedding surfaces as a raw traceback instead of a message.
+            logger.error(str(e))
+            raise typer.Exit(1) from e
 
-        # Write model_name attr
+        # Write model_name attr. Only reached on success — on failure this h5py.File(..., "a")
+        # call is what fabricated the empty ~6 KB .h5, which together with the affirmative
+        # "Saved:" line below made a total failure look like a finished run.
         with h5py.File(h5_path, "a") as f:
             f.attrs["model_name"] = model_name
 
