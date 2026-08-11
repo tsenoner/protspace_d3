@@ -48,13 +48,20 @@ describe('point shaders', () => {
   });
 
   describe('outline (#369)', () => {
-    // The outline used to be a fraction of the sprite (strokeWidth = 0.15), so its absolute
-    // width shrank with point size AND with export scale. At the app's own nature-1col preset
-    // (89 mm @ 300 dpi) that put it below the reproducible-line floor for print, while the
-    // predicted ring survived — so the published figure had an outline on one glyph class only.
-    it('measures the outline in device pixels, not as a fraction of the sprite', () => {
+    // The outline needs BOTH a fraction of the sprite radius and a device-pixel floor.
+    //
+    // A pure fraction goes sub-pixel on small sprites and at export scale. A pure
+    // device-pixel width is worse in the other direction, and was shipped briefly: at
+    // gl_PointSize 240 a 1px rim on a 120px radius is invisible, so filled dots lost
+    // their border entirely while exploring. max() of the two gives a rim that scales
+    // with the glyph on screen and still survives in print.
+    it('sizes the outline from both a radius fraction and a device-pixel floor', () => {
+      expect(POINT_FRAGMENT_SHADER).toContain('OUTLINE_RADIUS_FRACTION');
       expect(POINT_FRAGMENT_SHADER).toContain('OUTLINE_DEVICE_PX');
-      // The old sprite-fraction constant must be gone, or the width is size-dependent again.
+      expect(POINT_FRAGMENT_SHADER).toContain(
+        'max(OUTLINE_RADIUS_FRACTION, OUTLINE_DEVICE_PX * pixelScale)',
+      );
+      // The old hard-coded band must be gone; the fraction is a named constant now.
       expect(POINT_FRAGMENT_SHADER).not.toContain('float strokeWidth = 0.15;');
     });
 

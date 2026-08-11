@@ -70,13 +70,17 @@ const float PI = 3.14159265359;
 const float SQRT3 = 1.73205080757;
 const float PREDICTED_INTERIOR_FILL = 0.0; // 1.0 = filled knockout (old), 0.0 = hollow
 
-// Outline width in DEVICE PIXELS. It used to be a fraction of the sprite (0.15), which meant
-// the absolute width shrank with point size and with export scale: 0.35px at gl_PointSize 48,
-// 1.13px at 512. At the app's own nature-1col preset (89mm @ 300dpi) that put the observed-dot
-// outline at ~0.24pt of tint — below the reproducible-line floor — while the predicted ring
-// (0.49pt solid) survived, so a published figure carried an outline on one glyph class only.
-// Measuring in device pixels makes the outline reproduce at the same physical weight at any
-// point size, any dpr and any export scale.
+// Outline width. Two terms, and it needs both:
+//
+//   * a FRACTION of the sprite radius, so the rim grows with the glyph. This is what makes the
+//     outline read as a border while exploring — at gl_PointSize 240 a fixed 1px rim on a 120px
+//     radius is invisible, which is exactly how it looked when this was device-pixels-only.
+//   * a floor in DEVICE PIXELS, so it never thins to nothing on small sprites or at export
+//     scale. A pure fraction goes sub-pixel on tiny points and disappears in print.
+//
+// max() of the two: the fraction dominates on screen, the floor takes over when the glyph is
+// small enough that the fraction would fall below a pixel.
+const float OUTLINE_RADIUS_FRACTION = 0.15;
 const float OUTLINE_DEVICE_PX = 1.0;
 // Share of the ring an outline may consume. The ring IS the predicted glyph's border, and its
 // outer edge is already where shapeAlpha fades to zero, so an unbudgeted outer darken would
@@ -177,7 +181,7 @@ void main() {
   // the encoding that tells them apart, which is a pre-attentive categorical difference and far
   // stronger than a difference in outline weight.
   // Still skipped for faded points (low alpha), where the darkening is disproportionately visible.
-  float outlineWidth = OUTLINE_DEVICE_PX * pixelScale;
+  float outlineWidth = max(OUTLINE_RADIUS_FRACTION, OUTLINE_DEVICE_PX * pixelScale);
   // On a ring, cap the outline so it can never eat into the annulus (see OUTLINE_RING_BUDGET).
   if (v_predicted > 0.5) {
     outlineWidth = min(outlineWidth, ringWidth * OUTLINE_RING_BUDGET);
