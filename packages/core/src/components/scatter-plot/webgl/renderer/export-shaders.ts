@@ -144,17 +144,14 @@ void main() {
   // but edgeDist is not a unit-gradient field for every shape — the diamond's
   // 1 - (|x|*SQRT3 + |y|) has |grad| = 2, so a band of pixelScale there is only half a pixel
   // wide. Converting through the field's own gradient is what makes OUTLINE_DEVICE_PX an actual
-  // device pixel on every glyph. This is length() of the partials, NOT fwidth(): fwidth is their
-  // L1 norm and reads ~41% larger along the diagonals. Clamped to [1, 2] x pixelScale, the true
-  // gradient range across all six shapes, so a derivative spike at a triangle's interior ridge
-  // cannot widen the band.
+  // device pixel on every glyph. length() of the partials, not fwidth() — same reason as
+  // pixelScale above. Clamped to [1, 2] x pixelScale, the true gradient range across all six
+  // shapes, so a derivative spike at a triangle's interior ridge cannot widen the band.
   float fieldPerPixel = clamp(
     length(vec2(dFdx(edgeDist), dFdy(edgeDist))), pixelScale, pixelScale * 2.0);
   float predictedInterior = 0.0;
-  // How much of the sprite radius the outline may occupy. A filled dot may spend a third of its
-  // radius (see OUTLINE_DOT_BUDGET); a ring may only spend part of its annulus (see
-  // OUTLINE_RING_BUDGET). Resolved here, in the one place the glyph class is already interpreted,
-  // so the outline code below stays class-free.
+  // Resolved here, in the one place the glyph class is already interpreted, so the outline code
+  // below stays class-free.
   float outlineBudget = OUTLINE_DOT_BUDGET;
   if (v_predicted > 0.5) {
     // Keep the ring legible at every sprite size without allowing derivative scaling to consume
@@ -203,12 +200,17 @@ void main() {
   float outlineWidth =
     min(max(OUTLINE_RADIUS_FRACTION, OUTLINE_DEVICE_PX * fieldPerPixel), outlineBudget);
   if (v_color.a > 0.5) {
-    // Smooth the inner edge over one pixel. The outer edge is already anti-aliased by
-    // shapeAlpha, so a hard threshold here left the outline smooth outside and stepped inside.
-    // edgeDist is positive here: the shapeAlpha discard above already dropped everything
-    // outside the glyph. The span is fieldPerPixel, not pixelScale, so "one pixel" stays one
-    // pixel on shapes whose edgeDist gradient is not 1 (see fieldPerPixel).
-    float outlineMix = 1.0 - smoothstep(outlineWidth - fieldPerPixel, outlineWidth, edgeDist);
+    // Smooth the inner edge. The outer edge is already anti-aliased by shapeAlpha, so a hard
+    // threshold here left the outline smooth outside and stepped inside. edgeDist is positive
+    // here: the shapeAlpha discard above already dropped everything outside the glyph.
+    //
+    // The feather spans pixelScale, NOT fieldPerPixel, even though the width above uses
+    // fieldPerPixel. On a ring, outlineBudget caps the band below one device pixel
+    // (ringWidth * 0.35 <= 0.19), so feathering over fieldPerPixel would make the ramp wider
+    // than the band it is supposed to soften and wash the outline out instead — on a diamond,
+    // whose gradient is 2, that cost a predicted glyph ~3x of its darkening at default point
+    // sizes. Widening the band is safe; widening the feather past the band is not.
+    float outlineMix = 1.0 - smoothstep(outlineWidth - pixelScale, outlineWidth, edgeDist);
     finalColor = mix(finalColor, finalColor * 0.5, outlineMix);
   }
 

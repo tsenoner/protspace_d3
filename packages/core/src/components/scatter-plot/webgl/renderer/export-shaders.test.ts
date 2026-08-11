@@ -47,26 +47,18 @@ describe('point shaders', () => {
 
   describe('outline (#369)', () => {
     it('sizes the outline from a radius fraction, a device-pixel floor, and a budget', () => {
-      // The outline needs a FRACTION of the sprite radius so the rim grows with the glyph (a
-      // pure device-pixel width was shipped briefly: at gl_PointSize 240 a 1px rim on a 120px
-      // radius is invisible), and a device-pixel FLOOR so a pure fraction cannot go sub-pixel
-      // on small sprites or in print. The budget then caps it per glyph class.
+      // Why all three terms are needed is on the constants themselves.
       expect(POINT_FRAGMENT_SHADER).toContain(
         'min(max(OUTLINE_RADIUS_FRACTION, OUTLINE_DEVICE_PX * fieldPerPixel), outlineBudget)',
       );
     });
 
     it('converts device pixels through the edgeDist gradient, not the sprite pixel scale', () => {
-      // pixelScale is pixels in SPRITE units; edgeDist is only a unit-gradient field for the
-      // circle, square, triangles and plus. The diamond's `1 - (|x|*SQRT3 + |y|)` has |grad| = 2,
-      // so `OUTLINE_DEVICE_PX * pixelScale` would put its "1 device pixel" floor at half a pixel
-      // — under the reproducible-line floor #369 exists to clear. length() of the partials (NOT
-      // fwidth, whose L1 norm reads ~41% larger on the diagonals) is the shape-correct
-      // conversion, clamped to the [1, 2] x pixelScale gradient range every shape lives in.
+      // The width floor must convert through the field's own gradient, not pixelScale — see
+      // the fieldPerPixel comment for why the diamond makes the two differ.
       expect(POINT_FRAGMENT_SHADER).toContain(
         'length(vec2(dFdx(edgeDist), dFdy(edgeDist))), pixelScale, pixelScale * 2.0)',
       );
-      expect(POINT_FRAGMENT_SHADER).toContain('float fieldPerPixel = clamp(');
       // ...and it must be hoisted above the ring block, like pixelScale, so both share one origin.
       const scaleDecl = POINT_FRAGMENT_SHADER.indexOf(
         'float pixelScale = max(length(dFdx(coord)), length(dFdy(coord)));',
@@ -96,11 +88,19 @@ describe('point shaders', () => {
       expect(POINT_FRAGMENT_SHADER).toContain('outlineBudget = ringWidth * OUTLINE_RING_BUDGET;');
     });
 
+    it('feathers the outline over pixelScale, so the ramp cannot outgrow the band', () => {
+      // The width uses fieldPerPixel but the feather must not: on a ring outlineBudget caps the
+      // band below one device pixel, so a fieldPerPixel-wide ramp is wider than the band it
+      // softens and washes the rim out instead. On a diamond (gradient 2) that cost predicted
+      // glyphs ~3x of their darkening at default point sizes.
+      expect(POINT_FRAGMENT_SHADER).toContain(
+        'smoothstep(outlineWidth - pixelScale, outlineWidth, edgeDist)',
+      );
+    });
+
     it('budget-caps the outline on filled dots too, so a small sprite keeps its hue', () => {
-      // The device-pixel floor is 2/gl_PointSize in field units, i.e. unbounded as the sprite
-      // shrinks: at gl_PointSize 4 it is half the radius and at 2 it is the whole glyph, which
-      // would render every dot in a dense/zoomed-out view up to 50% darker than the hue its
-      // legend swatch shows. The dot budget is what keeps the interior on-palette.
+      // The device-pixel floor is unbounded as the sprite shrinks; without a cap a dense view
+      // renders every dot up to 50% darker than the hue its legend swatch shows.
       expect(POINT_FRAGMENT_SHADER).toContain('const float OUTLINE_DOT_BUDGET = 0.35;');
       expect(POINT_FRAGMENT_SHADER).toContain('float outlineBudget = OUTLINE_DOT_BUDGET;');
     });
