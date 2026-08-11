@@ -674,7 +674,10 @@ describe('query-value-picker', () => {
     it('points aria-activedescendant at the highlighted option', async () => {
       const el = await mount();
       const input = el.shadowRoot!.querySelector('.value-picker-input')!;
-      expect(input.getAttribute('aria-activedescendant')).toBe('');
+      // Absent rather than empty while nothing is highlighted: an empty
+      // aria-activedescendant is an a11y-lint finding, and it matches how the
+      // annotation picker spells the same idle state.
+      expect(input.getAttribute('aria-activedescendant')).toBeNull();
 
       const keydown = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true });
       input.dispatchEvent(keydown);

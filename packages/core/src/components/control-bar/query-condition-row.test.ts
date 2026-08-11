@@ -6,7 +6,7 @@
  * materialized for the legend: it becomes kind:'categorical' but keeps
  * sourceKind:'numeric', and must still be filtered with the numeric range input.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import './query-condition-row';
 import type { FilterCondition } from './query-types';
 import { ANY_VALUE } from './query-types';
@@ -155,10 +155,22 @@ describe('query-condition-row value chips', () => {
  * whole thing is announced as a listbox.
  */
 describe('query-condition-row annotation picker accessibility', () => {
+  // jsdom has no layout engine, so scrollIntoView is assigned rather than spied on.
+  const hadScrollIntoView = 'scrollIntoView' in Element.prototype;
+  const originalScrollIntoView = Element.prototype.scrollIntoView;
+
   beforeEach(() => {
     document.body.innerHTML = '';
-    // jsdom has no layout engine, so scrollIntoView is undefined on Element.
     Element.prototype.scrollIntoView = vi.fn();
+  });
+
+  afterEach(() => {
+    // Restoring by assignment would leave an own `scrollIntoView: undefined` on
+    // Element.prototype, so `'scrollIntoView' in el` would answer true for the rest
+    // of the file. Delete it instead when jsdom never had one. Same dance as
+    // search.component.test.ts.
+    if (hadScrollIntoView) Element.prototype.scrollIntoView = originalScrollIntoView;
+    else delete (Element.prototype as Partial<Element>).scrollIntoView;
   });
 
   const trigger = (el: ConditionRowEl) =>

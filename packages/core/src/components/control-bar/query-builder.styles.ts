@@ -288,31 +288,17 @@ export const queryBuilderStyles = [
       box-sizing: border-box;
     }
 
-    /* The search fields carry no type attribute, so inputMixin's
-       input[type='text'] selector never reaches them; this mirrors it. */
+    /* Surface, border and focus ring come from inputMixin via the type="text" the
+       markup carries. Only the layout the mixin has no opinion on stays here.
+       type="text" rather than type="search": WebKit's search input adds its own
+       clear affordance and an Escape-clears-the-field behaviour that would fight
+       handleDropdownEscape. Matches annotation-select's search input. */
     .annotation-picker-input,
     .value-picker-input {
       width: 100%;
-      padding: var(--input-padding-y) var(--input-padding-x);
-      border: var(--border-width) solid var(--border);
-      border-radius: var(--radius);
-      background: var(--surface);
       font-family: inherit;
-      font-size: var(--text-base);
-      color: var(--muted);
-      box-shadow: var(--shadow-sm);
-      transition: var(--transition);
       margin-bottom: var(--spacing-xs);
       box-sizing: border-box;
-    }
-
-    .annotation-picker-input:focus,
-    .value-picker-input:focus {
-      outline: none;
-      border-color: var(--primary);
-      box-shadow:
-        0 0 0 1px var(--primary),
-        0 0 0 3px var(--focus-ring-bg);
     }
 
     /* Shared by both pickers (the annotation picker reuses this list wrapper). */
@@ -324,41 +310,17 @@ export const queryBuilderStyles = [
       scrollbar-width: thin;
     }
 
-    /* Mirrors .dropdown-item from dropdownMixin. .highlighted is the keyboard
-       cursor and must render identically to hover. */
-    .annotation-picker-item,
-    .value-picker-item {
-      padding: var(--spacing-sm) var(--spacing-md);
-      font-size: var(--text-base);
-      color: var(--muted);
-      cursor: pointer;
-      transition: var(--transition-fast);
-      border-left: var(--border-width) solid transparent;
-    }
-
+    /* Both option lists carry .dropdown-item, so padding, colour, cursor and the
+       hover/.highlighted pair come from dropdownMixin. Only the value picker's
+       count-on-the-right layout is local. No :focus-visible rule: the options
+       carry no tabindex by design — both pickers keep DOM focus on the search
+       input and move an aria-activedescendant cursor, so .highlighted IS the
+       focus indicator. */
     .value-picker-item {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: var(--spacing-sm);
-    }
-
-    .annotation-picker-item:hover,
-    .annotation-picker-item.highlighted,
-    .value-picker-item:hover,
-    .value-picker-item.highlighted {
-      background: var(--primary-light);
-      border-left-color: var(--primary);
-    }
-
-    .annotation-picker-item:focus-visible,
-    .value-picker-item:focus-visible {
-      outline: none;
-      background: var(--primary-light);
-      border-left-color: var(--primary);
-      box-shadow:
-        0 0 0 1px var(--primary),
-        0 0 0 3px var(--focus-ring-bg);
     }
 
     /* Locked out while the "Any value" sentinel is selected (it subsumes them). */
@@ -372,7 +334,6 @@ export const queryBuilderStyles = [
       color: var(--muted);
     }
 
-    .value-picker-item mark,
     .value-picker-highlight {
       color: var(--primary);
       font-weight: var(--font-medium);
@@ -481,27 +442,15 @@ export const queryBuilderStyles = [
       flex-wrap: wrap;
     }
 
-    /* type="number" is outside inputMixin's reach, so this mirrors it. */
+    /* type="number" is outside inputMixin's element selectors, so the markup wears
+       .input-base — the hook the mixin exposes for exactly this — and only the
+       width stays local. Widening the mixin to input[type='number'] instead would
+       restyle the number inputs in the legend, its settings dialog and the publish
+       modal, which carry their own rules; that sweep is its own change. */
     .numeric-field {
       width: 90px;
-      padding: var(--input-padding-y) var(--input-padding-x);
-      border: var(--border-width) solid var(--border);
-      border-radius: var(--radius);
-      background: var(--surface);
       font-family: inherit;
-      font-size: var(--text-base);
-      color: var(--muted);
-      box-shadow: var(--shadow-sm);
-      transition: var(--transition);
       box-sizing: border-box;
-    }
-
-    .numeric-field:focus {
-      outline: none;
-      border-color: var(--primary);
-      box-shadow:
-        0 0 0 1px var(--primary),
-        0 0 0 3px var(--focus-ring-bg);
     }
 
     .numeric-dash {
