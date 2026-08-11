@@ -200,7 +200,7 @@ class ProtspaceQueryNumericInput extends LitElement {
 
         ${fields.min
           ? html`<input
-              class="numeric-field"
+              class="numeric-field input-base"
               type="number"
               aria-label="Minimum value"
               placeholder="min"
@@ -212,7 +212,7 @@ class ProtspaceQueryNumericInput extends LitElement {
         ${fields.min && fields.max ? html`<span class="numeric-dash">–</span>` : nothing}
         ${fields.max
           ? html`<input
-              class="numeric-field"
+              class="numeric-field input-base"
               type="number"
               aria-label="Maximum value"
               placeholder="max"

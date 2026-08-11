@@ -9,6 +9,7 @@ import { resolveAnnotationInternalValues } from './query-evaluate';
 import { isNAValue } from '@protspace/utils';
 import { displayFilterValue } from './query-presence';
 import { queryBuilderStyles } from './query-builder.styles';
+import { handleListboxKeydown, scrollHighlightedIntoView } from '../../utils/dropdown-helpers';
 
 /**
  * One dataset walk's worth of tallies: the per-value counts plus the two
@@ -41,6 +42,8 @@ class ProtspaceQueryValuePicker extends LitElement {
   @property({ type: Number }) triggerLeft: number = 0;
 
   @state() private _searchQuery: string = '';
+  /** Index into the *currently filtered* list, or -1 for "nothing highlighted". */
+  @state() private _highlightIndex: number = -1;
 
   @litQuery('.value-picker-input') private _inputEl?: HTMLInputElement;
 
@@ -66,6 +69,16 @@ class ProtspaceQueryValuePicker extends LitElement {
       changed.has('logicalOp')
     ) {
       this._countCache = null;
+    }
+    // Opening and closing both start the next visit from a clean slate: a stale
+    // highlight indexes into the previous list, and a stale search silently
+    // hides most of the values the reopened picker is supposed to offer.
+    // Reset here rather than in `updated()` — setting reactive state after an
+    // update has completed schedules a second render and trips Lit's
+    // `change-in-update` dev warning.
+    if (changed.has('open')) {
+      this._highlightIndex = -1;
+      this._searchQuery = '';
     }
   }
 
@@ -260,13 +273,44 @@ class ProtspaceQueryValuePicker extends LitElement {
 
   private _handleSearch(e: Event) {
     this._searchQuery = (e.target as HTMLInputElement).value;
+    this._highlightIndex = -1; // The old highlight indexes into the old list.
+  }
+
+  /**
+   * True while `ANY_VALUE` is selected: every entry is then locked out (see
+   * render) and neither the pointer nor the keyboard may select one.
+   */
+  private get _lockedByAnyValue(): boolean {
+    return this.selectedValues.includes(ANY_VALUE);
   }
 
   private _handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
-      e.stopPropagation();
-      this.dispatchEvent(new CustomEvent('picker-close', { bubbles: true, composed: true }));
-    }
+    handleListboxKeydown(e, {
+      // Lazy: only the arrow and Enter keys pay for the walk over the values.
+      getValues: () => this._computeValues().filteredValues.map(({ value }) => value),
+      highlightIndex: this._highlightIndex,
+      setHighlightIndex: (index) => {
+        this._highlightIndex = index;
+        this._scrollToHighlighted();
+      },
+      // Escape goes through the shared helper so the enclosing modal does not
+      // also close.
+      onEscape: () =>
+        this.dispatchEvent(new CustomEvent('picker-close', { bubbles: true, composed: true })),
+      onSelect: (value) => this._selectValue(value),
+      root: this.shadowRoot,
+      itemSelector: '.value-picker-item',
+      valueAttribute: 'data-value',
+      // Nothing is selectable while the lock is on, so the highlight stays put
+      // and Enter refuses — exactly as the click handler does.
+      disabled: this._lockedByAnyValue,
+    });
+  }
+
+  private _scrollToHighlighted() {
+    this.updateComplete.then(() =>
+      scrollHighlightedIntoView(this.shadowRoot, '.value-picker-item.highlighted'),
+    );
   }
 
   private _selectValue(value: string) {
@@ -291,23 +335,41 @@ class ProtspaceQueryValuePicker extends LitElement {
     // "Any value" subsumes every other entry — OR-ing it with a real value is
     // just "any value", and OR-ing it with N/A is everything — so while it is
     // selected the rest of the list is locked out rather than silently ignored.
-    const lockedByAnyValue = this.selectedValues.includes(ANY_VALUE);
+    const lockedByAnyValue = this._lockedByAnyValue;
+    // Clamped: selecting a value drops it from the list, so a highlight parked
+    // on the last entry would otherwise point past the end and leave
+    // `aria-activedescendant` referencing an id that is no longer rendered.
+    const activeIndex = this._highlightIndex < filteredValues.length ? this._highlightIndex : -1;
 
     return html`
       <div class="value-picker" style="top:${this.triggerTop}px;left:${this.triggerLeft}px">
         <input
           class="value-picker-input"
+          type="text"
           placeholder="Search values..."
+          aria-label="Search values"
+          role="combobox"
+          aria-expanded="true"
+          aria-haspopup="listbox"
+          aria-controls="value-picker-list"
+          aria-activedescendant=${activeIndex >= 0 ? `value-picker-option-${activeIndex}` : nothing}
           .value=${this._searchQuery}
           @input=${this._handleSearch}
           @keydown=${this._handleKeydown}
         />
-        <div class="value-picker-list">
-          ${filteredValues.map(
-            ({ value, count }) => html`
+        <div class="value-picker-list" id="value-picker-list" role="listbox" aria-label="Values">
+          ${filteredValues.map(({ value, count }, index) => {
+            const isHighlighted = index === activeIndex;
+            return html`
               <div
-                class="value-picker-item ${lockedByAnyValue ? 'is-disabled' : ''}"
+                id="value-picker-option-${index}"
+                class="dropdown-item value-picker-item ${lockedByAnyValue
+                  ? 'is-disabled'
+                  : ''} ${isHighlighted ? 'highlighted' : ''}"
+                role="option"
+                data-value=${value}
                 aria-disabled=${lockedByAnyValue ? 'true' : 'false'}
+                aria-selected=${isHighlighted ? 'true' : 'false'}
                 @click=${() => {
                   if (!lockedByAnyValue) this._selectValue(value);
                 }}
@@ -315,8 +377,8 @@ class ProtspaceQueryValuePicker extends LitElement {
                 <span>${this._highlightMatch(displayFilterValue(value))}</span>
                 <span class="value-picker-count">${count}</span>
               </div>
-            `,
-          )}
+            `;
+          })}
         </div>
         <div class="value-picker-footer">
           ${filteredValues.length} of ${allValues.length} values shown
