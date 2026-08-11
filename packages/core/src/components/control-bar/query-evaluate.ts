@@ -8,7 +8,7 @@ import type {
 import { isFilterGroup, ANY_VALUE } from './query-types';
 import { isNumericConditionReady, matchesNumericValue } from './query-numeric-helpers';
 import { toInternalValue } from '../legend/config';
-import { getFirstAnnotationIndex, getProteinAnnotationIndices, NA_VALUE } from '@protspace/utils';
+import { getFirstAnnotationIndex, getProteinAnnotationIndices, isNAValue } from '@protspace/utils';
 
 /**
  * Resolve the FIRST string annotation value for a protein at the given index.
@@ -111,13 +111,11 @@ function evaluateCondition(
   for (let i = 0; i < numProteins; i++) {
     const resolved = resolveAnnotationInternalValues(i, condition.annotation, data);
 
-    if (wantsAnyValue && resolved.some((value) => value !== NA_VALUE)) {
-      matches.add(i);
-      continue;
-    }
-
-    if (resolved.some((value) => valuesSet.has(value))) {
-      matches.add(i);
+    for (const value of resolved) {
+      if (valuesSet.has(value) || (wantsAnyValue && !isNAValue(value))) {
+        matches.add(i);
+        break;
+      }
     }
   }
 
@@ -164,7 +162,7 @@ function proteinsWithAnyValue(
 
     for (let i = 0; i < numProteins; i++) {
       const resolved = resolveAnnotationInternalValues(i, annotation, data);
-      if (resolved.some((value) => value !== NA_VALUE)) result.add(i);
+      if (resolved.some((value) => !isNAValue(value))) result.add(i);
     }
   }
 
@@ -289,15 +287,12 @@ function evaluateItems(
       // NOT means "has a value AND does not match" — not a bare set complement.
       // Complementing alone would sweep in every protein that is N/A on the
       // negated annotation, which is what forced users to bolt an explicit
-      // `AND NOT N/A` onto their queries. Scoping the complement to proteins
-      // that actually carry a value makes `NOT` self-contained, and makes
-      // `NOT (is N/A)` mean exactly "has any value".
+      // `AND NOT N/A` onto their queries. Subtracting the matches from the
+      // proteins that actually carry a value makes `NOT` self-contained, and
+      // makes `NOT (is N/A)` mean exactly "has any value".
       const annotations = new Set<string>();
       collectAnnotations(item, annotations);
-      itemResult = intersection(
-        complement(itemResult, numProteins),
-        proteinsWithAnyValue(annotations, data, numProteins),
-      );
+      itemResult = difference(proteinsWithAnyValue(annotations, data, numProteins), itemResult);
     }
 
     if (accumulated === null) {
@@ -332,10 +327,11 @@ function intersection(a: Set<number>, b: Set<number>): Set<number> {
   return result;
 }
 
-function complement(s: Set<number>, n: number): Set<number> {
+/** `a \ b`. Used by NOT, whose scope is already narrowed to proteins with a value. */
+function difference(a: Set<number>, b: Set<number>): Set<number> {
   const result = new Set<number>();
-  for (let i = 0; i < n; i++) {
-    if (!s.has(i)) result.add(i);
+  for (const v of a) {
+    if (!b.has(v)) result.add(v);
   }
   return result;
 }

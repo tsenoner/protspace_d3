@@ -23,27 +23,24 @@ export function numericFieldsFor(operator: NumericOperator): {
   }
 }
 
+/** Shared empty result for `presenceOf`, which runs once per protein row. */
+const NO_PRESENCE: readonly string[] = [];
+
 /** The condition's presence chips, normalized to an array. */
-export function presenceOf(condition: NumericCondition): string[] {
-  return condition.presence ?? [];
+export function presenceOf(condition: NumericCondition): readonly string[] {
+  return condition.presence ?? NO_PRESENCE;
 }
 
 /**
  * True when the condition's comparison has every bound its operator requires.
+ * Derived from `numericFieldsFor` so the operator → required-bounds table is
+ * stated once; a new operator only has to be added there.
  * A condition can still be usable without bounds if it carries a presence
  * chip — see `isNumericConditionReady`.
  */
 function hasNumericBounds(condition: NumericCondition): boolean {
-  switch (condition.operator) {
-    case 'gt':
-    case 'gte':
-      return condition.min !== null;
-    case 'lt':
-    case 'lte':
-      return condition.max !== null;
-    case 'between':
-      return condition.min !== null && condition.max !== null;
-  }
+  const fields = numericFieldsFor(condition.operator);
+  return (!fields.min || condition.min !== null) && (!fields.max || condition.max !== null);
 }
 
 /**
@@ -80,8 +77,9 @@ export function matchesNumericValue(value: number | null, condition: NumericCond
 
   if (value === null) return presence.includes(NA_VALUE);
   if (presence.includes(ANY_VALUE)) return true;
-  if (!hasNumericBounds(condition)) return false;
 
+  // No explicit bounds guard: every case below already returns false when the
+  // bound its operator needs is null, which is exactly `!hasNumericBounds`.
   const { operator, min, max } = condition;
   switch (operator) {
     case 'gt':

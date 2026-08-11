@@ -1,6 +1,6 @@
 import { LitElement, html, nothing } from 'lit';
 import { property, state } from 'lit/decorators.js';
-import { NA_VALUE, NA_DISPLAY } from '@protspace/utils';
+import { NA_VALUE } from '@protspace/utils';
 import { customElement } from '../../utils/safe-custom-element';
 import type { ProtspaceData } from './types';
 import type { NumericCondition, NumericOperator } from './query-types';
@@ -11,6 +11,7 @@ import {
   numericFieldsFor,
   presenceOf,
 } from './query-numeric-helpers';
+import { displayFilterValue } from './query-presence';
 import { queryBuilderStyles } from './query-builder.styles';
 
 /**
@@ -126,7 +127,7 @@ class ProtspaceQueryNumericInput extends LitElement {
   }
 
   private _presenceLabel(value: string): string {
-    return value === NA_VALUE ? NA_DISPLAY : 'Any value';
+    return displayFilterValue(value);
   }
 
   private _addPresence(value: string) {
@@ -155,7 +156,7 @@ class ProtspaceQueryNumericInput extends LitElement {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   /** Presence chips, styled as the categorical value chips they mirror. */
-  private _renderPresence(presence: string[], anyValue: boolean) {
+  private _renderPresence(presence: readonly string[], anyValue: boolean) {
     // With "Any value" on, offering "N/A" too would be a contradiction.
     const addable = [NA_VALUE, ANY_VALUE].filter(
       (value) => !presence.includes(value) && !(anyValue && value === NA_VALUE),
@@ -164,7 +165,7 @@ class ProtspaceQueryNumericInput extends LitElement {
     return html`
       ${presence.map(
         (value) => html`
-          <span class="value-chip" data-presence=${value}>
+          <span class="value-chip">
             <span class="value-chip-text">${this._presenceLabel(value)}</span>
             <button
               class="value-chip-remove"

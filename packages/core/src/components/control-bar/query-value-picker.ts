@@ -6,16 +6,9 @@ import type { LogicalOp } from './query-types';
 import { ANY_VALUE } from './query-types';
 import { toInternalValue } from '../legend/config';
 import { resolveAnnotationInternalValues } from './query-evaluate';
-import { NA_VALUE, NA_DISPLAY } from '@protspace/utils';
+import { isNAValue } from '@protspace/utils';
+import { displayFilterValue } from './query-presence';
 import { queryBuilderStyles } from './query-builder.styles';
-
-/**
- * Display label for the `ANY_VALUE` sentinel, the companion of `NA_DISPLAY`.
- * Lives here (next to the picker that offers it) rather than in query-types.ts,
- * which stays presentation-free; the chip renderer in query-condition-row
- * imports it so a selected sentinel reads the same in both places.
- */
-export const ANY_DISPLAY = 'Any value';
 
 /**
  * Searchable dropdown for selecting annotation values.
@@ -71,12 +64,6 @@ class ProtspaceQueryValuePicker extends LitElement {
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
-  private _displayValue(value: string): string {
-    if (value === NA_VALUE) return NA_DISPLAY;
-    if (value === ANY_VALUE) return ANY_DISPLAY;
-    return value;
-  }
-
   /**
    * Build a map from internal value → count of proteins that have this value.
    * When `indices` is provided, only count within that set; otherwise count all proteins.
@@ -86,18 +73,34 @@ class ProtspaceQueryValuePicker extends LitElement {
    * `ANY_VALUE` is tallied alongside the real values as a per-protein predicate:
    * one increment for each protein carrying at least one non-N/A label, matching
    * how evaluateCondition() resolves the sentinel.
+   *
+   * `anyCount` and `mixedNaCount` fall out of the same walk and are what the NOT
+   * preview needs, so it does not have to re-scan the dataset (see `_computeValues`):
+   * `anyCount` is the size of NOT's "carries a value" scope, and `mixedNaCount`
+   * counts the proteins inside that scope which ALSO carry an N/A label.
    */
-  private _buildCountMap(indices?: Set<number>): Map<string, number> {
+  private _buildCountMap(indices?: Set<number>): {
+    counts: Map<string, number>;
+    anyCount: number;
+    mixedNaCount: number;
+  } {
     const counts = new Map<string, number>();
-    if (!this.data || !this.annotation) return counts;
+    let anyCount = 0;
+    let mixedNaCount = 0;
+    if (!this.data || !this.annotation) return { counts, anyCount, mixedNaCount };
 
     const countProtein = (idx: number) => {
       const resolved = resolveAnnotationInternalValues(idx, this.annotation, this.data!);
+      let hasReal = false;
+      let hasNa = false;
       for (const internal of resolved) {
         counts.set(internal, (counts.get(internal) ?? 0) + 1);
+        if (isNAValue(internal)) hasNa = true;
+        else hasReal = true;
       }
-      if (resolved.some((internal) => internal !== NA_VALUE)) {
-        counts.set(ANY_VALUE, (counts.get(ANY_VALUE) ?? 0) + 1);
+      if (hasReal) {
+        anyCount++;
+        if (hasNa) mixedNaCount++;
       }
     };
 
@@ -108,23 +111,8 @@ class ProtspaceQueryValuePicker extends LitElement {
       for (let i = 0; i < numProteins; i++) countProtein(i);
     }
 
-    return counts;
-  }
-
-  /**
-   * The subset of `indices` whose proteins carry at least one real (non-N/A)
-   * label for this annotation — the same predicate `proteinsWithAnyValue()` in
-   * query-evaluate applies, restricted to the already-matched set.
-   */
-  private _proteinsWithValue(indices: Set<number>): Set<number> {
-    const withValue = new Set<number>();
-    if (!this.data || !this.annotation) return withValue;
-
-    for (const idx of indices) {
-      const resolved = resolveAnnotationInternalValues(idx, this.annotation, this.data);
-      if (resolved.some((internal) => internal !== NA_VALUE)) withValue.add(idx);
-    }
-    return withValue;
+    counts.set(ANY_VALUE, anyCount);
+    return { counts, anyCount, mixedNaCount };
   }
 
   /**
@@ -140,18 +128,17 @@ class ProtspaceQueryValuePicker extends LitElement {
       return { allValues: [], filteredValues: [] };
     }
 
-    const selectedSet = new Set(this.selectedValues);
-    const excludedCountMap = this._buildCountMap(this.matchedIndices);
-    // Full-dataset counts only needed for OR
-    const fullCountMap = this.logicalOp === 'OR' ? this._buildCountMap() : undefined;
-
     const isOR = this.logicalOp === 'OR';
     const isNOT = this.logicalOp === 'NOT';
 
-    // NOT is scoped to proteins that carry a value (see evaluateItems), so its
-    // preview arithmetic runs over `matched ∩ has-a-value` instead of `matched`.
-    const notScope = isNOT ? this._proteinsWithValue(this.matchedIndices) : undefined;
-    const notCountMap = isNOT ? this._buildCountMap(notScope) : undefined;
+    const selectedSet = new Set(this.selectedValues);
+    const {
+      counts: excludedCountMap,
+      anyCount: notScopeSize,
+      mixedNaCount,
+    } = this._buildCountMap(this.matchedIndices);
+    // Full-dataset counts only needed for OR
+    const fullCountMap = isOR ? this._buildCountMap().counts : undefined;
 
     // Deduplicate while preserving order, applying toInternalValue normalisation.
     // ANY_VALUE leads the list: it is a presence sentinel rather than a declared
@@ -176,7 +163,7 @@ class ProtspaceQueryValuePicker extends LitElement {
     const filteredValues = allValues
       .filter((v) => {
         if (!queryLower) return true;
-        return this._displayValue(v).toLowerCase().includes(queryLower);
+        return displayFilterValue(v).toLowerCase().includes(queryLower);
       })
       .map((v) => {
         const rawCount = excludedCountMap.get(v) ?? 0;
@@ -195,7 +182,13 @@ class ProtspaceQueryValuePicker extends LitElement {
           // multi-label protein is removed exactly once no matter how many of its
           // labels miss v. Equals evaluateQuery() for the same single NOT
           // condition — see the cross-check in query-value-picker.test.ts.
-          count = (notScope?.size ?? 0) - (notCountMap!.get(v) ?? 0);
+          //
+          // Every term comes from the single count-map walk above, since carriers
+          // of a REAL value all have a value by definition (so their tally inside
+          // the scope equals their tally in the matched set); only N/A differs,
+          // and that is exactly `mixedNaCount`.
+          const inScope = isNAValue(v) ? mixedNaCount : v === ANY_VALUE ? notScopeSize : rawCount;
+          count = notScopeSize - inScope;
         } else {
           // AND: proteins in excluded set that have this value
           count = rawCount;
@@ -283,7 +276,7 @@ class ProtspaceQueryValuePicker extends LitElement {
                   if (!lockedByAnyValue) this._selectValue(value);
                 }}
               >
-                <span>${this._highlightMatch(this._displayValue(value))}</span>
+                <span>${this._highlightMatch(displayFilterValue(value))}</span>
                 <span class="value-picker-count">${count}</span>
               </div>
             `,

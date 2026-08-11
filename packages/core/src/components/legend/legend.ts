@@ -1030,7 +1030,7 @@ export class ProtspaceLegend extends LitElement {
 
   /**
    * Reliability slider position (0…1). The slider no longer dims points itself;
-   * it drives the shared `NOT(EAT_confidence < x)` query filter via the control
+   * it drives the shared `EAT_confidence >= x or N/A` query filter via the control
    * bar. Exposed so bundle export can persist the saved slider position (#6b).
    */
   public get reliabilityThreshold(): number {

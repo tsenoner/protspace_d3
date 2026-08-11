@@ -26,6 +26,7 @@ import './query-builder';
 import type { FilterQuery, FilterQueryItem, NumericCondition } from './query-types';
 import { createCondition, createNumericCondition, isFilterGroup } from './query-types';
 import { evaluateQuery, hasConfiguredCondition } from './query-evaluate';
+import { presenceOf } from './query-numeric-helpers';
 
 /** Annotations used only for tooltip display, hidden from the annotation dropdown */
 const TOOLTIP_ONLY_ANNOTATIONS = new Set(['gene_name', 'protein_name', 'uniprot_kb_id']);
@@ -1374,7 +1375,7 @@ export class ProtspaceControlBar extends LitElement {
       (a) => !TOOLTIP_ONLY_ANNOTATIONS.has(a),
     );
     // The query-filter column picker can filter on the synthesized `__eat_confidence`
-    // columns (e.g. NOT(EAT_confidence < X)), but they're not meaningful to color by.
+    // columns (e.g. `EAT_confidence >= X or N/A`), but they're not meaningful to color by.
     this._filterableAnnotations = fullAnnotationKeys;
     this.annotations = fullAnnotationKeys.filter(
       (key) => !isEatConfidenceAnnotation(data.annotations?.[key]),
@@ -1596,7 +1597,7 @@ export class ProtspaceControlBar extends LitElement {
   private _handleQueryChanged(e: CustomEvent<{ query: FilterQuery }>) {
     this.filterQuery = e.detail.query;
     // Reverse mirror (#6b): when the user edits the query directly, keep the
-    // legend reliability slider in sync with any NOT(EAT_confidence < X) condition.
+    // legend reliability slider in sync with any `EAT_confidence >= X or N/A` condition.
     this._emitEatThresholdMirror();
   }
 
@@ -1655,8 +1656,10 @@ export class ProtspaceControlBar extends LitElement {
 
   /**
    * Forward mirror (#6b): the legend reliability slider drives the query. For
-   * `x > 0` upsert a single `NOT(EAT_confidence < x)` condition on the selected
-   * base annotation's eat-confidence column; for `x <= 0` remove it. Then run the
+   * `x > 0` upsert a single `EAT_confidence >= x` condition carrying the N/A
+   * presence chip (so curated points, which have no confidence score, stay
+   * visible) on the selected base annotation's eat-confidence column; for
+   * `x <= 0` remove it. Then run the
    * same apply path as a query. The eat-confidence column is resolved by runtime
    * identity (role + base), which also matches the collision-renamed
    * `__eat_confidence__runtime_N` variant that a suffix check would miss.
@@ -1752,7 +1755,7 @@ export class ProtspaceControlBar extends LitElement {
       item.annotation === key &&
       item.operator === 'gte' &&
       item.logicalOp !== 'NOT' &&
-      (item.presence ?? []).includes(NA_VALUE)
+      presenceOf(item).includes(NA_VALUE)
     );
   }
 
