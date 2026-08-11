@@ -495,18 +495,23 @@ def test_cli_migrates_legacy_cells_and_encodes_reserved_source_id(tmp_path):
 # holding one is a reference — no marker column, no second dataset.
 
 
-def test_run_transfer_without_rules_fills_missing_values():
+def _transfer_rows(query_rule=None):
+    """Transfer ``protein_category`` over the 3-protein fixture, keyed by id."""
     annotations, embeddings = _three_protein_inputs()
     out = run_transfer(
         annotations=annotations,
         embeddings=embeddings,
         transfer_columns=["protein_category"],
-        query_rule=Rule(),
+        query_rule=query_rule or Rule(),
         reference_rule=Rule(),
         k=1,
         metric="euclidean",
     )
-    by_id = {r["identifier"]: r for r in out.to_pylist()}
+    return {r["identifier"]: r for r in out.to_pylist()}
+
+
+def test_run_transfer_without_rules_fills_missing_values():
+    by_id = _transfer_rows()
     # TRINITY_1 is the only protein with a missing value; it sits on top of the
     # neurotoxin reference P00001.
     assert by_id["TRINITY_1"]["protein_category__pred_value"] == "neurotoxin"
@@ -514,53 +519,23 @@ def test_run_transfer_without_rules_fills_missing_values():
 
 
 def test_run_transfer_without_rules_never_predicts_over_a_curated_value():
-    annotations, embeddings = _three_protein_inputs()
-    out = run_transfer(
-        annotations=annotations,
-        embeddings=embeddings,
-        transfer_columns=["protein_category"],
-        query_rule=Rule(),
-        reference_rule=Rule(),
-        k=1,
-        metric="euclidean",
-    )
-    by_id = {r["identifier"]: r for r in out.to_pylist()}
+    by_id = _transfer_rows()
     for annotated in ("P00001", "P00002"):
         assert by_id[annotated]["protein_category__pred_value"] is None
         assert by_id[annotated]["protein_category"] != ""
 
 
 def test_run_transfer_without_rules_never_uses_a_protein_as_its_own_source():
-    annotations, embeddings = _three_protein_inputs()
-    out = run_transfer(
-        annotations=annotations,
-        embeddings=embeddings,
-        transfer_columns=["protein_category"],
-        query_rule=Rule(),
-        reference_rule=Rule(),
-        k=1,
-        metric="euclidean",
-    )
-    for row in out.to_pylist():
+    for identifier, row in _transfer_rows().items():
         source = row["protein_category__pred_source"]
         if source is not None:
-            assert source != row["identifier"]
+            assert source != identifier
 
 
 def test_run_transfer_with_only_a_query_rule_still_finds_references():
     # Regression: an absent reference rule used to yield an empty reference set,
     # so the column was skipped and the bundle written back unchanged.
-    annotations, embeddings = _three_protein_inputs()
-    out = run_transfer(
-        annotations=annotations,
-        embeddings=embeddings,
-        transfer_columns=["protein_category"],
-        query_rule=Rule(id_prefixes=["TRINITY_"]),
-        reference_rule=Rule(),
-        k=1,
-        metric="euclidean",
-    )
-    by_id = {r["identifier"]: r for r in out.to_pylist()}
+    by_id = _transfer_rows(query_rule=Rule(id_prefixes=["TRINITY_"]))
     assert by_id["TRINITY_1"]["protein_category__pred_value"] == "neurotoxin"
 
 

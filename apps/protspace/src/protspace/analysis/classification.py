@@ -1,8 +1,8 @@
 """Classify proteins as transfer queries vs annotated references.
 
 Rules match by ID prefix and/or a case-insensitive metadata substring
-(``column ~ substring``). No biology is hardcoded; an *explicit* query rule
-that matches nothing is an error.
+(``column ~ substring``). No biology is hardcoded; an *explicit* rule that
+matches nothing is an error, on either side.
 
 A rule with no clauses is **open** — it restricts nothing and matches every
 protein. Passing no rules at all therefore means "transfer within this
@@ -31,19 +31,20 @@ class Rule:
 
     @property
     def is_open(self) -> bool:
-        """True when the rule carries no clauses, i.e. it restricts nothing.
-
-        An open rule matches every protein. This is what makes self-transfer
-        (#393) work without a marker column: with both rules open, every
-        protein is a candidate query *and* a candidate reference, and
-        ``run_transfer`` does the real split per column on missing-vs-present.
-        """
+        """True when the rule carries no clauses, so it matches every protein."""
         return not self.id_prefixes and not self.where
 
 
-def _matches(rule: Rule, identifier: str, column_data: dict[str, list], i: int) -> bool:
-    if rule.is_open:
-        return True
+def _matches_explicit(
+    rule: Rule, identifier: str, column_data: dict[str, list], i: int
+) -> bool:
+    """Match an *explicit* rule, i.e. one carrying at least one clause.
+
+    Open rules must never be passed here: they match every protein, but with no
+    clauses to iterate this returns ``False`` — the opposite. ``classify``
+    answers the open cases from the row count instead of testing row by row,
+    which is both correct and cheaper; the name carries that contract.
+    """
     if any(identifier.startswith(p) for p in rule.id_prefixes):
         return True
     for column, substring in rule.where:
@@ -70,7 +71,8 @@ def classify(
     to make the final, disjoint split themselves (``run_transfer`` does it per
     column on missing-vs-present).
 
-    Raises ValueError if an explicit query rule matches nothing.
+    Raises ValueError if an explicit rule matches nothing — on either side,
+    since an empty set on either makes the transfer a silent no-op.
 
     ``identifiers`` may be a pre-materialized list of the string identifier
     column (same order as ``annotations``) to avoid re-materializing it when the
@@ -83,6 +85,23 @@ def classify(
             if column not in columns:
                 raise KeyError(f"Classification column {column!r} not in annotations")
 
+    # An open rule needs no row-by-row test: its answer is the whole table. Only
+    # when BOTH rules are explicit does precedence have anything to arbitrate —
+    # if either side is open it expresses no preference, so it must not consume
+    # proteins away from the other set. (Otherwise two open rules would hand
+    # every protein to the query list and leave references empty, and transfer
+    # would silently do nothing.)
+    #
+    # With both rules open — the self-transfer default — nothing is matched on
+    # either side, so answer from the row count alone rather than materializing
+    # every identifier as a Python str (~570k entries at Swiss-Prot scale).
+    if query_rule.is_open and reference_rule.is_open:
+        n_rows = annotations.num_rows if identifiers is None else len(identifiers)
+        if n_rows == 0:
+            # Nothing to blame on the rules — the table itself is empty.
+            raise ValueError("Classifier found no proteins to use as queries.")
+        return list(range(n_rows)), list(range(n_rows))
+
     # Materialize only the columns the rules actually need (identifier + any
     # where-columns) instead of the whole table — the latter is ~GB-scale at
     # Swiss-Prot row counts.
@@ -93,25 +112,29 @@ def classify(
     }
     column_data = {c: annotations.column(c).to_pylist() for c in where_columns}
 
-    # Precedence applies only *between two explicit rules*: there, a protein
-    # matching both is a query and never a reference. When either side is open
-    # it expresses no preference, so it must not consume proteins away from the
-    # other set — otherwise two open rules would hand every protein to the
-    # query list and leave references empty, and transfer would silently
-    # do nothing.
-    both_explicit = not query_rule.is_open and not reference_rule.is_open
-
-    query_indices: list[int] = []
-    reference_indices: list[int] = []
-    for i, identifier in enumerate(identifiers):
-        is_query = _matches(query_rule, identifier, column_data, i)
-        is_reference = _matches(reference_rule, identifier, column_data, i)
-        if is_query and is_reference and both_explicit:
-            is_reference = False
-        if is_query:
-            query_indices.append(i)
-        if is_reference:
-            reference_indices.append(i)
+    every_index = range(len(identifiers))
+    if query_rule.is_open:
+        query_indices = list(every_index)
+        reference_indices = [
+            i
+            for i in every_index
+            if _matches_explicit(reference_rule, identifiers[i], column_data, i)
+        ]
+    elif reference_rule.is_open:
+        query_indices = [
+            i
+            for i in every_index
+            if _matches_explicit(query_rule, identifiers[i], column_data, i)
+        ]
+        reference_indices = list(every_index)
+    else:
+        # Both explicit: a protein matching both is a query and never a reference.
+        query_indices, reference_indices = [], []
+        for i, identifier in enumerate(identifiers):
+            if _matches_explicit(query_rule, identifier, column_data, i):
+                query_indices.append(i)
+            elif _matches_explicit(reference_rule, identifier, column_data, i):
+                reference_indices.append(i)
 
     if not query_indices:
         if query_rule.is_open:
@@ -120,5 +143,16 @@ def classify(
         raise ValueError(
             "Classifier matched no query proteins; check --query-id-prefix / "
             "--query-where rules."
+        )
+    # Same rule on the reference side. An explicit rule that selects nobody makes
+    # the whole run a no-op: `run_transfer` would skip every column and exit 0
+    # with the bundle written back unchanged. Only the query side used to raise,
+    # which left the reference side as exactly the silent no-op this change set
+    # out to remove.
+    if not reference_indices and not reference_rule.is_open:
+        raise ValueError(
+            "Classifier matched no reference proteins; check --reference-id-prefix "
+            "/ --reference-where rules. A protein matching both rules counts as a "
+            "query, so an over-broad query rule can empty the reference set too."
         )
     return query_indices, reference_indices
