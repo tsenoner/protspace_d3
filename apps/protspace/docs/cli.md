@@ -266,7 +266,17 @@ Embedding Annotation Transfer (EAT): fills missing annotation values for query p
 - **`--metric euclidean` (`--k 1`):** `confidence = 0.5 / (0.5 + distance)` (1 at distance 0, 0.5 at distance 0.5, → 0 as distance → ∞); this is the published goPredSim transform, calibrated for ProtT5, so on embedding spaces with larger raw distances treat it as a ranking rather than a calibrated probability.
 - **`--k > 1`:** the value is the goPredSim mean reliability — `(1/m) · Σ s(d)`, the sum of the per-neighbour similarity `s(d)` (the euclidean or cosine form above) over the `k` nearest neighbours that carry the chosen label, divided by `m = min(k, number of references)`. Because of this normalization, confidence values are **not** comparable across different `--k` settings.
 
+**Scope: the filters are optional.** With no `--query-*` and no `--reference-*` filters, transfer runs _within_ the bundle: every protein missing a value in a `--transfer` column is a query, and every protein holding one is a reference. Because those two sets are complements of the missing-value test on that same column, a protein can never be its own source. Use the filters only to narrow that down — for example to label one species from another, or to hold out a labelled subset for a benchmark. Passing only one side is fine too: the other side stays unrestricted rather than coming back empty.
+
 ```bash
+# Fill every gap in the bundle from the bundle's own annotated proteins
+protspace transfer \
+  -b results.parquetbundle \
+  -e embeddings.h5:prot_t5 \
+  -t protein_category \
+  -o results.parquetbundle
+
+# Or narrow both sides: label the TRINITY_ assembly from curated neurotoxins only
 protspace transfer \
   -b results.parquetbundle \
   -e embeddings.h5:prot_t5 \
@@ -284,10 +294,10 @@ protspace transfer \
 | `-e, --embeddings` | HDF5 embeddings file (use `:name` suffix for external files) | — |
 | `-t, --transfer` | Annotation column to transfer (repeatable) | — |
 | `-o, --output` | Output `.parquetbundle` (may overwrite input) | — |
-| `--query-id-prefix` | Restrict query proteins to IDs starting with this prefix | — |
-| `--query-where` | Filter query proteins by annotation value (`col~substr`) | — |
-| `--reference-id-prefix` | Restrict reference proteins to IDs starting with this prefix | — |
-| `--reference-where` | Filter reference proteins by annotation value (`col~substr`) | — |
+| `--query-id-prefix` | Restrict query proteins to IDs starting with this prefix | any protein missing a value |
+| `--query-where` | Restrict query proteins by annotation value (`col~substr`) | any protein missing a value |
+| `--reference-id-prefix` | Restrict reference proteins to IDs starting with this prefix | any protein that has a value |
+| `--reference-where` | Restrict reference proteins by annotation value (`col~substr`) | any protein that has a value |
 | `--k` | Number of nearest neighbours | `1` |
 | `--metric` | Distance metric (`cosine`, `euclidean`); see the reliability-index forms above | `cosine` |
 

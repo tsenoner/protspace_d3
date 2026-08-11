@@ -70,6 +70,29 @@ const float PI = 3.14159265359;
 const float SQRT3 = 1.73205080757;
 const float PREDICTED_INTERIOR_FILL = 0.0; // 1.0 = filled knockout (old), 0.0 = hollow
 
+// Outline width. Two terms, and it needs both:
+//
+//   * a FRACTION of the sprite radius, so the rim grows with the glyph. This is what makes the
+//     outline read as a border while exploring — at gl_PointSize 240 a fixed 1px rim on a 120px
+//     radius is invisible, which is exactly how it looked when this was device-pixels-only.
+//   * a floor in DEVICE PIXELS, so it never thins to nothing on small sprites or at export
+//     scale. A pure fraction goes sub-pixel on tiny points and disappears in print.
+//
+// max() of the two: the fraction dominates on screen, the floor takes over when the glyph is
+// small enough that the fraction would fall below a pixel.
+const float OUTLINE_RADIUS_FRACTION = 0.15;
+const float OUTLINE_DEVICE_PX = 1.0;
+// Share of the ring an outline may consume. The ring IS the predicted glyph's border, and its
+// outer edge is already where shapeAlpha fades to zero, so an unbudgeted outer darken would
+// eat 27-50% of the annulus at every size and smear the hollow cue the encoding depends on.
+const float OUTLINE_RING_BUDGET = 0.35;
+// Share of a FILLED dot's radius the outline may consume. The device-pixel floor is unbounded
+// by construction (it is 2/gl_PointSize in field units), so on a small sprite it would otherwise
+// cover the whole glyph: at gl_PointSize 4 the floor is 0.5 of the radius, at 2 it is the entire
+// radius, and the dot then reads up to 50% darker than the hue its legend swatch shows. Cap it
+// so a majority of every dot always keeps the pure category color.
+const float OUTLINE_DOT_BUDGET = 0.35;
+
 void main() {
   vec2 coord = gl_PointCoord * 2.0 - 1.0;
 
@@ -113,18 +136,30 @@ void main() {
   // screen-space derivatives of the distance field.
   float aa = fwidth(edgeDist);
   float shapeAlpha = smoothstep(0.0, aa, edgeDist);
+  // Isotropic field-units-per-pixel. Hoisted out of the predicted branch so the ring and the
+  // outline share one definition: dFdx/dFdy of coord are 2/gl_PointSize in every direction,
+  // whereas fwidth is the L1 norm of the partials and reads ~41% larger along the diagonals.
+  float pixelScale = max(length(dFdx(coord)), length(dFdy(coord)));
+  // One device pixel expressed in edgeDist units. pixelScale is the pixel size in *sprite* units,
+  // but edgeDist is not a unit-gradient field for every shape — the diamond's
+  // 1 - (|x|*SQRT3 + |y|) has |grad| = 2, so a band of pixelScale there is only half a pixel
+  // wide. Converting through the field's own gradient is what makes OUTLINE_DEVICE_PX an actual
+  // device pixel on every glyph. length() of the partials, not fwidth() — same reason as
+  // pixelScale above. Clamped to [1, 2] x pixelScale, the true gradient range across all six
+  // shapes, so a derivative spike at a triangle's interior ridge cannot widen the band.
+  float fieldPerPixel = clamp(
+    length(vec2(dFdx(edgeDist), dFdy(edgeDist))), pixelScale, pixelScale * 2.0);
   float predictedInterior = 0.0;
+  // Resolved here, in the one place the glyph class is already interpreted, so the outline code
+  // below stays class-free.
+  float outlineBudget = OUTLINE_DOT_BUDGET;
   if (v_predicted > 0.5) {
     // Keep the ring legible at every sprite size without allowing derivative scaling to consume
     // the interior. With PREDICTED_INTERIOR_FILL = 1.0 the opaque surface-color knockout would
     // prevent earlier overlapping points from showing through the hole; at 0.0 (hollow) that
     // show-through is allowed for densely overlapping markers — an accepted trade-off.
-    // The scale MUST come from gl_PointCoord, never from fwidth(edgeDist). fwidth is the L1 norm
-    // of the partials, so on a radial distance field it reads ~41% larger along the diagonals
-    // than along the axes; driving the ring width with it thickened the ring diagonally and
-    // pinched the hole into a cross. dFdx/dFdy of coord are 2/gl_PointSize in every direction.
-    float pixelScale = max(length(dFdx(coord)), length(dFdy(coord)));
     float ringWidth = clamp(pixelScale * 1.75, 0.30, 0.55);
+    outlineBudget = ringWidth * OUTLINE_RING_BUDGET;
     float interiorAa = min(pixelScale, (1.0 - ringWidth) * 0.5);
     predictedInterior = smoothstep(ringWidth, ringWidth + interiorAa, edgeDist);
   }
@@ -157,11 +192,26 @@ void main() {
     finalColor = pow(max(texColor.rgb, vec3(0.0)), vec3(u_gamma));
   }
 
-  // Darken near the edge to mimic a border/outline.
-  // Skip for faded points (low alpha) where the darkening is disproportionately visible.
-  float strokeWidth = 0.15;
-  if (v_predicted < 0.5 && v_color.a > 0.5 && max(edgeDist, 0.0) < strokeWidth) {
-    finalColor = finalColor * 0.5;
+  // Darken near the edge to mimic a border/outline. Applied to BOTH filled dots and predicted
+  // rings so the two glyph classes share one outline treatment (#369) — filled-vs-hollow stays
+  // the encoding that tells them apart, which is a pre-attentive categorical difference and far
+  // stronger than a difference in outline weight.
+  // Still skipped for faded points (low alpha), where the darkening is disproportionately visible.
+  float outlineWidth =
+    min(max(OUTLINE_RADIUS_FRACTION, OUTLINE_DEVICE_PX * fieldPerPixel), outlineBudget);
+  if (v_color.a > 0.5) {
+    // Smooth the inner edge. The outer edge is already anti-aliased by shapeAlpha, so a hard
+    // threshold here left the outline smooth outside and stepped inside. edgeDist is positive
+    // here: the shapeAlpha discard above already dropped everything outside the glyph.
+    //
+    // The feather spans pixelScale, NOT fieldPerPixel, even though the width above uses
+    // fieldPerPixel. On a ring, outlineBudget caps the band below one device pixel
+    // (ringWidth * 0.35 <= 0.19), so feathering over fieldPerPixel would make the ramp wider
+    // than the band it is supposed to soften and wash the outline out instead — on a diamond,
+    // whose gradient is 2, that cost a predicted glyph ~3x of its darkening at default point
+    // sizes. Widening the band is safe; widening the feather past the band is not.
+    float outlineMix = 1.0 - smoothstep(outlineWidth - pixelScale, outlineWidth, edgeDist);
+    finalColor = mix(finalColor, finalColor * 0.5, outlineMix);
   }
 
   // Predicted interiors mix toward PREDICTED_INTERIOR_FILL (hollow=0.0, filled-knockout=1.0).
