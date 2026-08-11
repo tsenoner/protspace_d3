@@ -24,9 +24,9 @@ export default defineConfig({
     },
   },
 
-  // Internal planning/spec notes, audit reports, and the screenshot-folder contributor README:
-  // not part of the user-facing docs site.
-  srcExclude: ['superpowers/**', 'audits/**', 'explore/images/README.md'],
+  // Internal planning/spec notes and per-folder contributor READMEs: not part
+  // of the user-facing docs site.
+  srcExclude: ['superpowers/**', '**/README.md'],
 
   head: [['link', { rel: 'icon', href: '/docs/favicon.svg' }]],
 

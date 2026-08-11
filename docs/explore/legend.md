@@ -139,16 +139,13 @@ is selected, the legend header shows a ⚡ **Predicted** badge next to the annot
 by the note `Computationally predicted, not experimentally curated.` The same ⚡ marker appears next
 to the annotation in the control bar's annotation dropdown.
 
-Annotations that carry the badge:
+The badge marks columns produced by a machine-learning model, a de-novo sequence-topology
+predictor, or predicted 3D structure. Reference signature matches such as Pfam, CATH-Gene3D and
+SUPERFAMILY, and curated or factual UniProt and Taxonomy fields, are not badged. Any unknown column
+whose name starts with `predicted_` is treated as a prediction.
 
-- The Biocentral machine-learning predictions: `predicted_subcellular_location`,
-  `predicted_membrane`, `predicted_signal_peptide`, `predicted_transmembrane`
-- `signal_peptide` (Phobius), a de-novo topology predictor
-- `ted_domains` (TED), domains derived from predicted AlphaFold structures
-- Any other annotation column whose name starts with `predicted_`
-
-Signature-database annotations such as Pfam, CATH-Gene3D and SUPERFAMILY, and UniProt or Taxonomy
-fields, are not badged.
+Which built-in columns carry the badge is listed per annotation in the
+[Annotations reference](/guide/annotations), which is generated from the same table the app reads.
 
 The ⚡ badge is a property of the whole column and is decided from the annotation's name, not from
 its values, so it is not the same thing as the `EAT` badge, which marks an otherwise curated column
@@ -210,21 +207,14 @@ Legend settings are saved per dataset and per annotation in the browser.
 ## Styling From The Python CLI
 
 `protspace style` can pre-set legend styling inside a bundle, but its keys are categorical only. For
-a numeric annotation the web app reinterprets or ignores them:
-
-- `colors`, `shapes` and `hiddenValues` are stored in the bundle but have no effect here. Numeric
-  legend entries are bin IDs such as `num:quantile:150:200`, so per-value keys never match anything.
-- `pinnedValues` and `zOrderSort` never reach the app at all. They are processing-only CLI keys, consumed while the bundle is generated and never written to it, for any annotation type.
-- `maxVisibleValues` becomes the target bin count (`Max legend items`). When the column has missing
-  values, one slot is reserved for `N/A`.
-- `selectedPaletteId` is normalized to `batlow` unless it is one of the five numeric gradient IDs.
-- `sortMode` collapses to `alpha-asc`, `alpha-desc`, `manual` or `manual-reverse`. The CLI default
-  `size-desc` is coerced to `alpha-asc`, shown as `By numeric value`.
+a numeric annotation the web app reinterprets or ignores most of them, because numeric legend
+entries are bin IDs such as `num:quantile:150:200` rather than per-value keys.
 
 `Bin distribution` and `Reverse gradient direction` are UI-only settings and cannot be authored from
 the CLI.
 
-See [Styling Annotations](/guide/styling) for the full CLI styling reference.
+See [How CLI keys are reinterpreted for numeric columns](/guide/styling#how-cli-keys-are-reinterpreted-for-numeric-columns)
+for the per-key reference.
 
 ## Multi-Label Annotations
 

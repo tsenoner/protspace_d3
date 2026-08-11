@@ -210,9 +210,9 @@ pnpm docs:build   # Verify the documentation build
 6. Documentation build
 7. Bundle format contract (`bundle-contract.yml`), `pnpm test:contract` against a real Python-produced
    bundle. Deliberately **unfiltered**: it runs on every PR, including PRs that touch no code it covers.
-8. E2E, Playwright (`e2e.yml`), on PRs touching `apps/web/**`, `packages/**` or the root files those
-   resolve through (`package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `turbo.json`), plus
-   nightly on `main`. Outside those paths, dispatch it: `gh workflow run e2e.yml --ref <branch>`.
+8. E2E, Playwright (`e2e.yml`), on PRs touching the web app, the packages it builds on, or the root
+   files that decide what those resolve to — `e2e.yml` owns the exact list — plus nightly on `main`.
+   Outside those paths, dispatch it: `gh workflow run e2e.yml --ref <branch>`.
 
 **Code style requirements:**
 
