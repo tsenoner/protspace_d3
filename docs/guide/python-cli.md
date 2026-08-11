@@ -443,17 +443,17 @@ protspace stats -i embeddings/prot_t5.h5 -p projections/ -o statistics.parquet \
   -a annotations.parquet --stats-annotation major_group,ec_number
 ```
 
-| Flag                  | Description                                                                                         | Default     |
-| --------------------- | --------------------------------------------------------------------------------------------------- | ----------- |
-| `-i, --input`         | HDF5 embedding file(s), required. Repeatable; `-i file.h5:name` to override the name.               | -           |
-| `-p, --projections`   | Directory with `projections_metadata.parquet` and `projections_data.parquet`, required.             | -           |
-| `-o, --output`        | Output `statistics.parquet` path, required.                                                         | -           |
-| `-a, --annotations`   | Annotations parquet, enriched in place with per-protein `cluster_*` membership columns and scored for annotation-based validity plus ARI/NMI agreement. | -           |
-| `--settings-out`      | Write auto-generated cluster legend styles here (JSON) for `bundle --settings`. Requires `-a`.      | -           |
-| `--cluster-selection` | How to choose the cluster count K: `elbow`, `silhouette`, or `both`.                                | `elbow`     |
+| Flag                  | Description                                                                                                                                                     | Default     |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `-i, --input`         | HDF5 embedding file(s), required. Repeatable; `-i file.h5:name` to override the name.                                                                           | -           |
+| `-p, --projections`   | Directory with `projections_metadata.parquet` and `projections_data.parquet`, required.                                                                         | -           |
+| `-o, --output`        | Output `statistics.parquet` path, required.                                                                                                                     | -           |
+| `-a, --annotations`   | Annotations parquet, enriched in place with per-protein `cluster_*` membership columns and scored for annotation-based validity plus ARI/NMI agreement.         | -           |
+| `--settings-out`      | Write auto-generated cluster legend styles here (JSON) for `bundle --settings`. Requires `-a`.                                                                  | -           |
+| `--cluster-selection` | How to choose the cluster count K: `elbow`, `silhouette`, or `both`.                                                                                            | `elbow`     |
 | `--stats-annotation`  | Which curated annotation column(s) to score: `auto` or a comma-separated list. Requires `-a`. The `cluster_*` membership columns are scored regardless of this. | `auto`      |
-| `--metric`            | High-dimensional distance metric for faithfulness when the projection metadata omits one (PCA/MDS). | `euclidean` |
-| `--seed`              | Random seed.                                                                                        | `42`        |
+| `--metric`            | High-dimensional distance metric for faithfulness when the projection metadata omits one (PCA/MDS).                                                             | `euclidean` |
+| `--seed`              | Random seed.                                                                                                                                                    | `42`        |
 
 ### Projection statistics
 

@@ -63,18 +63,18 @@ The columns `gene_name`, `protein_name`, and `uniprot_kb_id` are **tooltip-only*
 The optional fifth part, `statistics.parquet`, holds projection quality metrics. It is a tidy
 long-format table, one row per space, annotation, label kind, metric and category:
 
-| Column        | Type   | Description                                                                              |
-| ------------- | ------ | ----------------------------------------------------------------------------------------- |
-| `space_kind`  | string | `embedding` or `projection`                                                              |
-| `space_name`  | string | Which embedding or projection was scored                                                 |
-| `annotation`  | string | Annotation column the metric was computed against                                        |
-| `stat_family` | string | One of `annotation_validity`, `cluster_validity`, `cluster_agreement`                    |
-| `label_kind`  | string | One of `annotation`, `kmeans_elbow`, `kmeans_silhouette`                                 |
-| `metric`      | string | Metric name (e.g. silhouette, Davies-Bouldin, ARI)                                       |
-| `metric_kind` | string | One of `validity`, `meta`, `agreement`                                                   |
-| `value`       | float  | Metric value                                                                             |
-| `category`    | string | The category this metric was decomposed for; NULL (not `""`) on aggregate rows           |
-| `extra_json`  | string | Extra per-row detail as JSON                                                             |
+| Column        | Type   | Description                                                                    |
+| ------------- | ------ | ------------------------------------------------------------------------------ |
+| `space_kind`  | string | `embedding` or `projection`                                                    |
+| `space_name`  | string | Which embedding or projection was scored                                       |
+| `annotation`  | string | Annotation column the metric was computed against                              |
+| `stat_family` | string | One of `annotation_validity`, `cluster_validity`, `cluster_agreement`          |
+| `label_kind`  | string | One of `annotation`, `kmeans_elbow`, `kmeans_silhouette`                       |
+| `metric`      | string | Metric name (e.g. silhouette, Davies-Bouldin, ARI)                             |
+| `metric_kind` | string | One of `validity`, `meta`, `agreement`                                         |
+| `value`       | float  | Metric value                                                                   |
+| `category`    | string | The category this metric was decomposed for; NULL (not `""`) on aggregate rows |
+| `extra_json`  | string | Extra per-row detail as JSON                                                   |
 
 A reader must find the eight required columns `space_kind`, `space_name`, `annotation`,
 `stat_family`, `label_kind`, `metric`, `metric_kind` and `value`. `category` and `extra_json` are
