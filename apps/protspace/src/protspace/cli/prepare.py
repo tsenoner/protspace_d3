@@ -343,11 +343,6 @@ def prepare(
             "At least one of -i/--input or -q/--query is required."
         )
 
-    # Checked up front: similarity runs after embedding, so deferring this to
-    # the import site would bill the user a full embed before failing.
-    if similarity:
-        require_similarity_extra()
-
     # --stats-annotation / --cluster-selection only do anything under --stats;
     # a non-default value without --stats would be silently ignored, so reject it.
     if not stats:
@@ -369,6 +364,16 @@ def prepare(
     has_fasta = any(
         is_fasta_file(spec[0]) for spec in input_specs if not spec[0].is_dir()
     )
+
+    # Both similarity preconditions are pure argument checks, so they run before
+    # anything is read: similarity happens last, and failing here rather than at
+    # the import site keeps a full HDF5 load (or embed) off the wasted path.
+    # `has_fasta` is extension-based, the same test the input loop branches on,
+    # so this is exactly "the loop will not produce a FASTA for similarity".
+    if similarity:
+        if fasta is None and not query and not has_fasta:
+            raise typer.BadParameter("-s requires FASTA. Use -f when input is HDF5.")
+        require_similarity_extra()
 
     embedders = _parse_embedders(embedder)
 
@@ -509,11 +514,9 @@ def prepare(
             raise typer.BadParameter("No valid input data found.")
 
         # --- Similarity ---
+        # Both preconditions were checked before any input was read, so
+        # `fasta_for_similarity` is set here whenever `similarity` is on.
         if similarity:
-            if fasta_for_similarity is None:
-                raise typer.BadParameter(
-                    "-s requires FASTA. Use -f when input is HDF5."
-                )
             from protspace.data.loaders import compute_similarity
 
             embedding_sets.append(
