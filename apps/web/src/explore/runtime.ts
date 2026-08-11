@@ -47,14 +47,7 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
     return NOOP_CONTROLLER;
   }
 
-  const {
-    controlBar,
-    dataLoader,
-    legendElement,
-    plotElement,
-    selectedProteinElement,
-    structureViewer,
-  } = elements;
+  const { controlBar, dataLoader, legendElement, plotElement, structureViewer } = elements;
   const lifecycle = createLifecycle();
 
   const setCurrentDatasetName = (name: string) => {
@@ -220,7 +213,6 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
   const interactionController = createInteractionController({
     legendElement,
     plotElement,
-    selectedProteinElement,
     structureViewer,
   });
 
