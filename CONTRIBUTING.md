@@ -41,6 +41,21 @@ pnpm dev:docs     # Docs only (localhost:5174)
 pnpm precommit
 ```
 
+### OpenSpec (one time per machine)
+
+Non-trivial work is planned as a spec before implementation — see
+[AGENTS.md](AGENTS.md#spec-driven-development-with-openspec-default-workflow). The workflow
+skills shell out to the `openspec` CLI, so install it once:
+
+```bash
+npm i -g @fission-ai/openspec   # the CLI the workflow skills call
+openspec init                   # generates per-tool skills/commands for this repo
+```
+
+Only `AGENTS.md` and `openspec/` (specs + changes) are committed. The per-tool skills and
+commands under `.claude/` and `.codex/`, and Codex's global prompts in `~/.codex/prompts/`,
+are CLI-generated and gitignored — regenerate them with `openspec init` / `openspec update`.
+
 ## Development Workflow
 
 1. **Fork and clone** the repository

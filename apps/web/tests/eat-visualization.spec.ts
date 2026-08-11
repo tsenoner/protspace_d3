@@ -359,7 +359,7 @@ test('renders and explores EAT transfers from the real phosphatase bundle', asyn
   await expect(filterButton).not.toHaveClass(/filter-active/);
   await expect.poll(predictedVisibleCount).toBe(213);
 
-  // Raising the threshold drives the shared NOT(EAT_confidence < x) filter, which
+  // Raising the threshold drives the shared `EAT_confidence >= x or N/A` filter, which
   // HIDES sub-threshold predictions (fewer visible points) rather than dimming them.
   await thresholdPercent.fill('99');
   await expect(threshold).toHaveValue('0.99');
@@ -812,14 +812,13 @@ test('renders and explores EAT transfers from the real phosphatase bundle', asyn
  * points — which carry no confidence score at all — stay on the plot.
  *
  * Deliberately outcome-only: it asserts which proteins the scatter plot renders
- * and never how the filter is expressed (no NOT operator, no query shape, no
- * condition internals). The mechanism is expected to change (the null-valued
- * curated points are currently re-included by the NOT index-complement; a
- * future rewrite may state the condition positively and readmit them through an
- * explicit "no value" presence chip instead). Either way this test must keep
- * passing unchanged — if it fails after such a rewrite, curated annotations
- * really did start disappearing from the plot, which is the regression it
- * exists to catch.
+ * and never how the filter is expressed (no operator, no query shape, no
+ * condition internals). The mechanism has already changed once under this guard:
+ * curated points used to be re-included by the NOT index-complement, and the
+ * condition is now stated positively as `EAT_confidence >= x` carrying an
+ * explicit "no value" presence chip. The test passed unchanged across that
+ * rewrite, which is the point — if it ever fails, curated annotations really did
+ * start disappearing from the plot, which is the regression it exists to catch.
  */
 test('keeps curated points visible while the reliability filter hides low-confidence EAT predictions', async ({
   page,

@@ -6,9 +6,10 @@ import { ANY_VALUE, createCondition, createNumericCondition } from './query-type
 import type { ProtspaceData } from './types';
 import { groupAnnotations } from './annotation-categories';
 import { handleDropdownEscape } from '../../utils/dropdown-helpers';
-import { NA_VALUE, NA_DISPLAY, isNumericAnnotation } from '@protspace/utils';
+import { isNumericAnnotation } from '@protspace/utils';
 import { queryBuilderStyles } from './query-builder.styles';
-import { ANY_DISPLAY } from './query-value-picker';
+import { renderValueChip } from './query-presence';
+import './query-value-picker';
 import './query-numeric-input';
 
 /**
@@ -67,12 +68,6 @@ class ProtspaceQueryConditionRow extends LitElement {
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
-
-  private _displayValue(value: string): string {
-    if (value === NA_VALUE) return NA_DISPLAY;
-    if (value === ANY_VALUE) return ANY_DISPLAY;
-    return value;
-  }
 
   private _dispatchChanged(updated: FilterCondition) {
     this.dispatchEvent(
@@ -310,20 +305,7 @@ class ProtspaceQueryConditionRow extends LitElement {
     if (this.condition.kind !== 'categorical') return nothing;
     return html`
       <div class="value-chips">
-        ${this.condition.values.map(
-          (v) => html`
-            <span class="value-chip">
-              <span class="value-chip-text">${this._displayValue(v)}</span>
-              <button
-                class="value-chip-remove"
-                @click=${() => this._removeValue(v)}
-                title="Remove value"
-              >
-                ×
-              </button>
-            </span>
-          `,
-        )}
+        ${this.condition.values.map((v) => renderValueChip(v, () => this._removeValue(v)))}
         <button
           class="value-chip-add"
           @click=${(e: Event) => {

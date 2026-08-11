@@ -79,7 +79,7 @@ With `--keep-tmp`, only API-fetched annotations are cached; the CSV is always re
 | `protein_existence`       | Evidence level for protein existence | `Evidence at protein level`                                    |
 | `protein_families`        | First protein family                 | `Protein kinase superfamily\|ISS`                              |
 | `reviewed`                | Swiss-Prot / TrEMBL                  | `true` / `false`                                               |
-| `xref_pdb`                | Has experimental 3D structure        | `True` / `False`                                               |
+| `xref_pdb`                | Has experimental 3D structure        | `True` / `False` / empty (`N/A` without a UniProt mapping)      |
 
 **Internal fields** (not user-selectable): `sequence`, `organism_id` are fetched automatically when needed by InterPro and taxonomy lookups. Inactive/obsolete accessions are resolved via secondary accession search; unresolvable entries get empty values.
 
@@ -92,7 +92,7 @@ With `--keep-tmp`, only API-fetched annotations are cached; the CSV is always re
 | `fragment`                | `"fragment"` normalized to `"yes"`                                   |
 | `go_bp`, `go_cc`, `go_mf` | Aspect prefix stripped (`P:apoptotic process` → `apoptotic process`) |
 | `protein_families`        | First family only (before `,` or `;`)                                |
-| `xref_pdb`                | Converted to `True`/`False`                                          |
+| `xref_pdb`                | Converted to `True`/`False`; empty when UniProt is unavailable       |
 
 ### Evidence Codes
 
@@ -180,7 +180,7 @@ Structure-based domain annotations from [TED (The Encyclopedia of Domains)](http
 | ------------- | ---------------------------------------------------------- |
 | `ted_domains` | Structural domains with CATH classification and confidence |
 
-**Output format**: `2.60.40.720 (Immunoglobulin-like)|95.1;3.40.50.300|88.3` — semicolon-separated domains. Each domain has a CATH superfamily code, name (when available, resolved from InterPro CATH-Gene3D cache), and pLDDT confidence score. Unclassified domains show as `unclassified|{plddt}`.
+**Output format**: `2.60.40.720 (Immunoglobulin-like)|95.1;3.40.50.300|88.3` — semicolon-separated domains. Each domain has a CATH superfamily code, name (when available, resolved from InterPro CATH-Gene3D cache), and pLDDT confidence score. Domains without a CATH label show as `-|{plddt}`. An annotation cache written by an older version that emitted `unclassified` is rewritten to `-` automatically the next time it is read, so no refetch is needed.
 
 **Data source**: Per-protein lookup via `alphafold.ebi.ac.uk/api/domains/{accession}`. Domains are predicted from AlphaFold structures using a consensus of Chainsaw, Merizo, and UniDoc methods.
 
@@ -211,6 +211,11 @@ Per-protein predictions from the [Biocentral API](https://biocentral.rostlab.org
 | Pfam clans     | `~/.cache/protspace/pfam_clans/`  | 30 days  | Pfam family → clan mapping                        |
 
 The `default` group only requires the UniProt REST API (+ ExPASy for EC names). For `--keep-tmp` annotation caching, see [CLI Reference](cli.md#annotation-caching---keep-tmp).
+
+Annotation caches created before the three-state `xref_pdb` behavior are refreshed
+from UniProt once when reused, because an old cached `True` cannot be distinguished
+reliably from a genuine PDB cross-reference. Other cached annotation sources remain
+reusable during that refresh.
 
 ## Prediction Overlay Columns (EAT Transfer)
 

@@ -8,7 +8,7 @@ import type {
 import { isFilterGroup, ANY_VALUE } from './query-types';
 import { isNumericConditionReady, matchesNumericValue } from './query-numeric-helpers';
 import { toInternalValue } from '../legend/config';
-import { getFirstAnnotationIndex, getProteinAnnotationIndices, NA_VALUE } from '@protspace/utils';
+import { getFirstAnnotationIndex, getProteinAnnotationIndices, isNAValue } from '@protspace/utils';
 
 /**
  * Resolve the FIRST string annotation value for a protein at the given index.
@@ -111,13 +111,11 @@ function evaluateCondition(
   for (let i = 0; i < numProteins; i++) {
     const resolved = resolveAnnotationInternalValues(i, condition.annotation, data);
 
-    if (wantsAnyValue && resolved.some((value) => value !== NA_VALUE)) {
-      matches.add(i);
-      continue;
-    }
-
-    if (resolved.some((value) => valuesSet.has(value))) {
-      matches.add(i);
+    for (const value of resolved) {
+      if (valuesSet.has(value) || (wantsAnyValue && !isNAValue(value))) {
+        matches.add(i);
+        break;
+      }
     }
   }
 
@@ -160,11 +158,34 @@ function proteinsWithAnyValue(
       continue;
     }
 
-    if (!data.annotation_data?.[annotation] || !data.annotations?.[annotation]) continue;
+    // Hand-rolled rather than looping resolveAnnotationInternalValues: this runs
+    // once per protein per NOT, and only needs "is there ONE real label?" — so it
+    // hoists the two record lookups out of the loop and short-circuits on the
+    // first hit instead of allocating a deduplicated array per row. The
+    // normalization rule itself is still the shared toInternalValue/isNAValue pair.
+    const idxData = data.annotation_data?.[annotation];
+    const valuesArr = data.annotations?.[annotation]?.values;
+    if (!idxData || !valuesArr) continue;
+
+    // Decide "is this a real value?" once per DECLARED value rather than once per
+    // label per protein: toInternalValue stringifies, so the per-label spelling
+    // allocated a throwaway string for all ~570K rows on every NOT evaluation
+    // (and the query builder re-evaluates once per condition on each keystroke).
+    // The table is as long as the category list, not the protein list.
+    const isRealValue = new Uint8Array(valuesArr.length);
+    for (let v = 0; v < valuesArr.length; v++) {
+      isRealValue[v] = isNAValue(toInternalValue(valuesArr[v] ?? null)) ? 0 : 1;
+    }
 
     for (let i = 0; i < numProteins; i++) {
-      const resolved = resolveAnnotationInternalValues(i, annotation, data);
-      if (resolved.some((value) => value !== NA_VALUE)) result.add(i);
+      if (result.has(i)) continue;
+      for (const idx of getProteinAnnotationIndices(idxData, i)) {
+        // Out-of-range indices normalize to null, i.e. NOT a real value.
+        if (idx >= 0 && idx < valuesArr.length && isRealValue[idx]) {
+          result.add(i);
+          break;
+        }
+      }
     }
   }
 
@@ -289,15 +310,12 @@ function evaluateItems(
       // NOT means "has a value AND does not match" — not a bare set complement.
       // Complementing alone would sweep in every protein that is N/A on the
       // negated annotation, which is what forced users to bolt an explicit
-      // `AND NOT N/A` onto their queries. Scoping the complement to proteins
-      // that actually carry a value makes `NOT` self-contained, and makes
-      // `NOT (is N/A)` mean exactly "has any value".
+      // `AND NOT N/A` onto their queries. Subtracting the matches from the
+      // proteins that actually carry a value makes `NOT` self-contained, and
+      // makes `NOT (is N/A)` mean exactly "has any value".
       const annotations = new Set<string>();
       collectAnnotations(item, annotations);
-      itemResult = intersection(
-        complement(itemResult, numProteins),
-        proteinsWithAnyValue(annotations, data, numProteins),
-      );
+      itemResult = difference(proteinsWithAnyValue(annotations, data, numProteins), itemResult);
     }
 
     if (accumulated === null) {
@@ -332,10 +350,11 @@ function intersection(a: Set<number>, b: Set<number>): Set<number> {
   return result;
 }
 
-function complement(s: Set<number>, n: number): Set<number> {
+/** `a \ b`. Used by NOT, whose scope is already narrowed to proteins with a value. */
+function difference(a: Set<number>, b: Set<number>): Set<number> {
   const result = new Set<number>();
-  for (let i = 0; i < n; i++) {
-    if (!s.has(i)) result.add(i);
+  for (const v of a) {
+    if (!b.has(v)) result.add(v);
   }
   return result;
 }

@@ -1,6 +1,6 @@
 import { LitElement, html, nothing } from 'lit';
 import { property, state } from 'lit/decorators.js';
-import { NA_VALUE, NA_DISPLAY } from '@protspace/utils';
+import { NA_VALUE } from '@protspace/utils';
 import { customElement } from '../../utils/safe-custom-element';
 import type { ProtspaceData } from './types';
 import type { NumericCondition, NumericOperator } from './query-types';
@@ -11,6 +11,7 @@ import {
   numericFieldsFor,
   presenceOf,
 } from './query-numeric-helpers';
+import { displayFilterValue, renderValueChip } from './query-presence';
 import { queryBuilderStyles } from './query-builder.styles';
 
 /**
@@ -125,10 +126,6 @@ class ProtspaceQueryNumericInput extends LitElement {
     this._emitChanged({ ...this.condition, max: this._parseFieldValue(this._maxText) });
   }
 
-  private _presenceLabel(value: string): string {
-    return value === NA_VALUE ? NA_DISPLAY : 'Any value';
-  }
-
   private _addPresence(value: string) {
     const presence = presenceOf(this.condition);
     if (presence.includes(value)) return;
@@ -155,37 +152,23 @@ class ProtspaceQueryNumericInput extends LitElement {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   /** Presence chips, styled as the categorical value chips they mirror. */
-  private _renderPresence(presence: string[], anyValue: boolean) {
+  private _renderPresence(presence: readonly string[]) {
     // With "Any value" on, offering "N/A" too would be a contradiction.
     const addable = [NA_VALUE, ANY_VALUE].filter(
-      (value) => !presence.includes(value) && !(anyValue && value === NA_VALUE),
+      (value) => !presence.includes(value) && !(presence.includes(ANY_VALUE) && value === NA_VALUE),
     );
 
     return html`
-      ${presence.map(
-        (value) => html`
-          <span class="value-chip" data-presence=${value}>
-            <span class="value-chip-text">${this._presenceLabel(value)}</span>
-            <button
-              class="value-chip-remove"
-              data-presence=${value}
-              @click=${() => this._removePresence(value)}
-              title="Remove value"
-            >
-              ×
-            </button>
-          </span>
-        `,
-      )}
+      ${presence.map((value) => renderValueChip(value, () => this._removePresence(value), value))}
       ${addable.map(
         (value) => html`
           <button
             class="value-chip-add"
             data-presence=${value}
             @click=${() => this._addPresence(value)}
-            title="Add ${this._presenceLabel(value)}"
+            title="Add ${displayFilterValue(value)}"
           >
-            + ${this._presenceLabel(value)}
+            + ${displayFilterValue(value)}
           </button>
         `,
       )}
@@ -238,7 +221,7 @@ class ProtspaceQueryNumericInput extends LitElement {
               @input=${this._handleMaxInput}
             />`
           : nothing}
-        ${this._renderPresence(presence, anyValue)}
+        ${this._renderPresence(presence)}
         ${this._matchCount !== null
           ? html`<span class="numeric-match-count"
               >${this._matchCount.toLocaleString()} proteins match</span

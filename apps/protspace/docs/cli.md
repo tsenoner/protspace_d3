@@ -213,7 +213,7 @@ protspace stats -i embeddings/prot_t5.h5 -p projections/ -o statistics.parquet \
 | `-i, --input` | HDF5 embedding file(s) (for faithfulness + the once-per-embedding annotation-validity pass). Repeat for multi-embedding; `-i file.h5:name` to override the name. | — |
 | `-p, --projections` | Project directory with `projections_metadata.parquet` + `projections_data.parquet`. | — |
 | `-o, --output` | Output `statistics.parquet` path. | — |
-| `-a, --annotations` | Annotations parquet to enrich in place with per-protein `cluster_*` membership columns (per-point silhouette attached as `value|score`), and to score for annotation-based validity + ARI/NMI agreement. | — |
+| `-a, --annotations` | Annotations parquet to enrich in place with per-protein `cluster_*` membership columns, and to score for annotation-based validity + ARI/NMI agreement. | — |
 | `--cluster-selection` | Cluster count K selection: `elbow`, `silhouette`, or `both`. | `elbow` |
 | `--stats-annotation` | Which annotation column(s) to score for cluster-validity: `auto` (all suitable low-cardinality categoricals) or a comma-separated list. Requires `-a`. | `auto` |
 | `--settings-out` | Write auto cluster-legend styles here (JSON) for `bundle --settings`. Requires `-a`. | — |
@@ -225,7 +225,7 @@ protspace stats -i embeddings/prot_t5.h5 -p projections/ -o statistics.parquet \
 `prepare --stats` (opt-in) and the standalone `protspace stats` command compute three families of per-projection quality metrics and bake them into the output:
 
 - **Annotation-based validity** — silhouette, Davies–Bouldin, and Calinski–Harabasz scored using an annotation's own category labels (not auto-clustering) — how well proteins already grouped by an annotation (e.g. `major_group`, `ec_number`) separate in a given space. Computed once for the source embedding (a separability "ceiling") and again for each projection, written to the tidy `statistics.parquet` (the bundle's 5th part) with `space_kind ∈ {embedding, projection}` and an `annotation` column naming which one was scored. `--stats-annotation auto|name1,name2` (default `auto`) picks which annotation column(s) to score — `auto` scores every "suitable" low-cardinality categorical (≥2 and ≤min(50, max(2, n/2)) distinct non-empty values, not numeric, and not a generated `cluster_*` column); requires `-a/--annotations`.
-- **Auto-cluster agreement** — KMeans labels the projection; the cluster count K is chosen by the inertia **elbow** and/or by **max silhouette** — `--cluster-selection elbow|silhouette|both`. This auto-clustering is no longer scored against itself (that was circular); instead, when annotations are supplied, each labelling's **ARI** (adjusted Rand index) and **NMI** (normalized mutual information) agreement with every scored annotation is recorded (`stat_family=cluster_agreement`). Each selection also becomes a per-protein membership column — `cluster_elbow_<projection>` and/or `cluster_silhouette_<projection>` — with the point's **silhouette attached to its value** as `cluster N|<silhouette>` (the same `value|score` convention as UniProt evidence codes / InterPro bit scores; suppressed by `--no-scores`). Membership columns get an auto Kelly-palette legend (the bundle's 4th settings part); in `statistics.parquet` the two selections are distinguished by `label_kind` (`kmeans_elbow` / `kmeans_silhouette`).
+- **Auto-cluster agreement** — KMeans labels the projection; the cluster count K is chosen by the inertia **elbow** and/or by **max silhouette** — `--cluster-selection elbow|silhouette|both`. Each labelling is scored on its own categories exactly as an annotation is (silhouette/DBI/CH, aggregate and per-category, filed under the membership column's name), so the frontend reads a clustering through the same rows as any annotation; read those as descriptive rather than as a verdict, since KMeans drew the boundaries being graded and a `silhouette`-selected K was chosen by maximising the silhouette itself. Independently, when annotations are supplied, each labelling's **ARI** (adjusted Rand index) and **NMI** (normalized mutual information) agreement with every scored annotation is recorded (`stat_family=cluster_agreement`). Each selection also becomes a per-protein membership column — `cluster_elbow_<projection>` and/or `cluster_silhouette_<projection>` — holding a bare `cluster N` label, the same shape as a curated categorical annotation. (It formerly attached each point's own silhouette to its value as `cluster N|<silhouette>`; the per-category rows above report that separation on the scale the rest of the app reads, so the point-level value is no longer computed.) Membership columns get an auto Kelly-palette legend (the bundle's 4th settings part); in `statistics.parquet` the two selections are distinguished by `label_kind` (`kmeans_elbow` / `kmeans_silhouette`).
 - **Faithfulness** — how well the projection preserves the source embedding's structure; each row is tagged `scope`:
   - **local** (kNN-neighbourhood): **kNN-overlap**, **trustworthiness**, **continuity**.
   - **global** (whole-layout): **random_triplet** (relative-ordering accuracy over random triplets, ∈[0,1]) and **spearman_distance** (rank correlation of all pairwise distances, ∈[−1,1]).
@@ -266,7 +266,17 @@ Embedding Annotation Transfer (EAT): fills missing annotation values for query p
 - **`--metric euclidean` (`--k 1`):** `confidence = 0.5 / (0.5 + distance)` (1 at distance 0, 0.5 at distance 0.5, → 0 as distance → ∞); this is the published goPredSim transform, calibrated for ProtT5, so on embedding spaces with larger raw distances treat it as a ranking rather than a calibrated probability.
 - **`--k > 1`:** the value is the goPredSim mean reliability — `(1/m) · Σ s(d)`, the sum of the per-neighbour similarity `s(d)` (the euclidean or cosine form above) over the `k` nearest neighbours that carry the chosen label, divided by `m = min(k, number of references)`. Because of this normalization, confidence values are **not** comparable across different `--k` settings.
 
+**Scope: the filters are optional.** With no `--query-*` and no `--reference-*` filters, transfer runs _within_ the bundle: every protein missing a value in a `--transfer` column is a query, and every protein holding one is a reference. Because those two sets are complements of the missing-value test on that same column, a protein can never be its own source. Use the filters only to narrow that down — for example to label one species from another, or to hold out a labelled subset for a benchmark. Passing only one side is fine too: the other side stays unrestricted rather than coming back empty.
+
 ```bash
+# Fill every gap in the bundle from the bundle's own annotated proteins
+protspace transfer \
+  -b results.parquetbundle \
+  -e embeddings.h5:prot_t5 \
+  -t protein_category \
+  -o results.parquetbundle
+
+# Or narrow both sides: label the TRINITY_ assembly from curated neurotoxins only
 protspace transfer \
   -b results.parquetbundle \
   -e embeddings.h5:prot_t5 \
@@ -284,10 +294,10 @@ protspace transfer \
 | `-e, --embeddings` | HDF5 embeddings file (use `:name` suffix for external files) | — |
 | `-t, --transfer` | Annotation column to transfer (repeatable) | — |
 | `-o, --output` | Output `.parquetbundle` (may overwrite input) | — |
-| `--query-id-prefix` | Restrict query proteins to IDs starting with this prefix | — |
-| `--query-where` | Filter query proteins by annotation value (`col~substr`) | — |
-| `--reference-id-prefix` | Restrict reference proteins to IDs starting with this prefix | — |
-| `--reference-where` | Filter reference proteins by annotation value (`col~substr`) | — |
+| `--query-id-prefix` | Restrict query proteins to IDs starting with this prefix | any protein missing a value |
+| `--query-where` | Restrict query proteins by annotation value (`col~substr`) | any protein missing a value |
+| `--reference-id-prefix` | Restrict reference proteins to IDs starting with this prefix | any protein that has a value |
+| `--reference-where` | Restrict reference proteins by annotation value (`col~substr`) | any protein that has a value |
 | `--k` | Number of nearest neighbours | `1` |
 | `--metric` | Distance metric (`cosine`, `euclidean`); see the reliability-index forms above | `cosine` |
 
@@ -353,6 +363,8 @@ With `--keep-tmp` (default), all intermediate results are cached in `{output}/tm
 | DR projections | `proj_{name}_{method}_{hash}.npz` | Skip dimensionality reduction |
 
 - Annotation cache always includes scores regardless of `--no-scores`
+- Legacy annotation caches containing `xref_pdb` are refreshed from UniProt once to
+  migrate ambiguous pre-three-state values; cached columns from other sources are kept
 - DR projection caches are keyed by embedding name, method, dimensions, and all parameters — changing any parameter creates a new cache entry
 - Use `--refetch all` to bypass all caches, or `--refetch <stages>` selectively (e.g., `--refetch ted,biocentral`)
 

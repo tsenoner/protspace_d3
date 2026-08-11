@@ -152,8 +152,9 @@ describe('control-bar filter query apply', () => {
 
 /**
  * Two-way mirror between the legend reliability slider and the query filter (#6b).
- * Forward: `setEatConfidenceThreshold(base, x)` upserts `NOT(EAT_confidence < x)`
- * for x>0 and removes it for x<=0, running the same apply path as a real query.
+ * Forward: `setEatConfidenceThreshold(base, x)` upserts `EAT_confidence >= x`
+ * carrying the N/A presence chip for x>0 and removes it for x<=0, running the
+ * same apply path as a real query.
  * Reverse: a query change carrying (or dropping) that condition emits
  * `eat-threshold-mirror` so the slider can follow. The eat-confidence column is
  * resolved by runtime identity, not the `__eat_confidence` string suffix, so the
