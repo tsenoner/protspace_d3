@@ -9,7 +9,7 @@ import { resolveAnnotationInternalValues } from './query-evaluate';
 import { isNAValue } from '@protspace/utils';
 import { displayFilterValue } from './query-presence';
 import { queryBuilderStyles } from './query-builder.styles';
-import { handleDropdownEscape, scrollHighlightedIntoView } from '../../utils/dropdown-helpers';
+import { handleListboxKeydown, scrollHighlightedIntoView } from '../../utils/dropdown-helpers';
 
 /**
  * One dataset walk's worth of tallies: the per-value counts plus the two
@@ -70,6 +70,16 @@ class ProtspaceQueryValuePicker extends LitElement {
     ) {
       this._countCache = null;
     }
+    // Opening and closing both start the next visit from a clean slate: a stale
+    // highlight indexes into the previous list, and a stale search silently
+    // hides most of the values the reopened picker is supposed to offer.
+    // Reset here rather than in `updated()` — setting reactive state after an
+    // update has completed schedules a second render and trips Lit's
+    // `change-in-update` dev warning.
+    if (changed.has('open')) {
+      this._highlightIndex = -1;
+      this._searchQuery = '';
+    }
   }
 
   // ─── Click-outside detection ──────────────────────────────────────────────
@@ -93,14 +103,10 @@ class ProtspaceQueryValuePicker extends LitElement {
   // ─── Auto-focus on open ───────────────────────────────────────────────────
 
   updated(changedProperties: Map<string, unknown>) {
-    if (changedProperties.has('open')) {
-      // Opening and closing both start the next visit from a clean highlight.
-      this._highlightIndex = -1;
-      if (this.open) {
-        this.updateComplete.then(() => {
-          this._inputEl?.focus();
-        });
-      }
+    if (changedProperties.has('open') && this.open) {
+      this.updateComplete.then(() => {
+        this._inputEl?.focus();
+      });
     }
   }
 
@@ -279,43 +285,26 @@ class ProtspaceQueryValuePicker extends LitElement {
   }
 
   private _handleKeydown(e: KeyboardEvent) {
-    const values = this._computeValues().filteredValues;
-
-    if (e.key === 'Escape') {
-      // Via the shared helper so the enclosing modal does not also close.
-      handleDropdownEscape(e, () => {
-        this.dispatchEvent(new CustomEvent('picker-close', { bubbles: true, composed: true }));
-      });
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      // Nothing is selectable while the lock is on, so the highlight stays put.
-      if (values.length > 0 && !this._lockedByAnyValue) {
-        this._highlightIndex = Math.min(this._highlightIndex + 1, values.length - 1);
+    handleListboxKeydown(e, {
+      // Lazy: only the arrow and Enter keys pay for the walk over the values.
+      getValues: () => this._computeValues().filteredValues.map(({ value }) => value),
+      highlightIndex: this._highlightIndex,
+      setHighlightIndex: (index) => {
+        this._highlightIndex = index;
         this._scrollToHighlighted();
-      }
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (values.length > 0 && !this._lockedByAnyValue) {
-        this._highlightIndex = Math.max(this._highlightIndex - 1, 0);
-        this._scrollToHighlighted();
-      }
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      // Refuses disabled items exactly as the click handler does.
-      if (this._lockedByAnyValue) return;
-      // Hover does not move the highlight (see render), so the row under the
-      // pointer and the keyboard cursor can differ and both render the same.
-      // The browser's :hover wins, matching annotation-select — including when
-      // no arrow key was ever pressed and the cursor is still -1.
-      const hovered = this.shadowRoot
-        ?.querySelector('.value-picker-item:hover')
-        ?.getAttribute('data-value');
-      if (hovered !== null && hovered !== undefined) {
-        this._selectValue(hovered);
-      } else if (this._highlightIndex >= 0 && this._highlightIndex < values.length) {
-        this._selectValue(values[this._highlightIndex].value);
-      }
-    }
+      },
+      // Escape goes through the shared helper so the enclosing modal does not
+      // also close.
+      onEscape: () =>
+        this.dispatchEvent(new CustomEvent('picker-close', { bubbles: true, composed: true })),
+      onSelect: (value) => this._selectValue(value),
+      root: this.shadowRoot,
+      itemSelector: '.value-picker-item',
+      valueAttribute: 'data-value',
+      // Nothing is selectable while the lock is on, so the highlight stays put
+      // and Enter refuses — exactly as the click handler does.
+      disabled: this._lockedByAnyValue,
+    });
   }
 
   private _scrollToHighlighted() {
@@ -347,6 +336,10 @@ class ProtspaceQueryValuePicker extends LitElement {
     // just "any value", and OR-ing it with N/A is everything — so while it is
     // selected the rest of the list is locked out rather than silently ignored.
     const lockedByAnyValue = this._lockedByAnyValue;
+    // Clamped: selecting a value drops it from the list, so a highlight parked
+    // on the last entry would otherwise point past the end and leave
+    // `aria-activedescendant` referencing an id that is no longer rendered.
+    const activeIndex = this._highlightIndex < filteredValues.length ? this._highlightIndex : -1;
 
     return html`
       <div class="value-picker" style="top:${this.triggerTop}px;left:${this.triggerLeft}px">
@@ -359,16 +352,14 @@ class ProtspaceQueryValuePicker extends LitElement {
           aria-expanded="true"
           aria-haspopup="listbox"
           aria-controls="value-picker-list"
-          aria-activedescendant=${this._highlightIndex >= 0
-            ? `value-picker-option-${this._highlightIndex}`
-            : nothing}
+          aria-activedescendant=${activeIndex >= 0 ? `value-picker-option-${activeIndex}` : nothing}
           .value=${this._searchQuery}
           @input=${this._handleSearch}
           @keydown=${this._handleKeydown}
         />
         <div class="value-picker-list" id="value-picker-list" role="listbox" aria-label="Values">
           ${filteredValues.map(({ value, count }, index) => {
-            const isHighlighted = index === this._highlightIndex;
+            const isHighlighted = index === activeIndex;
             return html`
               <div
                 id="value-picker-option-${index}"

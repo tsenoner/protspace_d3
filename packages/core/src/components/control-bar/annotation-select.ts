@@ -2,7 +2,7 @@ import { LitElement, html, type PropertyValues } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { customElement } from '../../utils/safe-custom-element';
 import { annotationSelectStyles } from './annotation-select.styles';
-import { handleDropdownEscape, scrollHighlightedIntoView } from '../../utils/dropdown-helpers';
+import { handleListboxKeydown, scrollHighlightedIntoView } from '../../utils/dropdown-helpers';
 import { groupAnnotations, type GroupedAnnotation } from './annotation-categories';
 import {
   annotationLabel,
@@ -97,42 +97,24 @@ class ProtspaceAnnotationSelect extends LitElement {
       return;
     }
 
-    const filtered = this.getFilteredGroupedAnnotations();
-    const flatAnnotations = this.flattenGroupedAnnotations(filtered);
-
-    if (event.key === 'Escape') {
-      handleDropdownEscape(event, () => {
+    handleListboxKeydown(event, {
+      // Lazy: only the arrow and Enter keys pay for re-filtering the list.
+      getValues: () => this.flattenGroupedAnnotations(this.getFilteredGroupedAnnotations()),
+      highlightIndex: this.highlightIndex,
+      setHighlightIndex: (index) => {
+        this.highlightIndex = index;
+        this.scrollToHighlighted();
+      },
+      onEscape: () => {
         this.open = false;
         this.query = '';
         this.highlightIndex = -1;
-      });
-    } else if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      if (flatAnnotations.length > 0) {
-        this.highlightIndex = Math.min(this.highlightIndex + 1, flatAnnotations.length - 1);
-        this.scrollToHighlighted();
-      }
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      if (flatAnnotations.length > 0) {
-        this.highlightIndex = Math.max(this.highlightIndex - 1, 0);
-        this.scrollToHighlighted();
-      }
-    } else if (event.key === 'Enter') {
-      event.preventDefault();
-      // Hover no longer moves highlightIndex (that re-rendered every row the pointer crossed),
-      // so the row under the pointer and the keyboard highlight can differ, and both render
-      // with the same background. The browser's :hover is the source of truth for the pointer,
-      // and it must win, including when no arrow key was ever pressed (highlightIndex −1).
-      const hovered = this.shadowRoot
-        ?.querySelector('.dropdown-item:hover')
-        ?.getAttribute('data-annotation');
-      if (hovered) {
-        this.selectAnnotation(hovered, event);
-      } else if (this.highlightIndex >= 0 && this.highlightIndex < flatAnnotations.length) {
-        this.selectAnnotation(flatAnnotations[this.highlightIndex], event);
-      }
-    }
+      },
+      onSelect: (annotation) => this.selectAnnotation(annotation, event),
+      root: this.shadowRoot,
+      itemSelector: '.dropdown-item',
+      valueAttribute: 'data-annotation',
+    });
   }
 
   private scrollToHighlighted() {
