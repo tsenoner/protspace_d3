@@ -122,10 +122,11 @@ unannotated proteins as well, add an explicit **N/A** condition with **OR**.
 
 ::: tip Missing values
 
-Every annotation offers two presence entries alongside its real values:
+Annotations offer presence entries alongside their real values:
 
-- **N/A**: proteins with no value for this annotation
-- **Any value**: proteins that have some value — any value at all
+- **N/A**: proteins with no value for this annotation — listed whenever the
+  annotation actually has missing values
+- **Any value**: proteins that have some value — any value at all; always offered
 
 **Any value** is exclusive: selecting it clears the other values, since "Any
 value or X" is just "Any value".

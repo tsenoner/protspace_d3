@@ -23,8 +23,12 @@ export function numericFieldsFor(operator: NumericOperator): {
   }
 }
 
-/** Shared empty result for `presenceOf`, which runs once per protein row. */
-const NO_PRESENCE: readonly string[] = [];
+/**
+ * Shared empty result for `presenceOf`, which runs once per protein row.
+ * Frozen because it is handed out to every chip-less condition: one stray
+ * mutation through a cast would give them all a presence chip.
+ */
+const NO_PRESENCE: readonly string[] = Object.freeze([]);
 
 /** The condition's presence chips, normalized to an array. */
 export function presenceOf(condition: NumericCondition): readonly string[] {
@@ -98,14 +102,20 @@ export function matchesNumericValue(value: number | null, condition: NumericCond
 /**
  * Count how many proteins match a numeric condition on its own.
  * Returns 0 for an unready condition or a missing annotation.
+ *
+ * Walks the protein count (not the value array's length) and normalizes a
+ * missing slot to null, exactly like `evaluateNumericCondition` — otherwise a
+ * short/sparse column would leave rows uncounted that the filter itself matches
+ * via an N/A presence chip, and the live preview would undershoot the result.
  */
 export function countNumericMatches(condition: NumericCondition, data: ProtspaceData): number {
   if (!isNumericConditionReady(condition)) return 0;
   const values = data.numeric_annotation_data?.[condition.annotation];
   if (!values) return 0;
+  const numProteins = data.protein_ids?.length ?? values.length;
   let count = 0;
-  for (const v of values) {
-    if (matchesNumericValue(v, condition)) count++;
+  for (let i = 0; i < numProteins; i++) {
+    if (matchesNumericValue(values[i] ?? null, condition)) count++;
   }
   return count;
 }

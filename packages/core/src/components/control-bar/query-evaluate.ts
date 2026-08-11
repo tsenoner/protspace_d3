@@ -158,11 +158,23 @@ function proteinsWithAnyValue(
       continue;
     }
 
-    if (!data.annotation_data?.[annotation] || !data.annotations?.[annotation]) continue;
+    // Hand-rolled rather than looping resolveAnnotationInternalValues: this runs
+    // once per protein per NOT, and only needs "is there ONE real label?" — so it
+    // hoists the two record lookups out of the loop and short-circuits on the
+    // first hit instead of allocating a deduplicated array per row. The
+    // normalization rule itself is still the shared toInternalValue/isNAValue pair.
+    const idxData = data.annotation_data?.[annotation];
+    const valuesArr = data.annotations?.[annotation]?.values;
+    if (!idxData || !valuesArr) continue;
 
     for (let i = 0; i < numProteins; i++) {
-      const resolved = resolveAnnotationInternalValues(i, annotation, data);
-      if (resolved.some((value) => !isNAValue(value))) result.add(i);
+      for (const idx of getProteinAnnotationIndices(idxData, i)) {
+        const raw = idx >= 0 && idx < valuesArr.length ? (valuesArr[idx] ?? null) : null;
+        if (!isNAValue(toInternalValue(raw))) {
+          result.add(i);
+          break;
+        }
+      }
     }
   }
 

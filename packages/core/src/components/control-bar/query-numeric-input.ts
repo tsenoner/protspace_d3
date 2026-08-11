@@ -126,10 +126,6 @@ class ProtspaceQueryNumericInput extends LitElement {
     this._emitChanged({ ...this.condition, max: this._parseFieldValue(this._maxText) });
   }
 
-  private _presenceLabel(value: string): string {
-    return displayFilterValue(value);
-  }
-
   private _addPresence(value: string) {
     const presence = presenceOf(this.condition);
     if (presence.includes(value)) return;
@@ -156,17 +152,17 @@ class ProtspaceQueryNumericInput extends LitElement {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   /** Presence chips, styled as the categorical value chips they mirror. */
-  private _renderPresence(presence: readonly string[], anyValue: boolean) {
+  private _renderPresence(presence: readonly string[]) {
     // With "Any value" on, offering "N/A" too would be a contradiction.
     const addable = [NA_VALUE, ANY_VALUE].filter(
-      (value) => !presence.includes(value) && !(anyValue && value === NA_VALUE),
+      (value) => !presence.includes(value) && !(presence.includes(ANY_VALUE) && value === NA_VALUE),
     );
 
     return html`
       ${presence.map(
         (value) => html`
           <span class="value-chip">
-            <span class="value-chip-text">${this._presenceLabel(value)}</span>
+            <span class="value-chip-text">${displayFilterValue(value)}</span>
             <button
               class="value-chip-remove"
               data-presence=${value}
@@ -184,9 +180,9 @@ class ProtspaceQueryNumericInput extends LitElement {
             class="value-chip-add"
             data-presence=${value}
             @click=${() => this._addPresence(value)}
-            title="Add ${this._presenceLabel(value)}"
+            title="Add ${displayFilterValue(value)}"
           >
-            + ${this._presenceLabel(value)}
+            + ${displayFilterValue(value)}
           </button>
         `,
       )}
@@ -239,7 +235,7 @@ class ProtspaceQueryNumericInput extends LitElement {
               @input=${this._handleMaxInput}
             />`
           : nothing}
-        ${this._renderPresence(presence, anyValue)}
+        ${this._renderPresence(presence)}
         ${this._matchCount !== null
           ? html`<span class="numeric-match-count"
               >${this._matchCount.toLocaleString()} proteins match</span

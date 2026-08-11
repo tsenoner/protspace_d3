@@ -186,8 +186,9 @@ class ProtspaceQueryValuePicker extends LitElement {
           // Every term comes from the single count-map walk above, since carriers
           // of a REAL value all have a value by definition (so their tally inside
           // the scope equals their tally in the matched set); only N/A differs,
-          // and that is exactly `mixedNaCount`.
-          const inScope = isNAValue(v) ? mixedNaCount : v === ANY_VALUE ? notScopeSize : rawCount;
+          // and that is exactly `mixedNaCount`. ANY_VALUE needs no special case:
+          // its tally IS `notScopeSize`, so it cancels to 0 on its own.
+          const inScope = isNAValue(v) ? mixedNaCount : rawCount;
           count = notScopeSize - inScope;
         } else {
           // AND: proteins in excluded set that have this value
