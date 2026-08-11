@@ -20,8 +20,22 @@ from protspace.cli.common_options import (
 from protspace.data.loaders.similarity import MMSEQS_INSTALL_HINT
 
 
+def _stub_pymmseqs(monkeypatch, spec):
+    """Answer the `pymmseqs` lookup with *spec*; leave every other one real.
+
+    `find_spec` is a shared stdlib hook, so a blanket `lambda name: None` would
+    report *any* module missing for as long as the patch is installed.
+    """
+    real = importlib.util.find_spec
+    monkeypatch.setattr(
+        importlib.util,
+        "find_spec",
+        lambda name, *a, **kw: spec if name == "pymmseqs" else real(name, *a, **kw),
+    )
+
+
 def test_guard_names_the_extra(monkeypatch):
-    monkeypatch.setattr(importlib.util, "find_spec", lambda name: None)
+    _stub_pymmseqs(monkeypatch, None)
 
     with pytest.raises(typer.BadParameter) as exc:
         require_similarity_extra()
@@ -30,7 +44,7 @@ def test_guard_names_the_extra(monkeypatch):
 
 
 def test_guard_passes_when_pymmseqs_is_importable(monkeypatch):
-    monkeypatch.setattr(importlib.util, "find_spec", lambda name: object())
+    _stub_pymmseqs(monkeypatch, object())
 
     require_similarity_extra()
 
@@ -44,10 +58,9 @@ def test_cli_rejects_similarity_before_doing_work(command, tmp_path, monkeypatch
     """
     from typer.testing import CliRunner
 
-    from protspace.cli import common_options
     from protspace.cli.app import app
 
-    monkeypatch.setattr(common_options.importlib.util, "find_spec", lambda name: None)
+    _stub_pymmseqs(monkeypatch, None)
     args = [command, "-i", str(tmp_path / "missing.h5"), "-s", "-o", str(tmp_path)]
     if command == "project":
         args += ["-f", str(tmp_path / "missing.fasta")]
