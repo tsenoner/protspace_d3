@@ -11,7 +11,7 @@ import {
   numericFieldsFor,
   presenceOf,
 } from './query-numeric-helpers';
-import { displayFilterValue } from './query-presence';
+import { displayFilterValue, renderValueChip } from './query-presence';
 import { queryBuilderStyles } from './query-builder.styles';
 
 /**
@@ -159,21 +159,7 @@ class ProtspaceQueryNumericInput extends LitElement {
     );
 
     return html`
-      ${presence.map(
-        (value) => html`
-          <span class="value-chip">
-            <span class="value-chip-text">${displayFilterValue(value)}</span>
-            <button
-              class="value-chip-remove"
-              data-presence=${value}
-              @click=${() => this._removePresence(value)}
-              title="Remove value"
-            >
-              ×
-            </button>
-          </span>
-        `,
-      )}
+      ${presence.map((value) => renderValueChip(value, () => this._removePresence(value), value))}
       ${addable.map(
         (value) => html`
           <button

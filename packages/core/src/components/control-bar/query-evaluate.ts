@@ -167,10 +167,21 @@ function proteinsWithAnyValue(
     const valuesArr = data.annotations?.[annotation]?.values;
     if (!idxData || !valuesArr) continue;
 
+    // Decide "is this a real value?" once per DECLARED value rather than once per
+    // label per protein: toInternalValue stringifies, so the per-label spelling
+    // allocated a throwaway string for all ~570K rows on every NOT evaluation
+    // (and the query builder re-evaluates once per condition on each keystroke).
+    // The table is as long as the category list, not the protein list.
+    const isRealValue = new Uint8Array(valuesArr.length);
+    for (let v = 0; v < valuesArr.length; v++) {
+      isRealValue[v] = isNAValue(toInternalValue(valuesArr[v] ?? null)) ? 0 : 1;
+    }
+
     for (let i = 0; i < numProteins; i++) {
+      if (result.has(i)) continue;
       for (const idx of getProteinAnnotationIndices(idxData, i)) {
-        const raw = idx >= 0 && idx < valuesArr.length ? (valuesArr[idx] ?? null) : null;
-        if (!isNAValue(toInternalValue(raw))) {
+        // Out-of-range indices normalize to null, i.e. NOT a real value.
+        if (idx >= 0 && idx < valuesArr.length && isRealValue[idx]) {
           result.add(i);
           break;
         }

@@ -100,7 +100,7 @@ SHALL provide an EAT overlay switch and native range plus numeric percentage thr
 beside the observed/transferred population key. The range and numeric controls SHALL represent one
 value and remain synchronized. The accessible group SHALL default to overlay enabled and threshold
 `0` — every prediction shown and the filter box clean — and its threshold SHALL mirror two-way with
-the shared `NOT(EAT_confidence < x)` query filter. The complete control SHALL be absent when the
+the shared `EAT_confidence >= x or N/A` query filter. The complete control SHALL be absent when the
 selected annotation has no usable EAT cells, including confidence-view and non-EAT selections.
 Optional `eatOverlayEnabled` and `eatConfidenceThreshold` bundle settings SHALL validate, normalize,
 write even when they are the only settings, and on dataset load seed the slider (which derives the
@@ -158,7 +158,7 @@ filter condition only above `0`).
 
 - **WHEN** a bundle is exported with overlay disabled and threshold `0.75`, then reloaded
 - **THEN** the overlay is restored disabled and the reliability slider seeds `0.75`, deriving its
-  `NOT(EAT_confidence < 0.75)` query filter
+  `EAT_confidence >= 0.75 or N/A` query filter
 
 #### Scenario: Embedded settings restore from OPFS
 
@@ -250,7 +250,7 @@ category.
 ### Requirement: Reliability threshold filters sub-threshold predictions
 
 The reliability threshold SHALL hide predictions whose transferred confidence is below its position
-by driving a shared `NOT(EAT_confidence < x)` query-filter condition, not by dimming points.
+by driving a shared `EAT_confidence >= x or N/A` query-filter condition, not by dimming points.
 Transferred predictions render at full opacity while visible. Curated (non-transferred) points, which
 carry no confidence, SHALL always remain visible regardless of the threshold. At position `0` the
 threshold SHALL create no condition, so every point is shown and the filter box stays clean. The
@@ -267,13 +267,13 @@ consistent for the points that stay visible.
 #### Scenario: Sub-threshold predictions are filtered out
 
 - **WHEN** the threshold is raised above `0`
-- **THEN** a `NOT(EAT_confidence < x)` condition is applied and predictions with confidence below `x`
+- **THEN** an `EAT_confidence >= x or N/A` condition is applied and predictions with confidence below `x`
   are removed from the visible set
 - **AND** curated points, which have no confidence, remain visible
 
 #### Scenario: Slider and filter mirror two-way
 
-- **WHEN** the user moves the slider or edits the equivalent `NOT(EAT_confidence < x)` condition in
+- **WHEN** the user moves the slider or edits the equivalent `EAT_confidence >= x or N/A` condition in
   the filter builder
 - **THEN** the other control reflects the same normalized threshold without oscillating
 

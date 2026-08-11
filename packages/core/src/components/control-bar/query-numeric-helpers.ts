@@ -107,12 +107,17 @@ export function matchesNumericValue(value: number | null, condition: NumericCond
  * missing slot to null, exactly like `evaluateNumericCondition` — otherwise a
  * short/sparse column would leave rows uncounted that the filter itself matches
  * via an N/A presence chip, and the live preview would undershoot the result.
+ *
+ * `protein_ids` is the sole source of the row count, down to the `?? 0` that
+ * makes a dataset without it count nothing: `evaluateQuery` returns ∅ for that
+ * same data, and a preview that disagreed with the result would reopen the very
+ * gap this walk exists to close.
  */
 export function countNumericMatches(condition: NumericCondition, data: ProtspaceData): number {
   if (!isNumericConditionReady(condition)) return 0;
   const values = data.numeric_annotation_data?.[condition.annotation];
   if (!values) return 0;
-  const numProteins = data.protein_ids?.length ?? values.length;
+  const numProteins = data.protein_ids?.length ?? 0;
   let count = 0;
   for (let i = 0; i < numProteins; i++) {
     if (matchesNumericValue(values[i] ?? null, condition)) count++;

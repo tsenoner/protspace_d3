@@ -156,6 +156,13 @@ describe('countNumericMatches', () => {
     expect(countNumericMatches(c, sparse)).toBe(3);
   });
 
+  it('counts nothing without protein_ids, matching the evaluator', () => {
+    const noIds: ProtspaceData = { numeric_annotation_data: { length: [10, 20] } };
+    const c = numericCondition({ operator: 'gte', min: 15 });
+    expect(countNumericMatches(c, noIds)).toBe(0);
+    expect(evaluateQuery([c], noIds).size).toBe(0);
+  });
+
   it('agrees with the evaluator on a column with an explicit null', () => {
     const c = numericCondition({ operator: 'gte', min: 15, presence: [NA_VALUE] });
     // P2, P3 clear the bound; P4 is null and rides in on the N/A chip.

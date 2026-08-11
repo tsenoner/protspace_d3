@@ -11,6 +11,16 @@ import { displayFilterValue } from './query-presence';
 import { queryBuilderStyles } from './query-builder.styles';
 
 /**
+ * One dataset walk's worth of tallies: the per-value counts plus the two
+ * per-protein aggregates the NOT preview needs (see `_buildCountMap`).
+ */
+interface CountMapResult {
+  counts: Map<string, number>;
+  anyCount: number;
+  mixedNaCount: number;
+}
+
+/**
  * Searchable dropdown for selecting annotation values.
  *
  * Events:
@@ -33,6 +43,31 @@ class ProtspaceQueryValuePicker extends LitElement {
   @state() private _searchQuery: string = '';
 
   @litQuery('.value-picker-input') private _inputEl?: HTMLInputElement;
+
+  /**
+   * Memoized count maps. `_buildCountMap` walks the entire dataset (twice under
+   * OR), and `_computeValues` runs on every render — including every keystroke
+   * in the search box, which only re-filters an already-counted list. Without
+   * this, typing re-scans ~570K proteins per character. Invalidated in
+   * `willUpdate` from the inputs the counts actually depend on; `matchedIndices`
+   * is compared by reference, which holds because the query builder hands down a
+   * freshly built Set on every evaluation rather than mutating one in place.
+   */
+  private _countCache: {
+    excluded: CountMapResult;
+    full: Map<string, number> | undefined;
+  } | null = null;
+
+  willUpdate(changed: Map<string, unknown>) {
+    if (
+      changed.has('data') ||
+      changed.has('annotation') ||
+      changed.has('matchedIndices') ||
+      changed.has('logicalOp')
+    ) {
+      this._countCache = null;
+    }
+  }
 
   // ─── Click-outside detection ──────────────────────────────────────────────
 
@@ -79,11 +114,7 @@ class ProtspaceQueryValuePicker extends LitElement {
    * `anyCount` is the size of NOT's "carries a value" scope, and `mixedNaCount`
    * counts the proteins inside that scope which ALSO carry an N/A label.
    */
-  private _buildCountMap(indices?: Set<number>): {
-    counts: Map<string, number>;
-    anyCount: number;
-    mixedNaCount: number;
-  } {
+  private _buildCountMap(indices?: Set<number>): CountMapResult {
     const counts = new Map<string, number>();
     let anyCount = 0;
     let mixedNaCount = 0;
@@ -132,13 +163,17 @@ class ProtspaceQueryValuePicker extends LitElement {
     const isNOT = this.logicalOp === 'NOT';
 
     const selectedSet = new Set(this.selectedValues);
+    this._countCache ??= {
+      excluded: this._buildCountMap(this.matchedIndices),
+      // Full-dataset counts only needed for OR
+      full: isOR ? this._buildCountMap().counts : undefined,
+    };
     const {
       counts: excludedCountMap,
       anyCount: notScopeSize,
       mixedNaCount,
-    } = this._buildCountMap(this.matchedIndices);
-    // Full-dataset counts only needed for OR
-    const fullCountMap = isOR ? this._buildCountMap().counts : undefined;
+    } = this._countCache.excluded;
+    const fullCountMap = this._countCache.full;
 
     // Deduplicate while preserving order, applying toInternalValue normalisation.
     // ANY_VALUE leads the list: it is a presence sentinel rather than a declared

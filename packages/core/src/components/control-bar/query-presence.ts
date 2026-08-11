@@ -1,3 +1,4 @@
+import { html, nothing } from 'lit';
 import { toDisplayValue } from '@protspace/utils';
 import { ANY_VALUE } from './query-types';
 
@@ -20,4 +21,28 @@ const ANY_DISPLAY = 'Any value';
  */
 export function displayFilterValue(value: string): string {
   return value === ANY_VALUE ? ANY_DISPLAY : toDisplayValue(value);
+}
+
+/**
+ * The removable value chip. Stated once because two rows render exactly the same
+ * markup against the same shared `queryBuilderStyles`: the categorical row for a
+ * selected value, the numeric row for a presence sentinel. `presenceTag` is the
+ * `data-presence` hook the numeric row needs to address a specific chip; the
+ * categorical row omits it and Lit's `nothing` drops the attribute entirely
+ * rather than stamping a meaningless one.
+ */
+export function renderValueChip(value: string, onRemove: () => void, presenceTag?: string) {
+  return html`
+    <span class="value-chip">
+      <span class="value-chip-text">${displayFilterValue(value)}</span>
+      <button
+        class="value-chip-remove"
+        data-presence=${presenceTag ?? nothing}
+        @click=${onRemove}
+        title="Remove value"
+      >
+        ×
+      </button>
+    </span>
+  `;
 }
