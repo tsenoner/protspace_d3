@@ -13,12 +13,14 @@ Covers three things:
 import logging
 
 import pyarrow as pa
+import pytest
 
 from protspace.data.annotations.encoding import stamp_format_version
 from protspace.data.io.bundle import extract_bundle_to_dir, write_bundle
 from protspace.utils.add_annotation_style import (
     _CATEGORICAL_PALETTE_IDS,
     _GRADIENT_PALETTE_IDS,
+    _resolve_style_value,
     _warn_if_bad_palette,
     _warn_if_numeric,
     add_annotation_styles_bundle,
@@ -221,3 +223,29 @@ def test_palette_defaults_belong_to_their_sets():
     # Frontend defaults: categorical → 'kellys', numeric gradient → 'batlow'.
     assert "kellys" in _CATEGORICAL_PALETTE_IDS
     assert "batlow" in _GRADIENT_PALETTE_IDS
+
+
+# ---------------------------------------------------------------------------
+# Style-key resolution — a styles file's keys vs. the values the bundle holds
+# ---------------------------------------------------------------------------
+
+
+def test_na_style_key_resolves_against_a_null_written_cell():
+    # The frontend writer stores a missing categorical cell as parquet NULL, which
+    # reads back as the string "None". A styles file naming the N/A group — what
+    # `--generate-template` emitted as `__NA__` before that change — must still
+    # find it, or `protspace style` aborts on a bundle it produced itself.
+    assert _resolve_style_value("__NA__", {"None", "Human"}, "organism") == "None"
+    assert _resolve_style_value("<NA>", {"", "Human"}, "organism") == ""
+
+
+def test_numeric_style_key_resolves_across_the_int_float_spelling():
+    # An integral column is stored INT32 now and was stored DOUBLE before, so the
+    # same value is keyed '100' in one export and '100.0' in the other.
+    assert _resolve_style_value("100.0", {"100", "200"}, "length") == "100"
+    assert _resolve_style_value("100", {"100.0", "200.0"}, "length") == "100.0"
+
+
+def test_unknown_style_key_still_raises():
+    with pytest.raises(ValueError, match="does not exist for annotation"):
+        _resolve_style_value("Alien", {"Human", "Mouse"}, "organism")

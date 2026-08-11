@@ -86,6 +86,7 @@ export default defineConfig({
           { text: 'Importing Data', link: '/explore/importing-data' },
           { text: 'Navigating the Scatterplot', link: '/explore/scatterplot' },
           { text: 'Using the Legend', link: '/explore/legend' },
+          { text: 'Separation Scores', link: '/explore/separation-scores' },
           { text: 'Control Bar Features', link: '/explore/control-bar' },
           { text: 'Viewing 3D Structures', link: '/explore/structures' },
           { text: 'Exporting Results', link: '/explore/exporting' },

@@ -73,3 +73,9 @@ apps/web/tests/fixtures/sprot_50.parquetbundle
 
 # Subagent-driven-development scratch (ledger, briefs, review packages)
 .superpowers/
+
+# graphify knowledge graph (generated locally; kept current with `graphify update .`, never committed)
+graphify-out/
+
+# Visual harness output (apps/web/tests/glyph-outline.spec.ts) — regenerated on demand
+apps/web/tests/__screens__/

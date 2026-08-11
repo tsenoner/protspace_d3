@@ -126,9 +126,8 @@ Opt_Stats = Annotated[
     typer.Option(
         "--stats/--no-stats",
         help="Compute projection quality statistics (cluster-validity + "
-        "faithfulness); adds cluster_* membership columns (with per-point "
-        "silhouette confidence) + legend styles to the bundle. Opt-in (off by "
-        "default): can be slow on large runs.",
+        "faithfulness); adds cluster_* membership columns + legend styles to the "
+        "bundle. Opt-in (off by default): can be slow on large runs.",
         rich_help_panel="Output",
     ),
 ]
