@@ -41,7 +41,7 @@ export function createViewController({
   controlBar,
 }: ViewControllerOptions): ViewController {
   let latestViewRequest = createEmptyExploreViewRequest();
-  let activeViewChangeSource: ExploreViewChangeSource | null = null;
+  let isApplyingView = false;
   const subscribers = new Set<(change: ExploreViewChange) => void>();
 
   const emitViewChange = (change: ExploreViewChange) => {
@@ -160,8 +160,8 @@ export function createViewController({
     // apply* calls, and the app routes them back here as user changes. Guard
     // only that synchronous window: anything arriving later is a real user
     // interaction, not an echo of what we just applied.
-    const previousViewChangeSource = activeViewChangeSource;
-    activeViewChangeSource = source;
+    const wasApplyingView = isApplyingView;
+    isApplyingView = true;
     try {
       if (projectionChanged) {
         selectProjection(effective.projection);
@@ -173,7 +173,7 @@ export function createViewController({
         selectTooltipAnnotations(effective.tooltip);
       }
     } finally {
-      activeViewChangeSource = previousViewChangeSource;
+      isApplyingView = wasApplyingView;
     }
 
     emitViewChange({
@@ -186,7 +186,7 @@ export function createViewController({
   };
 
   const emitCurrentUserViewChange = () => {
-    if (activeViewChangeSource) {
+    if (isApplyingView) {
       return;
     }
 
