@@ -76,3 +76,6 @@ apps/web/tests/fixtures/sprot_50.parquetbundle
 
 # graphify knowledge graph (generated locally; kept current with `graphify update .`, never committed)
 graphify-out/
+
+# Visual harness output (apps/web/tests/glyph-outline.spec.ts) — regenerated on demand
+apps/web/tests/__screens__/

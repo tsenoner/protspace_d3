@@ -1,6 +1,29 @@
 # CHANGELOG
 
 
+## v4.11.0 (2026-08-11)
+
+### Bug Fixes
+
+- **transfer**: Error when an explicit reference rule matches nothing
+  ([`0a653e0`](https://github.com/tsenoner/protspace/commit/0a653e0293b1bae55460d4b7bd292340c9eee32a))
+
+### Documentation
+
+- **transfer**: Stop teaching the filters-are-required workflow
+  ([`9864e04`](https://github.com/tsenoner/protspace/commit/9864e04f4ab10f7ca2fdca414f157e23b863ae02))
+
+### Features
+
+- **transfer**: Apply EAT within one dataset when no rules are given
+  ([`cda36bc`](https://github.com/tsenoner/protspace/commit/cda36bc4fe324cca9b9f4235f33f2bb94d0628cf))
+
+### Refactoring
+
+- **transfer**: Fold the both-open branch into the shared rule checks
+  ([`878e430`](https://github.com/tsenoner/protspace/commit/878e4304a151756c8aa98e60b081e331e7a955e7))
+
+
 ## v4.10.3 (2026-08-10)
 
 ### Bug Fixes
