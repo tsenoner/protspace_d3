@@ -17,8 +17,7 @@ from protspace.cli.common_options import (
     EMBEDDER_MODELS,
     require_similarity_extra,
 )
-
-INSTALL_HINT = 'pip install "protspace[similarity]"'
+from protspace.data.loaders.similarity import MMSEQS_INSTALL_HINT
 
 
 def test_guard_names_the_extra(monkeypatch):
@@ -27,7 +26,7 @@ def test_guard_names_the_extra(monkeypatch):
     with pytest.raises(typer.BadParameter) as exc:
         require_similarity_extra()
 
-    assert INSTALL_HINT in str(exc.value)
+    assert MMSEQS_INSTALL_HINT in str(exc.value)
 
 
 def test_guard_passes_when_pymmseqs_is_importable(monkeypatch):
@@ -55,8 +54,10 @@ def test_cli_rejects_similarity_before_doing_work(command, tmp_path, monkeypatch
     result = CliRunner().invoke(app, args)
 
     assert result.exit_code != 0
-    # Rich wraps the panel, so collapse whitespace before matching.
-    assert INSTALL_HINT in " ".join(result.output.split())
+    # Rich wraps the message inside a box, so drop the border glyphs and
+    # collapse whitespace before matching the message as a whole.
+    plain = " ".join(result.output.replace("│", " ").split())
+    assert MMSEQS_INSTALL_HINT in plain
 
 
 # The loader-level backstop still has to work for direct library callers, who
@@ -66,11 +67,11 @@ import sys
 sys.modules["pymmseqs"] = None
 sys.modules["pymmseqs.commands"] = None
 from pathlib import Path
-from protspace.data.loaders.similarity import compute_similarity
+from protspace.data.loaders.similarity import MMSEQS_INSTALL_HINT, compute_similarity
 try:
     compute_similarity(Path("nonexistent.fasta"), ["a"])
 except ImportError as exc:
-    assert 'protspace[similarity]' in str(exc), str(exc)
+    assert str(exc) == MMSEQS_INSTALL_HINT, str(exc)
 else:
     raise AssertionError("expected ImportError")
 """

@@ -15,6 +15,12 @@ from protspace.data.loaders.h5 import parse_identifier
 
 logger = logging.getLogger(__name__)
 
+# Single source for both failure paths: this loader (direct library callers) and
+# the CLI's up-front guard, which imports it lazily on the error path only.
+MMSEQS_INSTALL_HINT = (
+    'MMseqs2 is not installed. Install it with: pip install "protspace[similarity]"'
+)
+
 
 def compute_similarity(
     fasta_path: Path,
@@ -62,9 +68,7 @@ def compute_similarity(
     try:
         from pymmseqs.commands import easy_search
     except ModuleNotFoundError as exc:
-        raise ImportError(
-            'MMseqs2 is not installed. Install it with: pip install "protspace[similarity]"'
-        ) from exc
+        raise ImportError(MMSEQS_INSTALL_HINT) from exc
 
     n_seqs = len(headers)
     input_fasta = str(fasta_path.absolute())

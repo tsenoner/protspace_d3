@@ -105,10 +105,11 @@ def require_similarity_extra() -> None:
     `Error:` line rather than a traceback.
     """
     if importlib.util.find_spec("pymmseqs") is None:
-        raise typer.BadParameter(
-            'MMseqs2 is not installed. Install it with: pip install "protspace[similarity]"',
-            param_hint="-s/--similarity",
-        )
+        # Imported here, not at module scope: this is the error path (we exit
+        # right after), so the loader's numpy import costs nothing on startup.
+        from protspace.data.loaders.similarity import MMSEQS_INSTALL_HINT
+
+        raise typer.BadParameter(MMSEQS_INSTALL_HINT, param_hint="-s/--similarity")
 
 
 Opt_Metric = Annotated[
