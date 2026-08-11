@@ -43,9 +43,7 @@ from protspace.cli.common_options import (
 
 logger = logging.getLogger(__name__)
 
-ANNOTATIONS_URL = (
-    "https://github.com/tsenoner/protspace/blob/main/apps/protspace/docs/annotations.md"
-)
+ANNOTATIONS_URL = "https://protspace.app/docs/guide/annotations"
 EMBEDDER_MODELS = {
     "prot_t5",
     "prost_t5",
@@ -97,7 +95,7 @@ Opt_Embedder = Annotated[
             "Models: prot_t5, prost_t5, esm2_8m, esm2_35m, esm2_150m, "
             "esm2_650m, esm2_3b, ankh_base, ankh_large, ankh3_large, "
             "esmc_300m, esmc_600m. "
-            "Note: ankh_*, ankh3_*, esmc_600m are non-commercial licenses."
+            "Note: ankh_*, ankh3_* are non-commercial (CC-BY-NC-SA-4.0) licenses."
         ),
         rich_help_panel="Embedding",
     ),

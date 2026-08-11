@@ -191,7 +191,7 @@ def test_apply_styles_skips_palette_warning_for_numeric_gradient(tmp_path, caplo
 #   packages/utils/src/visualization/numeric-binning.ts
 #                                                   (GRADIENT_COLOR_SCHEME_IDS)
 # These pins make the Python copy a deliberate, reviewed value: changing a palette
-# id trips a test, prompting a matching update to docs/styling.md (Color palettes)
+# id trips a test, prompting a matching update to docs/guide/styling.md (Color palettes)
 # and a re-check against the frontend. The test compares the catalog to a literal
 # copy here, so it guards accidental in-repo edits — it cannot read the frontend
 # and does not detect drift from the source of truth.

@@ -40,18 +40,22 @@ One-time CLI setup is in [CONTRIBUTING.md](CONTRIBUTING.md#openspec-one-time-per
 
 ## Before committing
 
-Always run `pnpm precommit` before creating any git commit. It runs:
+Always run `pnpm precommit` before creating any git commit. It is
+`lint-staged && quality && docs:annotations:check && docs:build`:
 
-- Prettier (format)
-- ESLint (lint)
-- TypeScript (typecheck)
-- Vitest (tests)
+- ESLint `--fix` and Prettier `--write`, on **staged files only** (lint-staged)
+- TypeScript typecheck, Knip, and Knip dependency validation (`pnpm quality`)
+- `docs:annotations:check`, the generated annotation reference must match the source
+- `docs:build`, a full VitePress build (a dead internal link fails it)
+
+**It runs no tests at all.** Run `pnpm test` yourself. `pnpm test:e2e` (below) and
+`pnpm test:contract` are separate again.
 
 It is JS-only; Python workspace members are covered by their own CI workflows (see below).
 
-Note that `pnpm precommit` runs lint-staged, so it only inspects **staged** files. Unstaged
-work passes it and still fails CI's `format:check`. Run `pnpm format:check` and `pnpm test`
-explicitly when you have not staged everything.
+Note that lint-staged only inspects **staged** files. Unstaged work passes `pnpm precommit`
+and still fails CI's `format:check`, so also run `pnpm format:check` when you have not
+staged everything.
 
 ## End-to-end tests (Playwright)
 
