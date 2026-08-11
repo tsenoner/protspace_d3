@@ -6,6 +6,8 @@
 - [x] 1.4 Update the CLI docstring, option help and the "nothing transferred" warning, which all assumed rules were required.
 - [x] 1.5 Tests: open-rule classification, self-transfer end to end, query-only no longer a silent no-op, no self-sourced predictions.
 - [x] 1.6 Verify on the 832-protein phosphatase fixture — reproduces the manuscript's 91.55% EC / 99.06% family held-out accuracy with no rules.
+- [x] 1.7 Apply the "explicit rule matched nothing" error to the **reference** side too — it was the same silent exit-0 no-op, only unfixed. Surfaces via the existing `ValueError -> typer.BadParameter` path (exit 2).
+- [x] 1.8 Rename `_matches` to `_matches_explicit`: it returns `False` for an open rule (the opposite of `is_open`'s contract), and only `classify`'s branch structure keeps that unreachable.
 
 ## 2. Glyph outline (#369)
 
@@ -17,7 +19,7 @@
 
 ## 3. Verification
 
-- [x] 3.1 `uv run pytest` (840 passed) + `uv run ruff check`.
+- [x] 3.1 `uv run pytest apps/protspace/tests` (807 passed, 2 skipped) + `uv run ruff check`. Scope the path: a whole-repo `uv run pytest` also collects `apps/prep`, which fails 47 tests from cross-suite pollution on `main` as well — pre-existing and unrelated.
 - [x] 3.2 `pnpm test:ci` across core/utils/app; `pnpm format:check`; `pnpm precommit` on every commit.
 - [x] 3.3 Playwright `eat-visualization` against the real phosphatase bundle — proves the shader compiles and the encoding still samples correctly.
 - [ ] 3.4 Archive this change before the merge (`/opsx:archive`).
