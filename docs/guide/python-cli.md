@@ -526,7 +526,28 @@ The curated source column (`COL`) is left untouched; three new columns are writt
 `COL__pred_value` (string), `COL__pred_confidence` (float) and `COL__pred_source` (string, the
 reference protein the label came from, for provenance).
 
+**The filters are optional.** With no `--query-*` and no `--reference-*` filter, transfer runs
+within the bundle: every protein missing a value in a `--transfer` column is a query, and every
+protein holding one is a reference. Those two sets are complements of the same missing-value test, so
+a protein can never be its own source, and no marker column is needed to describe "the rows that are
+empty". Reach for the filters only to narrow that down, for example to label one species from
+another or to hold out a labelled subset as a benchmark. Passing only one side is fine too: the other
+side stays unrestricted rather than coming back empty.
+
+A filter you do pass has to match something. An explicit rule that selects nobody fails with an
+error naming that side's flags, rather than writing the bundle back unchanged. That includes a query
+rule broad enough to swallow every protein the reference rule matched, since a protein matching both
+explicit rules counts as a query.
+
 ```bash
+# Fill every gap in the bundle from the bundle's own annotated proteins
+protspace transfer \
+  -b results.parquetbundle \
+  -e embeddings.h5:prot_t5 \
+  -t protein_category \
+  -o results.parquetbundle
+
+# Or narrow both sides: label the TRINITY_ assembly from curated neurotoxins only
 protspace transfer \
   -b results.parquetbundle \
   -e embeddings.h5:prot_t5 \
@@ -536,18 +557,18 @@ protspace transfer \
   --reference-where 'protein_category~neurotoxin'
 ```
 
-| Flag                    | Description                                                            | Default  |
-| ----------------------- | ---------------------------------------------------------------------- | -------- |
-| `-b, --bundle`          | Input `.parquetbundle`, required.                                      | -        |
-| `-e, --embeddings`      | HDF5 embeddings; `:name` suffix for external files. Required.          | -        |
-| `-t, --transfer`        | Annotation column to transfer (repeatable), required.                  | -        |
-| `-o, --output`          | Output `.parquetbundle` (may overwrite the input), required.           | -        |
-| `--k`                   | Number of nearest neighbours considered.                               | `1`      |
-| `--metric`              | Distance metric: `cosine` or `euclidean`.                              | `cosine` |
-| `--query-id-prefix`     | Only transfer to query IDs with this prefix (repeatable).              | -        |
-| `--query-where`         | Restrict queries to rows where `col` contains `substr` (`col~substr`). | -        |
-| `--reference-id-prefix` | Only use references whose ID has this prefix (repeatable).             | -        |
-| `--reference-where`     | Restrict references the same way (`col~substr`).                       | -        |
+| Flag                    | Description                                                            | Default                      |
+| ----------------------- | ---------------------------------------------------------------------- | ---------------------------- |
+| `-b, --bundle`          | Input `.parquetbundle`, required.                                      | -                            |
+| `-e, --embeddings`      | HDF5 embeddings; `:name` suffix for external files. Required.          | -                            |
+| `-t, --transfer`        | Annotation column to transfer (repeatable), required.                  | -                            |
+| `-o, --output`          | Output `.parquetbundle` (may overwrite the input), required.           | -                            |
+| `--k`                   | Number of nearest neighbours considered.                               | `1`                          |
+| `--metric`              | Distance metric: `cosine` or `euclidean`.                              | `cosine`                     |
+| `--query-id-prefix`     | Only transfer to query IDs with this prefix (repeatable).              | any protein missing a value  |
+| `--query-where`         | Restrict queries to rows where `col` contains `substr` (`col~substr`). | any protein missing a value  |
+| `--reference-id-prefix` | Only use references whose ID has this prefix (repeatable).             | any protein that has a value |
+| `--reference-where`     | Restrict references the same way (`col~substr`).                       | any protein that has a value |
 
 A bundle carrying these columns renders the transferred proteins as ringed markers with their own
 legend section, see [Transferred Annotations (EAT)](/explore/eat).
