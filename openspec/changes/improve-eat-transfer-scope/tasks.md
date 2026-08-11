@@ -19,7 +19,7 @@
 
 ## 3. Verification
 
-- [x] 3.1 `uv run pytest apps/protspace/tests` (807 passed, 2 skipped) + `uv run ruff check`. Scope the path: a whole-repo `uv run pytest` also collects `apps/prep`, which fails 47 tests from cross-suite pollution on `main` as well — pre-existing and unrelated.
+- [x] 3.1 `uv run pytest apps/protspace/tests` (807 passed, 2 skipped) + `uv run ruff check`. Run it from `apps/protspace/`, as CI does: a _bare_ `uv run pytest` at the repo root resolves `configfile` to the root `pyproject.toml`, which defines no `[tool.pytest.ini_options]`, so `apps/prep` loses its `asyncio_mode = "auto"` and 47 async tests fail with "async def functions are not natively supported". Both CI jobs set `working-directory` to their own app and are unaffected.
 - [x] 3.2 `pnpm test:ci` across core/utils/app; `pnpm format:check`; `pnpm precommit` on every commit.
 - [x] 3.3 Playwright `eat-visualization` against the real phosphatase bundle — proves the shader compiles and the encoding still samples correctly.
 - [ ] 3.4 Archive this change before the merge (`/opsx:archive`).
