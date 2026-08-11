@@ -16,7 +16,7 @@ pip install protspace
 | `similarity` | `pip install "protspace[similarity]"` | MMseqs2 sequence-similarity projections (`-s/--similarity`)           |
 | `frontend`   | `pip install "protspace[frontend]"`   | the local Dash viewer (`protspace serve`)                             |
 
-> **Upgrading from 4.9.x or earlier:** `-s/--similarity` used to work out of the box because
+> **Upgrading an existing install:** `-s/--similarity` used to work out of the box because
 > MMseqs2 shipped in the base install. It now lives in the `similarity` extra, so add
 > `pip install "protspace[similarity]"` if you use that flag. Nothing else changes — the base
 > install got smaller and no longer compiles MMseqs2 from source.
