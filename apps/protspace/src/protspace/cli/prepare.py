@@ -83,7 +83,7 @@ Opt_Embedder = Annotated[
         "-e",
         "--embedder",
         help=(
-            f"pLM model(s), comma-separated. "
+            "pLM model(s), comma-separated. "
             f"{EMBEDDER_HELP_MODELS} {EMBEDDER_HELP_LICENSE}"
         ),
         rich_help_panel="Embedding",

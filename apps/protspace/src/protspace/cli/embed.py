@@ -36,7 +36,7 @@ def embed(
             "-e",
             "--embedder",
             help=(
-                f"Biocentral model shortcut (repeatable for multi-model).\n"
+                "Biocentral model shortcut (repeatable for multi-model).\n"
                 f"{EMBEDDER_HELP_MODELS}\n{EMBEDDER_HELP_LICENSE}"
             ),
         ),
