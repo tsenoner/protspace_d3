@@ -5,7 +5,6 @@ import type { FilterCondition, LogicalOp, NumericCondition } from './query-types
 import { ANY_VALUE, createCondition, createNumericCondition } from './query-types';
 import type { ProtspaceData } from './types';
 import { groupAnnotations } from './annotation-categories';
-import { handleDropdownEscape } from '../../utils/dropdown-helpers';
 import { isNumericAnnotation } from '@protspace/utils';
 import { queryBuilderStyles } from './query-builder.styles';
 import { renderValueChip } from './query-presence';
@@ -32,8 +31,6 @@ class ProtspaceQueryConditionRow extends LitElement {
   @state() private _showAnnotationPicker: boolean = false;
   @state() private _showValuePicker: boolean = false;
   @state() private _annotationSearch: string = '';
-  /** Index into the *filtered* annotation list; -1 means nothing highlighted. */
-  @state() private _annotationHighlightIndex: number = -1;
   @state() private _pickerPos = { top: 0, left: 0 };
   @state() private _valuePickerPos = { top: 0, left: 0 };
 
@@ -43,7 +40,8 @@ class ProtspaceQueryConditionRow extends LitElement {
 
   private _handleDocumentClick = (e: MouseEvent) => {
     if (this._showAnnotationPicker && !e.composedPath().includes(this)) {
-      this._closeAnnotationPicker();
+      this._showAnnotationPicker = false;
+      this._annotationSearch = '';
     }
   };
 
@@ -88,32 +86,10 @@ class ProtspaceQueryConditionRow extends LitElement {
     }));
   }
 
-  /** The grouped annotations that survive the search box, in render order. */
-  private _filteredAnnotationGroups(): { category: string; items: string[] }[] {
-    const queryLower = this._annotationSearch.trim().toLowerCase();
-    const groups = this._groupAnnotations();
-    if (!queryLower) return groups;
-    return groups
-      .map((g) => ({ ...g, items: g.items.filter((a) => a.toLowerCase().includes(queryLower)) }))
-      .filter((g) => g.items.length > 0);
-  }
-
-  /** Flattened filtered list — the sequence keyboard navigation walks. */
-  private _flatFilteredAnnotations(): string[] {
-    return this._filteredAnnotationGroups().flatMap((g) => g.items);
-  }
-
   // ─── Event handlers ───────────────────────────────────────────────────────
-
-  private _closeAnnotationPicker() {
-    this._showAnnotationPicker = false;
-    this._annotationSearch = '';
-    this._annotationHighlightIndex = -1;
-  }
 
   private _toggleAnnotationPicker(e: Event) {
     this._showAnnotationPicker = !this._showAnnotationPicker;
-    this._annotationHighlightIndex = -1;
     if (this._showAnnotationPicker) {
       const btn = e.currentTarget as HTMLElement;
       const rect = btn.getBoundingClientRect();
@@ -124,57 +100,16 @@ class ProtspaceQueryConditionRow extends LitElement {
   }
 
   private _handleAnnotationPickerKeydown(e: KeyboardEvent) {
-    if (!this._showAnnotationPicker) {
-      // Closed trigger: Enter/Space opens the picker. preventDefault keeps the
-      // native button activation from toggling it straight back shut.
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        this._toggleAnnotationPicker(e);
-      }
-      return;
-    }
-
-    const items = this._flatFilteredAnnotations();
-
     if (e.key === 'Escape') {
-      // Stops propagation so the surrounding modal does not also close.
-      handleDropdownEscape(e, () => this._closeAnnotationPicker());
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (items.length > 0) {
-        this._annotationHighlightIndex = Math.min(
-          this._annotationHighlightIndex + 1,
-          items.length - 1,
-        );
-        this._scrollToHighlighted();
-      }
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (items.length > 0) {
-        this._annotationHighlightIndex = Math.max(this._annotationHighlightIndex - 1, 0);
-        this._scrollToHighlighted();
-      }
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (this._annotationHighlightIndex >= 0 && this._annotationHighlightIndex < items.length) {
-        this._selectAnnotation(items[this._annotationHighlightIndex]);
-      }
+      e.stopPropagation();
+      this._showAnnotationPicker = false;
+      this._annotationSearch = '';
     }
-  }
-
-  private _scrollToHighlighted() {
-    this.updateComplete.then(() => {
-      const highlighted = this.shadowRoot?.querySelector('.annotation-picker-item.highlighted');
-      if (highlighted) {
-        highlighted.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      }
-    });
   }
 
   private _selectAnnotation(annotation: string) {
     this._showAnnotationPicker = false;
     this._annotationSearch = '';
-    this._annotationHighlightIndex = -1;
     this._showValuePicker = false;
     // Replace the whole condition object so its kind matches the annotation.
     const base = {
@@ -238,10 +173,17 @@ class ProtspaceQueryConditionRow extends LitElement {
   // ─── Sub-renders ──────────────────────────────────────────────────────────
 
   private _renderAnnotationPicker() {
-    const filteredGroups = this._filteredAnnotationGroups();
-    // Running index over the flattened filtered list, so it lines up with
-    // `_flatFilteredAnnotations()` and therefore with `_annotationHighlightIndex`.
-    let flatIndex = 0;
+    const queryLower = this._annotationSearch.trim().toLowerCase();
+    const groups = this._groupAnnotations();
+
+    const filteredGroups = queryLower
+      ? groups
+          .map((g) => ({
+            ...g,
+            items: g.items.filter((a) => a.toLowerCase().includes(queryLower)),
+          }))
+          .filter((g) => g.items.length > 0)
+      : groups;
 
     return html`
       <div
@@ -252,45 +194,23 @@ class ProtspaceQueryConditionRow extends LitElement {
         <input
           class="annotation-picker-input"
           placeholder="Search annotations..."
-          aria-label="Search annotations"
-          aria-controls="annotation-picker-list"
-          aria-activedescendant=${this._annotationHighlightIndex >= 0
-            ? `annotation-picker-option-${this._annotationHighlightIndex}`
-            : nothing}
           .value=${this._annotationSearch}
           @input=${(e: Event) => {
             this._annotationSearch = (e.target as HTMLInputElement).value;
-            this._annotationHighlightIndex = -1;
           }}
           @keydown=${this._handleAnnotationPickerKeydown}
         />
-        <div
-          id="annotation-picker-list"
-          class="value-picker-list"
-          role="listbox"
-          aria-label="Annotations"
-        >
+        <div class="value-picker-list">
           ${filteredGroups.map(
             (group) => html`
-              <div class="annotation-picker-category" role="presentation">${group.category}</div>
-              ${group.items.map((ann) => {
-                const itemIndex = flatIndex++;
-                const isHighlighted = itemIndex === this._annotationHighlightIndex;
-                return html`
-                  <div
-                    id="annotation-picker-option-${itemIndex}"
-                    class="annotation-picker-item ${isHighlighted ? 'highlighted' : ''}"
-                    role="option"
-                    aria-selected=${ann === this.condition.annotation}
-                    @click=${() => this._selectAnnotation(ann)}
-                    @mouseenter=${() => {
-                      this._annotationHighlightIndex = itemIndex;
-                    }}
-                  >
+              <div class="annotation-picker-category">${group.category}</div>
+              ${group.items.map(
+                (ann) => html`
+                  <div class="annotation-picker-item" @click=${() => this._selectAnnotation(ann)}>
                     ${ann}
                   </div>
-                `;
-              })}
+                `,
+              )}
             `,
           )}
           ${filteredGroups.length === 0
@@ -379,13 +299,7 @@ class ProtspaceQueryConditionRow extends LitElement {
               </select>
             `}
 
-        <button
-          class="annotation-select-trigger"
-          @click=${this._toggleAnnotationPicker}
-          @keydown=${this._handleAnnotationPickerKeydown}
-          aria-expanded=${this._showAnnotationPicker}
-          aria-haspopup="listbox"
-        >
+        <button class="annotation-select-trigger" @click=${this._toggleAnnotationPicker}>
           ${this.condition.annotation || 'Select annotation...'}
         </button>
 
