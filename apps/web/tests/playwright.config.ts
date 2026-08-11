@@ -1,4 +1,4 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig, devices, type Project } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 
 const TEST_DIR = fileURLToPath(new URL('.', import.meta.url));
@@ -11,8 +11,8 @@ const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
  * (and reused if already running locally). To run against an existing server,
  * just leave it up — Playwright will detect it.
  *
- * The `fasta-prep-live` project requires the real prep backend and is opt-in:
- * set RUN_LIVE_E2E=1 to include it.
+ * Some projects are excluded from the default suite and gated on an env flag — see `optIn`
+ * below, and each project's own comment for what it needs.
  */
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:8080';
 const TOUR_COMPLETED_STORAGE_STATE = {
@@ -32,7 +32,7 @@ const EMPTY_STORAGE_STATE = { cookies: [], origins: [] };
  * Spreading `[]` is how Playwright configs express "not in the default suite"; this keeps the
  * three opt-in projects from repeating the same ternary-around-an-array-literal boilerplate.
  */
-const optIn = <T>(envVar: string, project: T): T[] =>
+const optIn = (envVar: string, project: Project): Project[] =>
   process.env[envVar] === '1' ? [project] : [];
 
 export default defineConfig({

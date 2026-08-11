@@ -26,8 +26,8 @@ import {
 const SCREENSHOT = fileURLToPath(new URL('./__screens__/glyphs.png', import.meta.url));
 
 test('glyph outline appearance across point sizes', async ({ page }) => {
-  await page.setViewportSize({ width: 900, height: 640 });
-  await page.setContent('<body style="margin:0"><canvas id="c" width="900" height="620"></canvas>');
+  await page.setViewportSize({ width: 900, height: 980 });
+  await page.setContent('<body style="margin:0"><canvas id="c" width="900" height="960"></canvas>');
 
   const error = await page.evaluate(
     ({ vert, frag }) => {
@@ -64,13 +64,13 @@ test('glyph outline appearance across point sizes', async ({ page }) => {
       gl.clearColor(1, 1, 1, 1);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.enable(gl.SCISSOR_TEST);
-      gl.scissor(0, 310, 900, 310);
+      gl.scissor(0, 480, 900, 480);
       gl.clearColor(0.07, 0.09, 0.11, 1);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.disable(gl.SCISSOR_TEST);
 
       const loc = (n: string) => gl.getUniformLocation(program, n);
-      gl.uniform2f(loc('u_resolution'), 900, 620);
+      gl.uniform2f(loc('u_resolution'), 900, 960);
       gl.uniform3f(loc('u_transform'), 0, 0, 1);
       gl.uniform1f(loc('u_dpr'), 1);
       gl.uniform1f(loc('u_gamma'), 2.2);
@@ -111,7 +111,12 @@ test('glyph outline appearance across point sizes', async ({ page }) => {
         [0.13, 0.35, 0.24],
         [0.95, 0.95, 0.93],
       ];
-      const SIZES = [28, 56, 104];
+      const SIZES = [16, 32, 72];
+      // Circle AND diamond. The diamond is not decoration: its edgeDist field
+      // (1 - (|x|*SQRT3 + |y|)) has |gradient| = 2 where every other shape is 1, so it is the
+      // one glyph where "one device pixel" of outline is not one pixel of sprite. Rendering
+      // circles only is why a 3x loss of rim on predicted diamonds went unseen once.
+      const SHAPES = [0, 2];
 
       const positions: number[] = [];
       const sizes: number[] = [];
@@ -121,21 +126,24 @@ test('glyph outline appearance across point sizes', async ({ page }) => {
       const labelCounts: number[] = [];
       const shapes: number[] = [];
 
-      // One row per point size, three rows per surface: small at the top of each
-      // band, large at the bottom, so nothing overlaps and the rim is judgeable.
+      // Rows are shape x point size (small at the top of each band), columns are colour x
+      // curated/predicted, so nothing overlaps and the rim stays judgeable. Sizes skew small
+      // because that is where the device-pixel floor dominates the radius fraction.
       for (let band = 0; band < 2; band++) {
-        SIZES.forEach((size, si) => {
-          const yBase = (band === 0 ? 55 : 365) + si * 92;
-          COLORS.forEach((c, ci) => {
-            for (let pred = 0; pred < 2; pred++) {
-              positions.push(90 + ci * 240 + pred * 110, yBase);
-              sizes.push(size);
-              colors.push(c[0], c[1], c[2], 1);
-              predicted.push(pred);
-              depths.push(0);
-              labelCounts.push(1);
-              shapes.push(0);
-            }
+        SHAPES.forEach((shape, shi) => {
+          SIZES.forEach((size, si) => {
+            const yBase = (band === 0 ? 60 : 510) + (shi * SIZES.length + si) * 72;
+            COLORS.forEach((c, ci) => {
+              for (let pred = 0; pred < 2; pred++) {
+                positions.push(80 + ci * 260 + pred * 110, yBase);
+                sizes.push(size);
+                colors.push(c[0], c[1], c[2], 1);
+                predicted.push(pred);
+                depths.push(0);
+                labelCounts.push(1);
+                shapes.push(shape);
+              }
+            });
           });
         });
       }
