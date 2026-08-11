@@ -90,12 +90,20 @@ annotation to see which proteins those are, and to get the `Predicted (transferr
 Find specific proteins by ID:
 
 1. Click inside the search box or press **⌘/Ctrl + K** to focus it
-2. Type a protein ID or partial match
-3. Select from suggestions
-4. Protein is selected in the scatterplot
+2. Type the start of a protein ID (matching is anchored to the start, not anywhere inside)
+3. Click a suggestion, or press **Enter** to take the highlighted row: the first row is highlighted
+   as soon as you type, and the arrow keys move the highlight. Hovering does not move it, so a
+   reflexive **Enter** on an ID you already selected deselects it
+4. An unselected protein joins your selection, the box clears, and the list closes. One that is
+   already selected is listed with a `✓`, gains a `✕` on hover or highlight, and is **removed**
+   instead, leaving your query and the open list in place so you can prune several in a row
+
+Focusing an empty box lists up to 10 proteins from your current selection, mixed in dataset order
+with the first unselected IDs. An ID the dataset does not contain shows
+`No matching protein IDs found`.
 
 ::: tip Multiple IDs
-Paste multiple IDs at once (newline or space separated) and all matching proteins will be selected. Useful for re-selecting a previously exported subset.
+Paste multiple IDs at once (newline or space separated) and all matching proteins will be selected. Useful for re-selecting a previously exported subset. Pasting a list only ever adds.
 :::
 
 ## 4. Selection Tools
@@ -109,7 +117,7 @@ See [Box Selection](/explore/scatterplot#box-selection) and [Lasso Selection](/e
 
 ## 5. Clear Button
 
-Click **Clear** (or press **Escape**) to remove all current selections. Pressing **Escape** again will exit selection mode.
+Click **Clear** (or press **Escape**) to remove all current selections. Pressing **Escape** again will exit selection mode. **Escape** while the cursor is in the search box only closes the suggestion list and empties the box; it never clears the selection, however many times you press it.
 
 ## 6. Isolate Button
 

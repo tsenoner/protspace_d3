@@ -11,6 +11,7 @@ The scatterplot is the main visualization area where proteins appear as points. 
 | Reset view          | Double-click on background               |
 | Select one          | Click a point                            |
 | Add to selection    | **⌘/Ctrl** + click another point         |
+| Deselect one        | Click it again, or use the search box    |
 | Box select          | Click **Select**, then drag a rectangle  |
 | Lasso select        | Switch to lasso tool, then draw freeform |
 | Clear selection     | Press **Escape** or click **Clear**      |
@@ -34,6 +35,7 @@ The scatterplot is the main visualization area where proteins appear as points. 
 - **Click** a point to select it
 - **⌘ + click** (Mac) or **Ctrl + click** (Windows) to add to selection
 - Click the same point again to deselect it
+- Click a `✓`-marked suggestion in the [search box](/explore/control-bar#_3-search) to deselect it
 
 ### Box Selection
 

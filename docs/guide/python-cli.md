@@ -269,7 +269,8 @@ Annotation sources differ in what they need to identify a protein:
 
 If your H5 keys are not valid UniProt accessions (for example `NCBI|...` or custom IDs), the
 accession-dependent annotations come back empty. Sequence-dependent annotations still work if you
-pass the original FASTA with `-f`.
+pass the original FASTA with `-f`. A UniProt batch that fails outright leaves its proteins'
+UniProt annotations empty too, and the run warns how many batches and proteins are affected.
 
 ### Custom CSV annotations
 
@@ -340,9 +341,21 @@ subsequent runs:
 | ----------------- | --------------------------------------- | ------------------------------- |
 | FASTA sequences   | `sequences.fasta`                       | Skip the UniProt query download |
 | Embeddings        | `{embedder}.h5`                         | Skip already-embedded proteins  |
-| Annotations       | `all_annotations.parquet`               | Fetch only missing sources      |
+| Annotations       | `all_annotations.parquet`               | Fetch missing or stale columns  |
 | Similarity matrix | `similarity_matrix.npy`                 | Skip MMseqs2 recomputation      |
 | DR projections    | `proj_{name}_{method}{dims}_{hash}.npz` | Skip dimensionality reduction   |
+
+The annotation cache always stores scores; `--no-scores` strips them from the output afterwards.
+
+Legacy annotation caches are migrated when they are read:
+
+- A cache that spelled an unassigned [TED domain](/guide/annotations#ted_domains) `unclassified` is
+  rewritten in place to TED's `-`, so no refetch is needed.
+- A cache written before [`xref_pdb`](/guide/annotations#xref_pdb) told "no PDB structure" apart
+  from "no UniProt entry" cannot be corrected in place. A run that surfaces the column re-fetches
+  the whole UniProt source once and warns which columns it is refreshing; cached columns from other
+  sources are reused. A run that does not request `xref_pdb` drops it from the cache instead, so a
+  later run that asks for it still migrates.
 
 Projection caches are keyed by embedding name, method, dimensions and every parameter, so changing
 any parameter creates a new entry. Use `--refetch all` to bypass all caches, or `--refetch <stages>`
