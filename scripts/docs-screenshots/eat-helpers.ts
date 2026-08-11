@@ -1,5 +1,6 @@
 import { type Page } from '@playwright/test';
 import * as path from 'path';
+import { dismissProductTour, waitForDataLoad } from './helpers';
 
 /**
  * Shared setup for the EAT documentation captures.
@@ -10,7 +11,7 @@ import * as path from 'path';
  * bundle by hand: 811 proteins, `ec` with 384 transferred values and
  * `protein_families` with 14, plus a statistics part.
  */
-export const VENOM_EAT_BUNDLE = path.join(
+const VENOM_EAT_BUNDLE = path.join(
   __dirname,
   '../../apps/web/public/data/venom_eat_stats.parquetbundle',
 );
@@ -31,7 +32,7 @@ export const DEMO_ANNOTATION = 'ec';
 export async function loadVenomEatBundle(page: Page): Promise<void> {
   await page.route('**/data.parquetbundle', (route) => route.abort());
   await page.goto('/explore');
-  await page.evaluate(() => localStorage.setItem('driver.overviewTour', 'true'));
+  await dismissProductTour(page);
 
   await page.waitForFunction(() => {
     const loader = document.querySelector('protspace-data-loader') as
@@ -41,95 +42,7 @@ export async function loadVenomEatBundle(page: Page): Promise<void> {
   });
 
   await page.locator('protspace-data-loader input[type="file"]').setInputFiles(VENOM_EAT_BUNDLE);
-
-  // `_plotData` is a struct of typed arrays with its own `length`, not an Array,
-  // so probe the property rather than reaching for `Array.isArray`.
-  await page.waitForFunction(
-    (expected) => {
-      const plot = document.querySelector('protspace-scatterplot') as
-        | (Element & {
-            data?: { protein_ids?: string[] };
-            _plotData?: { length?: number };
-            _scales?: unknown;
-          })
-        | null;
-      if (plot?.data?.protein_ids?.length !== expected) return false;
-      return (plot._plotData?.length ?? 0) > 0 && !!plot._scales;
-    },
-    VENOM_PROTEIN_COUNT,
-    { timeout: 30000, polling: 200 },
-  );
-
-  await page.waitForFunction(() => !document.getElementById('progressive-loading'), {
-    timeout: 30000,
-    polling: 100,
-  });
-}
-
-/** Pick an annotation from the control bar's dropdown by its data key. */
-export async function selectAnnotation(page: Page, annotation: string): Promise<void> {
-  const controlBar = page.locator('protspace-control-bar');
-  await controlBar.locator('protspace-annotation-select .dropdown-trigger').click();
-  await controlBar.locator(`.dropdown-item[data-annotation="${annotation}"]`).click();
-  await page.waitForFunction(
-    (key) => {
-      const plot = document.querySelector('protspace-scatterplot') as
-        | (Element & { selectedAnnotation?: string })
-        | null;
-      return plot?.selectedAnnotation === key;
-    },
-    annotation,
-    { polling: 100 },
-  );
-}
-
-/**
- * Screen coordinates of a protein's marker, in page space.
- *
- * Mirrors the projection the renderer applies: the scale maps data space into
- * the canvas, then the zoom transform is applied on top. Reads `_plotData`,
- * so it accounts for filtering and isolation reordering the slots.
- */
-export async function getProteinScreenPosition(
-  page: Page,
-  proteinId: string,
-): Promise<{ x: number; y: number }> {
-  return page.evaluate((id) => {
-    const plot = document.querySelector('protspace-scatterplot') as
-      | (HTMLElement & {
-          _plotData?: {
-            length: number;
-            xs: Float32Array;
-            ys: Float32Array;
-            originalIndices: Int32Array | null;
-            proteinIds: string[];
-          };
-          _scales?: { x(value: number): number; y(value: number): number };
-          _transform?: { x: number; y: number; k: number };
-        })
-      | null;
-    const canvas = plot?.shadowRoot?.querySelector('canvas');
-    const data = plot?._plotData;
-    const scales = plot?._scales;
-    const transform = plot?._transform;
-    if (!plot || !canvas || !data || !scales || !transform) {
-      throw new Error('Scatter plot geometry is not ready');
-    }
-
-    const proteinIndex = data.proteinIds.indexOf(id);
-    const slot = data.originalIndices
-      ? Array.from(data.originalIndices).findIndex((value) => value === proteinIndex)
-      : proteinIndex;
-    if (proteinIndex < 0 || slot < 0) {
-      throw new Error(`Protein ${id} is not in the rendered view`);
-    }
-
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: rect.left + scales.x(data.xs[slot]) * transform.k + transform.x,
-      y: rect.top + scales.y(data.ys[slot]) * transform.k + transform.y,
-    };
-  }, proteinId);
+  await waitForDataLoad(page, { expectedProteinCount: VENOM_PROTEIN_COUNT });
 }
 
 export interface ProvenanceDemoPair {
@@ -148,12 +61,21 @@ export interface ProvenanceDemoPair {
  * not silently produce an empty GIF. Picks the source with the most dependants
  * that still sits inside `maxDependants`, keeping the fan-out legible: the
  * busiest source in the venom bundle has over 300 dependants, which renders as
- * an unreadable starburst against the 20-line cap.
+ * an unreadable starburst.
+ *
+ * `maxDependants` defaults to the renderer's own fan-out cap
+ * (`MAX_PROVENANCE_CONNECTORS` in `apps/web/src/explore/eat-provenance.ts`).
+ * Above it the extra dependants are dropped without any on-screen notice, so
+ * the GIF would claim a fan-out that is silently truncated.
+ *
+ * Sources that themselves carry a prediction are excluded: the resolver checks
+ * the clicked protein's own predicted cell first, so clicking one draws its
+ * single source line instead of the fan-out the capture is meant to show.
  */
 export async function pickProvenanceDemoPair(
   page: Page,
   annotation: string,
-  maxDependants = 40,
+  maxDependants = 20,
 ): Promise<ProvenanceDemoPair> {
   const pair = await page.evaluate(
     ({ key, cap }) => {
@@ -172,6 +94,7 @@ export async function pickProvenanceDemoPair(
       const cells = plot?.data?.annotation_predicted?.[key];
       if (!ids || !cells) return null;
 
+      const indexById = new Map(ids.map((id, index) => [id, index]));
       const dependants = new Map<string, string[]>();
       for (let i = 0; i < cells.length; i++) {
         const source = cells[i]?.source;
@@ -182,9 +105,14 @@ export async function pickProvenanceDemoPair(
       }
 
       const ranked = Array.from(dependants.entries())
-        .filter(([source, targets]) => targets.length >= 2 && ids.includes(source))
+        .filter(([source, targets]) => {
+          if (targets.length < 2) return false;
+          const sourceIndex = indexById.get(source);
+          // In the dataset, and not itself a transferred protein.
+          return sourceIndex !== undefined && !cells[sourceIndex];
+        })
         .sort((a, b) => b[1].length - a[1].length);
-      const chosen = ranked.find(([, targets]) => targets.length <= cap) ?? ranked[0];
+      const chosen = ranked.find(([, targets]) => targets.length <= cap);
       if (!chosen) return null;
 
       return { source: chosen[0], target: chosen[1][0], dependantCount: chosen[1].length };
@@ -193,7 +121,10 @@ export async function pickProvenanceDemoPair(
   );
 
   if (!pair) {
-    throw new Error(`No provenance pair found for annotation "${annotation}" in the venom bundle`);
+    throw new Error(
+      `No provenance pair found for annotation "${annotation}" in the venom bundle ` +
+        `(needs a non-transferred source with 2-${maxDependants} dependants)`,
+    );
   }
   return pair;
 }

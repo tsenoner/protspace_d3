@@ -1,23 +1,18 @@
-import { test } from '@playwright/test';
-import * as path from 'path';
-import * as fs from 'fs';
+import { expect, test } from '@playwright/test';
 import {
-  TEMP_VIDEOS_DIR,
+  INITIAL_PAUSE,
+  getProteinScreenPosition,
   initVisualIndicators,
   logAction,
   printActionSummary,
+  saveTestVideo,
+  selectAnnotation,
   showActionLabel,
   showClickIndicator,
   trackedMouseClick,
   trackedMouseMove,
 } from './helpers';
-import {
-  DEMO_ANNOTATION,
-  getProteinScreenPosition,
-  loadVenomEatBundle,
-  pickProvenanceDemoPair,
-  selectAnnotation,
-} from './eat-helpers';
+import { DEMO_ANNOTATION, loadVenomEatBundle, pickProvenanceDemoPair } from './eat-helpers';
 
 /**
  * Animated captures for `docs/explore/eat.md`.
@@ -28,14 +23,7 @@ import {
  * saved under a name derived from the test title.
  */
 
-const INITIAL_PAUSE = 2000;
 const BEAT = 1200;
-
-test.beforeAll(async () => {
-  if (!fs.existsSync(TEMP_VIDEOS_DIR)) {
-    fs.mkdirSync(TEMP_VIDEOS_DIR, { recursive: true });
-  }
-});
 
 test.beforeEach(async ({ page }) => {
   await loadVenomEatBundle(page);
@@ -45,20 +33,7 @@ test.beforeEach(async ({ page }) => {
 
 test.afterEach(async ({ page }, testInfo) => {
   printActionSummary();
-
-  const video = page.video();
-  if (!video) return;
-
-  const sanitizedName = testInfo.title
-    .replace(/\.gif.*$/, '')
-    .replace(/[^a-zA-Z0-9-_]/g, '-')
-    .toLowerCase();
-
-  // Close the page first so the recording is finalized before saveAs().
-  await page.close();
-  const destPath = path.join(TEMP_VIDEOS_DIR, `${sanitizedName}.webm`);
-  await video.saveAs(destPath);
-  console.log(`🎬 Video saved: ${destPath}`);
+  await saveTestVideo(page, testInfo);
 });
 
 test('eat-connectors.gif - Tracing where a transferred value came from', async ({ page }) => {
@@ -72,6 +47,7 @@ test('eat-connectors.gif - Tracing where a transferred value came from', async (
 
   const targetPos = await getProteinScreenPosition(page, target);
   const sourcePos = await getProteinScreenPosition(page, source);
+  const connectors = page.locator('protspace-scatterplot').locator('line.eat-provenance-connector');
 
   // Settle on the plot before the first action; this stretch is trimmed.
   await trackedMouseMove(page, targetPos.x, targetPos.y, { steps: 15 });
@@ -81,11 +57,7 @@ test('eat-connectors.gif - Tracing where a transferred value came from', async (
   await showActionLabel(page, 'Click a transferred protein', targetPos.x, targetPos.y);
   await showClickIndicator(page, targetPos.x, targetPos.y);
   await trackedMouseClick(page, targetPos.x, targetPos.y);
-  await page
-    .locator('protspace-scatterplot')
-    .locator('line.eat-provenance-connector')
-    .first()
-    .waitFor({ state: 'visible' });
+  await expect(connectors).toHaveCount(1);
   await page.waitForTimeout(BEAT * 2);
 
   // The source it borrowed from: lines fan out to everything that used it.
@@ -93,6 +65,10 @@ test('eat-connectors.gif - Tracing where a transferred value came from', async (
   await showActionLabel(page, 'Click its source', sourcePos.x, sourcePos.y);
   await showClickIndicator(page, sourcePos.x, sourcePos.y);
   await trackedMouseClick(page, sourcePos.x, sourcePos.y);
+  // Assert the fan-out actually drew: a click that lands on empty canvas (or on
+  // a protein that turns out to be transferred itself) leaves one line or none,
+  // and without this the capture would ship a GIF showing the previous frame.
+  await expect(connectors).toHaveCount(dependantCount);
   await page.waitForTimeout(BEAT * 2);
 
   // Escape clears the connectors without clearing the selection.

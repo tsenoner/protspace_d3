@@ -1,8 +1,7 @@
-import { test, type BrowserContext, type Page } from '@playwright/test';
+import { test } from '@playwright/test';
 import * as path from 'path';
-import * as fs from 'fs';
-import { IMAGES_DIR } from './helpers';
-import { DEMO_ANNOTATION, loadVenomEatBundle, selectAnnotation } from './eat-helpers';
+import { IMAGES_DIR, createSharedCapturePage, selectAnnotation } from './helpers';
+import { DEMO_ANNOTATION, loadVenomEatBundle } from './eat-helpers';
 
 /**
  * Static screenshots for `docs/explore/eat.md`.
@@ -12,37 +11,9 @@ import { DEMO_ANNOTATION, loadVenomEatBundle, selectAnnotation } from './eat-hel
  * page across every test in it.
  */
 
-let sharedContext: BrowserContext | null = null;
-let sharedPage: Page | null = null;
-
-function getPage(): Page {
-  if (!sharedPage) {
-    throw new Error('sharedPage not initialized — beforeAll did not run');
-  }
-  return sharedPage;
-}
-
-test.beforeAll(async ({ browser }) => {
-  if (!fs.existsSync(IMAGES_DIR)) {
-    fs.mkdirSync(IMAGES_DIR, { recursive: true });
-  }
-
-  sharedContext = await browser.newContext({ viewport: { width: 1536, height: 864 } });
-  sharedPage = await sharedContext.newPage();
-
-  await loadVenomEatBundle(sharedPage);
-  await selectAnnotation(sharedPage, DEMO_ANNOTATION);
-});
-
-test.afterAll(async () => {
-  if (sharedPage) {
-    await sharedPage.close();
-    sharedPage = null;
-  }
-  if (sharedContext) {
-    await sharedContext.close();
-    sharedContext = null;
-  }
+const getPage = createSharedCapturePage(async (page) => {
+  await loadVenomEatBundle(page);
+  await selectAnnotation(page, DEMO_ANNOTATION);
 });
 
 test.describe('EAT Static Screenshots', () => {
