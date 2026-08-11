@@ -209,8 +209,9 @@ Available shortcuts: `prot_t5`, `prost_t5`, `esm2_8m`, `esm2_35m`, `esm2_150m`, 
 `esm2_3b`, `ankh_base`, `ankh_large`, `ankh3_large`, `esmc_300m`, `esmc_600m`
 
 ::: warning Licensing
-`ankh_base`, `ankh_large` and `ankh3_large` are CC-BY-NC-SA-4.0; `esmc_600m` is Cambrian
-Non-Commercial. All other models are permissively licensed.
+`ankh_base`, `ankh_large` and `ankh3_large` are CC-BY-NC-SA-4.0. All other models are permissively
+licensed, including the ESM-C models: `esmc_300m` and `esmc_600m` were relicensed under MIT in May
+2026, retroactively, when ESM-C moved to the Chan Zuckerberg Biohub.
 :::
 
 ### Local backend
