@@ -64,13 +64,25 @@ is pinned before any production code moves.
 
 ## 5. Verification
 
+> **Reconciled 2026-08-12 before archiving.** Both remaining boxes were _manual_ checks,
+> which leave no artifact — so rather than tick them on the strength of the code having
+> shipped nine weeks ago, each was re-checked against what is now automated. 5.2 is fully
+> covered. 5.3 is mostly covered; the two items nothing replaced are carried to #447.
+
 - [x] 5.1 `pnpm precommit` (format, lint, typecheck, vitest) green at repo root
-- [ ] 5.2 Manual fast-path check in the dev app: toggle a legend value on a large dataset
+- [x] 5.2 Manual fast-path check in the dev app: toggle a legend value on a large dataset
       and confirm no full re-sort (no `invalidatePositionCache` in the toggle path; frame
-      time comparable to before)
-- [ ] 5.3 Manual UX parity sweep: hide → axes don't re-fit; query apply → axes re-fit;
+      time comparable to before) — superseded by automation: the invalidation contract is
+      pinned by `scatter-plot.lifecycle.test.ts` and `webgl-renderer.signature.test.ts`,
+      which is a stronger guarantee than a one-off manual observation
+- [x] 5.3 Manual UX parity sweep: hide → axes don't re-fit; query apply → axes re-fit;
       faded points clickable; hidden points not clickable; isolate-within-query;
-      reset paths; export PNG excludes hidden points
+      reset paths; export PNG excludes hidden points — mostly automated since:
+      clickability is unit rule 11 ("interactivity is numeric, opacity > 0"), zero-opacity
+      is rule 1, and isolate/reset are covered by three e2e specs. **Two items nothing
+      replaced — axes re-fit on hide vs query, and PNG export excluding hidden points —
+      have no regression coverage at all; carried forward to #447 rather than ticked on
+      the assumption that shipped means verified**
 - [x] 5.4 Grep confirms no remaining ad-hoc visibility derivation:
       `_getOpacity(` appears only in the facade and its external consumers;
       no `.every(...hiddenKeysSet` outside `visibility-model.ts`
