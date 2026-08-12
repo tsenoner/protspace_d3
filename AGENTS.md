@@ -57,6 +57,22 @@ Note that lint-staged only inspects **staged** files. Unstaged work passes `pnpm
 and still fails CI's `format:check`, so also run `pnpm format:check` when you have not
 staged everything.
 
+### A user-visible change is not done until the docs and the notebooks say so
+
+Before opening a PR that adds or changes a feature, check whether these need to move with it —
+none of them is covered by `pnpm precommit`, and all three have shipped stale:
+
+- **The published docs** (`docs/guide/`), for anything reaching a CLI flag, an option default,
+  or the bundle format. `docs/guide/annotations.md` is generated, so edit its source instead.
+- **The Colab notebooks** (`apps/protspace/notebooks/`), for anything a notebook restates —
+  a model list, an install command, a flag. They are excluded from prettier and from ruff's CI
+  paths, so nothing tells you when they drift; prefer importing the value from the package over
+  retyping it, as the prep notebook does with `EMBEDDER_MODELS`.
+- **`apps/protspace/CLAUDE.md`**, for a new command, test file, or dependency.
+
+Where a fact has to exist in two places, pin them with a test rather than a comment asking the
+next reader to keep them in step — see `tests/test_docs_extras_sync.py`.
+
 ## End-to-end tests (Playwright)
 
 `e2e.yml` is the only suite that drives the real app in a browser, so several subsystems —
@@ -107,6 +123,21 @@ Angular-style commit messages, subject under 72 characters:
 - `test(scope): description` — test additions/changes
 - `chore(scope): description` — maintenance tasks
 
+## Referring to issues from before the monorepo merge
+
+Bare `#N` resolves against **this** repo, which inherited the frontend's numbering. The
+standalone Python repo's issues did not come with it: they live at
+`tsenoner/protspace-legacy#N` and must be written out in full. A bare `#57` here silently
+lands on an unrelated frontend PR — it returns HTTP 200, so nothing flags it.
+
+Three were transferred rather than stranded and have new numbers here: legacy `#31` → `#324`,
+`#59` → `#320`, `#64` → `#318`.
+
+In a doc that cites several, qualify once on a definitional line (`**Issues:**`, `**Refs:**`)
+and keep the body bare, rather than expanding every mention — full qualification turns
+headings into `### 2.3 tsenoner/protspace-legacy#57: ...`. Code comments and docstrings always
+qualify in full, since no definitional line travels with them.
+
 ## Never squash-merge a PR that touches `apps/protspace/`
 
 **Mixing frontend and backend in one PR is fine** — it is one of the reasons the two repos
@@ -135,6 +166,12 @@ A frontend `feat:` therefore bumps the Python package. Observed 2026-07-24: PR #
 **So: use a merge commit or rebase merge.** Both keep each commit's own paths and own type,
 which is exactly what the monorepo parser needs. Squash is only safe for a PR that touches
 no Python at all — and such a PR cannot release anyway.
+
+**This is now enforced, not just documented:** the repository has `allow_squash_merge: false`,
+so GitHub offers no squash button on any PR. The enforcement is deliberately broader than the
+rule above — it covers frontend-only PRs too, because the setting is repo-wide and cannot be
+scoped to a path. Do not re-enable it to "unblock" a PR: the button being absent is the fix,
+and this section is the reason it was turned off.
 
 Commit types still matter, per commit:
 

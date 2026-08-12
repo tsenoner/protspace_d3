@@ -109,7 +109,9 @@ protspace bundle -p project_dir -a annotations.parquet -s statistics.parquet --s
 | `esmc_300m` | Synthyra/ESMplusplus_small | 960 | MIT |
 | `esmc_600m` | Synthyra/ESMplusplus_large | 1152 | MIT |
 
-Only the Ankh models (`ankh_base`, `ankh_large`, `ankh3_large`) are non-commercial. ESM-C was relicensed under MIT in May 2026, retroactively, when it moved to the Chan Zuckerberg Biohub — it is no longer Cambrian Non-Commercial, so do not re-add that warning. ESMC models use Synthyra's HuggingFace-compatible reimplementation of EvolutionaryScale's ESM-C (near-identical embeddings, MSE ~7.74e-10).
+Only the Ankh models (`ankh_base`, `ankh_large`, `ankh3_large`) are non-commercial. ESM-C was relicensed under MIT on 2026-05-27, retroactively covering the Dec-2024 checkpoints, when it moved to the Chan Zuckerberg Biohub, and Synthyra's derivatives passed that grant through on 2026-06-02 — `esmc_600m` is no longer Cambrian Non-Commercial, so do not re-add that warning.
+
+ESM-C still goes through Synthyra's HuggingFace-compatible reimplementation of EvolutionaryScale's ESM-C (near-identical embeddings, MSE ~7.74e-10) for a purely technical reason, not a licensing one: `transformers` has no `esmc` model type (the port, huggingface/transformers#46419, is still open) and the `biohub/ESMC-*` repos ship no remote code, so loading the official weights would require the `esm` SDK, which pins `transformers<4.48.2` and Python `<3.13`. Revisit if #46419 merges; dims already match exactly (960 / 1152).
 
 The user-facing copy of this licensing note lives in `docs/guide/python-cli.md` and the `prepare`/`embed` CLI help; keep the three in step.
 
@@ -285,7 +287,7 @@ For a live count run `uv run pytest tests/ --collect-only -q`.
 | `test_biocentral_retriever.py` | Biocentral prediction retriever (TMbed parsing, per-sequence) |
 | `test_taxonomy_annotation_retriever.py` | Taxonomy via UniProt Taxonomy API (mocked + integration) |
 | `test_config_validation.py` | DimensionReductionConfig parameter validation |
-| `test_style_warnings.py` | `protspace style` warnings: numeric-column detection (#67) + `selectedPaletteId` validation (categorical vs gradient palette, per column type) + pinned palette-catalog contract |
+| `test_style_warnings.py` | `protspace style` warnings: numeric-column detection (tsenoner/protspace-legacy#67) + `selectedPaletteId` validation (categorical vs gradient palette, per column type) + pinned palette-catalog contract |
 | `test_h5_parse_identifier.py` | HDF5 key parsing, identifier extraction |
 | `test_base_data_processor.py` | BaseProcessor: reduction, output creation, save (incl. settings in unbundled output) |
 | `test_ted_retriever.py` | TED domain retriever (mocked AlphaFold API, CATH names) |
@@ -304,6 +306,9 @@ For a live count run `uv run pytest tests/ --collect-only -q`.
 | `test_uniprot_parser_encoding.py` | UniProtEntry free-text emit points percent-encode reserved chars |
 | `test_cath_names.py` | CATH names file parsing |
 | `test_cli_no_frontend.py` | CLI imports without the optional `frontend` extra (plotly, dash) |
+| `test_cli_no_similarity.py` | `-s/--similarity` without the optional `similarity` extra: up-front CLI guard (before any load/embed), loader `ImportError` backstop, `EMBEDDER_MODELS` pinned to the embedder registry |
+| `test_docs_extras_sync.py` | `README.md` (PyPI) and `docs/guide/python-cli.md` (protspace.app) hold the same extras section; the guide's embedder shortcut list matches `EMBEDDER_MODELS` |
+| `test_notebooks.py` | Colab notebooks: cell magics only on line 1, every code cell compiles after IPython transformation, cell ids present for `nbformat >= 4.5` |
 | `test_encoding_e2e.py` | Backend end-to-end round-trip proof for v2 annotation encoding |
 | `test_scores_ted.py` | `--no-scores` strips TED domains |
 
@@ -321,11 +326,13 @@ Located in `notebooks/`:
 
 ## Dependencies
 
-**Core:** h5py, scikit-learn, umap-learn, pacmap, numpy, pandas, pyarrow, tqdm, requests, pymmseqs, biocentral-api, typer, rich, protlabel (workspace member)
+**Core:** h5py, scikit-learn, umap-learn, pacmap, numpy, pandas, pyarrow, tqdm, requests, biocentral-api, typer, rich, protlabel (workspace member)
 
 **Frontend (optional):** dash, plotly, dash-bootstrap-components, dash-molstar
 
-**Local embedding (optional, `[local]` extra):** torch, transformers, sentencepiece, protobuf, einops — enables on-device embedding via `protspace.data.embedding.local` (issue #59; alternative to the Biocentral API). Install with `pip install "protspace[local]"`.
+**Similarity (optional, `[similarity]` extra):** pymmseqs, only reached via `-s/--similarity`. Kept out of core because it publishes cp310-only wheels, so on this package's `requires-python = ">=3.12"` it always compiles from sdist, and its `ipython<9` pin upgrades Colab's pinned ipython. Install with `pip install "protspace[similarity]"`.
+
+**Local embedding (optional, `[local]` extra):** torch, transformers, sentencepiece, protobuf, einops, enabling on-device embedding via `protspace.data.embedding.local` (issue #320; alternative to the Biocentral API). Install with `pip install "protspace[local]"`.
 
 **Local↔Biocentral parity (verified 2026-07-16):** local embeddings match the Biocentral API at **cosine ≥ 0.9999** for ProtT5, ProstT5, ESM2, Ankh, and Ankh3 (25-seq Pla2g2 cross-check; small rel-L2 is half-vs-full precision drift). **Exception — ESM-C:** local ESM-C (Synthyra ESM++) is bit-identical to native EvolutionaryScale ESM-C but **orthogonal to Biocentral's ESM-C** (cosine ~0.02). Root cause is on Biocentral's side: its engine (`biotrainer`) has no dedicated ESM-C embedder and its generic loader substring-matches `"esm"` in `ESMplusplus`, loading the ESM-C checkpoint as a vanilla ESM-2 model (wrong architecture/tokenizer) — so it never runs the real ESM-C. Do **not** mix local and Biocentral `esmc_*` embeddings in one dataset until Biocentral is fixed. See `docs/superpowers/plans/2026-07-13-colab-biocentral-independence.md` (PR3 results).
 

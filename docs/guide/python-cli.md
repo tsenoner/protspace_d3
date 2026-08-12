@@ -8,10 +8,20 @@ sequences or a UniProt query into a `.parquetbundle` you can drag onto
 
 ```bash
 pip install protspace
-
-# optional: on-device embedding instead of the remote Biocentral API
-pip install "protspace[local]"
 ```
+
+**Optional extras**
+
+| Extra        | Install                               | Needed for                                                            |
+| ------------ | ------------------------------------- | --------------------------------------------------------------------- |
+| `local`      | `pip install "protspace[local]"`      | on-device embedding (`--backend local`) instead of the Biocentral API |
+| `similarity` | `pip install "protspace[similarity]"` | MMseqs2 sequence-similarity projections (`-s/--similarity`)           |
+| `frontend`   | `pip install "protspace[frontend]"`   | the local Dash viewer (`protspace serve`)                             |
+
+> **Upgrading an existing install:** `-s/--similarity` used to work out of the box because
+> MMseqs2 shipped in the base install. It now lives in the `similarity` extra, so add
+> `pip install "protspace[similarity]"` if you use that flag. Nothing else changes: the base
+> install got smaller and no longer compiles MMseqs2 from source.
 
 ## Commands
 
@@ -94,21 +104,21 @@ given without `-e`, `prot_t5` is used.
 
 ### Projection
 
-| Flag               | Description                                                                             | Default     |
-| ------------------ | --------------------------------------------------------------------------------------- | ----------- |
-| `-m, --methods`    | DR methods, comma-separated or repeated. See [Projection methods](#projection-methods). | `pca2`      |
-| `-s, --similarity` | Also compute a sequence-similarity projection via MMseqs2.                              | off         |
-| `--metric`         | Distance metric: `euclidean`, `cosine`, `manhattan`.                                    | `euclidean` |
-| `--random-state`   | Random seed.                                                                            | `42`        |
-| `--n-neighbors`    | UMAP/PaCMAP/LocalMAP neighbors (≥ 2). Larger = more global structure.                   | `25`        |
-| `--min-dist`       | UMAP minimum distance (0.0–0.99).                                                       | `0.1`       |
-| `--perplexity`     | t-SNE perplexity (≥ 5). Should be below `n_samples / 3`.                                | `30.0`      |
-| `--learning-rate`  | t-SNE learning rate (≥ 1).                                                              | `200.0`     |
-| `--mn-ratio`       | PaCMAP/LocalMAP mid-near ratio (0.0–1.0).                                               | `0.5`       |
-| `--fp-ratio`       | PaCMAP/LocalMAP further ratio.                                                          | `2.0`       |
-| `--n-init`         | MDS initializations.                                                                    | `4`         |
-| `--max-iter`       | MDS maximum iterations.                                                                 | `300`       |
-| `--eps`            | MDS convergence tolerance.                                                              | `0.001`     |
+| Flag               | Description                                                                               | Default     |
+| ------------------ | ----------------------------------------------------------------------------------------- | ----------- |
+| `-m, --methods`    | DR methods, comma-separated or repeated. See [Projection methods](#projection-methods).   | `pca2`      |
+| `-s, --similarity` | Also compute a sequence-similarity projection via MMseqs2. Needs `protspace[similarity]`. | off         |
+| `--metric`         | Distance metric: `euclidean`, `cosine`, `manhattan`.                                      | `euclidean` |
+| `--random-state`   | Random seed.                                                                              | `42`        |
+| `--n-neighbors`    | UMAP/PaCMAP/LocalMAP neighbors (≥ 2). Larger = more global structure.                     | `25`        |
+| `--min-dist`       | UMAP minimum distance (0.0–0.99).                                                         | `0.1`       |
+| `--perplexity`     | t-SNE perplexity (≥ 5). Should be below `n_samples / 3`.                                  | `30.0`      |
+| `--learning-rate`  | t-SNE learning rate (≥ 1).                                                                | `200.0`     |
+| `--mn-ratio`       | PaCMAP/LocalMAP mid-near ratio (0.0–1.0).                                                 | `0.5`       |
+| `--fp-ratio`       | PaCMAP/LocalMAP further ratio.                                                            | `2.0`       |
+| `--n-init`         | MDS initializations.                                                                      | `4`         |
+| `--max-iter`       | MDS maximum iterations.                                                                   | `300`       |
+| `--eps`            | MDS convergence tolerance.                                                                | `0.001`     |
 
 ### Annotations
 

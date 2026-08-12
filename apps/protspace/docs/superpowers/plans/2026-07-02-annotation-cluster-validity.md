@@ -1161,11 +1161,11 @@ git commit -m "$(printf 'docs(stats): document annotation-based cluster-validity
 
 ## Self-Review
 
-- **Spec coverage:** score space (embedding + projection) → Tasks 3+5; annotation selection + suitability → Task 2; `--stats-annotation` (auto/list, default auto, gated on --stats) → Tasks 6-7; ARI/NMI vs auto-clusters → Task 4; drop self-validity, keep membership + n_clusters → Task 4; schema `annotation` column + `space_kind=embedding` → Task 1; input dependencies (missing embedding/annotation skips only its part) → Tasks 3 (`requires_embedding=False`, empty-annotations guard) + 5 (embedding pass gated on `annotations`); docs/frontend note → Task 8 (frontend #296 + sample regeneration handled after merge, as the spec parks them). Gap/BIC out of scope → #64. Covered.
+- **Spec coverage:** score space (embedding + projection) → Tasks 3+5; annotation selection + suitability → Task 2; `--stats-annotation` (auto/list, default auto, gated on --stats) → Tasks 6-7; ARI/NMI vs auto-clusters → Task 4; drop self-validity, keep membership + n_clusters → Task 4; schema `annotation` column + `space_kind=embedding` → Task 1; input dependencies (missing embedding/annotation skips only its part) → Tasks 3 (`requires_embedding=False`, empty-annotations guard) + 5 (embedding pass gated on `annotations`); docs/frontend note → Task 8 (frontend #296 + sample regeneration handled after merge, as the spec parks them). Gap/BIC out of scope → #318. Covered.
 - **Placeholder scan:** Task 7's test references inputs "mirroring test_prepare_pipeline_compute_statistics" — the implementer copies that test's setup; acceptable since the exact fixture already exists in the file. All algorithmic code is complete.
 - **Type consistency:** `build_annotation_labels(frame, selection, id_col)` and `compute_statistics(..., annotations=...)` and `StatContext(annotations=...)` and `StatRow(annotation=...)` are used identically across Tasks 1-7. `embedding_space` attribute set in Task 3, read in Task 5. `stat_family` values `annotation_validity` / `cluster_agreement` consistent between Tasks 3, 4, 6.
 
 ## Post-implementation (NOT part of this plan — resume the parked work)
 1. Regenerate the 3FTx sample bundle with the new stats.
-2. Update protspace_web#296 spec + post the concise body (still parked).
+2. Update #296 spec + post the concise body (still parked).
 3. Update/regenerate and re-decide the `feat/projection-statistics` → main merge.

@@ -19,6 +19,9 @@ import typer
 
 from protspace.cli.app import PANEL_START, app, setup_logging
 from protspace.cli.common_options import (
+    EMBEDDER_HELP_LICENSE,
+    EMBEDDER_HELP_MODELS,
+    EMBEDDER_MODELS,
     Backend,
     ClusterSelection,
     Metric,
@@ -39,25 +42,12 @@ from protspace.cli.common_options import (
     Opt_RandomState,
     Opt_Similarity,
     Opt_Verbose,
+    require_similarity_extra,
 )
 
 logger = logging.getLogger(__name__)
 
 ANNOTATIONS_URL = "https://protspace.app/docs/guide/annotations"
-EMBEDDER_MODELS = {
-    "prot_t5",
-    "prost_t5",
-    "esm2_8m",
-    "esm2_35m",
-    "esm2_150m",
-    "esm2_650m",
-    "esm2_3b",
-    "ankh_base",
-    "ankh_large",
-    "ankh3_large",
-    "esmc_300m",
-    "esmc_600m",
-}
 
 
 # ---------------------------------------------------------------------------
@@ -92,10 +82,7 @@ Opt_Embedder = Annotated[
         "--embedder",
         help=(
             "pLM model(s), comma-separated. "
-            "Models: prot_t5, prost_t5, esm2_8m, esm2_35m, esm2_150m, "
-            "esm2_650m, esm2_3b, ankh_base, ankh_large, ankh3_large, "
-            "esmc_300m, esmc_600m. "
-            "Note: ankh_*, ankh3_* are non-commercial (CC-BY-NC-SA-4.0) licenses."
+            f"{EMBEDDER_HELP_MODELS} {EMBEDDER_HELP_LICENSE}"
         ),
         rich_help_panel="Embedding",
     ),
@@ -375,6 +362,16 @@ def prepare(
         is_fasta_file(spec[0]) for spec in input_specs if not spec[0].is_dir()
     )
 
+    # Both similarity preconditions are pure argument checks, so they run before
+    # anything is read: similarity happens last, and failing here rather than at
+    # the import site keeps a full HDF5 load (or embed) off the wasted path.
+    # `has_fasta` is extension-based, the same test the input loop branches on,
+    # so this is exactly "the loop will not produce a FASTA for similarity".
+    if similarity:
+        if fasta is None and not query and not has_fasta:
+            raise typer.BadParameter("-s requires FASTA. Use -f when input is HDF5.")
+        require_similarity_extra()
+
     embedders = _parse_embedders(embedder)
 
     if embedders and not has_fasta and not query:
@@ -514,11 +511,9 @@ def prepare(
             raise typer.BadParameter("No valid input data found.")
 
         # --- Similarity ---
+        # Both preconditions were checked before any input was read, so
+        # `fasta_for_similarity` is set here whenever `similarity` is on.
         if similarity:
-            if fasta_for_similarity is None:
-                raise typer.BadParameter(
-                    "-s requires FASTA. Use -f when input is HDF5."
-                )
             from protspace.data.loaders import compute_similarity
 
             embedding_sets.append(
