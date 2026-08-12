@@ -643,6 +643,59 @@ function buildCoordinateMap(
   return coordMap;
 }
 
+/**
+ * Re-apply the numeric identity carried by the annotations part's parquet schema
+ * (derived by `readNumericColumnTypes` in bundle.ts).
+ *
+ * `inferAnnotationType` derives kind/numericType from the values alone, which is
+ * correct whenever a column carries values but has a blind spot: a numeric column
+ * whose rows are all missing — an isolation-mode or query-filtered export — has
+ * nothing to infer from, so it reloads as a categorical column holding one
+ * `__NA__` category and loses its gradient legend and `>`/`<`/`between` operators.
+ *
+ * Only an INTEGER physical type is treated as authoritative for the int/float
+ * distinction. Bundles written before this writer stored *every* numeric column
+ * as DOUBLE, so DOUBLE carries no int/float information and must not be allowed
+ * to re-label their integer annotations; inference stays in charge there.
+ *
+ * Columns stored as text — the `protspace` CLI stringifies its annotation frame —
+ * carry no numeric physical type at all, so they are absent from `declared` and
+ * keep pure inference.
+ */
+function restoreDeclaredNumericAnnotations(
+  data: VisualizationData,
+  declared: Readonly<Record<string, 'int' | 'float'>>,
+): VisualizationData {
+  for (const [column, numericType] of Object.entries(declared)) {
+    const annotation = data.annotations[column];
+    if (!annotation) continue;
+
+    if (annotation.kind === 'numeric') {
+      // Values survived, so inference already had everything it needed — except
+      // that an integral column can only be stored INT32/INT64 by this writer.
+      if (numericType === 'int' && annotation.numericType !== 'int') {
+        data.annotations[column] = { ...annotation, numericType };
+      }
+      continue;
+    }
+
+    // Only rescue the genuinely ambiguous case — a column that carries no value
+    // at all. Anything with a real category was legitimately inferred as
+    // categorical and must not be reinterpreted.
+    if (annotation.values.some((value) => value != null && !isNAValue(value))) continue;
+
+    data.annotations[column] = createNumericAnnotation(numericType, annotation.runtime);
+    data.numeric_annotation_data ??= {};
+    data.numeric_annotation_data[column] = new Array<number | null>(data.protein_ids.length).fill(
+      null,
+    );
+    delete data.annotation_data[column];
+    delete data.annotation_scores?.[column];
+    delete data.annotation_evidence?.[column];
+  }
+  return data;
+}
+
 export function convertParquetToVisualizationData(
   input: BundleExtractionResult | Rows,
   projectionsMetadata?: Rows,
@@ -656,6 +709,7 @@ export function convertParquetToVisualizationData(
   // `BundleExtractionResult` carries the version detected from the bundle's parquet
   // key-value metadata by `extractRowsFromParquetBundle` (bundle.ts).
   const formatVersion = Array.isArray(input) ? 1 : input.formatVersion;
+  const declaredNumeric = Array.isArray(input) ? {} : (input.numericColumnTypes ?? {});
 
   validateRowsBasic(rows);
 
@@ -663,13 +717,41 @@ export function convertParquetToVisualizationData(
   const hasProjectionName = columnNames.includes('projection_name');
   const hasXY = columnNames.includes('x') && columnNames.includes('y');
 
-  if (hasProjectionName && hasXY) {
-    return normalizeEatCompanionColumns(
-      convertBundleFormatData(rows, columnNames, meta, formatVersion),
-    );
-  }
-  return normalizeEatCompanionColumns(convertLegacyFormatData(rows, columnNames, formatVersion));
+  const converted =
+    hasProjectionName && hasXY
+      ? convertBundleFormatData(rows, columnNames, meta, formatVersion)
+      : convertLegacyFormatData(rows, columnNames, formatVersion);
+  return carryStatistics(
+    restoreDeclaredNumericAnnotations(normalizeEatCompanionColumns(converted), declaredNumeric),
+    input,
+  );
 }
+
+/**
+ * Attach the bundle's statistics part: the unparsed bytes so an export can re-emit them,
+ * and the parsed rows so the UI can render them. Raw `Rows` input (plain .parquet / legacy
+ * reads) never carries either, so it passes straight through.
+ */
+function carryStatistics(
+  data: VisualizationData,
+  input: BundleExtractionResult | Rows,
+): VisualizationData {
+  if (!Array.isArray(input) && input.statistics) {
+    data.statistics = input.statistics;
+    data.statisticsRows = input.statisticsRows ?? undefined;
+  }
+  return data;
+}
+
+/**
+ * Row count at or above which the optimized entry point uses the separated
+ * decoder instead of delegating to the small-data implementation.
+ *
+ * Exported so tests can size fixtures from the real threshold rather than
+ * restating it — a hardcoded fixture size silently stops exercising the
+ * optimized path the moment this number moves.
+ */
+export const OPTIMIZED_PATH_ROW_THRESHOLD = 10_000;
 
 export function convertParquetToVisualizationDataOptimized(
   input: BundleExtractionResult | Rows,
@@ -679,7 +761,7 @@ export function convertParquetToVisualizationDataOptimized(
     // Legacy path: raw rows passed directly (e.g. from tests or plain parquet files)
     validateRowsBasic(input);
     const dataSize = input.length;
-    if (dataSize < 10000) {
+    if (dataSize < OPTIMIZED_PATH_ROW_THRESHOLD) {
       return Promise.resolve(convertParquetToVisualizationData(input, projectionsMetadata));
     }
     return convertLargeDatasetOptimizedRaw(input, projectionsMetadata).then(
@@ -689,10 +771,13 @@ export function convertParquetToVisualizationDataOptimized(
 
   // New path: separated extraction shape from extractRowsFromParquetBundle
   const numProjectionRows = input.projections.length;
-  if (numProjectionRows < 10000) {
+  if (numProjectionRows < OPTIMIZED_PATH_ROW_THRESHOLD) {
     return Promise.resolve(convertParquetToVisualizationData(input));
   }
-  return convertLargeDatasetOptimized(input).then(normalizeEatCompanionColumns);
+  return convertLargeDatasetOptimized(input)
+    .then(normalizeEatCompanionColumns)
+    .then((data) => restoreDeclaredNumericAnnotations(data, input.numericColumnTypes ?? {}))
+    .then((data) => carryStatistics(data, input));
 }
 
 async function convertLargeDatasetOptimizedRaw(

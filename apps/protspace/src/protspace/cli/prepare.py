@@ -47,9 +47,7 @@ from protspace.cli.common_options import (
 
 logger = logging.getLogger(__name__)
 
-ANNOTATIONS_URL = (
-    "https://github.com/tsenoner/protspace/blob/main/apps/protspace/docs/annotations.md"
-)
+ANNOTATIONS_URL = "https://protspace.app/docs/guide/annotations"
 
 
 # ---------------------------------------------------------------------------
@@ -113,9 +111,8 @@ Opt_Stats = Annotated[
     typer.Option(
         "--stats/--no-stats",
         help="Compute projection quality statistics (cluster-validity + "
-        "faithfulness); adds cluster_* membership columns (with per-point "
-        "silhouette confidence) + legend styles to the bundle. Opt-in (off by "
-        "default): can be slow on large runs.",
+        "faithfulness); adds cluster_* membership columns + legend styles to the "
+        "bundle. Opt-in (off by default): can be slow on large runs.",
         rich_help_panel="Output",
     ),
 ]

@@ -451,6 +451,7 @@ describe('EAT companion normalization', () => {
       annotationIdColumn: 'identifier',
       projectionsMetadata: [],
       settings: null,
+      statistics: null,
       formatVersion: 2,
     });
 

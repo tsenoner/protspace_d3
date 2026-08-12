@@ -15,7 +15,8 @@ as a spec **before** writing implementation code.
 - **Use the workflow commands/skills:**
   - `/opsx:propose <idea>` — create a change and generate its artifacts (proposal, design, specs, tasks)
   - `/opsx:apply` — implement the change's tasks
-  - `/opsx:archive` — merge spec deltas into `openspec/specs/` and archive the change
+  - `/opsx:archive` — merge spec deltas into `openspec/specs/` and archive the change.
+    Run it as the **last commit on the branch, before the merge** — see below.
   - `/opsx:explore` — investigate/clarify before committing to a change
   - If slash commands are unavailable, invoke the equivalent OpenSpec skill or run the `openspec` CLI directly.
 - **`openspec/specs/` is the source of truth** for current behavior. Read the relevant specs
@@ -23,27 +24,58 @@ as a spec **before** writing implementation code.
 - **Trivial changes** (typo, one-line fix, formatting, dependency bump) do not need a full
   proposal — use judgment.
 
-**Local setup (one time per machine):**
+### Archive before the merge, not after
 
-```bash
-npm i -g @fission-ai/openspec   # the workflow skills shell out to this CLI
-openspec init                   # generates per-tool skills/commands for this repo
-```
+`/opsx:archive` is what makes `openspec/specs/` true, so it belongs in the change rather than
+after it: run it on the branch, commit the result, and let CI go green on that commit.
+Deferred to "after the merge" it does not happen — the PR is closed and the branch is gone —
+leaving `openspec/specs/` describing behavior the code no longer has, which the next change
+reads as current.
 
-Only this `AGENTS.md` and the `openspec/` directory (specs + changes) are committed. The per-tool
-skills/commands under `.claude/` and `.codex/`, and Codex's global prompts in `~/.codex/prompts/`,
-are CLI-generated and gitignored — regenerate them with `openspec init` / `openspec update`.
+Before archiving, tick off `tasks.md` including anything the review added, and reread
+`proposal.md` / `design.md` against the final diff: rationale written before a review is
+often stale by the end of it, and archiving freezes it.
+
+One-time CLI setup is in [CONTRIBUTING.md](CONTRIBUTING.md#openspec-one-time-per-machine).
 
 ## Before committing
 
-Always run `pnpm precommit` before creating any git commit. It runs:
+Always run `pnpm precommit` before creating any git commit. It is
+`lint-staged && quality && docs:annotations:check && docs:build`:
 
-- Prettier (format)
-- ESLint (lint)
-- TypeScript (typecheck)
-- Vitest (tests)
+- ESLint `--fix` and Prettier `--write`, on **staged files only** (lint-staged)
+- TypeScript typecheck, Knip, and Knip dependency validation (`pnpm quality`)
+- `docs:annotations:check`, the generated annotation reference must match the source
+- `docs:build`, a full VitePress build (a dead internal link fails it)
+
+**It runs no tests at all.** Run `pnpm test` yourself. `pnpm test:e2e` (below) and
+`pnpm test:contract` are separate again.
 
 It is JS-only; Python workspace members are covered by their own CI workflows (see below).
+
+Note that lint-staged only inspects **staged** files. Unstaged work passes `pnpm precommit`
+and still fails CI's `format:check`, so also run `pnpm format:check` when you have not
+staged everything.
+
+## End-to-end tests (Playwright)
+
+`e2e.yml` is the only suite that drives the real app in a browser, so several subsystems —
+EAT provenance connectors, isolation, dataset swap — have no other coverage at all.
+`pnpm precommit` does not touch them.
+
+It runs nightly on `main`, and on any PR touching the web app, the packages it builds on, or
+the root files that decide what those resolve to — `e2e.yml` owns the exact list. For anything
+else, dispatch it:
+
+```bash
+gh workflow run e2e.yml --ref <branch>   # in CI, any branch
+pnpm test:e2e                            # locally
+```
+
+**Never dismiss a red run as flaky on the strength of local passes.** The regression that
+prompted this section failed 6/6 in CI and 0/17 locally. The baseline worth comparing
+against is the nightly's history on `main` (`gh run list --workflow=e2e.yml
+--event=schedule`), not your machine.
 
 ## Python workspace members (uv)
 
@@ -74,3 +106,41 @@ Angular-style commit messages, subject under 72 characters:
 - `docs(scope): description` — documentation changes
 - `test(scope): description` — test additions/changes
 - `chore(scope): description` — maintenance tasks
+
+## Never squash-merge a PR that touches `apps/protspace/`
+
+**Mixing frontend and backend in one PR is fine** — it is one of the reasons the two repos
+were merged. The release tooling is built for it, and it works _per commit_:
+
+- `protspace-release.yml` is the repo's only semantic-release and the version authority for
+  the **PyPI package alone**. It is `paths:`-filtered to `apps/protspace/**` plus its own
+  workflow file, so a PR touching neither cannot release at all. Web-only work triggers
+  `deploy.yml` (a Pages deploy, not a version bump).
+- Once it runs, `commit_parser = "conventional-monorepo"` with `path_filters = ["."]`
+  (`apps/protspace/pyproject.toml`) counts **only commits that touch `apps/protspace/`**. A
+  `feat(core):` commit in the same PR that only touches `packages/` is ignored — it cannot
+  inflate the Python version or land in its changelog.
+
+**Squash-merging destroys that scoping.** Squashing collapses every branch commit into one
+commit that touches _all_ the paths at once, so:
+
+- it passes the path filter as long as _anything_ in the PR touched `apps/protspace/`, and
+- there are no longer separate commits to scope — the single message is parsed as a whole,
+  and GitHub's default squash body (`squash_merge_commit_message: COMMIT_MESSAGES`) lists
+  every branch commit subject.
+
+A frontend `feat:` therefore bumps the Python package. Observed 2026-07-24: PR #387, titled
+`refactor(protspace): …`, carried `fix(ci): relock uv.lock` in its squash body and cut v4.9.1.
+
+**So: use a merge commit or rebase merge.** Both keep each commit's own paths and own type,
+which is exactly what the monorepo parser needs. Squash is only safe for a PR that touches
+no Python at all — and such a PR cannot release anyway.
+
+Commit types still matter, per commit:
+
+- Want no release from a backend-touching commit? Give it a non-releasing type
+  (`ci` / `chore` / `refactor` / `test` / `docs`).
+- A real `fix:` or `feat:` under `apps/protspace/` earns a release; that is correct.
+- Use `feat:` only for changes visible to **package users**. Dev-only work — tooling, CI,
+  test harnesses, internal refactors — takes `chore:` / `ci:` / `test:` / `refactor:`, so it
+  cannot trigger an unwanted minor bump.
