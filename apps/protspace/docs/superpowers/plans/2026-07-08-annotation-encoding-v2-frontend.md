@@ -418,4 +418,4 @@ git commit -m "test(core): cross-repo v2 bundle round-trip proof (#56/#57/#58)"
 
 ## Execution Handoff
 
-Phases G–I are independent of the backend and can proceed immediately. Phase J requires the backend v2 writer. After both plans complete, open a PR in each repo cross-linking #56/#57/#58 and protspace_web#303.
+Phases G–I are independent of the backend and can proceed immediately. Phase J requires the backend v2 writer. After both plans complete, open a PR in each repo cross-linking #56/#57/#58 and #303.

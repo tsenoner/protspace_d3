@@ -6,7 +6,7 @@
 Transfer (EAT) in the web app. Builds on the backend from
 [PR tsenoner/protspace-legacy#55](https://github.com/tsenoner/protspace-legacy/pull/55) (spec:
 `2026-06-11-eat-annotation-transfer-design.md`) and the frontend issue
-[tsenoner/protspace_web#277](https://github.com/tsenoner/protspace_web/issues/277).
+[#277](https://github.com/tsenoner/protspace/issues/277).
 
 ---
 

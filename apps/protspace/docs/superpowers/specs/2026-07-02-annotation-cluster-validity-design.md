@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-02
 **Branch:** `feat/annotation-cluster-validity` (stacked on `feat/projection-statistics`)
-**Refs:** #324 (parent feature request), tsenoner/protspace-legacy#63 (extras, merged), #318 (deferred gap/BIC k-selection), protspace_web#296 (frontend spec)
+**Refs:** #324 (parent feature request), tsenoner/protspace-legacy#63 (extras, merged), #318 (deferred gap/BIC k-selection), #296 (frontend spec)
 Issue numbers below are monorepo numbers unless prefixed; #324/#318 were transferred here from the archived repo.
 
 ## Motivation
@@ -101,7 +101,7 @@ New/updated `tests/test_stats*.py` cases:
 ## Out of scope
 - Gap statistic + BIC/AIC k-selection → #318.
 - HDBSCAN/GMM auto-clustering models → future (KMeans only).
-- Frontend rendering of the new rows → protspace_web#296.
+- Frontend rendering of the new rows → #296.
 
 ## Migration / compatibility
 Bundle stays 5-part (`core(3) + settings? + statistics?`). The `statistics.parquet` gains a column and a `space_kind` value; both are additive and readers branch on content. No change to parts 1–4 beyond the already-shipped membership columns.

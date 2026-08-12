@@ -1167,5 +1167,5 @@ git commit -m "$(printf 'docs(stats): document annotation-based cluster-validity
 
 ## Post-implementation (NOT part of this plan — resume the parked work)
 1. Regenerate the 3FTx sample bundle with the new stats.
-2. Update protspace_web#296 spec + post the concise body (still parked).
+2. Update #296 spec + post the concise body (still parked).
 3. Update/regenerate and re-decide the `feat/projection-statistics` → main merge.
