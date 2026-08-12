@@ -28,10 +28,13 @@ separate maintenance buys nothing.
   `>=0.6` PyPI pin and putting the two in lockstep, tested together in one PR.
 - **Move `app/` → `apps/web`**; `packages/*` unchanged. pnpm + turbo pick up the Python member through
   a thin `apps/protspace/package.json` bridge (`test`/`lint`/`build` → `uv run …`).
-- **Introduce a shared bundle contract** (`packages/bundle-contract/`): one `schema.json` (delimiter,
+- ~~**Introduce a shared bundle contract** (`packages/bundle-contract/`): one `schema.json` (delimiter,
   part order/filenames, per-table columns/dtypes/nullability) plus committed golden `.parquetbundle`
   fixtures. Both Python and TS assert against it; the format's two writers cross-validate against the
-  fixtures in both directions.
+  fixtures in both directions.~~
+  **Superseded** by `add-bundle-contract-test` (archived 2026-07-20), which reached the same
+  goal without a schema file and with fixtures generated per run rather than committed. The
+  live spec is `bundle-format-contract`; see tasks.md §5 for what was reversed and why.
 - **One version, PyPI only on a Python change**: keep `python-semantic-release` as the single version
   authority; gate the actual PyPI publish on `apps/protspace/**` changing. Web deploys on its own
   path-filtered job. Reconcile the two repos' CI (`ci`/`deploy`/`e2e`/`publish-images` + `ci`/`publish`/`release`)
@@ -62,6 +65,11 @@ path-move fixups.
 
 ### New Capabilities
 
-- `bundle-contract`: A single source-of-truth schema and golden-fixture set for the `.parquetbundle`
-  format, validated by both the Python producer and the TS reader/writer, with CI failing on drift and
-  the Python API/CLI surface that `protspace-prep` depends on verified against in-repo `protspace` source.
+- `prep-source-coupling`: `apps/prep` consumes `protspace` from in-repo workspace source rather than a
+  published range, so breaking a consumed API or CLI subcommand fails prep's tests in the same change
+  instead of after a release.
+
+  > The originally proposed `bundle-contract` capability — a single source-of-truth `schema.json` plus
+  > committed golden fixtures — was **superseded** by `add-bundle-contract-test` and is not archived
+  > here; `bundle-format-contract` is the live spec. Only the prep-coupling half of that original
+  > capability had no home elsewhere, so it lands on its own.
