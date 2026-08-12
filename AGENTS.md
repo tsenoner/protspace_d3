@@ -107,6 +107,21 @@ Angular-style commit messages, subject under 72 characters:
 - `test(scope): description` — test additions/changes
 - `chore(scope): description` — maintenance tasks
 
+## Referring to issues from before the monorepo merge
+
+Bare `#N` resolves against **this** repo, which inherited the frontend's numbering. The
+standalone Python repo's issues did not come with it: they live at
+`tsenoner/protspace-legacy#N` and must be written out in full. A bare `#57` here silently
+lands on an unrelated frontend PR — it returns HTTP 200, so nothing flags it.
+
+Three were transferred rather than stranded and have new numbers here: legacy `#31` → `#324`,
+`#59` → `#320`, `#64` → `#318`.
+
+In a doc that cites several, qualify once on a definitional line (`**Issues:**`, `**Refs:**`)
+and keep the body bare, rather than expanding every mention — full qualification turns
+headings into `### 2.3 tsenoner/protspace-legacy#57: ...`. Code comments and docstrings always
+qualify in full, since no definitional line travels with them.
+
 ## Never squash-merge a PR that touches `apps/protspace/`
 
 **Mixing frontend and backend in one PR is fine** — it is one of the reasons the two repos
