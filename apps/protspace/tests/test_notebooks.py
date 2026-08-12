@@ -58,15 +58,17 @@ def test_code_cells_compile_after_ipython_transformation(path: Path):
 
     Notebook cells are not plain Python: `!cmd` and `%magic` are rewritten
     before execution. Transforming first is what the real runtime does.
+
+    `TransformerManager` is the transformer on its own, deliberately in place of
+    `InteractiveShell.instance().input_transformer_manager`: the shell is a
+    process-wide singleton that is never torn down, and building it sets
+    `builtins.__IPYTHON__` and installs a `warnings` filter that would then
+    outlive this test for the rest of the pytest session.
     """
-    transform = (
-        pytest.importorskip(
-            "IPython.core.interactiveshell",
-            reason="IPython is a dev-group dependency (via jupyter)",
-        )
-        .InteractiveShell.instance()
-        .input_transformer_manager
-    )
+    transform = pytest.importorskip(
+        "IPython.core.inputtransformer2",
+        reason="IPython is a dev-group dependency (via jupyter)",
+    ).TransformerManager()
 
     for index, source in _code_cells(path):
         try:

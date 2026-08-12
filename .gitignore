@@ -76,7 +76,11 @@ apps/web/tests/fixtures/sprot_50.parquetbundle
 # No .h5 is tracked anywhere, so that one is repo-wide. Bundles are tracked
 # (fixtures, demo data) but only ever in subdirectories, so theirs is anchored
 # to the root — add a new root-level bundle with `git add -f`.
+# `*.part` is the download staging name: the fetch cells land there and rename
+# only once complete, so an interrupted fetch — the case that scheme exists for —
+# is exactly when one is left behind, under a name no rule above matches.
 *.h5
+*.part
 /*.parquetbundle
 /output/
 

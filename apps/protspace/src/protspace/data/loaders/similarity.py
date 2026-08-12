@@ -68,6 +68,13 @@ def compute_similarity(
     try:
         from pymmseqs.commands import easy_search
     except ModuleNotFoundError as exc:
+        # Only pymmseqs' own absence earns the install hint. pymmseqs pulls in
+        # ipython/pandas/scikit-learn, and a ModuleNotFoundError naming one of
+        # those means the extra IS installed but its environment is broken —
+        # telling that user to install it again hides the module actually
+        # missing (and the CLI's find_spec guard waves them through).
+        if (exc.name or "").partition(".")[0] != "pymmseqs":
+            raise
         raise ImportError(MMSEQS_INSTALL_HINT) from exc
 
     n_seqs = len(headers)

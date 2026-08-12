@@ -306,6 +306,9 @@ For a live count run `uv run pytest tests/ --collect-only -q`.
 | `test_uniprot_parser_encoding.py` | UniProtEntry free-text emit points percent-encode reserved chars |
 | `test_cath_names.py` | CATH names file parsing |
 | `test_cli_no_frontend.py` | CLI imports without the optional `frontend` extra (plotly, dash) |
+| `test_cli_no_similarity.py` | `-s/--similarity` without the optional `similarity` extra: up-front CLI guard (before any load/embed), loader `ImportError` backstop, `EMBEDDER_MODELS` pinned to the embedder registry |
+| `test_docs_extras_sync.py` | `README.md` (PyPI) and `docs/guide/python-cli.md` (protspace.app) hold the same extras section; the guide's embedder shortcut list matches `EMBEDDER_MODELS` |
+| `test_notebooks.py` | Colab notebooks: cell magics only on line 1, every code cell compiles after IPython transformation, cell ids present for `nbformat >= 4.5` |
 | `test_encoding_e2e.py` | Backend end-to-end round-trip proof for v2 annotation encoding |
 | `test_scores_ted.py` | `--no-scores` strips TED domains |
 
