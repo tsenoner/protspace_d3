@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change fix-pdb-annotation-without-uniprot. Update Purpose after archive.
+How cached annotation results stay correct across format and schema changes: refreshing caches written by an older layout rather than trusting them, and keeping repeated reads of a cached value idempotent.
 
 ## Requirements
 
