@@ -14,8 +14,9 @@ import {
   normalizeNumericPaletteId,
   resolveNumericAnnotationDisplaySettings,
   annotationLabel,
-  clamp01,
-  DEFAULT_EAT_CONFIDENCE_THRESHOLD,
+  clampReliabilityBound,
+  normalizeReliability,
+  DEFAULT_EAT_RELIABILITY,
   hasEatPredictionsForAnnotation,
   isPredictedAnnotation,
   getAnnotationMeta,
@@ -192,7 +193,7 @@ export class ProtspaceLegend extends LitElement {
    */
   @state() private _hoveredCategory: string | null = null;
   @state() private _eatOverlayEnabled = true;
-  @state() private _eatConfidenceThreshold = DEFAULT_EAT_CONFIDENCE_THRESHOLD;
+  @state() private _eatConfidenceThreshold = DEFAULT_EAT_RELIABILITY.min;
   /**
    * Which side(s) of the reliability scale the filter constrains (#380).
    * `atLeast` hides low-confidence predictions (the original, default behaviour);
@@ -200,9 +201,9 @@ export class ProtspaceLegend extends LitElement {
    * throw away; `between` isolates a band — the mid-confidence transfers worth
    * reviewing by hand. Curated proteins stay visible in all three.
    */
-  @state() private _eatReliabilityMode: EatReliabilityMode = 'atLeast';
+  @state() private _eatReliabilityMode: EatReliabilityMode = DEFAULT_EAT_RELIABILITY.mode;
   /** Upper bound, used by `atMost` and `between`. 1 means "no upper bound". */
-  @state() private _eatConfidenceUpper = 1;
+  @state() private _eatConfidenceUpper = DEFAULT_EAT_RELIABILITY.max;
   @state() private _keyboardDragValue: string | null = null;
   private _announceManualPromotionOnNextReorder = false;
   private _keyboardReorderSnapshot: {
@@ -1072,9 +1073,7 @@ export class ProtspaceLegend extends LitElement {
     // restores the threshold only, so a mode left over from the previous dataset
     // would reinterpret it: "hide below 60%" saved in this bundle would load as
     // "hide above <the previous dataset's upper bound>" — the opposite filter.
-    this._eatConfidenceThreshold = DEFAULT_EAT_CONFIDENCE_THRESHOLD;
-    this._eatReliabilityMode = 'atLeast';
-    this._eatConfidenceUpper = 1;
+    this._setReliability(DEFAULT_EAT_RELIABILITY);
     this._clearKeyboardReorderState();
 
     // Reset isolation state
@@ -1123,11 +1122,10 @@ export class ProtspaceLegend extends LitElement {
     // A discrete apply (overlay toggle, bundle import) supersedes any pending
     // debounced threshold commit — cancel it so it can't fire a stale late emit.
     this._cancelEatThresholdCommit();
-    const normalizedThreshold = Number.isFinite(threshold)
-      ? Math.min(1, Math.max(0, threshold))
-      : DEFAULT_EAT_CONFIDENCE_THRESHOLD;
     this._eatOverlayEnabled = enabled;
-    this._eatConfidenceThreshold = normalizedThreshold;
+    // A bundle restores the lower bound only; the current mode decides what that
+    // means, and normalizing keeps the other bound coherent with it.
+    this._setReliability({ ...this.reliabilityState, min: threshold });
 
     // The overlay switch still coalesces predictions into the base annotation on
     // the scatter plot. The threshold, however, only feeds the reliability query
@@ -1147,9 +1145,7 @@ export class ProtspaceLegend extends LitElement {
    * not loop back into the legend->control-bar direction (#6b).
    */
   public setReliabilityThreshold(value: number): void {
-    this._eatConfidenceThreshold = Number.isFinite(value)
-      ? Math.min(1, Math.max(0, value))
-      : DEFAULT_EAT_CONFIDENCE_THRESHOLD;
+    this._setReliability({ ...this.reliabilityState, min: value });
   }
 
   /** The reliability filter as the control bar models it: a mode plus bounds. */
@@ -1162,6 +1158,21 @@ export class ProtspaceLegend extends LitElement {
   }
 
   /**
+   * The one writer for the reliability position, so the control and the query it
+   * mirrors cannot disagree about what a state means. Every rule — clamping, blanking
+   * the bound the mode ignores, ordering a crossed band — lives in the shared
+   * `normalizeReliability`; the legend used to restate each of them by hand and had
+   * already drifted (a band dragged past itself stayed crossed on screen while the
+   * control bar filtered on the ordered one).
+   */
+  private _setReliability(state: EatReliabilityState): void {
+    const { mode, min, max } = normalizeReliability(state);
+    this._eatReliabilityMode = mode;
+    this._eatConfidenceThreshold = min;
+    this._eatConfidenceUpper = max;
+  }
+
+  /**
    * Reverse mirror for the full state. Cancels any pending drag commit first: a
    * discrete update from the query side supersedes an in-flight drag, and leaving
    * the timer armed let a stale late emit overwrite what the user had just typed
@@ -1169,12 +1180,14 @@ export class ProtspaceLegend extends LitElement {
    */
   public setReliabilityState(state: EatReliabilityState): void {
     this._cancelEatThresholdCommit();
-    this._eatReliabilityMode = state.mode;
-    this._eatConfidenceThreshold = clamp01(state.min);
-    this._eatConfidenceUpper = clamp01(state.max);
+    this._setReliability(state);
   }
 
   private _emitEatOverlayChange(): void {
+    // Canonicalize before publishing: a live drag is free to cross the two bounds,
+    // but what leaves this component — and what the thumbs settle on — is the band
+    // the filter will actually apply.
+    this._setReliability(this.reliabilityState);
     this.dispatchEvent(
       new CustomEvent('eat-overlay-change', {
         detail: {
@@ -1225,14 +1238,92 @@ export class ProtspaceLegend extends LitElement {
 
   private _handleEatModeChange(event: Event): void {
     const mode = (event.currentTarget as HTMLSelectElement).value as EatReliabilityMode;
-    this._eatReliabilityMode = mode;
-    // Reset the bound the new mode does not use, so switching modes cannot leave a
-    // stale constraint applied from a side the user can no longer see or edit.
-    if (mode === 'atLeast') this._eatConfidenceUpper = 1;
-    if (mode === 'atMost') this._eatConfidenceThreshold = 0;
+    // `normalizeReliability` blanks the bound the new mode does not use, so switching
+    // modes cannot leave a stale constraint applied from a side the user can no longer
+    // see or edit.
+    this._setReliability({ ...this.reliabilityState, mode });
     // A mode change is a discrete decision, not a drag — apply it immediately.
     this._cancelEatThresholdCommit();
     this._emitEatOverlayChange();
+  }
+
+  /**
+   * One reliability bound: a heading, a percent box and a range slider, wired to the
+   * same commit pair. The lower bound's heading is the mode `<select>` and carries the
+   * help popover; the upper bound's is a plain label, and it only renders in the two
+   * modes that have an upper bound.
+   *
+   * The two rows were copy-pasted and had already drifted — only the lower one honoured
+   * `_lowerBoundDisabled`, so every edit to a bound row had to be made twice to stay in
+   * step.
+   */
+  private _renderReliabilityBound(bound: EatBound) {
+    const isLower = bound === 'lower';
+    const id = isLower ? 'eat-reliability-threshold' : 'eat-reliability-upper';
+    const value = isLower ? this._eatConfidenceThreshold : this._eatConfidenceUpper;
+    // The upper row renders only when the mode actually has an upper bound, so the
+    // overlay switch is the only thing that can disable it.
+    const disabled = isLower ? this._lowerBoundDisabled : !this._eatOverlayEnabled;
+    const sliderLabel = isLower
+      ? this._eatReliabilityMode === 'between'
+        ? 'EAT reliability filter lower bound'
+        : 'EAT reliability filter threshold'
+      : 'EAT reliability filter upper bound';
+
+    return html`
+      <div class="eat-threshold-heading">
+        ${isLower
+          ? html`<select
+              class="eat-threshold-mode"
+              aria-label="EAT reliability filter mode"
+              .value=${this._eatReliabilityMode}
+              ?disabled=${!this._eatOverlayEnabled}
+              @change=${this._handleEatModeChange}
+            >
+              <option value="atLeast">Hide below</option>
+              <option value="atMost">Hide above</option>
+              <option value="between">Keep between</option>
+            </select>`
+          : html`<label for=${id}>Upper bound</label>`}
+        <span class="eat-threshold-value">
+          <input
+            class="eat-threshold-percent"
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            .value=${String(Math.round(value * 100))}
+            ?disabled=${disabled}
+            aria-label=${isLower
+              ? 'EAT reliability filter percentage'
+              : 'EAT reliability upper bound percentage'}
+            @input=${(event: Event) => this._handleEatBoundPercentInput(bound, event)}
+            @change=${this._flushEatThresholdCommit}
+          />
+          <span aria-hidden="true">%</span>
+          ${isLower
+            ? html`<protspace-info-popover
+                class="eat-threshold-info"
+                .description=${this._reliabilityHelpText()}
+                label="EAT reliability filter"
+                align="right"
+              ></protspace-info-popover>`
+            : ''}
+        </span>
+      </div>
+      <input
+        id=${id}
+        type="range"
+        min="0"
+        max="1"
+        step="0.01"
+        .value=${String(value)}
+        ?disabled=${disabled}
+        aria-label=${sliderLabel}
+        @input=${(event: Event) => this._handleEatBoundInput(bound, event)}
+        @change=${this._flushEatThresholdCommit}
+      />
+    `;
   }
 
   private _handleEatBoundInput(bound: EatBound, event: Event): void {
@@ -1252,10 +1343,11 @@ export class ProtspaceLegend extends LitElement {
    * geometry — to a drag-pause/release.
    */
   private _setEatBoundLive(bound: EatBound, value: number): void {
-    // clamp01(NaN) is NaN, so each bound keeps the fallback of its own
-    // "constrains nothing" position: 0 for the lower bound, 1 for the upper.
-    const fallback = bound === 'lower' ? DEFAULT_EAT_CONFIDENCE_THRESHOLD : 1;
-    const next = Number.isFinite(value) ? clamp01(value) : fallback;
+    // Each bound falls back to its own "constrains nothing" position: 0 for the
+    // lower bound, 1 for the upper. Written raw rather than through
+    // `_setReliability` — normalizing mid-drag would swap the band under the
+    // user's thumb; the commit canonicalizes instead.
+    const next = clampReliabilityBound(value, bound === 'lower' ? 0 : 1);
     if (bound === 'lower') this._eatConfidenceThreshold = next;
     else this._eatConfidenceUpper = next;
     this._debounceEatThresholdCommit();
@@ -2412,88 +2504,9 @@ export class ProtspaceLegend extends LitElement {
                   </label>
                 </div>
                 <div class="eat-threshold">
-                  <div class="eat-threshold-heading">
-                    <select
-                      class="eat-threshold-mode"
-                      aria-label="EAT reliability filter mode"
-                      .value=${this._eatReliabilityMode}
-                      ?disabled=${!this._eatOverlayEnabled}
-                      @change=${this._handleEatModeChange}
-                    >
-                      <option value="atLeast">Hide below</option>
-                      <option value="atMost">Hide above</option>
-                      <option value="between">Keep between</option>
-                    </select>
-                    <span class="eat-threshold-value">
-                      <input
-                        class="eat-threshold-percent"
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="1"
-                        .value=${String(Math.round(this._eatConfidenceThreshold * 100))}
-                        ?disabled=${this._lowerBoundDisabled}
-                        aria-label="EAT reliability filter percentage"
-                        @input=${(event: Event) => this._handleEatBoundPercentInput('lower', event)}
-                        @change=${this._flushEatThresholdCommit}
-                      />
-                      <span aria-hidden="true">%</span>
-                      <protspace-info-popover
-                        class="eat-threshold-info"
-                        .description=${this._reliabilityHelpText()}
-                        label="EAT reliability filter"
-                        align="right"
-                      ></protspace-info-popover>
-                    </span>
-                  </div>
-                  <input
-                    id="eat-reliability-threshold"
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    .value=${String(this._eatConfidenceThreshold)}
-                    ?disabled=${this._lowerBoundDisabled}
-                    aria-label=${this._eatReliabilityMode === 'between'
-                      ? 'EAT reliability filter lower bound'
-                      : 'EAT reliability filter threshold'}
-                    @input=${(event: Event) => this._handleEatBoundInput('lower', event)}
-                    @change=${this._flushEatThresholdCommit}
-                  />
+                  ${this._renderReliabilityBound('lower')}
                   ${this._eatReliabilityMode !== 'atLeast'
-                    ? html`
-                        <div class="eat-threshold-heading">
-                          <label for="eat-reliability-upper">Upper bound</label>
-                          <span class="eat-threshold-value">
-                            <input
-                              class="eat-threshold-percent"
-                              type="number"
-                              min="0"
-                              max="100"
-                              step="1"
-                              .value=${String(Math.round(this._eatConfidenceUpper * 100))}
-                              ?disabled=${!this._eatOverlayEnabled}
-                              aria-label="EAT reliability upper bound percentage"
-                              @input=${(event: Event) =>
-                                this._handleEatBoundPercentInput('upper', event)}
-                              @change=${this._flushEatThresholdCommit}
-                            />
-                            <span aria-hidden="true">%</span>
-                          </span>
-                        </div>
-                        <input
-                          id="eat-reliability-upper"
-                          type="range"
-                          min="0"
-                          max="1"
-                          step="0.01"
-                          .value=${String(this._eatConfidenceUpper)}
-                          ?disabled=${!this._eatOverlayEnabled}
-                          aria-label="EAT reliability filter upper bound"
-                          @input=${(event: Event) => this._handleEatBoundInput('upper', event)}
-                          @change=${this._flushEatThresholdCommit}
-                        />
-                      `
+                    ? this._renderReliabilityBound('upper')
                     : ''}
                 </div>
                 ${this._eatOverlayEnabled && this._eatCounts

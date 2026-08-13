@@ -1,9 +1,13 @@
 import { createNumericCondition } from './query-types';
 import type { NumericCondition } from './query-types';
-import { NA_VALUE, clamp01 } from '@protspace/utils';
+import { presenceOf } from './query-numeric-helpers';
+import {
+  DEFAULT_EAT_RELIABILITY,
+  NA_VALUE,
+  clampReliabilityBound,
+  normalizeReliability,
+} from '@protspace/utils';
 import type { EatReliabilityState } from '@protspace/utils';
-
-export type { EatReliabilityState };
 
 /**
  * The EAT reliability filter's user-facing model, and its translation to and from
@@ -26,46 +30,6 @@ export type { EatReliabilityState };
  * in. `NOT` now means "has a value AND does not match", so the negated form would
  * hide curated points instead — the exact opposite of what the control promises.
  */
-
-/**
- * "Show everything." Emits no condition at all, so a fresh dataset — or a bundle
- * with no saved position — leaves the filter box clean, the contract the EAT e2e
- * asserts.
- */
-export const DEFAULT_EAT_RELIABILITY: EatReliabilityState = { mode: 'atLeast', min: 0, max: 1 };
-
-/**
- * `clamp01` with a defined result for non-finite input. The shared `clamp01` passes
- * `NaN` through, and a bound can arrive as `NaN` from an emptied number input.
- */
-export const clampBound = (value: number): number => (Number.isFinite(value) ? clamp01(value) : 0);
-
-/**
- * Canonical form: clamp both bounds and blank the one the mode does not use.
- *
- * A mode carries a bound it ignores (`atLeast` has no upper bound, `atMost` no
- * lower), and `reliabilityFromConditions` always returns the canonical spelling.
- * Without this, a caller that leaves the unused bound at its previous value hands
- * over a state that is equal in meaning but unequal by `isSameReliability`, so the
- * mirror's de-dupe guard never fires and every repeat call rewrites the query.
- */
-export function normalizeReliability(state: EatReliabilityState): EatReliabilityState {
-  const min = clampBound(state.min);
-  const max = clampBound(state.max);
-  switch (state.mode) {
-    case 'atLeast':
-      return { mode: 'atLeast', min, max: 1 };
-    case 'atMost':
-      return { mode: 'atMost', min: 0, max };
-    case 'between':
-      // Order the bounds. The two sliders move independently, so dragging the lower
-      // one past the upper produced `between 0.8 .. 0.5`, which `matchesNumericValue`
-      // reads as `v >= 0.8 && v <= 0.5` — unsatisfiable, collapsing the plot to the
-      // curated points (or, with none, tripping the empty-result guard and showing
-      // everything). Neither is the band on screen.
-      return { mode: 'between', min: Math.min(min, max), max: Math.max(min, max) };
-  }
-}
 
 /**
  * The owned condition expressing `state`, or none when nothing is constrained.
@@ -104,7 +68,7 @@ export function conditionsForReliability(
   // mode is a compile error here rather than a silently unfiltered query.
 }
 
-const samePresence = (a: readonly string[] = [], b: readonly string[] = []): boolean =>
+const samePresence = (a: readonly string[], b: readonly string[]): boolean =>
   a.length === b.length && a.every((value) => b.includes(value));
 
 /**
@@ -131,7 +95,7 @@ export function sameConditions(
         left.min === right.min &&
         left.max === right.max &&
         left.logicalOp === right.logicalOp &&
-        samePresence(left.presence, right.presence)
+        samePresence(presenceOf(left), presenceOf(right))
       );
     })
   );
@@ -154,24 +118,24 @@ export function reliabilityFromConditions(
       case 'gt':
         if (condition.min !== null) {
           return negated
-            ? { mode: 'atMost', min: 0, max: clampBound(condition.min) }
-            : { mode: 'atLeast', min: clampBound(condition.min), max: 1 };
+            ? { mode: 'atMost', min: 0, max: clampReliabilityBound(condition.min) }
+            : { mode: 'atLeast', min: clampReliabilityBound(condition.min), max: 1 };
         }
         break;
       case 'lte':
       case 'lt':
         if (condition.max !== null) {
           return negated
-            ? { mode: 'atLeast', min: clampBound(condition.max), max: 1 }
-            : { mode: 'atMost', min: 0, max: clampBound(condition.max) };
+            ? { mode: 'atLeast', min: clampReliabilityBound(condition.max), max: 1 }
+            : { mode: 'atMost', min: 0, max: clampReliabilityBound(condition.max) };
         }
         break;
       case 'between':
         if (condition.min !== null && condition.max !== null) {
           return {
             mode: 'between',
-            min: clampBound(condition.min),
-            max: clampBound(condition.max),
+            min: clampReliabilityBound(condition.min),
+            max: clampReliabilityBound(condition.max),
           };
         }
         break;

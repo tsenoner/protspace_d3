@@ -1,13 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { NA_VALUE } from '@protspace/utils';
-import {
-  DEFAULT_EAT_RELIABILITY,
-  conditionsForReliability,
-  normalizeReliability,
-  reliabilityFromConditions,
-} from './eat-reliability';
-import type { EatReliabilityState } from './eat-reliability';
-import type { NumericCondition } from './query-types';
+import { DEFAULT_EAT_RELIABILITY, NA_VALUE } from '@protspace/utils';
+import type { EatReliabilityState } from '@protspace/utils';
+import { conditionsForReliability, reliabilityFromConditions } from './eat-reliability';
+import { createNumericCondition } from './query-types';
 
 const KEY = 'ec__eat_confidence';
 
@@ -55,6 +50,22 @@ describe('conditionsForReliability', () => {
     expect(conditionsForReliability(KEY, { mode: 'atMost', min: 0, max: 1 })).toHaveLength(0);
     expect(conditionsForReliability(KEY, { mode: 'between', min: 0, max: 1 })).toHaveLength(0);
   });
+
+  it('normalizes on the way in, so no caller can emit an inverted band', () => {
+    // `normalizeReliability` itself is covered in @protspace/utils, where it lives;
+    // what matters here is that the translation applies it.
+    expect(conditionsForReliability(KEY, { mode: 'between', min: 0.8, max: 0.5 })[0]).toMatchObject(
+      { operator: 'between', min: 0.5, max: 0.8 },
+    );
+  });
+
+  it('reuses the id of the condition it replaces', () => {
+    // The query builder keys a row's live match count and its in-progress bound text
+    // by condition id; a fresh id per commit resets both mid-drag.
+    expect(
+      conditionsForReliability(KEY, { mode: 'atLeast', min: 0.5, max: 1 }, 'keep-me')[0]?.id,
+    ).toBe('keep-me');
+  });
 });
 
 describe('reliabilityFromConditions', () => {
@@ -69,79 +80,18 @@ describe('reliabilityFromConditions', () => {
   });
 
   it('reads a hand-built exclusive operator too', () => {
-    const gt: NumericCondition = {
-      id: 'a',
-      kind: 'numeric',
-      annotation: KEY,
-      operator: 'gt',
-      min: 0.5,
-      max: null,
-    };
+    const gt = createNumericCondition({ annotation: KEY, operator: 'gt', min: 0.5 });
     expect(reliabilityFromConditions([gt])).toEqual({ mode: 'atLeast', min: 0.5, max: 1 });
   });
 
   it('does not read a negated condition as its positive form', () => {
     // NOT(conf >= X) keeps confidences BELOW X, the opposite of the bare form.
-    const negated: NumericCondition = {
-      id: 'a',
-      kind: 'numeric',
+    const negated = createNumericCondition({
       annotation: KEY,
       operator: 'gte',
       min: 0.5,
-      max: null,
       logicalOp: 'NOT',
-    };
+    });
     expect(reliabilityFromConditions([negated])).toEqual({ mode: 'atMost', min: 0, max: 0.5 });
-  });
-});
-
-describe('normalizeReliability', () => {
-  it('blanks the bound its mode does not use', () => {
-    // Both mirror directions compare states for equality, and the reverse one always
-    // reads back the canonical spelling. A caller that leaves the unused bound at its
-    // previous value would never compare equal, so the de-dupe guard would never fire
-    // and every repeat call would rewrite the query.
-    expect(normalizeReliability({ mode: 'atLeast', min: 0.3, max: 0.7 })).toEqual({
-      mode: 'atLeast',
-      min: 0.3,
-      max: 1,
-    });
-    expect(normalizeReliability({ mode: 'atMost', min: 0.3, max: 0.7 })).toEqual({
-      mode: 'atMost',
-      min: 0,
-      max: 0.7,
-    });
-  });
-
-  it('orders an inverted band instead of emitting an unsatisfiable one', () => {
-    // The two sliders move independently, so the lower can be dragged past the upper.
-    // `between 0.8..0.5` evaluates as `v >= 0.8 && v <= 0.5`, which nothing satisfies.
-    expect(normalizeReliability({ mode: 'between', min: 0.8, max: 0.5 })).toEqual({
-      mode: 'between',
-      min: 0.5,
-      max: 0.8,
-    });
-  });
-
-  it('clamps a non-finite bound rather than propagating NaN', () => {
-    expect(normalizeReliability({ mode: 'atLeast', min: Number.NaN, max: 1 })).toEqual({
-      mode: 'atLeast',
-      min: 0,
-      max: 1,
-    });
-  });
-
-  it('normalizes on the way into a condition, so no caller can emit an inverted band', () => {
-    expect(conditionsForReliability(KEY, { mode: 'between', min: 0.8, max: 0.5 })[0]).toMatchObject(
-      { operator: 'between', min: 0.5, max: 0.8 },
-    );
-  });
-
-  it('reuses the id of the condition it replaces', () => {
-    // The query builder keys a row's live match count and its in-progress bound text
-    // by condition id; a fresh id per commit resets both mid-drag.
-    expect(
-      conditionsForReliability(KEY, { mode: 'atLeast', min: 0.5, max: 1 }, 'keep-me')[0]?.id,
-    ).toBe('keep-me');
   });
 });

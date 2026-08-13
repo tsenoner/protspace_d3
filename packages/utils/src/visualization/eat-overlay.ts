@@ -5,6 +5,7 @@ import {
   isSparseMultiValueAnnotationData,
 } from './annotation-data-access.js';
 import { isNAValue } from './missing-values.js';
+import { clamp01 } from './numeric-binning.js';
 
 export const EAT_COMPANION_SUFFIXES = {
   value: '__pred_value',
@@ -39,6 +40,67 @@ export interface EatReliabilityState {
  * leaves the filter box clean (#6b).
  */
 export const DEFAULT_EAT_CONFIDENCE_THRESHOLD = 0;
+
+/**
+ * "Show everything." Constrains nothing, so it emits no query condition at all and a
+ * fresh dataset — or a bundle with no saved position — leaves the filter box clean.
+ */
+export const DEFAULT_EAT_RELIABILITY: EatReliabilityState = {
+  mode: 'atLeast',
+  min: DEFAULT_EAT_CONFIDENCE_THRESHOLD,
+  max: 1,
+};
+
+/**
+ * `clamp01` with a defined result for non-finite input. The shared `clamp01` passes
+ * `NaN` through, and a bound can arrive as `NaN` from an emptied number input.
+ *
+ * `fallback` is the bound's own "constrains nothing" position — 0 for a lower bound,
+ * 1 for an upper one — so an emptied box reads as "no constraint on this side"
+ * rather than as a bound that hides everything.
+ */
+export function clampReliabilityBound(
+  value: number,
+  fallback: number = DEFAULT_EAT_CONFIDENCE_THRESHOLD,
+): number {
+  return Number.isFinite(value) ? clamp01(value) : fallback;
+}
+
+/**
+ * Canonical form: clamp both bounds and blank the one the mode does not use.
+ *
+ * A mode carries a bound it ignores (`atLeast` has no upper bound, `atMost` no
+ * lower), and the query round-trip always returns the canonical spelling. Without
+ * this, a caller that leaves the unused bound at its previous value hands over a
+ * state that is equal in meaning but unequal by `isSameReliability`, so the mirror's
+ * de-dupe guard never fires and every repeat call rewrites the query.
+ *
+ * Lives beside the type rather than beside the query translation because both ends
+ * of the mirror — the legend control and the control bar — have to agree on what a
+ * state means, and a second hand-rolled copy is exactly how they drifted apart.
+ */
+export function normalizeReliability(state: EatReliabilityState): EatReliabilityState {
+  const min = clampReliabilityBound(state.min);
+  const max = clampReliabilityBound(state.max);
+  switch (state.mode) {
+    case 'atLeast':
+      return { mode: 'atLeast', min, max: 1 };
+    case 'atMost':
+      return { mode: 'atMost', min: DEFAULT_EAT_CONFIDENCE_THRESHOLD, max };
+    case 'between':
+      // Order the bounds. The two sliders move independently, so dragging the lower
+      // one past the upper produced `between 0.8 .. 0.5`, which the numeric matcher
+      // reads as `v >= 0.8 && v <= 0.5` — unsatisfiable, collapsing the plot to the
+      // curated points (or, with none, tripping the empty-result guard and showing
+      // everything). Neither is the band on screen.
+      return { mode: 'between', min: Math.min(min, max), max: Math.max(min, max) };
+  }
+}
+
+/** Structural equality over the reliability model. */
+export function isSameReliability(a: EatReliabilityState, b: EatReliabilityState): boolean {
+  return a.mode === b.mode && a.min === b.min && a.max === b.max;
+}
 
 const EAT_COMPANION_RE = /^(.*)__pred_(value|confidence|source)$/;
 
