@@ -330,7 +330,9 @@ Located in `notebooks/`:
 
 **Frontend (optional):** dash, plotly, dash-bootstrap-components, dash-molstar
 
-**Similarity (optional, `[similarity]` extra):** pymmseqs, only reached via `-s/--similarity`. Kept out of core because it publishes cp310-only wheels, so on this package's `requires-python = ">=3.12"` it always compiles from sdist, and its `ipython<9` pin upgrades Colab's pinned ipython. Install with `pip install "protspace[similarity]"`.
+**Similarity (optional, `[similarity]` extra):** pymmseqs, only reached via `-s/--similarity`. Install with `pip install "protspace[similarity]"`.
+
+The two reasons it was moved out of core are **fixed upstream as of pymmseqs 1.2.0** (2026-08-11): every release through 1.1.0 shipped cp310-only wheels, so on this package's `requires-python = ">=3.12"` it always compiled from sdist, and its `ipython<9` pin upgraded Colab's pinned ipython. 1.2.0 ships `py3-none-*` wheels for macOS/manylinux/musllinux and depends only on numpy/pandas/pyyaml — all already core. **The floor is `>=1.2.0` so that is guaranteed, not incidental.** It stays an extra anyway: it is reachable through one flag, and a smaller base install is worth keeping on its own. Revisit only if `-s` stops being niche.
 
 **Local embedding (optional, `[local]` extra):** torch, transformers, sentencepiece, protobuf, einops, enabling on-device embedding via `protspace.data.embedding.local` (issue #320; alternative to the Biocentral API). Install with `pip install "protspace[local]"`.
 
