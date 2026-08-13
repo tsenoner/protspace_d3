@@ -42,6 +42,16 @@ def test_resolve_unknown_raises_with_suggestion():
         local.resolve_local_checkpoint("esm2_8")
 
 
+def test_colab_oversized_names_real_short_keys():
+    """A typo here would silently stop gating rather than fail.
+
+    The Colab notebook imports COLAB_OVERSIZED to disable those checkboxes on
+    its local backend, so a name that matches no shortcut disables nothing and
+    lets the model OOM mid-run — exactly the failure the set exists to prevent.
+    """
+    assert local.COLAB_OVERSIZED <= set(ALL_SHORT_KEYS)
+
+
 # ---------------------------------------------------------------------------
 # preprocess_sequence
 # ---------------------------------------------------------------------------
