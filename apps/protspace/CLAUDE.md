@@ -282,7 +282,7 @@ For a live count run `uv run pytest tests/ --collect-only -q`.
 | `test_annotation_validity.py` | `AnnotationValidityStatistic`: silhouette/DBI/CH scored per annotation on `ctx.coords`, embedding vs. projection `space_kind`, missing-value exclusion, single-category no-op, id-canonical subsample determinism |
 | `test_biocentral_embedder.py` | Biocentral API client, embedding flow |
 | `test_backend_switch.py` | Embedding backend switch: `resolve_default_backend` (Colab+GPU→local), `embed_fasta` local/biocentral dispatch (short key vs resolved name), `protspace embed --backend` CLI wiring + enum validation + non-positive batch_size rejection |
-| `test_local_embedder.py` | Local embedding backend: checkpoint resolution (12 short keys, Synthyra ESM-C), `COLAB_OVERSIZED` pinned to real short keys, per-family preprocessing/residue pooling, `/`-in-header guard, LocalEmbedConfig validation, empty-output guard, esm2_8m end-to-end + resume (slow) |
+| `test_local_embedder.py` | Local embedding backend: checkpoint resolution (12 short keys, Synthyra ESM-C), the notebook-gating sets pinned to the registry each constrains (`COLAB_OVERSIZED`→`LOCAL_CHECKPOINTS`, `BIOCENTRAL_INVALID`→`ALL_SHORT_KEYS`), per-family preprocessing/residue pooling, `/`-in-header guard, LocalEmbedConfig validation, empty-output guard, esm2_8m end-to-end + resume (slow) |
 | `test_fasta.py` | FASTA parsing, edge cases, CSV annotation loading |
 | `test_biocentral_retriever.py` | Biocentral prediction retriever (TMbed parsing, per-sequence) |
 | `test_taxonomy_annotation_retriever.py` | Taxonomy via UniProt Taxonomy API (mocked + integration) |
@@ -308,7 +308,7 @@ For a live count run `uv run pytest tests/ --collect-only -q`.
 | `test_cli_no_frontend.py` | CLI imports without the optional `frontend` extra (plotly, dash) |
 | `test_cli_no_similarity.py` | `-s/--similarity` without the optional `similarity` extra: up-front CLI guard (before any load/embed), loader `ImportError` backstop, `EMBEDDER_MODELS` pinned to the embedder registry |
 | `test_docs_extras_sync.py` | `README.md` (PyPI) and `docs/guide/python-cli.md` (protspace.app) hold the same extras section; the guide's embedder shortcut list matches `EMBEDDER_MODELS` |
-| `test_notebooks.py` | Colab notebooks: cell magics only on line 1, every code cell compiles after IPython transformation, cell ids present for `nbformat >= 4.5` |
+| `test_notebooks.py` | Colab notebooks: cell magics only on line 1, every code cell compiles after IPython transformation, cell ids present for `nbformat >= 4.5`, `except ImportError` fallback sets equal the package constants they stand in for — read structurally off the guarded import, so a fallback that is missing, emptied or written in an unrecognised shape fails instead of matching nothing |
 | `test_encoding_e2e.py` | Backend end-to-end round-trip proof for v2 annotation encoding |
 | `test_scores_ted.py` | `--no-scores` strips TED domains |
 

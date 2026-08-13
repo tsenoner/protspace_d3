@@ -54,10 +54,11 @@ LOCAL_CHECKPOINTS: dict[str, tuple[str, str]] = {
     "esmc_600m": ("Synthyra/ESMplusplus_large", "esmc"),
 }
 
-# Checkpoints that do not fit a free Colab GPU (a T4 has ~15 GB usable VRAM).
-# This backend only warns — `--backend local -e esm2_3b` is correct on real
-# hardware — but the Colab notebook imports this set to keep those models off
-# its local path, so the size rule has one home rather than two.
+# Checkpoints too large for a free Colab runtime; embed_sequences' warning below
+# carries the mechanism (host RAM, not VRAM). This backend only warns —
+# `--backend local -e esm2_3b` is correct on real hardware — but the Colab
+# notebook imports this set to keep those models off its local path, so the size
+# rule has one home rather than two.
 COLAB_OVERSIZED: frozenset[str] = frozenset({"esm2_3b"})
 
 # Model families whose tokenizer wraps the sequence with a leading special
@@ -282,10 +283,10 @@ def embed_sequences(
 
     if embedder in COLAB_OVERSIZED:
         logger.warning(
-            "%s materialises ~11.4 GB of fp32 weights in host RAM before it "
-            "reaches the GPU, which a free Colab runtime (12.7 GB) cannot take "
-            "— and that failure kills the kernel rather than raising. Fine on a "
-            "larger runtime or real hardware; otherwise pick a smaller model.",
+            "%s materialises more fp32 weights in host RAM than a free Colab "
+            "runtime (12.7 GB) can take, before they ever reach the GPU — and "
+            "that failure kills the kernel rather than raising. Fine on a larger "
+            "runtime or real hardware; otherwise pick a smaller model.",
             embedder,
         )
 

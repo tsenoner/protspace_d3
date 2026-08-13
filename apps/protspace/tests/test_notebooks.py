@@ -15,6 +15,7 @@ file.
 
 from __future__ import annotations
 
+import ast
 import json
 from pathlib import Path
 
@@ -75,6 +76,127 @@ def test_code_cells_compile_after_ipython_transformation(path: Path):
             compile(transform.transform_cell(source), f"{path.name}:{index}", "exec")
         except SyntaxError as exc:
             pytest.fail(f"{path.name} cell {index} does not compile: {exc}")
+
+
+def _literal_set(node: ast.expr) -> frozenset | None:
+    """`frozenset({...})`, `frozenset()`, `set()` or a bare `{...}` → a frozenset.
+
+    Anything else is None, i.e. "not a readable literal" — which the caller must
+    treat as a failure rather than a skip, or the pin becomes vacuous.
+    """
+    if isinstance(node, ast.Set):
+        return frozenset(ast.literal_eval(node))
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id in {"frozenset", "set"}
+        and not node.keywords
+    ):
+        if not node.args:
+            return frozenset()
+        if len(node.args) == 1:
+            return frozenset(ast.literal_eval(node.args[0]))
+    return None
+
+
+def _assignments(node: ast.AST):
+    """(name, value) for plain and annotated assignments alike.
+
+    The package declares both constants as annotated assignments, so a fallback
+    written in that style must not slip past.
+    """
+    if isinstance(node, ast.Assign):
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                yield target.id, node.value
+    elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+        if node.value is not None:
+            yield node.target.id, node.value
+
+
+def _guarded_import_fallbacks(tree: ast.AST, names: set[str]) -> dict[str, frozenset]:
+    """Read the `except ImportError` fallback for every guarded import of *names*.
+
+    Keys off the `try`/`except` structure rather than scanning for assignments,
+    so "the fallback is missing" is a failure instead of an empty result. A name
+    in *names* that is not imported under a guard at all contributes nothing —
+    there is no second copy to drift.
+    """
+    found = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Try):
+            continue
+        guarded = {
+            alias.asname or alias.name
+            for stmt in node.body
+            for sub in ast.walk(stmt)
+            if isinstance(sub, ast.ImportFrom)
+            for alias in sub.names
+        } & names
+        if not guarded:
+            continue
+        for handler in node.handlers:
+            for stmt in handler.body:
+                for sub in ast.walk(stmt):
+                    for name, value in _assignments(sub):
+                        if name not in guarded:
+                            continue
+                        literal = _literal_set(value)
+                        assert literal is not None, (
+                            f"fallback {name} is not a literal set, so nothing can "
+                            "check it against the package. Write it as "
+                            "`frozenset({...})`."
+                        )
+                        found[name] = literal
+        missing = guarded - set(found)
+        assert not missing, (
+            f"{', '.join(sorted(missing))} imported under `try`/`except ImportError` "
+            "with no fallback assigned in the handler — the notebook would NameError "
+            "on exactly the released-package lag the guard exists for."
+        )
+    return found
+
+
+@pytest.mark.parametrize("path", NOTEBOOKS, ids=lambda p: p.name)
+def test_notebook_fallback_sets_match_the_package(path: Path):
+    """The `except ImportError` copies must equal the constants they stand in for.
+
+    Cell 1 installs the *released* protspace while the notebook is served from
+    `main`, so the panel falls back to inline literals for one release. That
+    fallback is deliberate — but nothing else pins it, and it is exactly the
+    copy that runs during the lag it exists for. Left undefended, emptying
+    BIOCENTRAL_INVALID (when Biocentral is fixed) or adding a name to
+    COLAB_OVERSIZED would leave the notebook gating on stale policy silently.
+
+    Deliberately structural: it reads the fallback out of the `try`/`except`
+    that guards the import, so a fallback that is missing, emptied, or written
+    in a shape the reader does not understand *fails* rather than quietly
+    matching nothing. A guard that can silently disarm itself is worse than no
+    guard, because the notebook comment claims protection either way.
+    """
+    from protspace.data.embedding.biocentral import BIOCENTRAL_INVALID
+    from protspace.data.embedding.local import COLAB_OVERSIZED
+
+    expected = {
+        "BIOCENTRAL_INVALID": BIOCENTRAL_INVALID,
+        "COLAB_OVERSIZED": COLAB_OVERSIZED,
+    }
+    # Transform first, for the reason this module exists: cell source is not
+    # plain Python, and a `!cmd` line anywhere in a matched cell would otherwise
+    # raise SyntaxError from a test that has nothing to say about shell lines.
+    transform = pytest.importorskip(
+        "IPython.core.inputtransformer2",
+        reason="IPython is a dev-group dependency (via jupyter)",
+    ).TransformerManager()
+
+    for index, source in _code_cells(path):
+        tree = ast.parse(transform.transform_cell(source))
+        for name, value in _guarded_import_fallbacks(tree, set(expected)).items():
+            assert value == expected[name], (
+                f"{path.name} cell {index}: fallback {name} = {sorted(value)} but "
+                f"the package says {sorted(expected[name])}. Update the literal in "
+                "the notebook's `except ImportError` block to match."
+            )
 
 
 @pytest.mark.parametrize("path", NOTEBOOKS, ids=lambda p: p.name)

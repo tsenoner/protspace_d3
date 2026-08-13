@@ -42,20 +42,23 @@ def test_resolve_unknown_raises_with_suggestion():
         local.resolve_local_checkpoint("esm2_8")
 
 
-@pytest.mark.parametrize(
-    "blocked",
-    [local.COLAB_OVERSIZED, biocentral.BIOCENTRAL_INVALID],
-    ids=["colab_oversized", "biocentral_invalid"],
-)
-def test_blocked_sets_name_real_short_keys(blocked):
+def test_blocked_sets_name_real_short_keys():
     """A typo in either set would silently stop gating rather than fail.
 
     The Colab notebook imports both to disable those checkboxes, so a name that
     matches no shortcut disables nothing — and the run then fails the way the
     set exists to prevent, mid-embed, after the input has been paid for.
+
+    Each set is pinned to the registry it constrains, not to whichever one is
+    handy: COLAB_OVERSIZED is a fact about local checkpoints, so a local-only
+    model added later must not have to be a Biocentral shortcut to be gated.
     """
-    assert blocked
-    assert blocked <= set(ALL_SHORT_KEYS)
+    for blocked, registry in (
+        (local.COLAB_OVERSIZED, local.LOCAL_CHECKPOINTS),
+        (biocentral.BIOCENTRAL_INVALID, ALL_SHORT_KEYS),
+    ):
+        assert blocked
+        assert blocked <= set(registry)
 
 
 # ---------------------------------------------------------------------------
