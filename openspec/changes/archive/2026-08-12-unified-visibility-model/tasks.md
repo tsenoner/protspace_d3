@@ -81,8 +81,8 @@ is pinned before any production code moves.
       clickability is unit rule 11 ("interactivity is numeric, opacity > 0"), zero-opacity
       is rule 1, and isolate/reset are covered by three e2e specs. **Two items nothing
       replaced — axes re-fit on hide vs query, and PNG export excluding hidden points —
-      have no regression coverage at all; carried forward to #447 rather than ticked on
-      the assumption that shipped means verified**
+      have no regression coverage at all; carried forward to #447 rather than claimed as
+      verified on the assumption that shipped means verified**
 - [x] 5.4 Grep confirms no remaining ad-hoc visibility derivation:
       `_getOpacity(` appears only in the facade and its external consumers;
       no `.every(...hiddenKeysSet` outside `visibility-model.ts`

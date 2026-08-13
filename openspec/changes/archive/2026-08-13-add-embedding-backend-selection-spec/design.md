@@ -54,7 +54,7 @@ without claiming anything about the second.
 
 The two rules are complementary — `esmc_*` is local-only, `esm2_3b` is Biocentral-only when
 the runtime is small — so they are expressed as one map from effective backend to
-(blocked set, why, remedy) and read by both the checkbox gating and the drop-at-Generate
+(blocked set, note) and read by both the checkbox gating and the drop-at-Generate
 backstop. Before #446 those were separate code paths and had already diverged.
 
 The remedy is a whole phrase rather than "the other backend's name" because for `esm2_3b`

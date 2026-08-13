@@ -8,7 +8,7 @@
 ## 0. Pre-cutover freeze (carry branches, don't drain — Decision D5)
 
 - [x] 0.1 Announce a short freeze on protspace: no new merges to `main` after the snapshot until archived — moot in the end; the incremental re-sync in 1.4 handled upstream commits without a freeze
-- [x] 0.2 Inventory open branches to carry from the now-archived `tsenoner/protspace-legacy`: #66 (v2 writer), #55 (EAT/transfer), #60 (chore). filter-repo carries all refs; nothing needs to land first — the inventory is this line, and 1.4 records all three landing
+- [x] 0.2 Inventory open branches to carry from the now-archived `tsenoner/protspace-legacy`: protspace-legacy#66 (v2 writer), protspace-legacy#55 (EAT/transfer), protspace-legacy#60 (chore). filter-repo carries all refs; nothing needs to land first — the inventory is this line, and 1.4 records all three landing
 - [x] 0.3 Note web-side branches already in-repo (#306 v2 reader, #295 stats, #233) — they ride through the restructure, no cross-repo action
 
 ## 1. History import
@@ -16,7 +16,7 @@
 - [x] 1.1 Fresh clone protspace from origin (NOT the stale local clone, which is 54 behind)
 - [x] 1.2 `git filter-repo --to-subdirectory-filter apps/protspace` on the fresh clone (rewrites all refs)
 - [x] 1.3 In protspace_web: add remote, fetch, `git merge --allow-unrelated-histories` onto the migration branch
-- [x] 1.4 Carried branches (#66, #55, #60) landed on old `main` upstream and rode through the deterministic re-sync merge — no monorepo re-open needed
+- [x] 1.4 Carried branches (protspace-legacy#66, protspace-legacy#55, protspace-legacy#60) landed on old `main` upstream and rode through the deterministic re-sync merge — no monorepo re-open needed
 - [x] 1.5 Verify history/blame resolve under `apps/protspace/`
 
 ### Re-syncing upstream protspace after import (if v2 or other commits land on old `main` while this PR is open)
@@ -29,7 +29,7 @@ git fetch <re-filtered protspace>
 git merge protspace/main          # NO --allow-unrelated-histories this time
 ```
 
-Git brings in only the new commits and conflicts only on genuinely overlapping content (v2/#66 is annotation-encoding, orthogonal to the path/CI/license plumbing here, so overlap ≈ 0).
+Git brings in only the new commits and conflicts only on genuinely overlapping content (the v2 branch, protspace-legacy#66, is annotation-encoding, orthogonal to the path/CI/license plumbing here, so overlap ≈ 0).
 
 Caveat: this holds only for **append-only** upstream `main`. If upstream **rebases/force-pushes** `main` (rewriting existing SHAs), determinism breaks and the incremental merge fails — you're back to cherry-pick/re-import. This is what the 0.1 freeze protects.
 
@@ -77,7 +77,7 @@ Caveat: this holds only for **append-only** upstream `main`. If upstream **rebas
 > declarative schema would be a third copy of the format to keep in step rather than a
 > guarantee. See the `bundle-format-contract` spec for what is actually enforced.
 
-- [x] 5.1 Land v2 writer (#66, `apps/protspace`) + v2 reader (#306, `packages/*`) together in one PR — v2 shipped; pinned by `test_bundle_version.py` and `v2-roundtrip.test.ts`
+- [x] 5.1 Land v2 writer (protspace-legacy#66, `apps/protspace`) + v2 reader (#306, `packages/*`) together in one PR — v2 shipped; pinned by `test_bundle_version.py` and `v2-roundtrip.test.ts`
 - [x] 5.2 ~~create `packages/bundle-contract/` with `schema.json`~~ — dropped by decision; no declarative schema, the contract is behavioural
 - [x] 5.3 ~~Generate and commit golden fixtures~~ — **reversed**: fixtures are generated per run, never committed
 - [x] 5.4 Python contract test — shipped as the generator driving the real `protspace bundle` CLI as a subprocess, so the CLI's rename and version-stamping are inside the tested surface
