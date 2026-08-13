@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { VisualizationData } from '@protspace/utils';
 import './legend';
-import type { ProtspaceLegend } from './legend';
+import { mountLegendWithScatterplot } from './test-support/legend-scatterplot-harness';
 
 function makeData(): VisualizationData {
   return {
@@ -34,38 +34,7 @@ function makeData(): VisualizationData {
 
 async function setup() {
   const data = makeData();
-  const plot = document.createElement('protspace-scatterplot') as HTMLElement & {
-    data: VisualizationData;
-    selectedAnnotation: string;
-    eatOverlayEnabled: boolean;
-    hiddenAnnotationValues: string[];
-    otherAnnotationValues: string[];
-    config: Record<string, never>;
-    filtersActive: boolean;
-    filteredProteinIds: string[];
-    getCurrentData(): VisualizationData;
-    isIsolationMode(): boolean;
-    getIsolationHistory(): string[][];
-  };
-  Object.assign(plot, {
-    data,
-    selectedAnnotation: 'ec',
-    eatOverlayEnabled: true,
-    hiddenAnnotationValues: [],
-    otherAnnotationValues: [],
-    config: {},
-    filtersActive: false,
-    filteredProteinIds: [],
-    getCurrentData: () => data,
-    isIsolationMode: () => false,
-    getIsolationHistory: () => [],
-  });
-  document.body.append(plot);
-
-  const legend = document.createElement('protspace-legend') as ProtspaceLegend;
-  document.body.append(legend);
-  await legend.updateComplete;
-
+  const { legend, plot } = await mountLegendWithScatterplot(data, 'ec');
   return { data, legend, plot };
 }
 

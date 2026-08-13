@@ -1,4 +1,5 @@
 import { css } from 'lit';
+import { srOnlyMixin } from '../../../styles/mixins';
 
 /**
  * Legend Layout Styles
@@ -39,17 +40,7 @@ export const layoutStyles = css`
     position: relative;
   }
 
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
+  ${srOnlyMixin}
 
   .legend-header {
     display: flex;
@@ -253,5 +244,31 @@ export const layoutStyles = css`
     color: var(--legend-text-secondary);
     font-style: italic;
     padding: 1rem 0;
+  }
+
+  .score-strips {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--legend-border);
+  }
+
+  .score-strips-note {
+    margin: 0;
+    padding: 0.5rem 0.75rem;
+    /* 0.72rem, the size every other secondary line in this stylesheet uses, and the same as
+       .score-strips-caveat below — the two say the same kind of thing about the strips. */
+    font-size: 0.72rem;
+    color: var(--legend-text-secondary);
+    border-bottom: 1px solid var(--legend-border);
+  }
+
+  /* Sits inside .score-strips, which already owns the padding and bottom border. */
+  .score-strips-caveat {
+    margin: 0;
+    font-size: 0.72rem;
+    line-height: 1.3;
+    color: var(--legend-text-secondary);
   }
 `;
