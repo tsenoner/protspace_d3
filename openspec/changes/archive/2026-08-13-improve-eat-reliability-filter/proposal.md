@@ -22,6 +22,6 @@ Two further defects made states the user could not escape: a query matching noth
 ## Impact
 
 - **Stacked on #416** (`feat/improved_filtering`), which redefines `NOT` from a bare set complement to "has a value **and** does not match" and introduces presence chips plus the inclusive `gte`/`lte` operators. Every mode here is built on that model: the negated form this change originally used would hide curated points under the new `NOT`.
-- **Frontend:** `packages/core/src/components/control-bar/{control-bar,query-types,query-owned,eat-reliability}.ts`, `packages/core/src/components/legend/legend.ts` + styles, `packages/utils/src/visualization/eat-overlay.ts`, `apps/web/src/explore/runtime.ts`.
+- **Frontend:** `packages/core/src/components/control-bar/{control-bar,query-types,query-annotation-conditions,eat-reliability}.ts`, `packages/core/src/components/legend/legend.ts` + styles, `packages/utils/src/visualization/eat-overlay.ts`, `apps/web/src/explore/runtime.ts`.
 - **Not included:** persisting the reliability _mode_ to bundle settings — a schema addition needing a migration story for bundles carrying only the legacy scalar.
 - **Bundle format:** unchanged.

@@ -93,3 +93,30 @@ export function createGroup(overrides?: Partial<FilterGroup>): FilterGroup {
 export function isFilterGroup(item: FilterQueryItem): item is FilterGroup {
   return 'conditions' in item;
 }
+
+/**
+ * Clears a leftover leading 'AND'/'OR' from an item that has become the new first
+ * item (top-level, or first condition of a group). The first-row operator `<select>`
+ * offers only blank/NOT, so a stale 'AND'/'OR' would render blank while the data
+ * disagrees. 'NOT' stays (it is displayable and meaningfully complements the first
+ * item); 'undefined' is already correct.
+ *
+ * Pure: returns a new object only when a change is needed.
+ */
+function clearLeadingOp(item: FilterQueryItem): FilterQueryItem {
+  if (item.logicalOp === 'AND' || item.logicalOp === 'OR') {
+    return { ...item, logicalOp: undefined };
+  }
+  return item;
+}
+
+/**
+ * `clearLeadingOp` applied to a list's first item, if it has one — the only form the
+ * callers need. Stated once here so the query builder (removing a row) and the
+ * annotation-condition rewrite (replacing one) cannot drift on what a first item may
+ * carry.
+ */
+export function clearLeadingOpInList<T extends FilterQueryItem>(items: T[]): T[] {
+  const first = items[0];
+  return first ? [clearLeadingOp(first) as T, ...items.slice(1)] : items;
+}

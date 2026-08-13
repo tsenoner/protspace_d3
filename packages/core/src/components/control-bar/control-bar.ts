@@ -14,7 +14,12 @@ import {
   isAnyDropdownOpen,
   scrollHighlightedIntoView,
 } from '../../utils/dropdown-helpers';
-import { isEatConfidenceAnnotation, type ProjectionStatisticRow } from '@protspace/utils';
+import {
+  isEatConfidenceAnnotation,
+  isSameReliability,
+  type EatReliabilityState,
+  type ProjectionStatisticRow,
+} from '@protspace/utils';
 import {
   EXPORT_DEFAULTS,
   toggleProteinSelection,
@@ -35,18 +40,10 @@ import {
   replaceConditionsForAnnotation,
 } from './query-annotation-conditions';
 import {
-  DEFAULT_EAT_RELIABILITY,
-  clampBound,
   conditionsForReliability,
   reliabilityFromConditions,
   sameConditions,
 } from './eat-reliability';
-import type { EatReliabilityState } from './eat-reliability';
-
-/** Structural equality for a reliability state — the mirror's de-dupe comparison. */
-function isSameReliability(a: EatReliabilityState, b: EatReliabilityState): boolean {
-  return a.mode === b.mode && a.min === b.min && a.max === b.max;
-}
 
 /** Stable empty statistics — a fresh [] per render would dirty the child on every update. */
 const NO_STATISTICS: readonly ProjectionStatisticRow[] = [];
@@ -1586,9 +1583,14 @@ export class ProtspaceControlBar extends LitElement {
     const proteinIds = this._currentData?.protein_ids;
     if (!proteinIds) return;
 
-    const matchedIds = Array.from(matchedIndices)
-      .map((i) => proteinIds[i])
-      .filter((id): id is string => id !== undefined);
+    // One pass, no intermediates: at Swiss-Prot scale the `Array.from -> map -> filter`
+    // chain allocated three arrays of up to N ids for what is one lookup per index,
+    // and this runs on every slider commit.
+    const matchedIds: string[] = [];
+    for (const index of matchedIndices) {
+      const id = proteinIds[index];
+      if (id !== undefined) matchedIds.push(id);
+    }
 
     // A query that matches nothing used to be pushed as an ACTIVE filter, which
     // blanked the canvas: `_getVisibleProteinIdsSet()` reads an empty
@@ -1651,7 +1653,9 @@ export class ProtspaceControlBar extends LitElement {
    * does the resync, the column lookup and the apply.
    */
   public setEatConfidenceThreshold(baseKey: string, x: number): void {
-    this.setEatReliability(baseKey, { mode: 'atLeast', min: clampBound(x), max: 1 });
+    // No clamping here: `conditionsForReliability` normalizes the state it is handed,
+    // and the raw request is never stored.
+    this.setEatReliability(baseKey, { mode: 'atLeast', min: x, max: 1 });
   }
 
   /**
@@ -1702,7 +1706,9 @@ export class ProtspaceControlBar extends LitElement {
   private _emitEatThresholdMirror(force = false): void {
     const key = this._findEatConfidenceAnnotationKey(this.selectedAnnotation);
     if (!key) return;
-    const derived = this._reliabilityForKey(key);
+    // Conditions are matched by their column, not by their shape, which is what lets
+    // every operator mirror — including one the user built by hand, at any depth.
+    const derived = reliabilityFromConditions(findConditionsForAnnotation(this.filterQuery, key));
     const last = this._lastMirroredState.get(key);
     if (!force && last && isSameReliability(last, derived)) return;
     this._lastMirroredState.set(key, derived);
@@ -1725,17 +1731,6 @@ export class ProtspaceControlBar extends LitElement {
       }
     }
     return undefined;
-  }
-
-  /**
-   * The reliability state currently expressed by the conditions on eat-confidence
-   * column `key`, at any depth. Conditions are matched by their column, not by their
-   * shape, which is what lets every operator mirror — including one the user built
-   * by hand.
-   */
-  private _reliabilityForKey(key: string | undefined): EatReliabilityState {
-    if (!key) return DEFAULT_EAT_RELIABILITY;
-    return reliabilityFromConditions(findConditionsForAnnotation(this.filterQuery, key));
   }
 
   private _handleQueryReset() {

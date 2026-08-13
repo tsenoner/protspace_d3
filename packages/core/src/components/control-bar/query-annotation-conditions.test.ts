@@ -20,13 +20,6 @@ function onKey(overrides: Partial<NumericCondition> = {}): NumericCondition {
 }
 
 describe('findConditionsForAnnotation', () => {
-  it('finds a condition whatever its operator', () => {
-    for (const operator of ['gt', 'lt', 'between'] as const) {
-      const query: FilterQuery = [onKey({ operator })];
-      expect(findConditionsForAnnotation(query, KEY)).toHaveLength(1);
-    }
-  });
-
   it('finds a condition nested inside a group', () => {
     const query: FilterQuery = [createGroup({ conditions: [onKey()] })];
     expect(findConditionsForAnnotation(query, KEY)).toHaveLength(1);
@@ -40,15 +33,20 @@ describe('findConditionsForAnnotation', () => {
     expect(findConditionsForAnnotation(query, KEY)).toHaveLength(2);
   });
 
-  it('claims a hand-built condition on the same column, whatever its operator', () => {
+  it('claims a hand-built condition on the same column, whatever its shape', () => {
     // This is the heart of #380: the eat-confidence column exists only to drive the
     // reliability filter, so a condition the user hand-built in the query builder IS
     // that filter — the slider must recognise it rather than append a second,
     // contradictory condition beside it. `gt` matters most: it is what the query
-    // builder produces by default when an eat-confidence column is picked.
+    // builder produces by default when an eat-confidence column is picked. Negation is
+    // part of the shape the predecessor matched on, so it must not gate the match now.
     for (const operator of ['gt', 'lt', 'between'] as const) {
-      const query: FilterQuery = [createNumericCondition({ annotation: KEY, operator, min: 0.5 })];
-      expect(findConditionsForAnnotation(query, KEY)).toHaveLength(1);
+      for (const logicalOp of [undefined, 'NOT'] as const) {
+        const query: FilterQuery = [
+          createNumericCondition({ annotation: KEY, operator, min: 0.5, logicalOp }),
+        ];
+        expect(findConditionsForAnnotation(query, KEY)).toHaveLength(1);
+      }
     }
   });
 

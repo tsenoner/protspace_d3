@@ -280,27 +280,22 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
   // that filter pulls the control back. Each direction guards on the reliability
   // state, keyed per eat-confidence column, so they can't ping-pong.
   addTrackedEventListener(lifecycle, legendElement, 'eat-overlay-change', (event: Event) => {
-    const { confidenceThreshold, reliability } = (
+    // The full state (mode + both bounds) is what reaches the query — the scalar
+    // threshold alone cannot express "hide above" or "keep between".
+    const { reliability } = (
       event as CustomEvent<{
         enabled: boolean;
         confidenceThreshold: number;
-        reliability?: EatReliabilityState;
+        reliability: EatReliabilityState;
       }>
     ).detail;
-    // Prefer the full state (mode + both bounds) so "hide above" and "keep between"
-    // reach the query; fall back to the scalar for any emitter that predates it.
-    if (reliability) {
-      controlBar.setEatReliability(legendElement.selectedAnnotation, reliability);
-    } else {
-      controlBar.setEatConfidenceThreshold(legendElement.selectedAnnotation, confidenceThreshold);
-    }
+    controlBar.setEatReliability(legendElement.selectedAnnotation, reliability);
   });
   addTrackedEventListener(lifecycle, controlBar, 'eat-threshold-mirror', (event: Event) => {
-    const { value, state } = (
-      event as CustomEvent<{ value: number; base?: string; state?: EatReliabilityState }>
+    const { state } = (
+      event as CustomEvent<{ value: number; base: string; state: EatReliabilityState }>
     ).detail;
-    if (state) legendElement.setReliabilityState(state);
-    else legendElement.setReliabilityThreshold(value);
+    legendElement.setReliabilityState(state);
   });
   addTrackedEventListener(
     lifecycle,

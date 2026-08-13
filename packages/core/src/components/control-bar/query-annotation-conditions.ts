@@ -1,5 +1,5 @@
 import type { FilterQuery, FilterQueryItem, NumericCondition } from './query-types';
-import { isFilterGroup } from './query-types';
+import { clearLeadingOpInList, isFilterGroup } from './query-types';
 
 /**
  * Locating and replacing every numeric condition targeting one annotation column.
@@ -41,17 +41,6 @@ export function findConditionsForAnnotation(
 }
 
 /**
- * The first item of a list has no preceding sibling, so a leading `AND`/`OR` renders
- * blank in the builder while the data disagrees. `NOT` stays — it meaningfully
- * complements the first item. Mirrors `query-builder._clearLeadingOp`.
- */
-function clearLeadingOp(items: FilterQueryItem[]): FilterQueryItem[] {
-  const first = items[0];
-  if (!first || (first.logicalOp !== 'AND' && first.logicalOp !== 'OR')) return items;
-  return [{ ...first, logicalOp: undefined }, ...items.slice(1)];
-}
-
-/**
  * Substitute `next` for every numeric condition on `annotation`, at any depth.
  * Conditions on a DIFFERENT annotation, and every hand-built condition elsewhere,
  * are preserved untouched.
@@ -84,7 +73,8 @@ export function replaceConditionsForAnnotation(
     for (const item of items) {
       if (isFilterGroup(item)) {
         const conditions = rewrite(item.conditions);
-        if (conditions.length > 0) out.push({ ...item, conditions: clearLeadingOp(conditions) });
+        if (conditions.length > 0)
+          out.push({ ...item, conditions: clearLeadingOpInList(conditions) });
       } else if (isConditionFor(item, annotation)) {
         const replacement = pending.shift();
         if (replacement) {
@@ -101,5 +91,5 @@ export function replaceConditionsForAnnotation(
     return out;
   };
 
-  return clearLeadingOp([...rewrite(query), ...pending]);
+  return clearLeadingOpInList([...rewrite(query), ...pending]);
 }
