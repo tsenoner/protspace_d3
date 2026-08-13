@@ -51,7 +51,18 @@ Reconciling #446 surfaced two more defects that a written contract would have ca
   capacity probe, fallback disclosure, troubleshooting),
   `apps/protspace/src/protspace/data/embedding/local.py` (`COLAB_OVERSIZED` and its
   warning), `apps/protspace/src/protspace/data/embedding/biocentral.py`
-  (`BIOCENTRAL_INVALID`, which was a bare notebook literal that nothing pinned).
+  (`BIOCENTRAL_INVALID`, which was a bare notebook literal that nothing pinned),
+  `apps/protspace/tests/test_local_embedder.py` (each blocked set pinned to the registry
+  it constrains), `apps/protspace/tests/test_notebooks.py` (the notebook's
+  `except ImportError` fallback pinned to the package constants, read structurally off
+  the guarded import so a missing or emptied fallback fails rather than matching
+  nothing), and `apps/protspace/CLAUDE.md`.
+- A cleanup pass after the first review collapsed the gating duplication into one
+  `_embedders_and_backend()` helper — the select/resolve/drop/bail block had been written
+  out in both the query and fasta branches, with only the query copy moved ahead of the
+  fetch — and reduced the per-backend table's values from `(blocked, why, remedy)` to
+  `(blocked, note)`. The requirements below are unchanged by it, and the "one declaration
+  drives both" requirement is more literally true after it.
 - No CLI behaviour changes. The constraints stay advisory outside the notebook by design.
 - The notebook imports both declarations behind a tolerant fallback: it is served from
   `main` but installs the _released_ package, so a name added alongside a notebook change
