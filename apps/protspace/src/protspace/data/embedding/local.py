@@ -282,8 +282,10 @@ def embed_sequences(
 
     if embedder in COLAB_OVERSIZED:
         logger.warning(
-            "%s may exceed a free Colab T4 (~15 GB VRAM). If it OOMs, switch "
-            "to an L4/A100 runtime or a smaller model.",
+            "%s materialises ~11.4 GB of fp32 weights in host RAM before it "
+            "reaches the GPU, which a free Colab runtime (12.7 GB) cannot take "
+            "— and that failure kills the kernel rather than raising. Fine on a "
+            "larger runtime or real hardware; otherwise pick a smaller model.",
             embedder,
         )
 
