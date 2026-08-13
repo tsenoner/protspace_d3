@@ -96,6 +96,20 @@ import { createLegendErrorEventDetail } from './legend.events';
 const EAT_THRESHOLD_COMMIT_DELAY_MS = 150;
 
 /**
+ * Smallest gap the two `between` thumbs may be dragged to, matching the sliders' own
+ * 0.01 step. Keeping them one step apart means they never occupy the same pixel, where
+ * whichever sits on top would be the only one the pointer could reach.
+ */
+const EAT_BAND_MIN_GAP = 0.01;
+
+/**
+ * A 0..1 bound as a CSS percentage. Rounded because the multiplication is lossy —
+ * `(1 - 0.41) * 100` is `59.00000000000001`, which would otherwise be written into the
+ * style attribute verbatim. Two decimals is finer than the sliders' own 0.01 step.
+ */
+const bandPercent = (value: number): number => Number((value * 100).toFixed(2));
+
+/**
  * Which end of the reliability range a control edits. `atLeast` uses only the
  * lower bound, `atMost` only the upper, `between` both.
  */
@@ -1264,70 +1278,146 @@ export class ProtspaceLegend extends LitElement {
     // The upper row renders only when the mode actually has an upper bound, so the
     // overlay switch is the only thing that can disable it.
     const disabled = isLower ? this._lowerBoundDisabled : !this._eatOverlayEnabled;
-    const sliderLabel = isLower
-      ? this._eatReliabilityMode === 'between'
-        ? 'EAT reliability filter lower bound'
-        : 'EAT reliability filter threshold'
-      : 'EAT reliability filter upper bound';
 
     return html`
       <div class="eat-threshold-heading">
         ${isLower
-          ? html`<select
-              class="eat-threshold-mode"
-              aria-label="EAT reliability filter mode"
-              .value=${this._eatReliabilityMode}
-              ?disabled=${!this._eatOverlayEnabled}
-              @change=${this._handleEatModeChange}
-            >
-              <option value="atLeast">Hide below</option>
-              <option value="atMost">Hide above</option>
-              <option value="between">Keep between</option>
-            </select>`
+          ? this._renderReliabilityModeSelect()
           : html`<label for=${id}>Upper bound</label>`}
         <span class="eat-threshold-value">
-          <input
-            class="eat-threshold-percent"
-            type="number"
-            min="0"
-            max="100"
-            step="1"
-            .value=${String(Math.round(value * 100))}
-            ?disabled=${disabled}
-            aria-label=${isLower
-              ? 'EAT reliability filter percentage'
-              : 'EAT reliability upper bound percentage'}
-            @input=${(event: Event) => this._handleEatBoundPercentInput(bound, event)}
-            @change=${this._flushEatThresholdCommit}
-          />
+          ${this._renderReliabilityPercent(bound, value, disabled)}
           <span aria-hidden="true">%</span>
-          ${isLower
-            ? html`<protspace-info-popover
-                class="eat-threshold-info"
-                .description=${this._reliabilityHelpText()}
-                label="EAT reliability filter"
-                align="right"
-              ></protspace-info-popover>`
-            : ''}
+          ${isLower ? this._renderReliabilityInfo() : ''}
         </span>
       </div>
+      ${this._renderReliabilityRange(bound, value, disabled)}
+    `;
+  }
+
+  /**
+   * `between` as ONE track with two thumbs, rather than two independent bars.
+   *
+   * Two bars misrepresented the filter: each drew its own fill from 0 to its own value,
+   * so a 25–41% band showed an upper bar filled 0–41% — reading as "keep everything
+   * below 41", which is not the band being applied. One track with the fill drawn
+   * BETWEEN the thumbs is the shape of the thing: what is coloured is what is kept.
+   *
+   * The two `input[type=range]` elements are stacked on the same track. Only their
+   * thumbs take pointer events (see `layout.ts`), so each is dragged independently
+   * while the track underneath is shared, and both keep their own label, id and
+   * keyboard behaviour.
+   */
+  private _renderReliabilityBand() {
+    const disabled = !this._eatOverlayEnabled;
+    const min = this._eatConfidenceThreshold;
+    const max = this._eatConfidenceUpper;
+
+    return html`
+      <div class="eat-threshold-heading">
+        ${this._renderReliabilityModeSelect()}
+        <span class="eat-threshold-value">
+          ${this._renderReliabilityPercent('lower', min, disabled)}
+          <span class="eat-threshold-sep" aria-hidden="true">–</span>
+          ${this._renderReliabilityPercent('upper', max, disabled)}
+          <span aria-hidden="true">%</span>
+          ${this._renderReliabilityInfo()}
+        </span>
+      </div>
+      <div class="eat-threshold-band ${disabled ? 'is-disabled' : ''}">
+        <span class="eat-threshold-track" aria-hidden="true">
+          <span
+            class="eat-threshold-fill"
+            style=${`left:${bandPercent(min)}%;right:${bandPercent(1 - max)}%`}
+          ></span>
+        </span>
+        ${this._renderReliabilityRange('lower', min, disabled)}
+        ${this._renderReliabilityRange('upper', max, disabled)}
+      </div>
+    `;
+  }
+
+  private _renderReliabilityRange(bound: EatBound, value: number, disabled: boolean) {
+    const isLower = bound === 'lower';
+    return html`
       <input
-        id=${id}
+        id=${isLower ? 'eat-reliability-threshold' : 'eat-reliability-upper'}
         type="range"
         min="0"
         max="1"
         step="0.01"
         .value=${String(value)}
         ?disabled=${disabled}
-        aria-label=${sliderLabel}
+        aria-label=${isLower
+          ? this._eatReliabilityMode === 'between'
+            ? 'EAT reliability filter lower bound'
+            : 'EAT reliability filter threshold'
+          : 'EAT reliability filter upper bound'}
         @input=${(event: Event) => this._handleEatBoundInput(bound, event)}
         @change=${this._flushEatThresholdCommit}
       />
     `;
   }
 
+  private _renderReliabilityPercent(bound: EatBound, value: number, disabled: boolean) {
+    return html`
+      <input
+        class="eat-threshold-percent"
+        type="number"
+        min="0"
+        max="100"
+        step="1"
+        .value=${String(Math.round(value * 100))}
+        ?disabled=${disabled}
+        aria-label=${bound === 'lower'
+          ? 'EAT reliability filter percentage'
+          : 'EAT reliability upper bound percentage'}
+        @input=${(event: Event) => this._handleEatBoundPercentInput(bound, event)}
+        @change=${this._flushEatThresholdCommit}
+      />
+    `;
+  }
+
+  private _renderReliabilityModeSelect() {
+    return html`
+      <select
+        class="eat-threshold-mode"
+        aria-label="EAT reliability filter mode"
+        .value=${this._eatReliabilityMode}
+        ?disabled=${!this._eatOverlayEnabled}
+        @change=${this._handleEatModeChange}
+      >
+        <option value="atLeast">Hide below</option>
+        <option value="atMost">Hide above</option>
+        <option value="between">Keep between</option>
+      </select>
+    `;
+  }
+
+  private _renderReliabilityInfo() {
+    return html`
+      <protspace-info-popover
+        class="eat-threshold-info"
+        .description=${this._reliabilityHelpText()}
+        label="EAT reliability filter"
+        align="right"
+      ></protspace-info-popover>
+    `;
+  }
+
   private _handleEatBoundInput(bound: EatBound, event: Event): void {
-    this._setEatBoundLive(bound, Number((event.currentTarget as HTMLInputElement).value));
+    const slider = event.currentTarget as HTMLInputElement;
+    const applied = this._setEatBoundLive(bound, Number(slider.value));
+
+    // Re-pin the slider when a clamp moved the value, or the thumb sails past its
+    // neighbour on screen while the filter uses the clamped bound. Lit cannot do this
+    // for us: a `.value` binding dirty-checks against the value Lit last committed, not
+    // against the DOM, so once the clamp holds the state still the browser is free to
+    // keep driving the input and Lit sees nothing to write. (`live()` is the idiomatic
+    // fix, but this package externalizes only bare `lit`, so importing a directive
+    // bundles a second lit-html copy — which fails at runtime with
+    // `currentDirective._$initialize is not a function`.)
+    const pinned = String(applied);
+    if (slider.value !== pinned) slider.value = pinned;
   }
 
   private _handleEatBoundPercentInput(bound: EatBound, event: Event): void {
@@ -1342,15 +1432,38 @@ export class ProtspaceLegend extends LitElement {
    * `eat-overlay-change` emit that re-runs the reliability query and rebuilds
    * geometry — to a drag-pause/release.
    */
-  private _setEatBoundLive(bound: EatBound, value: number): void {
+  private _setEatBoundLive(bound: EatBound, value: number): number {
     // Each bound falls back to its own "constrains nothing" position: 0 for the
-    // lower bound, 1 for the upper. Written raw rather than through
-    // `_setReliability` — normalizing mid-drag would swap the band under the
-    // user's thumb; the commit canonicalizes instead.
-    const next = clampReliabilityBound(value, bound === 'lower' ? 0 : 1);
+    // lower bound, 1 for the upper.
+    const next = this._clampBandBound(
+      bound,
+      clampReliabilityBound(value, bound === 'lower' ? 0 : 1),
+    );
     if (bound === 'lower') this._eatConfidenceThreshold = next;
     else this._eatConfidenceUpper = next;
     this._debounceEatThresholdCommit();
+    // Returned so the caller can pin its control back onto the value that was applied.
+    return next;
+  }
+
+  /**
+   * On the shared `between` track a thumb stops at its neighbour instead of passing it.
+   *
+   * Two independent bars could cross, and the crossed pair was only put back in order
+   * later, by `normalizeReliability` at commit time — so the bounds swapped under the
+   * user's thumb, and which band they ended up with depended on whether they happened
+   * to pause for the debounce mid-drag. On one track that would be visible nonsense:
+   * the fill would invert. Stopping at the neighbour is what a range control does, and
+   * it makes the crossed state unreachable rather than corrected after the fact.
+   *
+   * The bounds stop one step short of each other so the two thumbs can never land on
+   * the same pixel, where the one on top would be the only one you could grab.
+   */
+  private _clampBandBound(bound: EatBound, value: number): number {
+    if (this._eatReliabilityMode !== 'between') return value;
+    return bound === 'lower'
+      ? Math.min(value, this._eatConfidenceUpper - EAT_BAND_MIN_GAP)
+      : Math.max(value, this._eatConfidenceThreshold + EAT_BAND_MIN_GAP);
   }
 
   private _debounceEatThresholdCommit(): void {
@@ -2504,10 +2617,15 @@ export class ProtspaceLegend extends LitElement {
                   </label>
                 </div>
                 <div class="eat-threshold">
-                  ${this._renderReliabilityBound('lower')}
-                  ${this._eatReliabilityMode !== 'atLeast'
-                    ? this._renderReliabilityBound('upper')
-                    : ''}
+                  ${this._eatReliabilityMode === 'between'
+                    ? // One track, two thumbs — a band is one range, not two thresholds.
+                      this._renderReliabilityBand()
+                    : html`
+                        ${this._renderReliabilityBound('lower')}
+                        ${this._eatReliabilityMode === 'atMost'
+                          ? this._renderReliabilityBound('upper')
+                          : ''}
+                      `}
                 </div>
                 ${this._eatOverlayEnabled && this._eatCounts
                   ? html`

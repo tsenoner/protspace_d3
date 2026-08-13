@@ -378,3 +378,89 @@ describe('legend EAT reliability modes (#380)', () => {
     expect(legend.reliabilityState).toEqual({ mode: 'atLeast', min: 0, max: 1 });
   });
 });
+
+/**
+ * A band is one range, not two thresholds. Rendering it as two independent bars drew
+ * two fills from 0, so a 25–41% band showed an upper bar filled 0–41% — "keep
+ * everything below 41", which is not the filter being applied.
+ */
+describe('legend EAT reliability band (one track, two thumbs)', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  async function band(min: number, max: number) {
+    const { legend } = await setup();
+    legend.setReliabilityState({ mode: 'between', min, max });
+    await legend.updateComplete;
+    const root = legend.shadowRoot!;
+    return {
+      legend,
+      root,
+      lower: root.querySelector<HTMLInputElement>('#eat-reliability-threshold')!,
+      upper: root.querySelector<HTMLInputElement>('#eat-reliability-upper')!,
+    };
+  }
+
+  it('puts both bounds on a single shared track', async () => {
+    const { root } = await band(0.25, 0.41);
+    const track = root.querySelectorAll('.eat-threshold-band');
+    expect(track).toHaveLength(1);
+    // Both range inputs live inside that one track.
+    expect(root.querySelectorAll('.eat-threshold-band input[type="range"]')).toHaveLength(2);
+  });
+
+  it('fills only between the thumbs, so what is coloured is what is kept', async () => {
+    const { root } = await band(0.25, 0.41);
+    const fill = root.querySelector<HTMLElement>('.eat-threshold-fill')!;
+    // Inset from BOTH ends — the old two-bar rendering always started at 0.
+    expect(fill.style.left).toBe('25%');
+    expect(fill.style.right).toBe('59%');
+  });
+
+  it('keeps a single bar in the modes that have one bound', async () => {
+    const { legend } = await setup();
+    legend.setReliabilityState({ mode: 'atLeast', min: 0.3, max: 1 });
+    await legend.updateComplete;
+    expect(legend.shadowRoot!.querySelector('.eat-threshold-band')).toBeNull();
+    expect(legend.shadowRoot!.querySelector('#eat-reliability-threshold')).not.toBeNull();
+  });
+
+  it('stops the lower thumb at the upper one instead of letting it pass', async () => {
+    // Two independent bars could cross, and the crossed pair was only reordered later
+    // at commit time — so the bounds swapped under the user's thumb, and the band they
+    // got depended on whether they paused for the debounce mid-drag.
+    const { legend, lower } = await band(0.2, 0.6);
+    lower.value = '0.9';
+    lower.dispatchEvent(new Event('input'));
+    await legend.updateComplete;
+
+    const { min, max } = legend.reliabilityState;
+    expect(max).toBe(0.6);
+    expect(min).toBeLessThan(max);
+  });
+
+  it('stops the upper thumb at the lower one instead of letting it pass', async () => {
+    const { legend, upper } = await band(0.4, 0.8);
+    upper.value = '0.1';
+    upper.dispatchEvent(new Event('input'));
+    await legend.updateComplete;
+
+    const { min, max } = legend.reliabilityState;
+    expect(min).toBe(0.4);
+    expect(max).toBeGreaterThan(min);
+  });
+
+  it('never lets the two thumbs land on the same pixel', async () => {
+    // Perfectly overlapped thumbs leave only the top one grabbable.
+    const { legend, lower } = await band(0.5, 0.5 + 0.01);
+    lower.value = '1';
+    lower.dispatchEvent(new Event('input'));
+    await legend.updateComplete;
+
+    const { min, max } = legend.reliabilityState;
+    expect(max - min).toBeCloseTo(0.01, 10);
+  });
+});

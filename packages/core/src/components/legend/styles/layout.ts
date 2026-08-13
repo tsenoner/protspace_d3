@@ -156,6 +156,109 @@ export const layoutStyles = css`
     margin: 0;
   }
 
+  /*
+   * "between" renders ONE track carrying both thumbs. The two range inputs are stacked
+   * on top of each other, transparent and inert, so what the user sees is the track and
+   * fill drawn below them; only the thumbs take pointer events, which is what lets each
+   * bound be dragged independently on a shared bar.
+   */
+  .eat-threshold-band {
+    position: relative;
+    height: 1.05rem;
+    margin: 0.15rem 0 0;
+  }
+
+  .eat-threshold-track {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    left: 0;
+    height: 0.3rem;
+    transform: translateY(-50%);
+    border-radius: 999px;
+    background: var(--legend-track-color, #3f4652);
+  }
+
+  /* The kept band. Positioned from both ends, so it reads as "what survives the filter". */
+  .eat-threshold-fill {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    border-radius: 999px;
+    background: var(--legend-accent-color, var(--primary, #2563eb));
+  }
+
+  .eat-threshold-band input[type='range'] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    background: transparent;
+    -webkit-appearance: none;
+    appearance: none;
+    /* The shared track must not swallow the other thumb's drags. */
+    pointer-events: none;
+  }
+
+  .eat-threshold-band input[type='range']:focus-visible {
+    outline: 2px solid var(--legend-accent-color, var(--primary, #2563eb));
+    outline-offset: 2px;
+    border-radius: 999px;
+  }
+
+  .eat-threshold-band input[type='range']::-webkit-slider-runnable-track {
+    background: transparent;
+    border: none;
+  }
+
+  .eat-threshold-band input[type='range']::-moz-range-track {
+    background: transparent;
+    border: none;
+  }
+
+  .eat-threshold-band input[type='range']::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 0.85rem;
+    height: 0.85rem;
+    border: 2px solid var(--legend-bg, #fff);
+    border-radius: 50%;
+    background: var(--legend-accent-color, var(--primary, #2563eb));
+    box-shadow: 0 0 0 1px rgb(0 0 0 / 20%);
+    cursor: grab;
+    pointer-events: auto;
+  }
+
+  .eat-threshold-band input[type='range']::-moz-range-thumb {
+    width: 0.85rem;
+    height: 0.85rem;
+    border: 2px solid var(--legend-bg, #fff);
+    border-radius: 50%;
+    background: var(--legend-accent-color, var(--primary, #2563eb));
+    box-shadow: 0 0 0 1px rgb(0 0 0 / 20%);
+    cursor: grab;
+    pointer-events: auto;
+  }
+
+  .eat-threshold-band.is-disabled {
+    opacity: 0.6;
+  }
+
+  .eat-threshold-band.is-disabled input[type='range']::-webkit-slider-thumb {
+    cursor: default;
+  }
+
+  .eat-threshold-band.is-disabled input[type='range']::-moz-range-thumb {
+    cursor: default;
+  }
+
+  /* Separates the two percent boxes: "25 – 41 %". */
+  .eat-threshold-sep {
+    color: var(--legend-text-secondary);
+  }
+
   .eat-threshold-percent {
     box-sizing: border-box;
     width: 2.8rem;
