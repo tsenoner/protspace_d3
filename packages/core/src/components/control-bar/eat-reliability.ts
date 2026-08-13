@@ -84,7 +84,6 @@ export function conditionsForReliability(
   const { mode, min, max } = normalizeReliability(state);
   const base = {
     annotation,
-    owner: 'eat-reliability' as const,
     // Curated points carry no confidence score; this chip is what retains them.
     presence: [NA_VALUE],
     ...(id === undefined ? {} : { id }),

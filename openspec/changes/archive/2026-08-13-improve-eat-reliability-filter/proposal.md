@@ -8,7 +8,7 @@ Two further defects made states the user could not escape: a query matching noth
 
 ## What Changes
 
-- The control's condition is identified by **ownership of the eat-confidence column**, at any depth, tagged or not — so every operator mirrors, a hand-built condition is recognised rather than duplicated, and one restored from a bundle written before the tag existed still works.
+- The control's condition is identified by **the eat-confidence column it targets**, at any depth — so every operator mirrors and a hand-built condition is recognised rather than duplicated. That column exists only to drive this filter, so the column alone is the identity; a marker saying "the control wrote this" would have to be ignored for hand-built conditions anyway, which is the bug being fixed.
 - The control gains **three modes** — at least, at most, and a band — each expressed as a single un-negated condition carrying the N/A presence chip, so curated proteins stay visible in all three.
 - The de-dupe guard is **keyed per eat-confidence column**, and switching the coloured-by annotation force-emits, because the control is otherwise still showing the previous base's position.
 - A query matching nothing **clears** the filter channel instead of activating it.

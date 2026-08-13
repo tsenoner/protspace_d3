@@ -1,8 +1,8 @@
 ## 1. Own the condition instead of matching its shape
 
-- [x] 1.1 Add a `ConditionOwner` tag and group-aware find/replace over conditions owned for a column.
+- [x] 1.1 Add group-aware find/replace over every numeric condition targeting a column.
 - [x] 1.2 Treat an untagged numeric condition on an eat-confidence column as owned, so hand-built and restored conditions mirror.
-- [x] 1.3 Replace the shape-matching helpers with an ownership lookup.
+- [x] 1.3 Replace the shape-matching helpers with a column lookup.
 
 ## 2. Three modes
 
@@ -23,8 +23,8 @@
 current behaviour.
 
 - [x] 4.1 Add a `MODIFIED Requirements` delta for `filter-query-semantics`, restating the EAT
-      reliability requirement in full so it describes the mode set and owner-keyed identity rather
-      than a single `gte` condition matched by shape.
+      reliability requirement in full so it describes the mode set and column-keyed identity
+      rather than a single `gte` condition matched by shape.
 - [x] 4.2 Correct this change's own "Curated proteins stay visible in every mode" requirement, which
       still claimed each mode is expressed as a **negated** condition — the pre-restack design. The
       implementation emits un-negated conditions carrying the N/A chip; under #416's `NOT` the

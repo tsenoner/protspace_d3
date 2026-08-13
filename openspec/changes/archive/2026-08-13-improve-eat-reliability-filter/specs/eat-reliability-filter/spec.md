@@ -3,9 +3,11 @@
 ### Requirement: The reliability filter is identified by column, not by condition shape
 
 The reliability control SHALL treat a numeric condition on an eat-confidence column as its own,
-at any depth in the query, regardless of operator or logical operator, and regardless of whether
-the condition carries an owner tag. Changing the control SHALL replace those conditions rather
-than adding another beside them.
+at any depth in the query and regardless of operator or logical operator, however that condition
+was built. Changing the control SHALL replace those conditions rather than adding another beside
+them. Identity SHALL rest on the column alone: an eat-confidence column exists only to drive this
+filter, so no marker distinguishing a control-authored condition from a hand-built one may be
+required to recognise it.
 
 #### Scenario: A hand-built condition is recognised
 

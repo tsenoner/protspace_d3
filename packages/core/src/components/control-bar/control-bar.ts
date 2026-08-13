@@ -30,7 +30,10 @@ import './query-builder';
 import type { FilterQuery } from './query-types';
 import { createCondition } from './query-types';
 import { evaluateQuery, hasConfiguredCondition } from './query-evaluate';
-import { findOwnedCondition, replaceOwnedConditions } from './query-owned';
+import {
+  findConditionsForAnnotation,
+  replaceConditionsForAnnotation,
+} from './query-annotation-conditions';
 import {
   DEFAULT_EAT_RELIABILITY,
   clampBound,
@@ -1670,13 +1673,13 @@ export class ProtspaceControlBar extends LitElement {
     const key = this._findEatConfidenceAnnotationKey(baseKey);
     if (!key) return;
 
-    const owned = findOwnedCondition(this.filterQuery, 'eat-reliability', key);
-    const nextConditions = conditionsForReliability(key, state, owned[0]?.id);
+    const existing = findConditionsForAnnotation(this.filterQuery, key);
+    const nextConditions = conditionsForReliability(key, state, existing[0]?.id);
 
     // Guard, scoped to THIS base: the query already expresses this state, so
     // re-applying would be redundant and could ping-pong with the reverse mirror.
     // Compare the CONDITIONS, not the states they derive from — see `sameConditions`.
-    if (sameConditions(owned, nextConditions)) return;
+    if (sameConditions(existing, nextConditions)) return;
     // Record what the query will READ BACK as, not what was requested. The reverse
     // mirror compares this against `reliabilityFromConditions`, and state -> conditions
     // is not injective: `atMost 0..1` emits nothing and reads back as the `atLeast`
@@ -1684,12 +1687,7 @@ export class ProtspaceControlBar extends LitElement {
     // filter dialog fired a spurious mirror that snapped the mode select back.
     this._lastMirroredState.set(key, reliabilityFromConditions(nextConditions));
 
-    this.filterQuery = replaceOwnedConditions(
-      this.filterQuery,
-      'eat-reliability',
-      key,
-      nextConditions,
-    );
+    this.filterQuery = replaceConditionsForAnnotation(this.filterQuery, key, nextConditions);
     this._applyQuery();
   }
 
@@ -1730,14 +1728,14 @@ export class ProtspaceControlBar extends LitElement {
   }
 
   /**
-   * The reliability state currently expressed by the condition the control owns for
-   * eat-confidence column `key`, at any depth. Conditions are matched by their
-   * declared owner and column, not by their shape, which is what lets every
-   * operator mirror — including one the user built by hand.
+   * The reliability state currently expressed by the conditions on eat-confidence
+   * column `key`, at any depth. Conditions are matched by their column, not by their
+   * shape, which is what lets every operator mirror — including one the user built
+   * by hand.
    */
   private _reliabilityForKey(key: string | undefined): EatReliabilityState {
     if (!key) return DEFAULT_EAT_RELIABILITY;
-    return reliabilityFromConditions(findOwnedCondition(this.filterQuery, 'eat-reliability', key));
+    return reliabilityFromConditions(findConditionsForAnnotation(this.filterQuery, key));
   }
 
   private _handleQueryReset() {

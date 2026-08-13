@@ -31,7 +31,6 @@ describe('conditionsForReliability', () => {
       expect(conditions).toHaveLength(1);
       expect(conditions[0]?.presence).toContain(NA_VALUE);
       expect(conditions[0]?.logicalOp).not.toBe('NOT');
-      expect(conditions[0]?.owner).toBe('eat-reliability');
       expect(conditions[0]?.annotation).toBe(KEY);
     }
   });

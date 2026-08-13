@@ -51,7 +51,6 @@ filters and unrelated user conditions untouched.
 
 - **WHEN** the control needs to reflect the query
 - **THEN** a condition counts as this base's reliability filter when it is numeric and names that
-  exact column, at any depth in the query, whatever its operator and whether or not it carries the
-  reliability owner tag
+  exact column, at any depth in the query, whatever its operator and however it was built
 - **AND** the position is derived from the bound that is present, accounting for negation, and
   defaults to "at least `0`" when no such condition exists

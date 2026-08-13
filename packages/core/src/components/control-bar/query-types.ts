@@ -15,22 +15,10 @@ export type NumericOperator = 'gt' | 'gte' | 'lt' | 'lte' | 'between';
  */
 export const ANY_VALUE = '__ANY__';
 
-/**
- * Marks a condition as owned by a dedicated control rather than hand-built.
- *
- * The EAT reliability control used to find "its" condition by pattern-matching a
- * fixed shape, which made every other operator invisible to it (#380). Ownership
- * is declared instead, so the control can own any operator and still recognise
- * it — and a condition the user built by hand on an eat-confidence column is the
- * same object the control owns.
- */
-export type ConditionOwner = 'eat-reliability';
-
 interface BaseCondition {
   id: string;
   logicalOp?: LogicalOp;
   annotation: string;
-  owner?: ConditionOwner;
 }
 
 export interface CategoricalCondition extends BaseCondition {
