@@ -50,7 +50,7 @@ local = [
     "transformers>=5.13.1",
 ]
 similarity = [
-    "pymmseqs>=1.0.4",
+    "pymmseqs>=1.2.0",
 ]
 
 [project.scripts]

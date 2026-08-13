@@ -98,7 +98,13 @@ Now a change to `parse_identifier` or a CLI signature breaks prep's tests in the
 - Two `ci.yml` + publish flows reconcile into one path-filtered set; `publish-images.yml` (prep image)
   and `release.yml` (protspace → PyPI) now share the workspace install.
 
-## Shared contract (`packages/bundle-contract/`)
+## Shared contract (`packages/bundle-contract/`) — SUPERSEDED, kept as the record
+
+> This section describes a design that was **not built**. `add-bundle-contract-test` (archived
+> 2026-07-20) solved the same problem differently and is the live spec, `bundle-format-contract`:
+> no `schema.json`, fixtures generated per run instead of committed, bundles produced by invoking
+> the real `protspace bundle` CLI, and a CI job with no hand-maintained path filter. Read the
+> section below as history, not as intent.
 
 - `schema.json` — delimiter bytes; part order + filenames (`selected_annotations`, `projections_metadata`,
   `projections_data`, optional `settings`); per-table columns / dtypes / **nullability**.
