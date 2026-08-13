@@ -80,8 +80,13 @@ EAT provenance connectors, isolation, dataset swap — have no other coverage at
 `pnpm precommit` does not touch them.
 
 It runs nightly on `main`, and on any PR touching the web app, the packages it builds on, or
-the root files that decide what those resolve to — `e2e.yml` owns the exact list. For anything
-else, dispatch it:
+the root files that decide what those resolve to — `e2e.yml` owns the exact list.
+
+Dispatch it by hand when your change could reach the app through something that list misses —
+a transitive dependency, a shared config, a generated asset — because a wrong `paths:` filter
+does not fail, it silently never runs. Not whenever `paths:` simply didn't match: a PR with no
+TS/JS and no root-file changes cannot reach the app, and a run there costs ~10 min to confirm
+nothing.
 
 ```bash
 gh workflow run e2e.yml --ref <branch>   # in CI, any branch
