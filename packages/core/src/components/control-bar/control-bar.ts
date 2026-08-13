@@ -33,6 +33,7 @@ import { evaluateQuery, hasConfiguredCondition } from './query-evaluate';
 import { findOwnedCondition, replaceOwnedConditions } from './query-owned';
 import {
   DEFAULT_EAT_RELIABILITY,
+  clampBound,
   conditionsForReliability,
   reliabilityFromConditions,
 } from './eat-reliability';
@@ -96,11 +97,10 @@ export class ProtspaceControlBar extends LitElement {
   @state() private showProjectionMenu: boolean = false;
   @state() private filterQuery: FilterQuery = [];
   @state() private filterActive = false;
-  // Last reliability threshold reflected across the slider<->query mirror. Both
-  // directions compare against it so the forward (slider->query) and reverse
-  // (query->slider) paths can't ping-pong on an unchanged value (#6b).
   // Last reliability state reflected across the control<->query mirror, PER
-  // eat-confidence column. Keyed because a single shared scalar let a change on
+  // eat-confidence column. Both directions compare against it so the forward
+  // (control->query) and reverse (query->control) paths can't ping-pong on an
+  // unchanged value (#6b). Keyed because a single shared scalar let a change on
   // one base be de-duplicated against another base's threshold, silently
   // dropping it or writing it onto the wrong annotation (#380).
   private _lastMirroredState = new Map<string, EatReliabilityState>();
@@ -1593,9 +1593,7 @@ export class ProtspaceControlBar extends LitElement {
     // Apply is disabled and Cancel does not revert. Leave the plot as it is
     // instead; the query builder still reports the 0 count (#380).
     if (matchedIds.length === 0) {
-      sp.filteredProteinIds = [];
-      sp.filtersActive = false;
-      this.filterActive = false;
+      this._clearFilterChannel(sp);
       return;
     }
 
@@ -1618,43 +1616,28 @@ export class ProtspaceControlBar extends LitElement {
     const sp = this._scatterplotElement as ScatterplotElementLike;
 
     if (!hasConfiguredCondition(this.filterQuery)) {
-      sp.filteredProteinIds = [];
-      sp.filtersActive = false;
-      this.filterActive = false;
+      this._clearFilterChannel(sp);
       return;
     }
 
     this._applyMatchedIndices(evaluateQuery(this.filterQuery, data));
   }
 
+  /** Release the filter channel so every protein returns, leaving isolation alone. */
+  private _clearFilterChannel(sp: ScatterplotElementLike): void {
+    sp.filteredProteinIds = [];
+    sp.filtersActive = false;
+    this.filterActive = false;
+  }
+
   /**
-   * Forward mirror (#6b): the legend reliability slider drives the query. For
-   * `x > 0` upsert a single `EAT_confidence >= x` condition carrying the N/A
-   * presence chip (so curated points, which have no confidence score, stay
-   * visible) on the selected base annotation's eat-confidence column; for
-   * `x <= 0` remove it. Then run the
-   * same apply path as a query. The eat-confidence column is resolved by runtime
-   * identity (role + base), which also matches the collision-renamed
-   * `__eat_confidence__runtime_N` variant that a suffix check would miss.
+   * Scalar entry point for the reliability filter, kept as the published component's
+   * back-compat surface: "hide below `x`" is `atLeast` with no upper bound, and
+   * `x <= 0` constrains nothing and so removes the condition. `setEatReliability`
+   * does the resync, the column lookup and the apply.
    */
   public setEatConfidenceThreshold(baseKey: string, x: number): void {
-    // Always resync `_currentData` from the scatter plot's materialized snapshot
-    // before deriving the condition. On a dataset switch the seed can fire before
-    // the plot's data-change event has refreshed `_currentData`, and
-    // clearForNewDataset does NOT reset it — so a stale snapshot would resolve the
-    // eat-confidence column and map matched indices against the PREVIOUS dataset's
-    // protein ids. Reading the plot's current data directly (memoized, cheap)
-    // removes that timing dependency and mirrors the filter-menu-open path.
-    if (this._scatterplotElement) {
-      const sp = this._scatterplotElement as ScatterplotElementLike;
-      this._currentData = sp.getMaterializedData?.() ?? sp.getCurrentData?.() ?? this._currentData;
-    }
-
-    this.setEatReliability(baseKey, {
-      mode: 'atLeast',
-      min: Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 0,
-      max: 1,
-    });
+    this.setEatReliability(baseKey, { mode: 'atLeast', min: clampBound(x), max: 1 });
   }
 
   /**
@@ -1744,11 +1727,9 @@ export class ProtspaceControlBar extends LitElement {
     const sp = this._scatterplotElement as ScatterplotElementLike;
     // Clear only the filter channel; any manual isolation the user created
     // independently of the filter is left untouched.
-    sp.filteredProteinIds = [];
-    sp.filtersActive = false;
+    this._clearFilterChannel(sp);
 
     this.filterQuery = [createCondition()];
-    this.filterActive = false;
     // A full reset drops any reliability condition too, so pull the legend slider
     // back to 0 via the reverse mirror.
     this._emitEatThresholdMirror();

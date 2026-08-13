@@ -275,10 +275,10 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
     'legend-error',
     interactionController.handleLegendError,
   );
-  // Two-way reliability mirror (#6b): the legend slider drives the shared
+  // Two-way reliability mirror (#6b): the legend control drives the shared
   // `EAT_confidence >= x or N/A` query filter on the control bar, and a direct edit of
-  // that filter pulls the slider back. Each direction guards on the threshold
-  // value so they can't ping-pong.
+  // that filter pulls the control back. Each direction guards on the reliability
+  // state, keyed per eat-confidence column, so they can't ping-pong.
   addTrackedEventListener(lifecycle, legendElement, 'eat-overlay-change', (event: Event) => {
     const { confidenceThreshold, reliability } = (
       event as CustomEvent<{

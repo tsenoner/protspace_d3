@@ -25,9 +25,10 @@ than adding another beside them.
 
 ### Requirement: Curated proteins stay visible in every mode
 
-The reliability control SHALL offer bounding below, bounding above, and a band, and SHALL express
-each as negated conditions so that proteins without a confidence score — the curated ones — are
-retained by the negation's complement in all three.
+The reliability control SHALL offer bounding below, bounding above, and a band, and proteins
+without a confidence score — the curated ones — SHALL remain visible in all three. They are
+retained by the presence chip each mode's condition carries, not by a negation's complement;
+`filter-query-semantics` fixes how each mode is encoded.
 
 #### Scenario: Each mode keeps curated proteins
 

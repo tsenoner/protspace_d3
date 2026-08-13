@@ -1,6 +1,6 @@
 import { createNumericCondition } from './query-types';
 import type { NumericCondition } from './query-types';
-import { NA_VALUE } from '@protspace/utils';
+import { NA_VALUE, clamp01 } from '@protspace/utils';
 import type { EatReliabilityState } from '@protspace/utils';
 
 export type { EatReliabilityState };
@@ -34,16 +34,19 @@ export type { EatReliabilityState };
  */
 export const DEFAULT_EAT_RELIABILITY: EatReliabilityState = { mode: 'atLeast', min: 0, max: 1 };
 
-const clamp01 = (value: number): number =>
-  Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
+/**
+ * `clamp01` with a defined result for non-finite input. The shared `clamp01` passes
+ * `NaN` through, and a bound can arrive as `NaN` from an emptied number input.
+ */
+export const clampBound = (value: number): number => (Number.isFinite(value) ? clamp01(value) : 0);
 
 /** The owned condition expressing `state`, or none when nothing is constrained. */
 export function conditionsForReliability(
   annotation: string,
   state: EatReliabilityState,
 ): NumericCondition[] {
-  const min = clamp01(state.min);
-  const max = clamp01(state.max);
+  const min = clampBound(state.min);
+  const max = clampBound(state.max);
   const base = {
     annotation,
     owner: 'eat-reliability' as const,
@@ -83,21 +86,21 @@ export function reliabilityFromConditions(
       case 'gt':
         if (condition.min !== null) {
           return negated
-            ? { mode: 'atMost', min: 0, max: clamp01(condition.min) }
-            : { mode: 'atLeast', min: clamp01(condition.min), max: 1 };
+            ? { mode: 'atMost', min: 0, max: clampBound(condition.min) }
+            : { mode: 'atLeast', min: clampBound(condition.min), max: 1 };
         }
         break;
       case 'lte':
       case 'lt':
         if (condition.max !== null) {
           return negated
-            ? { mode: 'atLeast', min: clamp01(condition.max), max: 1 }
-            : { mode: 'atMost', min: 0, max: clamp01(condition.max) };
+            ? { mode: 'atLeast', min: clampBound(condition.max), max: 1 }
+            : { mode: 'atMost', min: 0, max: clampBound(condition.max) };
         }
         break;
       case 'between':
         if (condition.min !== null && condition.max !== null) {
-          return { mode: 'between', min: clamp01(condition.min), max: clamp01(condition.max) };
+          return { mode: 'between', min: clampBound(condition.min), max: clampBound(condition.max) };
         }
         break;
     }

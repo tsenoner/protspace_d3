@@ -300,7 +300,8 @@ describe('legend-owned EAT controls', () => {
 /**
  * #380 — the legend must be able to express the three filter directions the issue
  * names, not just "hide below". Each mode emits the full state so the control bar
- * can translate it into NOT-form conditions that keep curated points visible.
+ * can translate it into one un-negated condition carrying the N/A presence chip,
+ * which is what keeps curated points visible.
  */
 describe('legend EAT reliability modes (#380)', () => {
   afterEach(() => {
