@@ -21,7 +21,7 @@ pip install protspace
 > **Upgrading an existing install:** `-s/--similarity` used to work out of the box because
 > MMseqs2 shipped in the base install. It now lives in the `similarity` extra, so add
 > `pip install "protspace[similarity]"` if you use that flag. Nothing else changes: the base
-> install got smaller and no longer compiles MMseqs2 from source.
+> install got smaller, and the extra installs from a prebuilt wheel, not from source.
 
 ## Commands
 
