@@ -15,6 +15,7 @@ import {
   scrollHighlightedIntoView,
 } from '../../utils/dropdown-helpers';
 import {
+  DEFAULT_EAT_RELIABILITY,
   isEatConfidenceAnnotation,
   isSameReliability,
   type EatReliabilityState,
@@ -1680,16 +1681,23 @@ export class ProtspaceControlBar extends LitElement {
     const existing = findConditionsForAnnotation(this.filterQuery, key);
     const nextConditions = conditionsForReliability(key, state, existing[0]?.id);
 
-    // Guard, scoped to THIS base: the query already expresses this state, so
-    // re-applying would be redundant and could ping-pong with the reverse mirror.
-    // Compare the CONDITIONS, not the states they derive from — see `sameConditions`.
-    if (sameConditions(existing, nextConditions)) return;
     // Record what the query will READ BACK as, not what was requested. The reverse
     // mirror compares this against `reliabilityFromConditions`, and state -> conditions
     // is not injective: `atMost 0..1` emits nothing and reads back as the `atLeast`
     // default. Storing the request made the two disagree, so an unrelated edit in the
     // filter dialog fired a spurious mirror that snapped the mode select back.
+    //
+    // Written BEFORE the de-dupe guard below. A mode picked before its bound —
+    // "Hide above" while the upper bound is still 1 — constrains nothing, so the guard
+    // returns early; skipping the record left the reverse mirror with no entry for this
+    // column, and a missing entry used to mean "emit unconditionally", which snapped the
+    // mode select back to "Hide below" on the next unrelated edit in the filter dialog.
     this._lastMirroredState.set(key, reliabilityFromConditions(nextConditions));
+
+    // Guard, scoped to THIS base: the query already expresses this state, so
+    // re-applying would be redundant and could ping-pong with the reverse mirror.
+    // Compare the CONDITIONS, not the states they derive from — see `sameConditions`.
+    if (sameConditions(existing, nextConditions)) return;
 
     this.filterQuery = replaceConditionsForAnnotation(this.filterQuery, key, nextConditions);
     this._applyQuery();
@@ -1709,8 +1717,12 @@ export class ProtspaceControlBar extends LitElement {
     // Conditions are matched by their column, not by their shape, which is what lets
     // every operator mirror — including one the user built by hand, at any depth.
     const derived = reliabilityFromConditions(findConditionsForAnnotation(this.filterQuery, key));
-    const last = this._lastMirroredState.get(key);
-    if (!force && last && isSameReliability(last, derived)) return;
+    // No record yet means nothing has moved this column off its resting position, so
+    // that is what the legend is already showing. Treating a missing entry as "emit
+    // unconditionally" instead made every first query edit push the `atLeast` default
+    // onto a control the user may have already set to another mode.
+    const last = this._lastMirroredState.get(key) ?? DEFAULT_EAT_RELIABILITY;
+    if (!force && isSameReliability(last, derived)) return;
     this._lastMirroredState.set(key, derived);
     this.dispatchEvent(
       new CustomEvent('eat-threshold-mirror', {

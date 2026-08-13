@@ -35,7 +35,7 @@ current behaviour.
 ## 5. Verification
 
 - [x] 5.1 `pnpm type-check`, `pnpm lint` (0 errors), `pnpm knip`, `pnpm format:check` clean.
-- [x] 5.2 `pnpm test:ci` — core 1658, utils 371, app 167 (+1 skipped), all passing.
+- [x] 5.2 `pnpm test:ci` — core 1665, utils 377, app 167 (+1 skipped), all passing.
 - [x] 5.3 Playwright `eat-visualization` — both scenarios, including #416's own "curated points stay visible" test.
 - [x] 5.4 `openspec validate improve-eat-reliability-filter --strict` passes.
 - [x] 5.5 Merge `main` into the branch, then archive this change before the merge.

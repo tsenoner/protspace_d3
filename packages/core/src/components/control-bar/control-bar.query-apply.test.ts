@@ -46,6 +46,7 @@ interface ControlBarInternals extends HTMLElement {
   selectedAnnotation: string;
   filterActive: boolean;
   filterQuery: FilterQuery;
+  clearForNewDataset(datasetHash: string, clearPersistedState?: boolean): void;
   setEatConfidenceThreshold(baseKey: string, x: number): void;
   _handleQueryApply(event: CustomEvent<{ matchedIndices: Set<number> }>): void;
   _handleQueryChanged(event: CustomEvent<{ query: FilterQuery }>): void;
@@ -346,6 +347,64 @@ describe('control-bar EAT reliability slider <-> query mirror', () => {
     );
     expect(mirror).not.toHaveBeenCalled();
   });
+
+  it('keeps a mode that constrains nothing, across an unrelated query edit', () => {
+    // Start from a freshly loaded dataset: `clearForNewDataset` empties the per-column
+    // record, and the colour-by annotation is unchanged so nothing repopulates it.
+    controlBar.clearForNewDataset('hash');
+    controlBar._currentData = makeEatData();
+    controlBar.selectedAnnotation = 'family';
+
+    // "Hide above" picked before its bound is moved constrains nothing, so the forward
+    // mirror emits no condition and returns early. It must still record the position:
+    // otherwise the next unrelated edit finds no entry, and pushing the `atLeast`
+    // default back snaps the legend's mode select off "Hide above".
+    controlBar.setEatReliability('family', { mode: 'atMost', min: 0, max: 1 });
+
+    const mirror = vi.fn();
+    controlBar.addEventListener('eat-threshold-mirror', mirror as EventListener);
+
+    controlBar._handleQueryChanged(
+      new CustomEvent('query-changed', {
+        detail: {
+          query: [{ id: 'other', kind: 'numeric', annotation: 'length', operator: 'gt', min: 10 }],
+        },
+      }),
+    );
+
+    expect(mirror).not.toHaveBeenCalled();
+  });
+
+  it('guards the loop for a condition that is not first in the query', () => {
+    // The builder gives every row after the first an `AND`, and the reliability
+    // condition is emitted bare — so comparing the raw logicalOp made the guard miss,
+    // and every repeat emit rebuilt the query and re-evaluated the whole dataset.
+    controlBar._handleQueryChanged(
+      new CustomEvent('query-changed', {
+        detail: {
+          query: [
+            { id: 'a', kind: 'categorical', annotation: 'family', values: ['A'] },
+            {
+              id: 'x',
+              kind: 'numeric',
+              annotation: EAT_KEY,
+              operator: 'gte',
+              min: 0.5,
+              max: null,
+              presence: [NA_VALUE],
+              logicalOp: 'AND',
+            },
+          ],
+        },
+      }),
+    );
+
+    const before = controlBar.filterQuery;
+    controlBar.setEatReliability('family', { mode: 'atLeast', min: 0.5, max: 1 });
+
+    // Identity, not equality: the guard must skip the rewrite entirely.
+    expect(controlBar.filterQuery).toBe(before);
+  });
 });
 
 /**
@@ -541,7 +600,9 @@ describe('control-bar EAT reliability filter — all operators (#380)', () => {
 
   it('never hides the curated points, in any mode', () => {
     // p0-p4 carry a null confidence: they are curated, and the slider's own help text
-    // promises they always stay visible. Only a NOT-complement keeps them.
+    // promises they always stay visible. The N/A presence chip is what keeps them:
+    // no comparison can match a null, and under #416's NOT ("has a value AND does not
+    // match") the old negated spelling would hide them instead.
     const curated = ['p0', 'p1', 'p2', 'p3', 'p4'];
     const modes = [
       { mode: 'atLeast' as const, min: 0.5, max: 1 },

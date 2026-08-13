@@ -68,8 +68,17 @@ export function conditionsForReliability(
   // mode is a compile error here rather than a silently unfiltered query.
 }
 
-const samePresence = (a: readonly string[], b: readonly string[]): boolean =>
-  a.length === b.length && a.every((value) => b.includes(value));
+/**
+ * Multiset equality, not "same length and every left member appears on the right" —
+ * that reported `['NA','NA']` equal to `['NA','ANY']`, which is the difference between
+ * retaining curated points and matching every protein.
+ */
+function samePresence(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const left = [...a].sort();
+  const right = [...b].sort();
+  return left.every((value, index) => value === right[index]);
+}
 
 /**
  * Do these two lists express the same filter? `id` is identity rather than meaning,
@@ -80,6 +89,13 @@ const samePresence = (a: readonly string[], b: readonly string[]): boolean =>
  * both constrain nothing and emit nothing, while an empty query reads back as the
  * `atLeast` default. Comparing derived states therefore never matched at those two
  * positions and re-applied the whole filter on every emit.
+ *
+ * Only NEGATION is compared, not the raw `logicalOp`. The surrounding query owns the
+ * `AND`/`OR` connector — `replaceConditionsForAnnotation` re-imposes whatever the
+ * replaced slot carried — while `conditionsForReliability` always emits a bare
+ * condition. Comparing them raw meant a reliability condition that was not first in
+ * its list ("AND" vs `undefined`) never matched, so every repeat emit rebuilt the
+ * query and re-evaluated the whole dataset for a no-op.
  */
 export function sameConditions(
   a: readonly NumericCondition[],
@@ -94,7 +110,7 @@ export function sameConditions(
         left.operator === right.operator &&
         left.min === right.min &&
         left.max === right.max &&
-        left.logicalOp === right.logicalOp &&
+        (left.logicalOp === 'NOT') === (right.logicalOp === 'NOT') &&
         samePresence(presenceOf(left), presenceOf(right))
       );
     })

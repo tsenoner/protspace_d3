@@ -101,7 +101,7 @@ The mode dropdown picks which side of the confidence scale to cut:
 | **Hide above**   | predictions at or below the bound          | inspect the weak predictions — where the transfer struggled |
 | **Keep between** | predictions inside the band, ends included | isolate a confidence band to compare like with like         |
 
-**Keep between** shows a second **Upper bound** slider. In **Hide below** and **Hide above** only the bound that mode actually uses is editable, so a number you can see is always a number that is filtering.
+**Hide above** and **Keep between** both show a second **Upper bound** slider. Only the bound a mode actually uses stays editable — in **Hide above** the first slider is greyed out — so a number you can change is always a number that is filtering.
 
 ![Raising the threshold thins out the ringed points and leaves the curated ones](./images/eat-reliability.gif)
 
@@ -125,7 +125,7 @@ The mirror runs both ways: edit or delete that condition in the filter builder a
 
 Because this is a real filter, it interacts with everything else that responds to a filtered view. In particular the [separation score](/explore/separation-scores) strips hide themselves while any filter is active, the reliability filter included, since whole-dataset scores would contradict a narrowed view.
 
-Exporting a bundle with settings included stores the **Show** state and the threshold, so a shared dataset reopens on the same view. The _mode_ is not stored yet: a bundle saved in **Hide above** or **Keep between** reopens on **Hide below** at the saved threshold.
+Exporting a bundle with settings included stores the **Show** state and the lower bound, so a dataset shared from **Hide below** reopens on the same view. The _mode_ and the upper bound are not stored yet, so the other two modes do not survive a round trip: **Keep between** reopens as **Hide below** at the band's lower edge, keeping everything above it, and **Hide above** reopens with no filter at all — it has no lower bound to store, so the saved value is 0. Re-pick the mode after loading such a bundle.
 
 ## Trying It
 
