@@ -38,6 +38,14 @@ EXTRA_SHORT_KEYS: dict[str, str] = {
 # Combined lookup for help text and error messages.
 ALL_SHORT_KEYS: dict[str, str] = {**MODEL_SHORT_KEYS, **EXTRA_SHORT_KEYS}
 
+# Shortcuts this API accepts but does not actually serve: biotrainer has no
+# dedicated ESM-C embedder and its generic loader substring-matches "esm" in
+# "ESMplusplus", loading the checkpoint as a vanilla ESM-2 — so the request
+# succeeds and returns embeddings orthogonal to the real model (cosine ~0.02).
+# Declared, not enforced: the CLI still accepts the combination, and the Colab
+# notebook is what refuses it. Drop this once Biocentral is fixed.
+BIOCENTRAL_INVALID: frozenset[str] = frozenset({"esmc_300m", "esmc_600m"})
+
 DEFAULT_EMBEDDER = "prot_t5"
 
 

@@ -9,7 +9,7 @@ transformers) and downloads a small ESM2 model, so it is marked ``slow``.
 import numpy as np
 import pytest
 
-from protspace.data.embedding import local
+from protspace.data.embedding import biocentral, local
 from protspace.data.embedding.biocentral import ALL_SHORT_KEYS
 
 # ---------------------------------------------------------------------------
@@ -42,14 +42,20 @@ def test_resolve_unknown_raises_with_suggestion():
         local.resolve_local_checkpoint("esm2_8")
 
 
-def test_colab_oversized_names_real_short_keys():
-    """A typo here would silently stop gating rather than fail.
+@pytest.mark.parametrize(
+    "blocked",
+    [local.COLAB_OVERSIZED, biocentral.BIOCENTRAL_INVALID],
+    ids=["colab_oversized", "biocentral_invalid"],
+)
+def test_blocked_sets_name_real_short_keys(blocked):
+    """A typo in either set would silently stop gating rather than fail.
 
-    The Colab notebook imports COLAB_OVERSIZED to disable those checkboxes on
-    its local backend, so a name that matches no shortcut disables nothing and
-    lets the model OOM mid-run — exactly the failure the set exists to prevent.
+    The Colab notebook imports both to disable those checkboxes, so a name that
+    matches no shortcut disables nothing — and the run then fails the way the
+    set exists to prevent, mid-embed, after the input has been paid for.
     """
-    assert local.COLAB_OVERSIZED <= set(ALL_SHORT_KEYS)
+    assert blocked
+    assert blocked <= set(ALL_SHORT_KEYS)
 
 
 # ---------------------------------------------------------------------------
