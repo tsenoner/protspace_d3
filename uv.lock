@@ -3256,7 +3256,7 @@ wheels = [
 
 [[package]]
 name = "protlabel"
-version = "4.11.1"
+version = "4.11.2"
 source = { editable = "apps/protspace/packages/protlabel" }
 dependencies = [
     { name = "numpy" },
@@ -3282,7 +3282,7 @@ wheels = [
 
 [[package]]
 name = "protspace"
-version = "4.11.1"
+version = "4.11.2"
 source = { editable = "apps/protspace" }
 dependencies = [
     { name = "biocentral-api" },
@@ -3363,7 +3363,7 @@ requires-dist = [
     { name = "protlabel", editable = "apps/protspace/packages/protlabel" },
     { name = "protobuf", marker = "extra == 'local'", specifier = ">=3.20" },
     { name = "pyarrow", specifier = ">=20.0.0" },
-    { name = "pymmseqs", marker = "extra == 'similarity'", specifier = ">=1.0.4" },
+    { name = "pymmseqs", marker = "extra == 'similarity'", specifier = ">=1.2.0" },
     { name = "requests", specifier = ">=2.32.4" },
     { name = "rich", specifier = ">=13.8.0" },
     { name = "scikit-learn", specifier = ">=1.6.1" },
@@ -3667,16 +3667,22 @@ wheels = [
 
 [[package]]
 name = "pymmseqs"
-version = "1.1.0"
+version = "1.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "ipython" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "pyyaml" },
-    { name = "scikit-learn" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/25/31/08a89ffff946c1e994befba0524c5a151e3306a5a4abc7d0872bb22a7c0c/pymmseqs-1.1.0.tar.gz", hash = "sha256:31b4beec07f324b75e1b04d28fcd8e4b83f718c509d184f798f00f8d4cb0ef25", size = 85137, upload-time = "2026-06-25T10:39:46.8Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f9/32/12061e31947de85c6e110bc6056b400f3954fe5499663dd908f080831d23/pymmseqs-1.2.0.tar.gz", hash = "sha256:9c29ee1327dd58656f166887aab466c7cf29f673037dc612edacb056a178f212", size = 88382, upload-time = "2026-08-11T11:03:43.786Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/95/09/82584095d82733cef421dcfb116e38ad989d4c528e240e0aa2064195d6ec/pymmseqs-1.2.0-py3-none-macosx_10_15_x86_64.whl", hash = "sha256:f2064598012cd1b986e5fb5d9d8f5089e1fda73298d1ccbebd485c799dd62cb6", size = 10257612, upload-time = "2026-08-11T11:03:32.097Z" },
+    { url = "https://files.pythonhosted.org/packages/a3/5e/e8e0ff076252e0e6ce012116646ad55294a5b6101f1ec0ef6175e8866654/pymmseqs-1.2.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:9c78ce921a80f884f49d7b6de1727bd0dd954fb13814984069de167f723e6cf9", size = 10257611, upload-time = "2026-08-11T11:03:34.763Z" },
+    { url = "https://files.pythonhosted.org/packages/ea/29/4d56c8b6c38cf436a8c0d04d0a21593d3c85671ccee1853168e15479886d/pymmseqs-1.2.0-py3-none-manylinux1_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:b2e78132a637b0e957f4222a047b53ef12c747087ebe3634e55e758c120ee09e", size = 6908945, upload-time = "2026-08-11T11:03:37.081Z" },
+    { url = "https://files.pythonhosted.org/packages/04/f9/e919718d6997cce52b67e2068dc0e5395bbcb08e2546911cccff322d8c57/pymmseqs-1.2.0-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:6599e3b3c9aaf5b8fd93f010e5ece50d3ec1675e8c58e8649b8258cec3cc30d6", size = 6468698, upload-time = "2026-08-11T11:03:38.758Z" },
+    { url = "https://files.pythonhosted.org/packages/cc/8b/e669dea38b10a1c420d558ef5c24f37375d4c6ac70c7332076bf82bc2df1/pymmseqs-1.2.0-py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:dfadc6a1d1d2175a23679450b61cdf8c4a45d13e89312cba6f0dfd4bdb0ed7ba", size = 6468692, upload-time = "2026-08-11T11:03:40.487Z" },
+    { url = "https://files.pythonhosted.org/packages/99/d8/ce9045423a0d83c6d3409be21a826b09f4ede7b641f82ec8370a46e89f3e/pymmseqs-1.2.0-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:5599c8f274ccb18bf82e57e16383045fc68cbf241c5def10842202ac9d97381a", size = 6908938, upload-time = "2026-08-11T11:03:42.099Z" },
+]
 
 [[package]]
 name = "pynndescent"

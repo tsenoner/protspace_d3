@@ -1,6 +1,41 @@
 # CHANGELOG
 
 
+## v4.11.2 (2026-08-13)
+
+### Bug Fixes
+
+- **notebook**: Gate esm2_3b in the panel, not just at Generate
+  ([`1f1820a`](https://github.com/tsenoner/protspace/commit/1f1820ac7cc1821946f6c7db7c2249c6f8d57dbe))
+
+- **notebook**: Gate esm2_3b on runtime capacity, and disclose the auto fallback
+  ([`94dd558`](https://github.com/tsenoner/protspace/commit/94dd558c1af3df323cbcb5ec615aa0ae46d273ca))
+
+- **notebook**: Keep esm2_3b off the Colab local backend
+  ([`a5b32f1`](https://github.com/tsenoner/protspace/commit/a5b32f179f6c2a88be92f353d8f927fe1fa69823))
+
+- **notebook**: Survive a released-package lag, and stop advising a dead service
+  ([`3e73e43`](https://github.com/tsenoner/protspace/commit/3e73e439b0feb5c914ed3866d5cf11fa72194993))
+
+### Build System
+
+- **deps**: Raise the pymmseqs floor to 1.2.0 for wheels
+  ([`fe81f6d`](https://github.com/tsenoner/protspace/commit/fe81f6dbf98f875ef052871f41887d753c2e4958))
+
+### Documentation
+
+- Drop the stale compile-from-source contrast from the similarity note
+  ([`4f5b89a`](https://github.com/tsenoner/protspace/commit/4f5b89a1a91959e7252f9dd29bce11bde58f7cd4))
+
+- Qualify the pymmseqs wheel claim, which is false on Windows
+  ([`41f8602`](https://github.com/tsenoner/protspace/commit/41f8602493c7e2110698eb89d3f3618499a04b3f))
+
+### Refactoring
+
+- **notebook**: Collapse the backend-gating duplication, and pin the fallback
+  ([`3cdacf9`](https://github.com/tsenoner/protspace/commit/3cdacf9eaa7e76767b657eae61db2b398f4ad447))
+
+
 ## v4.11.1 (2026-08-12)
 
 ### Bug Fixes

@@ -1,6 +1,6 @@
 [project]
 name = "protspace"
-version = "4.11.1"
+version = "4.11.2"
 description = "Prepare protein language model (pLM) embeddings for interactive exploration at protspace.app — embed, project, annotate, transfer labels (EAT), and bundle."
 authors = [{ name = "Tobias Senoner", email = "tobias.senoner@tum.de" }]
 readme = "README.md"
@@ -50,7 +50,7 @@ local = [
     "transformers>=5.13.1",
 ]
 similarity = [
-    "pymmseqs>=1.0.4",
+    "pymmseqs>=1.2.0",
 ]
 
 [project.scripts]
