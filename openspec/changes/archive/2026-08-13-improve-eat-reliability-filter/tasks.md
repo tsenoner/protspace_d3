@@ -38,4 +38,4 @@ current behaviour.
 - [x] 5.2 `pnpm test:ci` — core 1658, utils 371, app 167 (+1 skipped), all passing.
 - [x] 5.3 Playwright `eat-visualization` — both scenarios, including #416's own "curated points stay visible" test.
 - [x] 5.4 `openspec validate improve-eat-reliability-filter --strict` passes.
-- [ ] 5.5 Merge `main` into the branch, then archive this change before the merge.
+- [x] 5.5 Merge `main` into the branch, then archive this change before the merge.
