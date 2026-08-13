@@ -40,21 +40,57 @@ export const DEFAULT_EAT_RELIABILITY: EatReliabilityState = { mode: 'atLeast', m
  */
 export const clampBound = (value: number): number => (Number.isFinite(value) ? clamp01(value) : 0);
 
-/** The owned condition expressing `state`, or none when nothing is constrained. */
+/**
+ * Canonical form: clamp both bounds and blank the one the mode does not use.
+ *
+ * A mode carries a bound it ignores (`atLeast` has no upper bound, `atMost` no
+ * lower), and `reliabilityFromConditions` always returns the canonical spelling.
+ * Without this, a caller that leaves the unused bound at its previous value hands
+ * over a state that is equal in meaning but unequal by `isSameReliability`, so the
+ * mirror's de-dupe guard never fires and every repeat call rewrites the query.
+ */
+export function normalizeReliability(state: EatReliabilityState): EatReliabilityState {
+  const min = clampBound(state.min);
+  const max = clampBound(state.max);
+  switch (state.mode) {
+    case 'atLeast':
+      return { mode: 'atLeast', min, max: 1 };
+    case 'atMost':
+      return { mode: 'atMost', min: 0, max };
+    case 'between':
+      // Order the bounds. The two sliders move independently, so dragging the lower
+      // one past the upper produced `between 0.8 .. 0.5`, which `matchesNumericValue`
+      // reads as `v >= 0.8 && v <= 0.5` — unsatisfiable, collapsing the plot to the
+      // curated points (or, with none, tripping the empty-result guard and showing
+      // everything). Neither is the band on screen.
+      return { mode: 'between', min: Math.min(min, max), max: Math.max(min, max) };
+  }
+}
+
+/**
+ * The owned condition expressing `state`, or none when nothing is constrained.
+ *
+ * `id` carries the identity of the condition being replaced. The query builder keys
+ * a row's live match count and its in-progress bound text by condition id, so minting
+ * a fresh id on every commit makes the row fall back to the global count and discards
+ * a half-typed bound while the user is still typing it.
+ */
 export function conditionsForReliability(
   annotation: string,
   state: EatReliabilityState,
+  id?: string,
 ): NumericCondition[] {
-  const min = clampBound(state.min);
-  const max = clampBound(state.max);
+  // Normalize here, so no caller can emit an inverted band or a stale unused bound.
+  const { mode, min, max } = normalizeReliability(state);
   const base = {
     annotation,
     owner: 'eat-reliability' as const,
     // Curated points carry no confidence score; this chip is what retains them.
     presence: [NA_VALUE],
+    ...(id === undefined ? {} : { id }),
   };
 
-  switch (state.mode) {
+  switch (mode) {
     case 'atLeast':
       return min > 0 ? [createNumericCondition({ ...base, operator: 'gte', min })] : [];
     case 'atMost':
@@ -64,9 +100,42 @@ export function conditionsForReliability(
       return min > 0 || max < 1
         ? [createNumericCondition({ ...base, operator: 'between', min, max })]
         : [];
-    default:
-      return [];
   }
+  // No `default`: the switch is exhaustive over `EatReliabilityMode`, so a fourth
+  // mode is a compile error here rather than a silently unfiltered query.
+}
+
+const samePresence = (a: readonly string[] = [], b: readonly string[] = []): boolean =>
+  a.length === b.length && a.every((value) => b.includes(value));
+
+/**
+ * Do these two lists express the same filter? `id` is identity rather than meaning,
+ * so it is ignored.
+ *
+ * The mirror's guard compares conditions rather than the states they came from
+ * because state -> conditions is not injective: `atMost 0..1` and `between 0..1`
+ * both constrain nothing and emit nothing, while an empty query reads back as the
+ * `atLeast` default. Comparing derived states therefore never matched at those two
+ * positions and re-applied the whole filter on every emit.
+ */
+export function sameConditions(
+  a: readonly NumericCondition[],
+  b: readonly NumericCondition[],
+): boolean {
+  return (
+    a.length === b.length &&
+    a.every((left, index) => {
+      const right = b[index];
+      return (
+        left.annotation === right.annotation &&
+        left.operator === right.operator &&
+        left.min === right.min &&
+        left.max === right.max &&
+        left.logicalOp === right.logicalOp &&
+        samePresence(left.presence, right.presence)
+      );
+    })
+  );
 }
 
 /**
@@ -100,7 +169,11 @@ export function reliabilityFromConditions(
         break;
       case 'between':
         if (condition.min !== null && condition.max !== null) {
-          return { mode: 'between', min: clampBound(condition.min), max: clampBound(condition.max) };
+          return {
+            mode: 'between',
+            min: clampBound(condition.min),
+            max: clampBound(condition.max),
+          };
         }
         break;
     }

@@ -94,6 +94,12 @@ import { createLegendErrorEventDetail } from './legend.events';
  */
 const EAT_THRESHOLD_COMMIT_DELAY_MS = 150;
 
+/**
+ * Which end of the reliability range a control edits. `atLeast` uses only the
+ * lower bound, `atMost` only the upper, `between` both.
+ */
+type EatBound = 'lower' | 'upper';
+
 // Types
 import type {
   LegendDataInput,
@@ -1062,7 +1068,13 @@ export class ProtspaceLegend extends LitElement {
     this._numericManualOrderIdsByAnnotation = {};
     this._eatCounts = null;
     this._eatOverlayEnabled = true;
+    // Reset the whole reliability position, not just the lower bound. A bundle
+    // restores the threshold only, so a mode left over from the previous dataset
+    // would reinterpret it: "hide below 60%" saved in this bundle would load as
+    // "hide above <the previous dataset's upper bound>" — the opposite filter.
     this._eatConfidenceThreshold = DEFAULT_EAT_CONFIDENCE_THRESHOLD;
+    this._eatReliabilityMode = 'atLeast';
+    this._eatConfidenceUpper = 1;
     this._clearKeyboardReorderState();
 
     // Reset isolation state
@@ -1183,8 +1195,32 @@ export class ProtspaceLegend extends LitElement {
     );
   }
 
-  private _handleEatThresholdInput(event: Event): void {
-    this._setEatConfidenceThresholdLive(Number((event.currentTarget as HTMLInputElement).value));
+  /**
+   * The lower bound is dead in `atMost` mode — `conditionsForReliability` reads only
+   * the upper one — so both of its controls are disabled together. They used to
+   * disagree: the range was disabled but the percent box beside the mode select
+   * stayed editable, so a user could type a lower bound that silently did nothing.
+   */
+  private get _lowerBoundDisabled(): boolean {
+    return !this._eatOverlayEnabled || this._eatReliabilityMode === 'atMost';
+  }
+
+  /**
+   * The popover sits beside the mode select, so it has to describe the mode that is
+   * actually selected. It used to say "predictions below this reliability are hidden"
+   * unconditionally, which is false in two of the three modes.
+   */
+  private _reliabilityHelpText(): string {
+    const label = annotationLabel(this.selectedAnnotation);
+    const effect = {
+      atLeast:
+        'Predictions below this reliability are hidden (filtered out). Set to 0% to show all.',
+      atMost:
+        'Predictions above the upper bound are hidden (filtered out). Set to 100% to show all.',
+      between:
+        'Only predictions between the two bounds are kept; everything outside the band is hidden. Widen the band to 0–100% to show all.',
+    }[this._eatReliabilityMode];
+    return `${effect} Curated “${label}” annotations always stay visible. This mirrors a Filter condition on “${label} — EAT confidence”.`;
   }
 
   private _handleEatModeChange(event: Event): void {
@@ -1199,39 +1235,29 @@ export class ProtspaceLegend extends LitElement {
     this._emitEatOverlayChange();
   }
 
-  private _handleEatUpperInput(event: Event): void {
-    this._setEatUpperLive(Number((event.currentTarget as HTMLInputElement).value));
+  private _handleEatBoundInput(bound: EatBound, event: Event): void {
+    this._setEatBoundLive(bound, Number((event.currentTarget as HTMLInputElement).value));
   }
 
-  private _handleEatUpperPercentInput(event: Event): void {
+  private _handleEatBoundPercentInput(bound: EatBound, event: Event): void {
     const value = Number((event.currentTarget as HTMLInputElement).value);
     if (!Number.isFinite(value)) return;
-    this._setEatUpperLive(value / 100);
-  }
-
-  private _setEatUpperLive(value: number): void {
-    this._eatConfidenceUpper = Number.isFinite(value) ? clamp01(value) : 1;
-    this._debounceEatThresholdCommit();
-  }
-
-  private _handleEatThresholdPercentInput(event: Event): void {
-    const value = Number((event.currentTarget as HTMLInputElement).value);
-    if (!Number.isFinite(value)) return;
-    this._setEatConfidenceThresholdLive(value / 100);
+    this._setEatBoundLive(bound, value / 100);
   }
 
   /**
-   * Threshold drag: update the slider's visual value immediately (thumb + percent
+   * Bound drag: update the slider's visual value immediately (thumb + percent
    * readout stay live), but debounce the expensive downstream apply — the
    * `eat-overlay-change` emit that re-runs the reliability query and rebuilds
    * geometry — to a drag-pause/release.
    */
-  private _setEatConfidenceThresholdLive(value: number): void {
-    // clamp01(NaN) is NaN; keep the non-finite fallback the immediate apply used
-    // (unreachable via the current handlers, but defensive/consistent).
-    this._eatConfidenceThreshold = Number.isFinite(value)
-      ? clamp01(value)
-      : DEFAULT_EAT_CONFIDENCE_THRESHOLD;
+  private _setEatBoundLive(bound: EatBound, value: number): void {
+    // clamp01(NaN) is NaN, so each bound keeps the fallback of its own
+    // "constrains nothing" position: 0 for the lower bound, 1 for the upper.
+    const fallback = bound === 'lower' ? DEFAULT_EAT_CONFIDENCE_THRESHOLD : 1;
+    const next = Number.isFinite(value) ? clamp01(value) : fallback;
+    if (bound === 'lower') this._eatConfidenceThreshold = next;
+    else this._eatConfidenceUpper = next;
     this._debounceEatThresholdCommit();
   }
 
@@ -2406,15 +2432,15 @@ export class ProtspaceLegend extends LitElement {
                         max="100"
                         step="1"
                         .value=${String(Math.round(this._eatConfidenceThreshold * 100))}
-                        ?disabled=${!this._eatOverlayEnabled}
+                        ?disabled=${this._lowerBoundDisabled}
                         aria-label="EAT reliability filter percentage"
-                        @input=${this._handleEatThresholdPercentInput}
+                        @input=${(event: Event) => this._handleEatBoundPercentInput('lower', event)}
                         @change=${this._flushEatThresholdCommit}
                       />
                       <span aria-hidden="true">%</span>
                       <protspace-info-popover
                         class="eat-threshold-info"
-                        .description=${`Predictions below this reliability are hidden (filtered out); curated “${annotationLabel(this.selectedAnnotation)}” annotations always stay visible. Set to 0% to show all. This mirrors a Filter condition on “${annotationLabel(this.selectedAnnotation)} — EAT confidence”.`}
+                        .description=${this._reliabilityHelpText()}
                         label="EAT reliability filter"
                         align="right"
                       ></protspace-info-popover>
@@ -2427,11 +2453,11 @@ export class ProtspaceLegend extends LitElement {
                     max="1"
                     step="0.01"
                     .value=${String(this._eatConfidenceThreshold)}
-                    ?disabled=${!this._eatOverlayEnabled || this._eatReliabilityMode === 'atMost'}
+                    ?disabled=${this._lowerBoundDisabled}
                     aria-label=${this._eatReliabilityMode === 'between'
                       ? 'EAT reliability filter lower bound'
                       : 'EAT reliability filter threshold'}
-                    @input=${this._handleEatThresholdInput}
+                    @input=${(event: Event) => this._handleEatBoundInput('lower', event)}
                     @change=${this._flushEatThresholdCommit}
                   />
                   ${this._eatReliabilityMode !== 'atLeast'
@@ -2448,7 +2474,8 @@ export class ProtspaceLegend extends LitElement {
                               .value=${String(Math.round(this._eatConfidenceUpper * 100))}
                               ?disabled=${!this._eatOverlayEnabled}
                               aria-label="EAT reliability upper bound percentage"
-                              @input=${this._handleEatUpperPercentInput}
+                              @input=${(event: Event) =>
+                                this._handleEatBoundPercentInput('upper', event)}
                               @change=${this._flushEatThresholdCommit}
                             />
                             <span aria-hidden="true">%</span>
@@ -2463,7 +2490,7 @@ export class ProtspaceLegend extends LitElement {
                           .value=${String(this._eatConfidenceUpper)}
                           ?disabled=${!this._eatOverlayEnabled}
                           aria-label="EAT reliability filter upper bound"
-                          @input=${this._handleEatUpperInput}
+                          @input=${(event: Event) => this._handleEatBoundInput('upper', event)}
                           @change=${this._flushEatThresholdCommit}
                         />
                       `

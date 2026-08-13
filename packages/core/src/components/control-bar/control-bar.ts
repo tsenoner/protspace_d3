@@ -36,6 +36,7 @@ import {
   clampBound,
   conditionsForReliability,
   reliabilityFromConditions,
+  sameConditions,
 } from './eat-reliability';
 import type { EatReliabilityState } from './eat-reliability';
 
@@ -1623,10 +1624,20 @@ export class ProtspaceControlBar extends LitElement {
     this._applyMatchedIndices(evaluateQuery(this.filterQuery, data));
   }
 
-  /** Release the filter channel so every protein returns, leaving isolation alone. */
+  /**
+   * Release the filter channel so every protein returns, leaving isolation alone.
+   *
+   * Only writes when something is actually set. `filteredProteinIds` is an Array
+   * property compared by identity, so assigning a fresh `[]` over an already-empty
+   * one still marks the plot dirty and triggers a full geometry rebuild plus a
+   * `data-change` round trip through the legend's population counts — an O(N) pass
+   * over every protein for a no-op.
+   */
   private _clearFilterChannel(sp: ScatterplotElementLike): void {
-    sp.filteredProteinIds = [];
-    sp.filtersActive = false;
+    if (sp.filtersActive || (sp.filteredProteinIds?.length ?? 0) > 0) {
+      sp.filteredProteinIds = [];
+      sp.filtersActive = false;
+    }
     this.filterActive = false;
   }
 
@@ -1659,18 +1670,25 @@ export class ProtspaceControlBar extends LitElement {
     const key = this._findEatConfidenceAnnotationKey(baseKey);
     if (!key) return;
 
-    // Value-compare guard, scoped to THIS base: the query already reflects this
-    // state, so re-applying would be redundant and could ping-pong with the
-    // reverse mirror.
-    const current = this._reliabilityForKey(key);
-    if (isSameReliability(current, state)) return;
-    this._lastMirroredState.set(key, state);
+    const owned = findOwnedCondition(this.filterQuery, 'eat-reliability', key);
+    const nextConditions = conditionsForReliability(key, state, owned[0]?.id);
+
+    // Guard, scoped to THIS base: the query already expresses this state, so
+    // re-applying would be redundant and could ping-pong with the reverse mirror.
+    // Compare the CONDITIONS, not the states they derive from — see `sameConditions`.
+    if (sameConditions(owned, nextConditions)) return;
+    // Record what the query will READ BACK as, not what was requested. The reverse
+    // mirror compares this against `reliabilityFromConditions`, and state -> conditions
+    // is not injective: `atMost 0..1` emits nothing and reads back as the `atLeast`
+    // default. Storing the request made the two disagree, so an unrelated edit in the
+    // filter dialog fired a spurious mirror that snapped the mode select back.
+    this._lastMirroredState.set(key, reliabilityFromConditions(nextConditions));
 
     this.filterQuery = replaceOwnedConditions(
       this.filterQuery,
       'eat-reliability',
       key,
-      conditionsForReliability(key, state),
+      nextConditions,
     );
     this._applyQuery();
   }

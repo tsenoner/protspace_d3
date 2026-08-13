@@ -92,4 +92,45 @@ describe('replaceOwnedConditions', () => {
     const next = replaceOwnedConditions(query, 'eat-reliability', KEY, []);
     expect(next.filter(isFilterGroup)).toHaveLength(0);
   });
+
+  // Stripping and re-appending at the top level turned `A OR <owned>` into
+  // `A AND <owned>`: with the owned condition removed, `A` became first, and a first
+  // item's leading operator is ignored, so the user's OR was silently dropped.
+  it('keeps the connector of the condition it replaces', () => {
+    const first = createNumericCondition({ annotation: 'length', operator: 'gt', min: 10 });
+    const query: FilterQuery = [first, owned({ logicalOp: 'OR' })];
+
+    const next = replaceOwnedConditions(query, 'eat-reliability', KEY, [
+      owned({ operator: 'gte', min: 0.6, logicalOp: undefined }),
+    ]);
+
+    expect(next).toHaveLength(2);
+    expect((next[1] as NumericCondition).logicalOp).toBe('OR');
+    expect((next[1] as NumericCondition).operator).toBe('gte');
+  });
+
+  it('replaces a nested condition inside its group rather than hoisting it', () => {
+    const query: FilterQuery = [createGroup({ conditions: [owned()] })];
+
+    const next = replaceOwnedConditions(query, 'eat-reliability', KEY, [
+      owned({ operator: 'gte', min: 0.6, logicalOp: undefined }),
+    ]);
+
+    const groups = next.filter(isFilterGroup);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].conditions).toHaveLength(1);
+    expect(next.filter((item) => !isFilterGroup(item))).toHaveLength(0);
+  });
+
+  // The control only ever emits positive conditions, so carrying a NOT across would
+  // re-negate the mode the user just picked.
+  it('does not carry a NOT onto the replacement', () => {
+    const query: FilterQuery = [owned({ logicalOp: 'NOT' })];
+
+    const next = replaceOwnedConditions(query, 'eat-reliability', KEY, [
+      owned({ operator: 'gte', min: 0.6, logicalOp: undefined }),
+    ]);
+
+    expect((next[0] as NumericCondition).logicalOp).toBeUndefined();
+  });
 });

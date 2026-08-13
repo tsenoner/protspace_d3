@@ -363,4 +363,18 @@ describe('legend EAT reliability modes (#380)', () => {
     await legend.updateComplete;
     expect(legend.reliabilityState).toEqual({ mode: 'between', min: 0.25, max: 0.75 });
   });
+
+  it('resets the whole position for a new dataset, not just the lower bound', async () => {
+    // A bundle restores the threshold only. A mode carried over from the previous
+    // dataset reinterprets it: a bundle saved as "hide below 60%" would load as
+    // "hide above <the previous dataset's upper bound>" — the opposite filter.
+    const { legend } = await setup();
+    legend.setReliabilityState({ mode: 'atMost', min: 0, max: 0.4 });
+    await legend.updateComplete;
+
+    legend.clearForNewDataset('next-dataset-hash');
+    await legend.updateComplete;
+
+    expect(legend.reliabilityState).toEqual({ mode: 'atLeast', min: 0, max: 1 });
+  });
 });
