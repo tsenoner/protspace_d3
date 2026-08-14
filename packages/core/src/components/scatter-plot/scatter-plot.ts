@@ -52,7 +52,7 @@ import {
 import { NumericRecomputeRunner } from './styling/numeric-recompute-runner';
 import {
   WebglRenderPerfRunner,
-  type PerfDatasetInfo,
+  type PerfRunOptions,
   type RenderWebGLTrigger,
 } from './webgl-render-perf';
 import {
@@ -1392,10 +1392,7 @@ export class ProtspaceScatterplot extends LitElement {
     this._webglRenderPerf.stop(perfToken, pd.length);
   }
 
-  public async runWebGLRenderPerfMeasurements(
-    iterations?: number,
-    options?: { download?: boolean; dataset?: PerfDatasetInfo },
-  ) {
+  public async runWebGLRenderPerfMeasurements(iterations?: number, options?: PerfRunOptions) {
     return this._webglRenderPerf.runWebGLRenderPerfMeasurements(iterations, options);
   }
 

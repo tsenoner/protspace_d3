@@ -17,12 +17,11 @@ import { type Config, driver, type DriveStep, type PopoverDOM, type State } from
 import { isMacOrIos } from '@protspace/utils';
 import './product-tour.css';
 import { waitForElement } from './wait-for-element';
+import { TOUR_STORAGE_KEY } from './storage-key';
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-
-const STORAGE_KEY = 'driver.overviewTour';
 
 /** Host selector for the control-bar custom element. */
 const CONTROL_BAR = '[data-driver-id="control-bar"]';
@@ -307,7 +306,7 @@ interface ProductTourOptions {
  * user explicitly clicks "Take a Tour").
  */
 export function startProductTour(options: ProductTourOptions = {}) {
-  const hasCompleted = localStorage.getItem(STORAGE_KEY) === 'true';
+  const hasCompleted = localStorage.getItem(TOUR_STORAGE_KEY) === 'true';
 
   if (!options.force && hasCompleted) {
     return;
@@ -315,7 +314,7 @@ export function startProductTour(options: ProductTourOptions = {}) {
 
   // Mark as completed immediately so it won't auto-start again even if the
   // user closes the tour early.
-  localStorage.setItem(STORAGE_KEY, 'true');
+  localStorage.setItem(TOUR_STORAGE_KEY, 'true');
 
   driverObj.drive();
 }
