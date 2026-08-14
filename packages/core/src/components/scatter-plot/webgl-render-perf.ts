@@ -1,6 +1,9 @@
 import * as d3 from 'd3';
 import type { PlotData, PlotDataPoint, VisualizationData } from '@protspace/utils';
 import { materializePlotDataPoint } from '@protspace/utils';
+// Type-only on purpose: plot-interaction-controller.ts imports RenderWebGLTrigger
+// from this module, so a value import would close a runtime ESM cycle.
+import type { PlotInteractionController } from './interaction/plot-interaction-controller';
 
 const PERF_MEASURE_ITERATIONS = 10;
 const PERF_MEASURE_ZOOM_FACTOR = 3;
@@ -170,6 +173,16 @@ export class WebglRenderPerfRunner {
     return this._host as any;
   }
 
+  /**
+   * The host's interaction controller, or null before firstUpdated(). Still a
+   * reach-in, but a *typed* one: everything past it is the controller's public
+   * API, so the next extraction cannot silently strip the runner the way moving
+   * `_zoom` / `_svgSelection` off the host did (#453).
+   */
+  private _interaction(): PlotInteractionController | null {
+    return (this._hostAny()._interaction as PlotInteractionController | null) ?? null;
+  }
+
   private _collectDatasetInfo(explicit?: PerfDatasetInfo): PerfDatasetInfo | undefined {
     const host = this._hostAny();
     const proteinCount = (host?.data as VisualizationData | undefined)?.protein_ids?.length;
@@ -224,8 +237,10 @@ export class WebglRenderPerfRunner {
         typeof plotData.length === 'number' &&
         plotData.length > 0 &&
         host._svg &&
-        host._svgSelection &&
-        host._zoom &&
+        // Zoom lives on the interaction controller, not the host — checking
+        // `_interaction` alone would not do: it is assigned one statement
+        // before initialize(), which is what actually wires zoom up.
+        this._interaction()?.isZoomReady &&
         host._scales &&
         host._webglRenderer
       ) {
@@ -423,32 +438,16 @@ export class WebglRenderPerfRunner {
   }
 
   private async _applyZoomScale(scaleFactor: number) {
-    const host = this._hostAny();
-    const zoom = host._zoom as d3.ZoomBehavior<SVGSVGElement, unknown> | null | undefined;
-    const svgSelection = host._svgSelection as
-      | d3.Selection<SVGSVGElement, unknown, null, undefined>
-      | null
-      | undefined;
-    if (!zoom || !svgSelection) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    svgSelection.call(zoom.scaleBy as unknown as any, scaleFactor);
+    this._interaction()?.zoomBy(scaleFactor);
   }
 
   private async _applyZoomTranslate(dx: number, dy: number) {
-    const host = this._hostAny();
-    const zoom = host._zoom as d3.ZoomBehavior<SVGSVGElement, unknown> | null | undefined;
-    const svgSelection = host._svgSelection as
-      | d3.Selection<SVGSVGElement, unknown, null, undefined>
-      | null
-      | undefined;
-    if (!zoom || !svgSelection) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    svgSelection.call(zoom.translateBy as unknown as any, dx, dy);
+    this._interaction()?.panBy(dx, dy);
   }
 
   private async _runZoomInOutScenario(iterations: number) {
     const host = this._hostAny();
-    if (!host._zoom || !host._svgSelection)
+    if (!this._interaction()?.isZoomReady)
       throw new Error('WebGL perf runner: missing zoom support for zoomInOut scenario');
 
     const prevSelectionMode = !!host.selectionMode;
@@ -474,8 +473,7 @@ export class WebglRenderPerfRunner {
     this._endScenario();
 
     const prevSeq = this._recorder?.passSeq ?? 0;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    host._svgSelection.call(host._zoom.transform as unknown as any, originalTransform);
+    this._interaction()?.setTransform(originalTransform);
     const rendered = await this._waitForNextRender(prevSeq, 2000);
     if (rendered) await this._waitForRenderIdle(10, 2000);
 
@@ -487,7 +485,7 @@ export class WebglRenderPerfRunner {
 
   private async _runDragCanvasScenario(iterations: number) {
     const host = this._hostAny();
-    if (!host._zoom || !host._svgSelection)
+    if (!this._interaction()?.isZoomReady)
       throw new Error('WebGL perf runner: missing zoom support for dragCanvas scenario');
 
     const prevSelectionMode = !!host.selectionMode;
@@ -519,8 +517,7 @@ export class WebglRenderPerfRunner {
     this._endScenario();
 
     const prevSeq = this._recorder?.passSeq ?? 0;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    host._svgSelection.call(host._zoom.transform as unknown as any, originalTransform);
+    this._interaction()?.setTransform(originalTransform);
     const rendered = await this._waitForNextRender(prevSeq, 2000);
     if (rendered) await this._waitForRenderIdle(10, 2000);
 
