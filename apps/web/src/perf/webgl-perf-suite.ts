@@ -441,8 +441,29 @@ async function loadDataset(args: Args, datasetId: string, budget: Budget): Promi
     // With the app's queue installed this settles only after THIS file's load
     // has finalized, and data-loaded is dispatched strictly before that. So once
     // it resolves, either `ourData` is set or this dataset's load failed.
+    //
+    // `source: 'auto'` is what keeps the app's reload-support persistence out of
+    // the window being timed. Without it load-queue.ts records the load as
+    // `kind: 'user'`, and dataset-controller then awaits `saveLastImportedFile`
+    // — a full copy of the bundle into OPFS — BEFORE it renders, i.e. strictly
+    // inside `loadDurationMs`. For the probe bundles this sweep exists to find
+    // the ceiling with (72-145 MB) that is the dominant term in the number, and
+    // on WebKit the write itself fails: eight `UnknownError: The operation
+    // failed for an unknown transient reason (e.g. out of memory)` in one run.
+    // It also silently replaced whatever dataset the developer had persisted for
+    // reload with the last one the benchmark happened to load.
+    //
+    // Marking the load `auto` rather than teaching the app about benchmarks
+    // keeps this at the harness layer, the same call as the tour suppression.
+    // The only other effects are wanted here: each dataset starts from cleared
+    // legend state instead of inheriting the previous one's, and the URL's
+    // stale-tooltip rewrite (a user-import concern) is skipped.
     try {
-      await withTimeout(args.dataLoader.loadFromFile(file), budget, `${datasetId} to load`);
+      await withTimeout(
+        args.dataLoader.loadFromFile(file, { source: 'auto' }),
+        budget,
+        `${datasetId} to load`,
+      );
     } catch (error) {
       throw new PerfPageStateLostError(
         `${error instanceof Error ? error.message : String(error)} ` +

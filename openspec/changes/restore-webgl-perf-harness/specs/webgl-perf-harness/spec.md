@@ -172,6 +172,30 @@ the harness rather than by a branch in application code.
 - **WHEN** the application's analytics beacon would load and report during a measured window
 - **THEN** the harness blocks it, so neither its script nor its request runs while measuring
 
+### Requirement: The measured load window SHALL NOT carry reload-support persistence
+
+A benchmark load SHALL NOT be recorded as a user import, so the application does not copy the
+bundle into the Origin Private File System before rendering it. That copy is awaited inside the
+interval reported as `loadDurationMs`, so at the bundle sizes this harness exists to probe it is
+the dominant term in the measurement rather than a detail of it; on WebKit it also fails outright.
+A run SHALL likewise leave any dataset the developer had persisted for reload untouched. This
+SHALL be arranged by the harness, not by a benchmark branch in application code.
+
+#### Scenario: A dataset is measured
+
+- **WHEN** the benchmark loads a dataset and records its load duration
+- **THEN** no copy of the bundle is written to the Origin Private File System during that interval
+
+#### Scenario: A developer had a dataset persisted for reload
+
+- **WHEN** a benchmark sweep runs in a profile that already has an imported dataset persisted
+- **THEN** that dataset is still the one restored on the next normal visit
+
+#### Scenario: A user imports a dataset normally
+
+- **WHEN** a user imports a dataset outside the benchmark
+- **THEN** it is still persisted for reload support
+
 ### Requirement: A run SHALL leave no server behind and SHALL NOT destroy earlier results
 
 The harness SHALL terminate the development server it started, so a subsequent run is not blocked

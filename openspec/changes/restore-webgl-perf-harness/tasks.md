@@ -32,6 +32,11 @@
       config
 - [x] 3.2 Verify with a DOM probe that no driver.js element appears during a full run
 - [x] 3.3 Verify a normal `/explore` visit still auto-starts the tour
+- [x] 3.4 Load each dataset with `source: 'auto'` so the app records it as a demo load rather than a
+      user import, keeping `saveLastImportedFile` — a full copy of a 72-145 MB bundle into OPFS,
+      awaited before render — out of `loadDurationMs`. Reported from a 1M sweep as eight WebKit
+      `UnknownError: The operation failed for an unknown transient reason (e.g. out of memory)`.
+      Also stops a run replacing the developer's own persisted dataset
 
 ## 4. Make a failing dataset cost only itself
 

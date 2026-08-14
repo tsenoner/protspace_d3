@@ -35,14 +35,16 @@ progressively larger synthetic bundles, where the largest dataset is expected to
   ~16 members is the durable fix for _name_ drift, but it is a larger refactor than restoring the
   benchmark warrants, and it cannot catch _semantic_ drift (a bridge method that keeps type-checking
   while returning null). Deferred; the regression test covers values in the meantime.
-- The remaining harness defects found while auditing: the OPFS write inside the measured load
-  window, `plot_perf_results.py` ingesting the CDP sidecar as a phantom browser, the 2s dead wait
-  after each scenario, and clickPoint measuring app-level click side effects. Each is a separate
-  follow-up; none makes the benchmark hang or lose data.
+- The remaining harness defects found while auditing: `plot_perf_results.py` ingesting the CDP
+  sidecar as a phantom browser, the 2s dead wait after each scenario, and clickPoint measuring
+  app-level click side effects. Each is a separate follow-up; none makes the benchmark hang or
+  lose data.
 
-  Two items originally deferred here were promoted into this change once diagnosed, because they
-  do lose data: the leaked dev server (which blocks the _next_ run outright) and the shared
-  `outputDir` (which deletes a previous sweep's results). See Decisions.
+  Three items originally deferred here were promoted into this change once diagnosed, because they
+  do lose data: the leaked dev server (which blocks the _next_ run outright), the shared
+  `outputDir` (which deletes a previous sweep's results), and the OPFS write inside the measured
+  load window (which corrupts `loadDurationMs` and, on WebKit at probe-bundle sizes, fails
+  outright). See Decisions.
 
 - Adding `pnpm perf` to CI. It needs a headed GPU browser and real bundles; the unit-level
   regression test is what belongs in CI.
