@@ -89,13 +89,23 @@
 
 ## 7. Verify
 
-- [ ] 7.1 `pnpm test` green across the workspace
-- [ ] 7.2 `pnpm precommit` green
-- [ ] 7.3 `PERF_DATASETS=5K PERF_ITERATIONS=2 pnpm perf --project=chrome` completes and records real
-      passes for all four scenarios
-- [ ] 7.4 Fault-inject a bad dataset id and confirm the run still emits results for the good
-      dataset, records the failure, and fails the spec
-- [ ] 7.5 CI green on the PR, including the E2E suite
+- [x] 7.1 `pnpm test` green across the workspace — 6/6 tasks, core 118 files / 1633 tests
+- [ ] 7.2 `pnpm precommit` green — every step passes individually (lint-staged, type-check, knip,
+      knip:dependencies, docs:annotations:check, docs:build), but the hook currently aborts on an
+      untracked scratch file belonging to a concurrent session in this working tree, not on anything
+      in this change. Re-run once that file is gone, before merging
+- [x] 7.3 `PERF_DATASETS=5K PERF_ITERATIONS=2 pnpm perf --project=chrome` completes and records real
+      passes for all four scenarios — 10.3s, 5181 points
+- [x] 7.3a `pnpm perf` with no `--project` passes all three browsers (36-40s), which it had not done
+      since the analytics beacon was added
+- [x] 7.4 Fault-inject a bad dataset id and confirm the run still emits results for the good
+      dataset, records the failure, and fails the spec — 5K survives, spec fails in 10.8s naming it
+- [x] 7.4a Fault-inject an exhausted run budget: the file is emitted in 5.3s with the datasets never
+      reached recorded as skipped, instead of a 44-minute download timeout naming nothing
+- [x] 7.4b Mutation-test both new guarantees: deleting the `isZoomReady` gate condition fails only
+      the new readiness control; breaking the deferred render fails only the new render-pass
+      assertions (`expected [ 'plot' ] to include 'zoom'`)
+- [ ] 7.5 CI green on the PR, including the E2E suite — not started, nothing pushed yet
 
 ## 8. Close out
 
