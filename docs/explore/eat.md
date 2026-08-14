@@ -40,7 +40,7 @@ At the top of the [legend panel](/explore/legend), above the separation strips a
 
 **Show** turns the overlay on and off. It is on by default. With it on, every transferred protein is coloured by its borrowed value and joins that value's legend row, so the row counts and the plot both reflect the filled-in column. Turn it off and those proteins fall straight back to their curated cell, which is empty, so they return to `N/A`. The curated data is never modified, so toggling is cheap and lossless.
 
-**Hide below reliability** is a slider with a matching `%` number input beside it. Both drive the same threshold and are disabled while Show is off. See [Filtering By Reliability](#filtering-by-reliability) below.
+**The reliability filter** is a mode dropdown — **Hide below**, **Hide above**, **Keep between** — with a slider and a matching `%` number input. Both drive the same bound, **Keep between** adds a second one, and all of them are disabled while Show is off. See [Filtering By Reliability](#filtering-by-reliability) below.
 
 **The counts** sit underneath, and only while Show is on: **Observed** against **Predicted by EAT**. Each carries a swatch encoding the distinction the plot uses, filled for observed and hollow for predicted. The swatches are always drawn as circles; in the plot each marker keeps its own category's shape and colour. Proteins that have neither a curated value nor a prediction are in neither count.
 
@@ -91,21 +91,43 @@ With the default `cosine` metric the reliability index is a bounded cosine simil
 
 ## Filtering By Reliability
 
-**Hide below reliability** hides predictions whose confidence falls below the threshold. It starts at 0, meaning nothing is hidden, and the slider and the `%` box are two views of the same number.
+The reliability filter hides predictions whose confidence falls outside the range you choose. It starts at **Hide below** 0, meaning nothing is hidden, and the slider and the `%` box are two views of the same number.
+
+The mode dropdown picks which side of the confidence scale to cut:
+
+| Mode             | Keeps                                      | Typical use                                                 |
+| ---------------- | ------------------------------------------ | ----------------------------------------------------------- |
+| **Hide below**   | predictions at or above the bound          | keep only the predictions you trust                         |
+| **Hide above**   | predictions at or below the bound          | inspect the weak predictions — where the transfer struggled |
+| **Keep between** | predictions inside the band, ends included | isolate a confidence band to compare like with like         |
+
+All three modes share one control: a single track carrying one handle per bound the mode actually filters on. **Hide below** and **Hide above** have one handle each, **Keep between** has two. A bound a mode ignores has no widget at all, so every number on screen is a number that is filtering.
+
+The coloured part of the track is always the part you keep — to the right of the handle in **Hide below**, to its left in **Hide above**, and between the two in **Keep between**.
 
 ![Raising the threshold thins out the ringed points and leaves the curated ones](./images/eat-reliability.gif)
 
-Curated values are never affected. The threshold applies only to transferred cells, so raising it leaves the observed data whole. This is a different outcome from turning **Show** off: **Show** returns transferred proteins to `N/A`, while the threshold removes them from the view the way any other filter condition does.
+Curated values are never affected in any mode. The filter applies only to transferred cells, so tightening it leaves the observed data whole. This is a different outcome from turning **Show** off: **Show** returns transferred proteins to `N/A`, while the filter removes them from the view the way any other filter condition does.
 
-The slider is a front end for an ordinary filter. Dragging it above 0 writes a single condition into the [filter query](/explore/control-bar#_7-filter-button), `NOT(<annotation> — EAT confidence < x)`, on a numeric column the app synthesises at load time for each transferred annotation. The mirror runs both ways: edit or delete that condition in the filter builder and the slider follows. Each transferred annotation gets its own condition, so tuning one does not disturb another, and your unrelated filter conditions are left alone.
+The control is a front end for an ordinary filter. Moving it off its neutral position writes a single condition into the [filter query](/explore/control-bar#_7-filter-button) on a numeric column the app synthesises at load time for each transferred annotation:
+
+```
+Hide below x      ->  <annotation> — EAT confidence >= x        or N/A
+Hide above x      ->  <annotation> — EAT confidence <= x        or N/A
+Keep between a, b ->  <annotation> — EAT confidence between a,b or N/A
+```
+
+The trailing **or N/A** is what keeps curated proteins visible: they carry no confidence score, so no comparison can match them, and the condition has to say so explicitly.
+
+The mirror runs both ways: edit or delete that condition in the filter builder and the control follows, whichever comparison operator you used and wherever in the query it sits. Each transferred annotation gets its own condition, so tuning one does not disturb another, and your unrelated filter conditions are left alone.
 
 ::: tip The EAT confidence column is filter-only
 `<annotation> — EAT confidence` is not offered in the Annotation dropdown, because colouring by it would say nothing about the proteins that were never predicted. It exists in the filter column picker, where a raw confidence threshold is what you actually want. It is synthesised on load and is not written back into exported bundles.
 :::
 
-Because this is a real filter, it interacts with everything else that responds to a filtered view. In particular the [separation score](/explore/separation-scores) strips hide themselves while any filter is active, the reliability slider included, since whole-dataset scores would contradict a narrowed view.
+Because this is a real filter, it interacts with everything else that responds to a filtered view. In particular the [separation score](/explore/separation-scores) strips hide themselves while any filter is active, the reliability filter included, since whole-dataset scores would contradict a narrowed view.
 
-Exporting a bundle with settings included stores the **Show** state and the threshold, so a shared dataset reopens on the same view.
+Exporting a bundle with settings included stores the **Show** state and the lower bound, so a dataset shared from **Hide below** reopens on the same view. The _mode_ and the upper bound are not stored yet, so the other two modes do not survive a round trip: **Keep between** reopens as **Hide below** at the band's lower edge, keeping everything above it, and **Hide above** reopens with no filter at all — it has no lower bound to store, so the saved value is 0. Re-pick the mode after loading such a bundle.
 
 ## Trying It
 

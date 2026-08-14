@@ -1,4 +1,5 @@
 import '@protspace/core'; // Registers all web components
+import type { EatReliabilityState } from '@protspace/utils';
 import { startProductTour } from '../tour/product-tour';
 import { bindControlBarEvents } from './control-bar-events';
 import { createDatasetController } from './dataset-controller';
@@ -274,19 +275,25 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
     'legend-error',
     interactionController.handleLegendError,
   );
-  // Two-way reliability mirror (#6b): the legend slider drives the shared
+  // Two-way reliability mirror (#6b): the legend control drives the shared
   // `EAT_confidence >= x or N/A` query filter on the control bar, and a direct edit of
-  // that filter pulls the slider back. Each direction guards on the threshold
-  // value so they can't ping-pong.
+  // that filter pulls the control back. Each direction guards on the reliability
+  // state, keyed per eat-confidence column, so they can't ping-pong.
   addTrackedEventListener(lifecycle, legendElement, 'eat-overlay-change', (event: Event) => {
-    const { confidenceThreshold } = (
-      event as CustomEvent<{ enabled: boolean; confidenceThreshold: number }>
+    // The full state (mode + both bounds) is what reaches the query — the scalar
+    // threshold alone cannot express "hide above" or "keep between".
+    const { reliability } = (
+      event as CustomEvent<{
+        enabled: boolean;
+        confidenceThreshold: number;
+        reliability: EatReliabilityState;
+      }>
     ).detail;
-    controlBar.setEatConfidenceThreshold(legendElement.selectedAnnotation, confidenceThreshold);
+    controlBar.setEatReliability(legendElement.selectedAnnotation, reliability);
   });
   addTrackedEventListener(lifecycle, controlBar, 'eat-threshold-mirror', (event: Event) => {
-    const { value } = (event as CustomEvent<{ value: number }>).detail;
-    legendElement.setReliabilityThreshold(value);
+    const { state } = (event as CustomEvent<{ value: number; state: EatReliabilityState }>).detail;
+    legendElement.setReliabilityState(state);
   });
   addTrackedEventListener(
     lifecycle,
