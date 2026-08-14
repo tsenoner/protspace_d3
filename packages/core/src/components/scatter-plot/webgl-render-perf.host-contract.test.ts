@@ -41,29 +41,25 @@ vi.hoisted(() => {
 
 import './scatter-plot';
 import type { ProtspaceScatterplot } from './scatter-plot';
-import type { RenderWebGLTrigger } from './webgl-render-perf';
+import type { PerfRecorder, PerfScenarioName, PerfScenarioRun } from './webgl-render-perf';
 
 /**
  * Private surface of `WebglRenderPerfRunner` these tests drive directly. The
- * recorder shapes are declared structurally because the runtime types are
- * module-local, exactly as this file already does for the runner itself.
+ * recorder shapes come from the module under test rather than being redeclared
+ * structurally, so a reshape there fails this file at build time instead of
+ * letting it keep compiling against a private copy — the same silent-drift
+ * failure mode #453 was.
  */
-type PerfPass = { trigger: RenderWebGLTrigger; renderedPoints: number };
-type PerfScenario = { name: string; passes: PerfPass[] };
-
 type PerfRunnerInternals = {
   _waitForHostFullyLoaded(timeoutMs: number): Promise<void>;
-  _applyZoomScale(scaleFactor: number): Promise<void>;
-  _applyZoomTranslate(dx: number, dy: number): Promise<void>;
-  _recorder: {
-    runId: string;
-    iterations: number;
-    passSeq: number;
-    lastRenderEndTs: number;
-    activeScenario: PerfScenario | null;
-    scenarios: PerfScenario[];
-  } | null;
-  _beginScenario(name: string, iterations: number, active?: boolean): PerfScenario | null;
+  _applyZoomScale(scaleFactor: number): void;
+  _applyZoomTranslate(dx: number, dy: number): void;
+  _recorder: PerfRecorder | null;
+  _beginScenario(
+    name: PerfScenarioName,
+    iterations: number,
+    active?: boolean,
+  ): PerfScenarioRun | null;
   _endScenario(): void;
 };
 
@@ -141,7 +137,10 @@ function mainGroupTransform(sp: PerfHostInternals): string | null {
  * every render below would be measured as nothing at all — which is precisely
  * the state the benchmark was stuck in.
  */
-function beginRecordingScenario(runner: PerfRunnerInternals, name: string): PerfScenario {
+function beginRecordingScenario(
+  runner: PerfRunnerInternals,
+  name: PerfScenarioName,
+): PerfScenarioRun {
   runner._recorder = {
     runId: 'host-contract',
     iterations: 1,
@@ -224,7 +223,7 @@ describe('WebglRenderPerfRunner ↔ scatter-plot host contract (#453)', () => {
       // silently measures nothing. The `resetZoom()` that the first `data`
       // assignment triggers is a 750ms transition from identity to identity, so
       // it never competes with the value asserted here.
-      await runner._applyZoomScale(3);
+      runner._applyZoomScale(3);
       expect(mainGroupTransform(sp)).toMatch(/scale\(3\)/);
 
       // The transform is written synchronously but the render is deferred into a
@@ -249,7 +248,7 @@ describe('WebglRenderPerfRunner ↔ scatter-plot host contract (#453)', () => {
     try {
       // `_runDragCanvasScenario` pans through this helper.
       const before = mainGroupTransform(sp);
-      await runner._applyZoomTranslate(50, 20);
+      runner._applyZoomTranslate(50, 20);
       expect(mainGroupTransform(sp)).not.toBe(before);
 
       await nextFrame();

@@ -25,6 +25,11 @@ export default defineConfig({
     headless: false,
     acceptDownloads: true,
   },
+  // outputDir is per project, never shared. Playwright deletes the outputDir of
+  // every SELECTED project at run start, so with one shared directory the
+  // documented `pnpm perf -- --project=chrome` destroyed the firefox and safari
+  // results from the previous full run, and the plotter silently drew
+  // single-browser charts.
   projects: [
     {
       name: 'chrome',
@@ -115,10 +120,4 @@ export default defineConfig({
     stdout: 'pipe',
     stderr: 'pipe',
   },
-  // Per project, not shared. Playwright deletes the outputDir of every SELECTED
-  // project at run start, before the web server is even started — so with one
-  // shared directory the documented `pnpm perf -- --project=chrome` destroyed the
-  // firefox and safari results from the previous full run, and the plotter then
-  // silently drew single-browser charts. plot_perf_results.py rglobs, so it needs
-  // no change.
 });

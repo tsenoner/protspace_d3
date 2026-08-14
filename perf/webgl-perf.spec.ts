@@ -52,10 +52,15 @@ test.describe('WebGL render perf benchmark (headed)', () => {
     // page error, which the fail-fast below treats as fatal. Chrome and Firefox
     // report the same failure as a console error only, so only Safari died —
     // after 1.3s, with the reported error pointing at the download wait.
-    await page.route(
-      (url) => url.hostname.endsWith('cloudflareinsights.com'),
-      (route) => route.abort(),
-    );
+    //
+    // A RegExp, not a `(url) => boolean`: Playwright can only push a string or
+    // RegExp matcher down into the browser as an interception pattern. A function
+    // matcher has to be evaluated in Node, so it registers `**/*` and round-trips
+    // EVERY request through the client to be matched — hundreds of them, against
+    // an unbundled Vite dev server. The pattern below covers both the script host
+    // (`static.cloudflareinsights.com`) and the hyphenated spelling the e2e
+    // suite's ignore list also carries.
+    await page.route(/cloudflare-?insights\.com/, (route) => route.abort());
 
     page.on('console', (msg) => {
       if (msg.type() === 'error') {

@@ -217,28 +217,31 @@ function downloadJson(filename: string, payload: unknown) {
   setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
 
+/**
+ * Two rules here are measurement decisions rather than styling, and both are in
+ * the same family as suppressing the driver.js tour — keep the harness's own
+ * paint off the canvas rather than subtracting it afterwards. Numbers in
+ * `openspec/changes/restore-webgl-perf-harness/design.md`.
+ *
+ * 1. The overlay is transparent and its card sits in a corner. A full-viewport
+ *    scrim makes the compositor blend over the canvas on every frame of the
+ *    window this suite exists to measure. It still hit-tests — hit testing uses
+ *    the border box, and only pointer-events/visibility/display opt out — so it
+ *    keeps swallowing stray clicks during a long headed run.
+ * 2. The spinner's animation is parked while measuring. An infinite animation
+ *    keeps the compositor producing frames for the whole measured window, and
+ *    the perf config runs Chrome with --disable-frame-rate-limit, so that loop
+ *    is uncapped. The subtitle carries progress instead.
+ *
+ * The rationale lives out here, not inside the template literal below: anything
+ * in there is string content, shipped in the /explore chunk and re-inserted into
+ * document.head on every run.
+ */
 function ensurePerfOverlayStyles() {
   if (document.getElementById(PERF_OVERLAY_STYLE_ID)) return;
   const style = document.createElement('style');
   style.id = PERF_OVERLAY_STYLE_ID;
   style.textContent = `
-    /*
-     * No scrim, and the card sits in a corner rather than over the plot.
-     * A full-viewport translucent layer makes the compositor blend over the
-     * canvas on every frame of the window this suite exists to measure — the
-     * same class of confound as the driver.js tour overlay, and self-inflicted.
-     *
-     * Measured on 5K at 10 iterations, Chrome, two runs each, this rule plus the
-     * parked animation below: zoomInOut 2.81/2.62 -> 0.68/0.70ms, dragCanvas
-     * 2.85/2.89 -> 0.89/0.87ms, annotationChange 4.22/4.32 -> 2.83/2.88ms.
-     * clickPoint (7.36/6.18 -> 5.71/6.26ms) has only 10 passes per run and the
-     * difference there is inside the noise.
-     *
-     * The element still hit-tests, because hit testing uses the border box and
-     * only pointer-events/visibility/display opt out of it. So it keeps doing
-     * its real job — swallowing a stray click during a long headed run — while
-     * painting nothing over the canvas.
-     */
     #${PERF_OVERLAY_ID} {
       position: fixed;
       inset: 0;
@@ -272,12 +275,6 @@ function ensurePerfOverlayStyles() {
       animation: perf-suite-spin 1s linear infinite;
     }
 
-    /*
-     * An infinite animation keeps the compositor producing frames for the whole
-     * measured window, and the perf config runs Chrome with
-     * --disable-frame-rate-limit, so that loop is uncapped. Park it while a
-     * dataset is being measured; the subtitle carries progress instead.
-     */
     #${PERF_OVERLAY_ID}.${PERF_OVERLAY_MEASURING_CLASS} .perf-suite-spinner {
       animation: none;
       opacity: 0.35;
@@ -348,11 +345,24 @@ async function loadDataset(args: Args, datasetId: string, budget: Budget): Promi
   // is the same undiagnosable "waiting for event download" the waits below exist
   // to avoid — and the bundles are up to ~45 MB, so a stalled body is the likely
   // shape of it.
-  const response = await withTimeout(fetch(url), budget, `${datasetId} bundle response`);
-  if (!response.ok) {
-    throw new Error(`perf: failed to fetch ${url}: ${response.status} ${response.statusText}`);
+  //
+  // An abort signal rather than the withTimeout race used further down: racing
+  // only stops us *waiting*, and a ~45 MB body left streaming keeps buffering
+  // through the NEXT dataset's measured load window. One signal covers the
+  // response and the body, since arrayBuffer() inherits the request's.
+  const transfer = AbortSignal.timeout(remaining(budget));
+  let response: Response | undefined;
+  let arrayBuffer: ArrayBuffer;
+  try {
+    response = await fetch(url, { signal: transfer });
+    if (!response.ok) {
+      throw new Error(`perf: failed to fetch ${url}: ${response.status} ${response.statusText}`);
+    }
+    arrayBuffer = await response.arrayBuffer();
+  } catch (error) {
+    if (!transfer.aborted) throw error;
+    throw budgetError(budget, `${datasetId} bundle ${response ? 'body' : 'response'}`);
   }
-  const arrayBuffer = await withTimeout(response.arrayBuffer(), budget, `${datasetId} bundle body`);
   const file = new File([arrayBuffer], `${datasetId}.parquetbundle`, {
     type: 'application/octet-stream',
   });
@@ -518,12 +528,14 @@ export async function maybeRunWebglPerfSuite(args: Args): Promise<boolean> {
       downloadJson(`protspace-webgl-perf-suite-${createdAt.split(':').join('-')}.json`, suite);
     };
 
-    // Index of the dataset currently being attempted, so both the budget check
-    // and the watchdog can name what never ran.
-    let current = 0;
-    const skipFrom = (index: number, reason: string) => {
-      for (const datasetId of datasets.slice(index)) skipped.push({ datasetId, reason });
+    const skipFrom = (from: number, reason: string) => {
+      for (const datasetId of datasets.slice(from)) skipped.push({ datasetId, reason });
     };
+
+    // Hoisted out of the `for` head so the watchdog below reads the dataset
+    // currently being attempted rather than a hand-synced copy of it — `let` in
+    // the head would give each iteration its own binding.
+    let index = 0;
 
     // The guarantee that makes a stalled run diagnosable: the file is emitted at
     // the run deadline no matter where the sweep has got to. Checking the budget
@@ -531,15 +543,14 @@ export async function maybeRunWebglPerfSuite(args: Args): Promise<boolean> {
     // harness's download wait, which is exactly how a broken run used to report
     // nothing but "waiting for event download".
     const watchdog = setTimeout(() => {
-      skipFrom(current, `run budget of ${runBudgetMs}ms expired before this dataset completed`);
+      skipFrom(index, `run budget of ${runBudgetMs}ms expired before this dataset completed`);
       console.error(`perf: run budget of ${runBudgetMs}ms expired; emitting partial results`);
       emitSuite();
     }, remaining(runBudget));
 
     try {
-      for (let index = 0; index < datasets.length; index++) {
+      for (; index < datasets.length; index++) {
         if (emitted) break;
-        current = index;
         const datasetId = datasets[index];
 
         if (remaining(runBudget) <= 0) {
@@ -562,18 +573,13 @@ export async function maybeRunWebglPerfSuite(args: Args): Promise<boolean> {
 
           setPerfOverlayStatus(`Measuring ${datasetId} (${index + 1}/${datasets.length})…`);
           setPerfOverlayMeasuring(true);
-          let result;
-          try {
-            result = await args.plotElement.runWebGLRenderPerfMeasurements(iterations, {
-              download: false,
-              dataset: { id: datasetId, url: `/data/${datasetId}.parquetbundle` },
-              // The gate inherits what this dataset has left rather than its own
-              // ten minutes, which would otherwise outlive the window it runs in.
-              readyTimeoutMs: remaining(datasetBudget),
-            });
-          } finally {
-            setPerfOverlayMeasuring(false);
-          }
+          const result = await args.plotElement.runWebGLRenderPerfMeasurements(iterations, {
+            download: false,
+            dataset: { id: datasetId, url: `/data/${datasetId}.parquetbundle` },
+            // The gate inherits what this dataset has left rather than its own
+            // ten minutes, which would otherwise outlive the window it runs in.
+            readyTimeoutMs: remaining(datasetBudget),
+          });
           if (!result) {
             throw new Error(`perf: no result for dataset ${datasetId}`);
           }
@@ -597,6 +603,10 @@ export async function maybeRunWebglPerfSuite(args: Args): Promise<boolean> {
             );
             break;
           }
+        } finally {
+          // Also covers the paths that never reached the measured window:
+          // toggling a class off an element that never had it is a no-op.
+          setPerfOverlayMeasuring(false);
         }
       }
     } finally {

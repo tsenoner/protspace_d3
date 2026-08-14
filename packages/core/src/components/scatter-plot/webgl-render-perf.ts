@@ -21,9 +21,9 @@ const PERF_GLOBAL_RESULTS_KEY = '__protspaceWebGLRenderPerfMeasurements';
 
 export type RenderWebGLTrigger = 'zoom' | 'plot' | 'unknown';
 
-type PerfScenarioName = 'annotationChange' | 'zoomInOut' | 'dragCanvas' | 'clickPoint';
+export type PerfScenarioName = 'annotationChange' | 'zoomInOut' | 'dragCanvas' | 'clickPoint';
 
-type PerfRenderPass = {
+export type PerfRenderPass = {
   seq: number;
   trigger: RenderWebGLTrigger;
   startTs: number;
@@ -32,7 +32,7 @@ type PerfRenderPass = {
   renderedPoints: number;
 };
 
-type PerfScenarioRun = {
+export type PerfScenarioRun = {
   name: PerfScenarioName;
   iterations: number;
   startTs: number;
@@ -66,7 +66,7 @@ type PerfMeasurementResult = {
   scenarios: PerfScenarioRun[];
 };
 
-type PerfRecorder = {
+export type PerfRecorder = {
   runId: string;
   iterations: number;
   passSeq: number;
@@ -203,11 +203,12 @@ export class WebglRenderPerfRunner {
   }
 
   /**
-   * The interaction controller, or a throw. Every caller below already passed an
-   * `isZoomReady` guard, so reaching this without a controller means the host was
-   * torn down mid-run — and driving the zoom scenarios through `?.` would turn
-   * that into a silent no-op that skews the transform the *following* scenarios
-   * measure from, which is the failure mode #453 was.
+   * The interaction controller, or a throw. The host assigns `_interaction` once
+   * and never nulls it (`disconnectedCallback` tears down without clearing the
+   * field), so today this can only fire if the reach-in name above drifts — and
+   * driving the zoom scenarios through `?.` instead would turn that drift into a
+   * silent no-op that skews the transform the *following* scenarios measure
+   * from, which is exactly the failure mode #453 was.
    */
   private _requireInteraction(): PlotInteractionController {
     const interaction = this._interaction();
@@ -468,11 +469,11 @@ export class WebglRenderPerfRunner {
     }
   }
 
-  private async _applyZoomScale(scaleFactor: number) {
+  private _applyZoomScale(scaleFactor: number) {
     this._requireInteraction().zoomBy(scaleFactor);
   }
 
-  private async _applyZoomTranslate(dx: number, dy: number) {
+  private _applyZoomTranslate(dx: number, dy: number) {
     this._requireInteraction().panBy(dx, dy);
   }
 
@@ -492,12 +493,12 @@ export class WebglRenderPerfRunner {
     this._beginScenario('zoomInOut', iterations);
     for (let i = 0; i < iterations; i++) {
       let prevSeq = this._recorder?.passSeq ?? 0;
-      await this._applyZoomScale(PERF_MEASURE_ZOOM_FACTOR);
+      this._applyZoomScale(PERF_MEASURE_ZOOM_FACTOR);
       let rendered = await this._waitForNextRender(prevSeq, 2000);
       if (rendered) await this._waitForRenderIdle(10, 2000);
 
       prevSeq = this._recorder?.passSeq ?? 0;
-      await this._applyZoomScale(1 / PERF_MEASURE_ZOOM_FACTOR);
+      this._applyZoomScale(1 / PERF_MEASURE_ZOOM_FACTOR);
       rendered = await this._waitForNextRender(prevSeq, 2000);
       if (rendered) await this._waitForRenderIdle(10, 2000);
     }
@@ -533,14 +534,14 @@ export class WebglRenderPerfRunner {
     for (let i = 0; i < iterations; i++) {
       for (let s = 0; s < PERF_MEASURE_PAN_STEPS; s++) {
         const prevSeq = this._recorder?.passSeq ?? 0;
-        await this._applyZoomTranslate(stepDx, stepDy);
+        this._applyZoomTranslate(stepDx, stepDy);
         const rendered = await this._waitForNextRender(prevSeq, 2000);
         if (rendered) await this._waitForRenderIdle(10, 2000);
       }
 
       for (let s = 0; s < PERF_MEASURE_PAN_STEPS; s++) {
         const prevSeq = this._recorder?.passSeq ?? 0;
-        await this._applyZoomTranslate(-stepDx, -stepDy);
+        this._applyZoomTranslate(-stepDx, -stepDy);
         const rendered = await this._waitForNextRender(prevSeq, 2000);
         if (rendered) await this._waitForRenderIdle(10, 2000);
       }
