@@ -1,28 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 import * as path from 'path';
+import { tourCompletedStorageState } from '../apps/web/tests/helpers/tour-storage-state';
 
 const BASE_URL = 'http://localhost:8080';
-
-/**
- * Seed the tour's "already seen" flag, exactly as the e2e config does.
- *
- * The benchmark drives the app through the same `data-loaded` event the product
- * tour auto-starts on (apps/web/src/explore/runtime.ts), and Playwright hands
- * every run a fresh profile, so the tour's localStorage guard is always empty.
- * Nothing dismisses it, so driver.js keeps a dimming overlay and an animated
- * popover composited over the canvas for the whole measured window — which
- * inflates the very numbers this suite exists to produce (measured on 5K:
- * clickPoint 28.35ms -> 7.00ms, zoomInOut 1.75ms -> 1.17ms once suppressed).
- */
-const TOUR_COMPLETED_STORAGE_STATE = {
-  cookies: [],
-  origins: [
-    {
-      origin: new URL(BASE_URL).origin,
-      localStorage: [{ name: 'driver.overviewTour', value: 'true' }],
-    },
-  ],
-};
 
 export default defineConfig({
   testDir: __dirname,
@@ -33,7 +13,9 @@ export default defineConfig({
   timeout: 15 * 60_000,
   use: {
     baseURL: BASE_URL,
-    storageState: TOUR_COMPLETED_STORAGE_STATE,
+    // Keep the product tour off the canvas for the whole measured window; see
+    // the helper for what it costs when it runs.
+    storageState: tourCompletedStorageState(BASE_URL),
     trace: 'retain-on-failure',
     screenshot: 'off',
     video: 'off',

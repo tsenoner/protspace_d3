@@ -2,14 +2,11 @@
  * @vitest-environment jsdom
  *
  * Issue #453: `WebglRenderPerfRunner` reads the scatter-plot host through an
- * untyped `as any` bridge (`webgl-render-perf.ts:168-171`), so when a field it
- * depends on moves off the host nothing fails at build time — the runner just
- * spins. `_zoom` / `_svgSelection` moved into `PlotInteractionController`
- * (`interaction/plot-interaction-controller.ts:45-46`, both `private`) and the
- * readiness gate `_waitForHostFullyLoaded` (`webgl-render-perf.ts:212-236`) has
- * been waiting out its full 10-minute timeout ever since, while the two zoom
- * helpers (`_applyZoomScale` 425-435, `_applyZoomTranslate` 437-447) degraded to
- * silent no-ops via their `if (!zoom || !svgSelection) return;` guards.
+ * untyped `as any` bridge, so when a field it depends on moves off the host
+ * nothing fails at build time — the runner just spins. `_zoom` / `_svgSelection`
+ * moved into `PlotInteractionController` (both `private`), and the readiness gate
+ * `_waitForHostFullyLoaded` waited out its full 10-minute timeout ever since,
+ * while `_applyZoomScale` / `_applyZoomTranslate` degraded to silent no-ops.
  *
  * These tests lock the two OBSERVABLE consequences rather than any field name,
  * so they survive whichever shape the fix takes (host getters, a typed
@@ -17,14 +14,13 @@
  *   1. the gate resolves promptly against a real, loaded host;
  *   2. the runner's zoom helpers actually move the plot.
  *
- * They deliberately drive the runner instance the HOST owns (`_webglRenderPerf`,
- * `scatter-plot.ts:275`) rather than constructing one, so a change to the
- * runner's constructor arguments is exercised too.
+ * They deliberately drive the runner instance the HOST owns (`_webglRenderPerf`)
+ * rather than constructing one, so a change to the runner's constructor
+ * arguments is exercised too.
  *
- * jsdom has no WebGL, but that does not block this: `WebGLRenderer`'s
- * constructor only wires a `ContextLossController`
- * (`webgl/renderer/webgl-renderer.ts:142-155`) and defers GL acquisition, so
- * `_webglRenderer` is non-null here and the gate's other five conditions are all
+ * jsdom has no WebGL, but that does not block this: `WebGLRenderer`'s constructor
+ * only wires a `ContextLossController` and defers GL acquisition, so
+ * `_webglRenderer` is non-null here and the gate's other conditions are all
  * satisfiable. The renderer logs "WebGL2 not available" on render; that is
  * expected and irrelevant to the readiness contract.
  */
@@ -43,6 +39,7 @@ vi.hoisted(() => {
 });
 
 import './scatter-plot';
+import type { ProtspaceScatterplot } from './scatter-plot';
 
 /** Private surface of `WebglRenderPerfRunner` these tests drive directly. */
 type PerfRunnerInternals = {
@@ -51,10 +48,7 @@ type PerfRunnerInternals = {
   _applyZoomTranslate(dx: number, dy: number): Promise<void>;
 };
 
-type PerfHostInternals = HTMLElement & {
-  data: VisualizationData;
-  selectedAnnotation: string;
-  updateComplete: Promise<boolean>;
+type PerfHostInternals = ProtspaceScatterplot & {
   _webglRenderPerf: PerfRunnerInternals;
   _interaction: PlotInteractionController | null;
 };
@@ -102,9 +96,8 @@ const mounted: HTMLElement[] = [];
 
 /**
  * Connect a scatter-plot so Lit's `firstUpdated` runs for real — that is where
- * the interaction controller is constructed and initialized
- * (`scatter-plot.ts:926-928`) and where the WebGL renderer is built, i.e. the
- * exact lifecycle the perf runner's readiness gate is waiting on.
+ * the interaction controller is constructed and initialized and where the WebGL
+ * renderer is built, i.e. the exact lifecycle the readiness gate waits on.
  */
 async function mountScatter(data: VisualizationData | null): Promise<PerfHostInternals> {
   const sp = document.createElement('protspace-scatterplot') as PerfHostInternals;
@@ -153,21 +146,17 @@ describe('WebglRenderPerfRunner ↔ scatter-plot host contract (#453)', () => {
 
   it('the zoom scenarios actually move the plot', async () => {
     const sp = await mountScatter(makeFamilyData());
-    // Read back, don't assert: the `resetZoom()` triggered by the first `data`
-    // assignment (scatter-plot.ts:756) is a 750ms d3 transition from identity to
-    // identity, so the attribute is null until its first tick. It never changes
-    // the transform's value, so the scale(3) assertions below stay deterministic.
-    const initial = mainGroupTransform(sp);
 
-    // `_runZoomInOutScenario` (webgl-render-perf.ts:449-486) drives every zoom
-    // through this helper; when the d3 zoom handle is unreachable it returns at
-    // its guard and the scenario silently measures nothing.
+    // `_runZoomInOutScenario` drives every zoom through this helper; when the d3
+    // zoom handle is unreachable it returns at its guard and the scenario
+    // silently measures nothing. The `resetZoom()` that the first `data`
+    // assignment triggers is a 750ms transition from identity to identity, so it
+    // never competes with the value asserted here.
     await sp._webglRenderPerf._applyZoomScale(3);
     const zoomed = mainGroupTransform(sp);
     expect(zoomed).toMatch(/scale\(3\)/);
-    expect(zoomed).not.toBe(initial);
 
-    // `_runDragCanvasScenario` (webgl-render-perf.ts:488-531) pans through this one.
+    // `_runDragCanvasScenario` pans through this one.
     await sp._webglRenderPerf._applyZoomTranslate(50, 20);
     expect(mainGroupTransform(sp)).not.toBe(zoomed);
   });

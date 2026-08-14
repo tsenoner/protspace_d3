@@ -180,7 +180,7 @@ export class WebglRenderPerfRunner {
    * `_zoom` / `_svgSelection` off the host did (#453).
    */
   private _interaction(): PlotInteractionController | null {
-    return (this._hostAny()._interaction as PlotInteractionController | null) ?? null;
+    return this._hostAny()._interaction as PlotInteractionController | null;
   }
 
   private _collectDatasetInfo(explicit?: PerfDatasetInfo): PerfDatasetInfo | undefined {
@@ -237,9 +237,7 @@ export class WebglRenderPerfRunner {
         typeof plotData.length === 'number' &&
         plotData.length > 0 &&
         host._svg &&
-        // Zoom lives on the interaction controller, not the host — checking
-        // `_interaction` alone would not do: it is assigned one statement
-        // before initialize(), which is what actually wires zoom up.
+        // Not `_interaction != null` — see isZoomReady's doc for why.
         this._interaction()?.isZoomReady &&
         host._scales &&
         host._webglRenderer

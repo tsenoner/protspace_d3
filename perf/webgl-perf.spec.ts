@@ -158,19 +158,18 @@ test.describe('WebGL render perf benchmark (headed)', () => {
       expect(r).toBeTruthy();
       expect(Array.isArray(r.scenarios)).toBeTruthy();
 
-      const scenarioNames = r.scenarios.map((s) => s?.name).filter(Boolean);
+      // A scenario whose every `_waitForNextRender` timed out is still emitted,
+      // just with no passes at all. Checking names alone would accept that, and
+      // the plotter turns it into a NaN mean — a silently missing bar rather
+      // than a failure — so require each expected scenario to be present AND to
+      // have recorded at least one pass.
       for (const expected of EXPECTED_SCENARIOS) {
-        expect(scenarioNames).toContain(expected);
-      }
-
-      // A scenario whose every `_waitForNextRender` timed out is emitted with no
-      // passes at all. Names alone would accept that, and the plotter turns it
-      // into a NaN mean — a silently missing bar rather than a failure.
-      for (const s of r.scenarios) {
+        const scenario = r.scenarios.find((s) => s?.name === expected);
+        expect(scenario, `${r.dataset?.id} is missing scenario ${expected}`).toBeTruthy();
         expect(
-          Array.isArray(s.passes) && s.passes.length > 0,
-          `${r.dataset?.id} / ${s.name} recorded no render passes`,
-        ).toBeTruthy();
+          scenario?.passes?.length ?? 0,
+          `${r.dataset?.id} / ${expected} recorded no render passes`,
+        ).toBeGreaterThan(0);
       }
     }
 

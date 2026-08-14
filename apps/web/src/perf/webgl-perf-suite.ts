@@ -47,6 +47,10 @@ function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
+function timeoutError(timeoutMs: number, what: string): Error {
+  return new Error(`perf: timed out after ${timeoutMs}ms waiting for ${what}`);
+}
+
 async function waitUntil(
   predicate: () => boolean,
   timeoutMs: number,
@@ -58,35 +62,16 @@ async function waitUntil(
     if (predicate()) return;
     await sleep(intervalMs);
   }
-  throw new Error(`perf: timed out after ${timeoutMs}ms waiting for ${what}`);
+  throw timeoutError(timeoutMs, what);
 }
 
-/**
- * Fail a wait at its own deadline instead of inheriting an enclosing one.
- *
- * The loader path has several ways to settle nothing at all — dataset-controller
- * swallows finalization errors, and `loadFromFile` resolves rather than rejects
- * once a load handler is installed — so an unbounded await here surfaces only as
- * Playwright's terminal "waiting for event download" tens of minutes later, with
- * nothing naming the dataset or the condition.
- */
+/** Reject at `timeoutMs` if `promise` has not settled by then. */
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, what: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error(`perf: timed out after ${timeoutMs}ms waiting for ${what}`)),
-      timeoutMs,
-    );
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (error) => {
-        clearTimeout(timer);
-        reject(error);
-      },
-    );
+  let timer: ReturnType<typeof setTimeout>;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(timeoutError(timeoutMs, what)), timeoutMs);
   });
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
 }
 
 function readHeap(): HeapSample {
@@ -237,28 +222,6 @@ function hidePerfOverlay() {
 async function loadDataset(args: Args, datasetId: string, timeoutMs: number): Promise<LoadMetrics> {
   const url = `/data/${datasetId}.parquetbundle`;
 
-  const dataChange = new Promise<void>((resolve) => {
-    args.plotElement.addEventListener('data-change', () => resolve(), { once: true });
-  });
-
-  const loaderDone = new Promise<void>((resolve, reject) => {
-    args.dataLoader.addEventListener('data-loaded', () => resolve(), { once: true });
-    args.dataLoader.addEventListener(
-      'data-error',
-      (event: Event) => {
-        const detail = (event as CustomEvent<DataErrorEventDetail>).detail;
-        reject(new Error(String(detail?.message ?? 'unknown error')));
-      },
-      { once: true },
-    );
-  });
-  // `data-error` fires while we are still awaiting loadFromFile, one await
-  // ahead of where `loaderDone` is consumed, so its rejection would reach a
-  // microtask checkpoint unhandled and surface as a page-level unhandled
-  // rejection. Attaching a no-op handler marks it handled without consuming it:
-  // the await below still observes the rejection and reports the dataset.
-  loaderDone.catch(() => {});
-
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`perf: failed to fetch ${url}: ${response.status} ${response.statusText}`);
@@ -288,9 +251,44 @@ async function loadDataset(args: Args, datasetId: string, timeoutMs: number): Pr
     }
   })();
 
+  // Registered here, next to the call that triggers them, and torn down together
+  // in the finally below: `{ once: true }` detaches a listener only when it
+  // actually fires, so on a healthy dataset the `data-error` one would outlive
+  // the load and accumulate across every dataset in the sweep.
+  const listeners = new AbortController();
+  const listenerOpts = { once: true, signal: listeners.signal };
+
+  const dataChange = new Promise<void>((resolve) => {
+    args.plotElement.addEventListener('data-change', () => resolve(), listenerOpts);
+  });
+
+  const loaderDone = new Promise<void>((resolve, reject) => {
+    args.dataLoader.addEventListener('data-loaded', () => resolve(), listenerOpts);
+    args.dataLoader.addEventListener(
+      'data-error',
+      (event: Event) => {
+        const detail = (event as CustomEvent<DataErrorEventDetail>).detail;
+        reject(new Error(String(detail?.message ?? 'unknown error')));
+      },
+      listenerOpts,
+    );
+  });
+  // `data-error` fires while we are still awaiting loadFromFile, one await
+  // ahead of where `loaderDone` is consumed, so its rejection would reach a
+  // microtask checkpoint unhandled and surface as a page-level unhandled
+  // rejection. Attaching a no-op handler marks it handled without consuming it:
+  // the await below still observes the rejection and reports the dataset.
+  loaderDone.catch(() => {});
+
   const t0 = performance.now();
   let loadDurationMs: number;
   try {
+    // Every wait below is bounded on its own deadline rather than inheriting an
+    // enclosing one: the loader path has several ways to settle nothing at all —
+    // dataset-controller swallows finalization errors, and `loadFromFile`
+    // resolves rather than rejects once a load handler is installed — so an
+    // unbounded await surfaces only as Playwright's terminal "waiting for event
+    // download" tens of minutes later, naming neither dataset nor condition.
     await withTimeout(args.dataLoader.loadFromFile(file), timeoutMs, `${datasetId} to load`);
     await withTimeout(loaderDone, timeoutMs, `${datasetId} data-loaded`);
     await withTimeout(dataChange, timeoutMs, `${datasetId} data-change`);
@@ -308,6 +306,7 @@ async function loadDataset(args: Args, datasetId: string, timeoutMs: number): Pr
 
     loadDurationMs = performance.now() - t0;
   } finally {
+    listeners.abort();
     // Stop the heap poller on the failure path too, or it outlives this dataset
     // and keeps sampling through every subsequent one.
     polling = false;
