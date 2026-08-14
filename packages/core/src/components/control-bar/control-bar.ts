@@ -18,6 +18,7 @@ import {
   DEFAULT_EAT_RELIABILITY,
   isEatConfidenceAnnotation,
   isSameReliability,
+  NEUTRAL_BOUND,
   type EatReliabilityState,
   type ProjectionStatisticRow,
 } from '@protspace/utils';
@@ -1656,7 +1657,7 @@ export class ProtspaceControlBar extends LitElement {
   public setEatConfidenceThreshold(baseKey: string, x: number): void {
     // No clamping here: `conditionsForReliability` normalizes the state it is handed,
     // and the raw request is never stored.
-    this.setEatReliability(baseKey, { mode: 'atLeast', min: x, max: 1 });
+    this.setEatReliability(baseKey, { mode: 'atLeast', min: x, max: NEUTRAL_BOUND.max });
   }
 
   /**

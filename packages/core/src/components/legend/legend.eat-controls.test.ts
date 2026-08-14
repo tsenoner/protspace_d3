@@ -359,6 +359,38 @@ describe('legend EAT reliability modes (#380)', () => {
     expect(legend.reliabilityState).toEqual({ mode: 'between', min: 0.25, max: 0.75 });
   });
 
+  it('restores a bundle threshold as a lower bound, whatever mode the control was in', async () => {
+    // A bundle stores the lower bound only. Writing it into whatever mode the control
+    // happens to be in loses it outright in `atMost` (the bound that mode ignores is
+    // blanked, so a saved 60% restores as no filter at all).
+    const { legend } = await setup();
+    legend.setReliabilityState({ mode: 'atMost', min: 0, max: 0.4 });
+    await legend.updateComplete;
+
+    legend.applyEatSettings(true, 0.6);
+    await legend.updateComplete;
+
+    expect(legend.reliabilityState).toEqual({ mode: 'atLeast', min: 0.6, max: 1 });
+  });
+
+  it('keeps the mode and bounds when the overlay switch is toggled', async () => {
+    // The switch decides visibility only. Routing it through the bundle-restore path
+    // made every toggle a restore too: `atMost`'s lower bound is 0, so flipping the
+    // switch off and on rewrote "hide above 40%" as "hide below 0%" — no filter at all.
+    const { legend } = await setup();
+    legend.setReliabilityState({ mode: 'atMost', min: 0, max: 0.4 });
+    await legend.updateComplete;
+
+    const toggle = legend.shadowRoot!.querySelector<HTMLInputElement>('.eat-switch input')!;
+    for (const checked of [false, true]) {
+      toggle.checked = checked;
+      toggle.dispatchEvent(new Event('change'));
+      await legend.updateComplete;
+    }
+
+    expect(legend.reliabilityState).toEqual({ mode: 'atMost', min: 0, max: 0.4 });
+  });
+
   it('resets the whole position for a new dataset, not just the lower bound', async () => {
     // A bundle restores the threshold only. A mode carried over from the previous
     // dataset reinterprets it: a bundle saved as "hide below 60%" would load as
@@ -492,5 +524,58 @@ describe('legend EAT reliability band (one track, two thumbs)', () => {
 
     const { min, max } = legend.reliabilityState;
     expect(max - min).toBeCloseTo(0.01, 10);
+  });
+});
+
+/**
+ * A number input reports an empty field as `''`, and `Number('')` is 0 — not NaN — so
+ * the non-finite fallback never sees it. On the UPPER bound that 0 is `confidence <= 0`,
+ * which hides every prediction: the exact opposite of clearing the field.
+ */
+describe('legend EAT reliability percent boxes', () => {
+  async function percentBoxes(state: {
+    mode: 'atLeast' | 'atMost' | 'between';
+    min: number;
+    max: number;
+  }) {
+    const { legend } = await setup();
+    legend.setReliabilityState(state);
+    await legend.updateComplete;
+    return {
+      legend,
+      boxes: Array.from(
+        legend.shadowRoot!.querySelectorAll<HTMLInputElement>('.eat-threshold-percent'),
+      ),
+    };
+  }
+
+  it('reads an emptied upper-bound box as "no upper constraint", not as 0%', async () => {
+    const { legend, boxes } = await percentBoxes({ mode: 'atMost', min: 0, max: 0.5 });
+    boxes[0]!.value = '';
+    boxes[0]!.dispatchEvent(new Event('input'));
+    await legend.updateComplete;
+
+    expect(legend.reliabilityState).toEqual({ mode: 'atMost', min: 0, max: 1 });
+  });
+
+  it('reads an emptied lower-bound box as "no lower constraint"', async () => {
+    const { legend, boxes } = await percentBoxes({ mode: 'atLeast', min: 0.6, max: 1 });
+    boxes[0]!.value = '';
+    boxes[0]!.dispatchEvent(new Event('input'));
+    await legend.updateComplete;
+
+    expect(legend.reliabilityState).toEqual({ mode: 'atLeast', min: 0, max: 1 });
+  });
+
+  it('pins a band box back onto the clamped bound so it cannot show an unused value', async () => {
+    // The clamp holds the state still, so Lit's `.value` dirty-check has nothing to
+    // write and the box would keep displaying a bound the filter is not using.
+    const { legend, boxes } = await percentBoxes({ mode: 'between', min: 0.4, max: 0.6 });
+    boxes[0]!.value = '95';
+    boxes[0]!.dispatchEvent(new Event('input'));
+    await legend.updateComplete;
+
+    expect(legend.reliabilityState.min).toBeCloseTo(0.59, 10);
+    expect(boxes[0]!.value).toBe('59');
   });
 });

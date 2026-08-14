@@ -1153,6 +1153,9 @@ export class ProtspaceLegend extends LitElement {
     this._numericManualOrderIdsByAnnotation = {};
     this._eatCounts = null;
     this._eatOverlayEnabled = true;
+    // A drag left in flight must not survive the switch: its debounced commit would
+    // emit the reset position against the NEW dataset, after the seed has already run.
+    this._cancelEatThresholdCommit();
     // Reset the whole reliability position, not just the lower bound. A bundle
     // restores the threshold only, so a mode left over from the previous dataset
     // would reinterpret it: "hide below 60%" saved in this bundle would load as
@@ -1202,24 +1205,42 @@ export class ProtspaceLegend extends LitElement {
     return this._reliability.min;
   }
 
+  /**
+   * Bundle restore: the saved overlay switch plus the saved reliability position.
+   *
+   * A bundle stores the LOWER bound only, so restoring it means "hide below x" — the
+   * mode has to come along with it. Writing the bound into whatever mode the control
+   * happens to be in loses it outright in `atMost` (normalization blanks the bound that
+   * mode ignores, so a saved 60% restores as no filter) and reinterprets it in `between`
+   * (a band against a stale upper bound). Both contradict the documented round trip,
+   * which is that a bundle reopens on "Hide below" at the saved value.
+   */
   public applyEatSettings(enabled: boolean, threshold: number): void {
-    // A discrete apply (overlay toggle, bundle import) supersedes any pending
-    // debounced threshold commit — cancel it so it can't fire a stale late emit.
+    // A discrete apply supersedes any pending debounced threshold commit — cancel it
+    // so it can't fire a stale late emit.
     this._cancelEatThresholdCommit();
-    this._eatOverlayEnabled = enabled;
-    // A bundle restores the lower bound only; the current mode decides what that
-    // means, and normalizing keeps the other bound coherent with it.
-    this._setReliability({ ...this._reliability, min: threshold });
+    this._setReliability({ mode: 'atLeast', min: threshold, max: NEUTRAL_BOUND.max });
+    this._applyEatOverlayEnabled(enabled);
+  }
 
-    // The overlay switch still coalesces predictions into the base annotation on
-    // the scatter plot. The threshold, however, only feeds the reliability query
-    // filter now — it is emitted (below) and forwarded to the control bar, not
-    // pushed onto the scatter plot as a dimming input.
+  /**
+   * Publish the overlay switch. The switch still coalesces predictions into the base
+   * annotation on the scatter plot; the reliability position only feeds the query
+   * filter, so it rides the emit rather than being pushed onto the plot as a dimming
+   * input.
+   *
+   * Separate from `applyEatSettings` because the switch decides visibility and nothing
+   * else. Routing it through the restore path made every toggle a bundle restore too,
+   * which snapped the mode back to "Hide below" and dropped the bound with it — in
+   * `atMost` the lower bound it round-tripped is 0, so flipping the switch off and on
+   * silently cleared a "hide above 40%" filter.
+   */
+  private _applyEatOverlayEnabled(enabled: boolean): void {
+    this._eatOverlayEnabled = enabled;
     const scatterplot = this._scatterplotController.scatterplot;
     if (this.autoSync && scatterplot) {
       scatterplot.eatOverlayEnabled = enabled;
     }
-
     this._emitEatOverlayChange();
   }
 
@@ -1269,7 +1290,9 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _handleEatOverlayToggle(event: Event): void {
-    this.applyEatSettings((event.currentTarget as HTMLInputElement).checked, this._reliability.min);
+    // A discrete decision, like a mode change: it supersedes any pending drag commit.
+    this._cancelEatThresholdCommit();
+    this._applyEatOverlayEnabled((event.currentTarget as HTMLInputElement).checked);
   }
 
   /** Which bounds the selected mode filters on, and therefore which controls exist. */
@@ -1424,9 +1447,26 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _handleEatBoundPercentInput(bound: EatBound, event: Event): void {
-    const value = Number((event.currentTarget as HTMLInputElement).value);
-    if (!Number.isFinite(value)) return;
-    this._setEatBoundLive(bound, value / 100);
+    const input = event.currentTarget as HTMLInputElement;
+    const raw = input.value;
+    // An emptied box reads as "no constraint on this side" — but it cannot be routed
+    // through `clampReliabilityBound`'s non-finite fallback to say so, because a number
+    // input reports an empty (or unparseable) field as `''` and `Number('')` is 0, not
+    // NaN. On the UPPER bound that 0 is `confidence <= 0`, which hides every prediction:
+    // the exact opposite of clearing the field.
+    const empty = raw.trim() === '';
+    const requested = empty ? NEUTRAL_BOUND[bound] : Number(raw) / 100;
+    if (!Number.isFinite(requested)) return;
+
+    const applied = this._setEatBoundLive(bound, requested);
+    // Re-pin only when a clamp actually moved the value, for the reason the slider does:
+    // a clamp that holds the state still leaves Lit's `.value` dirty-check nothing to
+    // write, so the box would keep displaying a bound the filter is not using. A box the
+    // user is still typing a valid number into is left alone, and so is an emptied one —
+    // pinning that would type the neutral bound back in under them.
+    if (empty || applied === requested) return;
+    const pinned = String(Math.round(applied * 100));
+    if (input.value !== pinned) input.value = pinned;
   }
 
   /**
@@ -1436,15 +1476,18 @@ export class ProtspaceLegend extends LitElement {
    * geometry — to a drag-pause/release.
    */
   private _setEatBoundLive(bound: EatBound, value: number): number {
-    // Each bound falls back to its own "constrains nothing" position, so an emptied
-    // box reads as no constraint on that side.
+    // Each bound falls back to its own "constrains nothing" position, so a non-finite
+    // value reads as no constraint on that side.
     const next = this._clampBandBound(bound, clampReliabilityBound(value, NEUTRAL_BOUND[bound]));
     // Through the one writer, so a live drag lands in the same canonical form as every
     // other path and what the thumbs settle on is the band the filter will apply.
     this._setReliability({ ...this._reliability, [bound]: next });
     this._debounceEatThresholdCommit();
-    // Returned so the caller can pin its control back onto the value that was applied.
-    return next;
+    // The bound the state actually settled on, so the caller pins its control onto the
+    // value the filter will use. Not `next`: normalization runs after the band clamp and
+    // can still move it (a band whose upper bound sits at 0 clamps the lower one to
+    // -0.01, which `normalizeReliability` then pulls back to 0).
+    return this._reliability[bound];
   }
 
   /**

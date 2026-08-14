@@ -94,4 +94,23 @@ describe('reliabilityFromConditions', () => {
     });
     expect(reliabilityFromConditions([negated])).toEqual({ mode: 'atMost', min: 0, max: 0.5 });
   });
+
+  it('does not read a negated band as the band itself', () => {
+    // NOT(between a,b) keeps everything OUTSIDE the band — no mode expresses that, so
+    // reading it positively would show a band that keeps exactly what it hides, and the
+    // next nudge of the control would commit that inversion back into the query.
+    const negatedBand = createNumericCondition({
+      annotation: KEY,
+      operator: 'between',
+      min: 0.3,
+      max: 0.7,
+      logicalOp: 'NOT',
+    });
+    expect(reliabilityFromConditions([negatedBand])).not.toEqual({
+      mode: 'between',
+      min: 0.3,
+      max: 0.7,
+    });
+    expect(reliabilityFromConditions([negatedBand])).toEqual(DEFAULT_EAT_RELIABILITY);
+  });
 });

@@ -465,10 +465,9 @@ function makeMultiEatData(): ProtspaceData {
 
 describe('control-bar per-base EAT reliability filter (multi-EAT)', () => {
   let controlBar: ControlBarInternals;
-  let scatter: StubScatterplot;
 
   beforeEach(async () => {
-    ({ controlBar, scatter } = await mountControlBar(makeMultiEatData));
+    ({ controlBar } = await mountControlBar(makeMultiEatData));
   });
 
   it('scopes the condition to the base: setting GO does not clobber EC', () => {

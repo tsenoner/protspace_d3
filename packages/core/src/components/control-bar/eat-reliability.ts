@@ -165,7 +165,12 @@ export function reliabilityFromConditions(
     const { min, max } = numericFieldsFor(condition.operator);
 
     if (min && max) {
-      if (condition.min !== null && condition.max !== null) {
+      // A NEGATED band keeps everything OUTSIDE it, which none of the three modes can
+      // express — so it is skipped rather than read as its positive form. Reading it
+      // positively would show the user a band that keeps exactly what their condition
+      // hides, and the next nudge of the control would silently commit that inversion
+      // back into the query.
+      if (!negated && condition.min !== null && condition.max !== null) {
         return normalizeReliability({ mode: 'between', min: condition.min, max: condition.max });
       }
     } else if (min) {
