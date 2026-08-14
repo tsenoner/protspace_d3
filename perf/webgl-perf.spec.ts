@@ -126,8 +126,9 @@ test.describe('WebGL render perf benchmark (headed)', () => {
       iterations: number;
       results: Array<{
         dataset: { id: string };
-        scenarios: Array<{ name: string }>;
+        scenarios: Array<{ name: string; passes: unknown[] }>;
       }>;
+      failures?: Array<{ datasetId: string; error: string }>;
     };
     expect(suite).toBeTruthy();
     expect(typeof suite.createdAt).toBe('string');
@@ -143,6 +144,16 @@ test.describe('WebGL render perf benchmark (headed)', () => {
     }
     expect(new Set(datasetIds).size).toBe(datasetIds.length);
 
+    // The suite now records a failing dataset and carries on rather than
+    // discarding the run, so the download arriving no longer implies every
+    // dataset succeeded. Assert on the failures it collected, or a broken run
+    // reads as green.
+    const failures = suite.failures ?? [];
+    expect(
+      failures,
+      `datasets failed: ${failures.map((f) => `${f.datasetId}: ${f.error}`).join('; ')}`,
+    ).toEqual([]);
+
     for (const r of results) {
       expect(r).toBeTruthy();
       expect(Array.isArray(r.scenarios)).toBeTruthy();
@@ -150,6 +161,16 @@ test.describe('WebGL render perf benchmark (headed)', () => {
       const scenarioNames = r.scenarios.map((s) => s?.name).filter(Boolean);
       for (const expected of EXPECTED_SCENARIOS) {
         expect(scenarioNames).toContain(expected);
+      }
+
+      // A scenario whose every `_waitForNextRender` timed out is emitted with no
+      // passes at all. Names alone would accept that, and the plotter turns it
+      // into a NaN mean — a silently missing bar rather than a failure.
+      for (const s of r.scenarios) {
+        expect(
+          Array.isArray(s.passes) && s.passes.length > 0,
+          `${r.dataset?.id} / ${s.name} recorded no render passes`,
+        ).toBeTruthy();
       }
     }
 

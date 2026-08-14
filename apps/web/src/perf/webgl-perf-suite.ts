@@ -5,10 +5,19 @@ type Args = {
   dataLoader: DataLoader;
 };
 
+type PerfDatasetFailure = {
+  datasetId: string;
+  error: string;
+};
+
 type PerfSuiteResult = {
   createdAt: string;
   iterations: number;
   results: unknown[];
+  // Datasets that threw, kept OUT of `results` so that array stays homogeneous:
+  // plot_perf_results.py yields every entry of `results` as a dataset payload,
+  // so a failure record in there would plot as a phantom dataset with empty bars.
+  failures: PerfDatasetFailure[];
 };
 
 type PerfSuiteGlobalState = typeof globalThis & {
@@ -41,6 +50,7 @@ function sleep(ms: number) {
 async function waitUntil(
   predicate: () => boolean,
   timeoutMs: number,
+  what: string,
   intervalMs = 250,
 ): Promise<void> {
   const start = performance.now();
@@ -48,7 +58,35 @@ async function waitUntil(
     if (predicate()) return;
     await sleep(intervalMs);
   }
-  throw new Error('perf: timeout');
+  throw new Error(`perf: timed out after ${timeoutMs}ms waiting for ${what}`);
+}
+
+/**
+ * Fail a wait at its own deadline instead of inheriting an enclosing one.
+ *
+ * The loader path has several ways to settle nothing at all — dataset-controller
+ * swallows finalization errors, and `loadFromFile` resolves rather than rejects
+ * once a load handler is installed — so an unbounded await here surfaces only as
+ * Playwright's terminal "waiting for event download" tens of minutes later, with
+ * nothing naming the dataset or the condition.
+ */
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, what: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`perf: timed out after ${timeoutMs}ms waiting for ${what}`)),
+      timeoutMs,
+    );
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
 }
 
 function readHeap(): HeapSample {
@@ -214,6 +252,12 @@ async function loadDataset(args: Args, datasetId: string, timeoutMs: number): Pr
       { once: true },
     );
   });
+  // `data-error` fires while we are still awaiting loadFromFile, one await
+  // ahead of where `loaderDone` is consumed, so its rejection would reach a
+  // microtask checkpoint unhandled and surface as a page-level unhandled
+  // rejection. Attaching a no-op handler marks it handled without consuming it:
+  // the await below still observes the rejection and reports the dataset.
+  loaderDone.catch(() => {});
 
   const response = await fetch(url);
   if (!response.ok) {
@@ -245,18 +289,30 @@ async function loadDataset(args: Args, datasetId: string, timeoutMs: number): Pr
   })();
 
   const t0 = performance.now();
-  await args.dataLoader.loadFromFile(file);
-  await loaderDone;
-  await dataChange;
+  let loadDurationMs: number;
+  try {
+    await withTimeout(args.dataLoader.loadFromFile(file), timeoutMs, `${datasetId} to load`);
+    await withTimeout(loaderDone, timeoutMs, `${datasetId} data-loaded`);
+    await withTimeout(dataChange, timeoutMs, `${datasetId} data-change`);
 
-  await waitUntil(() => !!args.plotElement.data?.protein_ids?.length, timeoutMs);
-  await waitUntil(() => !document.getElementById('progressive-loading'), timeoutMs);
+    await waitUntil(
+      () => !!args.plotElement.data?.protein_ids?.length,
+      timeoutMs,
+      `${datasetId} protein_ids on the plot`,
+    );
+    await waitUntil(
+      () => !document.getElementById('progressive-loading'),
+      timeoutMs,
+      `${datasetId} progressive-loading overlay to clear`,
+    );
 
-  const loadDurationMs = performance.now() - t0;
-
-  // Stop poller and wait for it to finish
-  polling = false;
-  await pollLoop;
+    loadDurationMs = performance.now() - t0;
+  } finally {
+    // Stop the heap poller on the failure path too, or it outlives this dataset
+    // and keeps sampling through every subsequent one.
+    polling = false;
+    await pollLoop;
+  }
 
   const heapAfterLoad = readHeap();
   await sleep(300);
@@ -293,24 +349,46 @@ export async function maybeRunWebglPerfSuite(args: Args): Promise<boolean> {
     const timeoutMs = 12 * 60_000;
     const createdAt = new Date().toISOString();
     const results: unknown[] = [];
+    const failures: PerfDatasetFailure[] = [];
 
     for (const datasetId of datasets) {
-      const loadMetrics = await loadDataset(args, datasetId, timeoutMs);
+      // Per dataset, so one failure costs its own results and nothing else. The
+      // run is a sweep over increasingly large bundles looking for the point at
+      // which rendering gives out; the dataset that finds it is expected to
+      // fail, and losing every smaller dataset's measurements with it would
+      // discard exactly the data the sweep exists to collect.
+      try {
+        const loadMetrics = await loadDataset(args, datasetId, timeoutMs);
 
-      const result = await args.plotElement.runWebGLRenderPerfMeasurements(iterations, {
-        download: false,
-        dataset: { id: datasetId, url: `/data/${datasetId}.parquetbundle` },
-      });
-      if (!result) {
-        throw new Error(`perf: no result for dataset ${datasetId}`);
+        const result = await args.plotElement.runWebGLRenderPerfMeasurements(iterations, {
+          download: false,
+          dataset: { id: datasetId, url: `/data/${datasetId}.parquetbundle` },
+        });
+        if (!result) {
+          throw new Error(`perf: no result for dataset ${datasetId}`);
+        }
+        results.push({ ...(result as Record<string, unknown>), load: loadMetrics });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`perf: dataset ${datasetId} failed:`, error);
+        failures.push({ datasetId, error: message });
       }
-      results.push({ ...(result as Record<string, unknown>), load: loadMetrics });
+    }
+
+    // Nothing measured is a failed run, not a results file full of nothing —
+    // emitting one would let the spec's download arrive and read as green.
+    if (results.length === 0) {
+      throw new Error(
+        `perf: no dataset produced measurements (${datasets.length} attempted): ` +
+          failures.map((f) => `${f.datasetId}: ${f.error}`).join('; '),
+      );
     }
 
     const suite: PerfSuiteResult = {
       createdAt,
       iterations,
       results,
+      failures,
     };
 
     const safeCreatedAt = createdAt.split(':').join('-');
