@@ -88,7 +88,27 @@ failed.` just before its result line. That is the dev server reacting to the
 into the next run; see the `gracefulShutdown` comment in `playwright.config.ts`.
 
 Each JSON contains per-dataset, per-scenario render-pass timings, dataset
-metadata (point count), and browser/hardware metadata collected at runtime.
+metadata (point count), and browser/hardware metadata collected at runtime, in a
+top-level `results` array.
+
+Datasets that did not produce measurements are recorded beside `results`, never
+inside it, under two further top-level arrays:
+
+| Key        | Holds                                                    |
+| ---------- | -------------------------------------------------------- |
+| `failures` | `{ datasetId, error }` for each dataset that threw       |
+| `skipped`  | `{ datasetId, reason }` for each dataset never attempted |
+
+They sit outside `results` because `plot_perf_results.py` yields every member of
+`results` as a dataset payload — a failure record in there would plot as a
+phantom dataset with empty bars. The spec fails the run on either array being
+non-empty and prints its contents, so a partial sweep still names what broke.
+
+The run loads every dataset as a _demo_ load, so it neither writes the bundle to
+OPFS nor replaces whatever dataset you had persisted for reload. That also keeps
+the persist — a full copy of a bundle, awaited before render — out of
+`loadDurationMs`; before this, load timings included it and WebKit failed the
+write outright on large bundles.
 
 #### Per-dataset `load` metrics and CDP heap sidecar
 

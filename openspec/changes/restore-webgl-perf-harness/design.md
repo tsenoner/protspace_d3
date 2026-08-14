@@ -24,7 +24,9 @@ progressively larger synthetic bundles, where the largest dataset is expected to
 - Restore the benchmark to producing results, at every site the extraction broke — not only the one
   the issue reported.
 - Make readiness mean what it says: gate on a predicate the interaction layer vouches for.
-- Keep measurements comparable with pre-refactor baselines.
+- Keep the zoom/pan scenarios measuring the same _operation_ as before the F-07 extraction. (Not the
+  same absolute numbers: removing the overlay scrim and the OPFS write deliberately lowers both
+  interaction timings and `loadDurationMs`. See Risks.)
 - Let a failing dataset cost its own results and nothing else.
 - Fail loudly and specifically where the harness previously hung or silently degraded.
 - Leave a test that fails in CI on the next occurrence of this class of break.
@@ -105,7 +107,7 @@ failure record placed there would plot as a phantom dataset with empty bars — 
 bug the CDP sidecar already causes in that script. Keeping `results` homogeneous means the plotter
 needs no change at all.
 
-**Two harness defects that the Non-Goals list deferred turned out to be blocking, and are fixed here.**
+**Three harness defects that the Non-Goals list deferred turned out to be blocking, and are fixed here.**
 `reuseExistingServer: false` was listed as a papercut; it is not the bug. Playwright kills the
 process group it spawns, but turbo puts each task it runs into a _new_ group, so Vite escapes the
 SIGKILL and keeps :8080 — and the port guard is then correctly refusing to benchmark a server it did
@@ -120,6 +122,26 @@ The shared `outputDir` compounds it: Playwright deletes the output directory of 
 project at run start, before the web server starts, so the documented
 `pnpm perf -- --project=chrome` destroyed the other browsers' results from the previous sweep — and
 a run that then died on the port did not replace them. One directory per project fixes it.
+
+The third is the OPFS write, and it is the largest single distortion on the branch. The suite drove
+the app through `loadFromFile(file)` with no options, so `load-queue.ts` recorded every dataset as
+`kind: 'user'` — a user import — and `dataset-controller.ts` then _awaited_ `saveLastImportedFile`,
+a full copy of the bundle into the Origin Private File System, **before** rendering. That copy sits
+strictly inside the interval reported as `loadDurationMs`. At the sizes this harness exists to probe
+it is not a detail of the measurement, it is the measurement: the probe bundles are 72–145 MB, each
+written once per dataset on top of the ~100 MB `ArrayBuffer` the suite already holds. WebKit gives up
+on the write — a 1M sweep reported eight `UnknownError: The operation failed for an unknown transient
+reason (e.g. out of memory)` — while Chrome completes it and silently bills it to the load time. It
+had a second cost unrelated to benchmarking: a run replaced whatever dataset the developer had
+persisted for reload with the last one the benchmark happened to load.
+
+Passing `source: 'auto'` makes the app record a demo load (`kind: 'default'`), which is what a
+benchmark load is. Everything OPFS-related is gated on `kind === 'user' | 'opfs'`, so both the
+persist and the `markLastLoadStatus` writes drop out. This stays at the harness layer — the same call
+as the tour suppression — rather than teaching the app about benchmarks. The remaining differences
+are wanted: each dataset starts from cleared legend state instead of inheriting the previous one's,
+and the stale-tooltip URL rewrite (a user-import concern) is skipped. Load identity is unaffected,
+because `detail.file` is set on the event regardless of source.
 
 **The benchmark blocks the analytics beacon, for the same reason it suppresses the tour.**
 `index.html` loads Cloudflare Web Analytics unconditionally, so the beacon script executes and POSTs
@@ -145,6 +167,13 @@ sites with no load identity at all. And because the queue is now blocked regardl
 at its deadline ends the sweep — the remaining datasets are recorded as skipped rather than each
 spending its full budget reaching the same deadline.
 
+Only an _abandoned_ wait may do that, which is why budget expiry is its own error type
+(`PerfBudgetExpiredError`) and the load catch rethrows everything else. A load that rejects cleanly
+leaves the queue drained (`queuedLoad = nextLoad.catch(...)`) and is exactly the survivable
+per-dataset failure this change set out to create; conflating the two would lose an entire sweep to a
+dataset that merely errored. Today only the timeout reaches that catch, because the app's
+`loadFromFileHandler` swallows load errors — worth stating so the guard does not read as dead code.
+
 **Size every budget against the harness's enclosing deadlines.**
 Deadlines only help if they compose. Each wait holding its own timeout multiplied the worst case by
 the number of waits in the load path, so one dataset could outlive the spec's download wait
@@ -152,6 +181,15 @@ the number of waits in the load path, so one dataset could outlive the spec's do
 the very symptom the bounding was added to remove. A dataset now gets one absolute `Budget` shared
 by every wait in its load path and by the readiness gate, capped by a run budget the spec derives
 from its own download wait and passes in, so the two layers cannot drift.
+
+An inherited budget changes what a correct wait loop looks like, which is the subtlest consequence
+here. Once `readyTimeoutMs` is what is _left_ of a dataset's budget rather than a fixed ten minutes,
+it is routinely at or near zero right after a large bundle lands — and a deadline-first
+`while (elapsed < timeoutMs)` head then reports "timed out waiting for data to fully load" for a host
+it never once evaluated, failing a dataset that had in fact loaded. So any wait whose budget is
+inherited rather than fixed must be **predicate-first**: evaluate the condition, then check the
+deadline. `waitUntil` was written that way deliberately; `_waitForHostFullyLoaded` had to be
+converted to it.
 
 The guarantee is carried by a watchdog rather than by a check between datasets: at the run deadline
 the results file is emitted wherever the sweep has got to. Checking only between datasets would
@@ -197,8 +235,14 @@ dead — verified by mutation, which reports `expected [ 'plot' ] to include 'zo
 - **Per-dataset catch could mask real failures** → mitigated by making the spec fail on any recorded
   error, so a caught failure is still a red run; it just no longer costs the other datasets.
 - **Results-file shape changes** → mitigated by construction: `results` keeps its existing shape and
-  failures live under a new top-level key the plotter never reads. Verified by running the plotter
-  on a mixed success/failure file — it emitted every plot and registered no phantom dataset.
+  failures and skips live under two new top-level keys (`failures`, `skipped`) the plotter never
+  reads. Verified by running the plotter on a mixed success/failure file — it emitted every plot and
+  registered no phantom dataset.
+- **Absolute timings are not comparable with old baselines** → and deliberately so, in two places:
+  removing the full-viewport scrim and the running spinner drops the interaction scenarios (5K,
+  Chrome: zoomInOut 2.81/2.62 → 0.68/0.70ms), and removing the OPFS copy drops `loadDurationMs` by
+  what was the dominant term at probe sizes. The comparability goal above is about the zoom/pan path
+  measuring the same _operation_ it did before the F-07 extraction, not about matching old numbers.
 - **`zoomBy` clamping** → `scaleBy` is clamped to the scaleExtent snapshotted at `initialize()`, so
   a pre-zoomed plot could make the in/out pair not round-trip and measure a near-no-op. It cannot
   hang (the transform still emits and renders), and the transform restore returns the pre-run state.
