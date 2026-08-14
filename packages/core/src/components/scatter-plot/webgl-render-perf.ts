@@ -1,8 +1,9 @@
 import * as d3 from 'd3';
 import type { PlotData, PlotDataPoint, VisualizationData } from '@protspace/utils';
 import { materializePlotDataPoint } from '@protspace/utils';
-// Type-only on purpose: plot-interaction-controller.ts imports RenderWebGLTrigger
-// from this module, so a value import would close a runtime ESM cycle.
+// Type-only: nothing here needs the class at runtime. The reverse edge
+// (plot-interaction-controller.ts -> RenderWebGLTrigger) is `import type` as well,
+// so neither module pulls the other into the runtime graph.
 import type { PlotInteractionController } from './interaction/plot-interaction-controller';
 
 const PERF_MEASURE_ITERATIONS = 10;
@@ -181,6 +182,20 @@ export class WebglRenderPerfRunner {
    */
   private _interaction(): PlotInteractionController | null {
     return this._hostAny()._interaction as PlotInteractionController | null;
+  }
+
+  /**
+   * The interaction controller, or a throw. Every caller below already passed an
+   * `isZoomReady` guard, so reaching this without a controller means the host was
+   * torn down mid-run — and driving the zoom scenarios through `?.` would turn
+   * that into a silent no-op that skews the transform the *following* scenarios
+   * measure from, which is the failure mode #453 was.
+   */
+  private _requireInteraction(): PlotInteractionController {
+    const interaction = this._interaction();
+    if (!interaction)
+      throw new Error('WebGL perf runner: interaction controller went away mid-run');
+    return interaction;
   }
 
   private _collectDatasetInfo(explicit?: PerfDatasetInfo): PerfDatasetInfo | undefined {
@@ -436,11 +451,11 @@ export class WebglRenderPerfRunner {
   }
 
   private async _applyZoomScale(scaleFactor: number) {
-    this._interaction()?.zoomBy(scaleFactor);
+    this._requireInteraction().zoomBy(scaleFactor);
   }
 
   private async _applyZoomTranslate(dx: number, dy: number) {
-    this._interaction()?.panBy(dx, dy);
+    this._requireInteraction().panBy(dx, dy);
   }
 
   private async _runZoomInOutScenario(iterations: number) {
@@ -471,7 +486,7 @@ export class WebglRenderPerfRunner {
     this._endScenario();
 
     const prevSeq = this._recorder?.passSeq ?? 0;
-    this._interaction()?.setTransform(originalTransform);
+    this._requireInteraction().setTransform(originalTransform);
     const rendered = await this._waitForNextRender(prevSeq, 2000);
     if (rendered) await this._waitForRenderIdle(10, 2000);
 
@@ -515,7 +530,7 @@ export class WebglRenderPerfRunner {
     this._endScenario();
 
     const prevSeq = this._recorder?.passSeq ?? 0;
-    this._interaction()?.setTransform(originalTransform);
+    this._requireInteraction().setTransform(originalTransform);
     const rendered = await this._waitForNextRender(prevSeq, 2000);
     if (rendered) await this._waitForRenderIdle(10, 2000);
 

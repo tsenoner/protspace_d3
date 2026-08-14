@@ -222,11 +222,20 @@ function hidePerfOverlay() {
 async function loadDataset(args: Args, datasetId: string, timeoutMs: number): Promise<LoadMetrics> {
   const url = `/data/${datasetId}.parquetbundle`;
 
-  const response = await fetch(url);
+  // Bounded like every other wait in this path: a dev server that accepts the
+  // connection and then stalls mid-body would otherwise hang here forever, which
+  // is the same undiagnosable "waiting for event download" the waits below exist
+  // to avoid — and the bundles are up to ~45 MB, so a stalled body is the likely
+  // shape of it.
+  const response = await withTimeout(fetch(url), timeoutMs, `${datasetId} bundle response`);
   if (!response.ok) {
     throw new Error(`perf: failed to fetch ${url}: ${response.status} ${response.statusText}`);
   }
-  const arrayBuffer = await response.arrayBuffer();
+  const arrayBuffer = await withTimeout(
+    response.arrayBuffer(),
+    timeoutMs,
+    `${datasetId} bundle body`,
+  );
   const file = new File([arrayBuffer], `${datasetId}.parquetbundle`, {
     type: 'application/octet-stream',
   });
@@ -251,38 +260,41 @@ async function loadDataset(args: Args, datasetId: string, timeoutMs: number): Pr
     }
   })();
 
-  // Registered here, next to the call that triggers them, and torn down together
-  // in the finally below: `{ once: true }` detaches a listener only when it
-  // actually fires, so on a healthy dataset the `data-error` one would outlive
-  // the load and accumulate across every dataset in the sweep.
+  // Torn down together in the finally below: `{ once: true }` detaches a listener
+  // only when it actually fires, so on a healthy dataset the `data-error` one
+  // would outlive the load and accumulate across every dataset in the sweep.
+  // Declared out here because only the finally can reach it; everything else lives
+  // inside the try, so nothing between the poller's creation and the try can throw
+  // past the `polling = false` that stops it.
   const listeners = new AbortController();
-  const listenerOpts = { once: true, signal: listeners.signal };
 
-  const dataChange = new Promise<void>((resolve) => {
-    args.plotElement.addEventListener('data-change', () => resolve(), listenerOpts);
-  });
-
-  const loaderDone = new Promise<void>((resolve, reject) => {
-    args.dataLoader.addEventListener('data-loaded', () => resolve(), listenerOpts);
-    args.dataLoader.addEventListener(
-      'data-error',
-      (event: Event) => {
-        const detail = (event as CustomEvent<DataErrorEventDetail>).detail;
-        reject(new Error(String(detail?.message ?? 'unknown error')));
-      },
-      listenerOpts,
-    );
-  });
-  // `data-error` fires while we are still awaiting loadFromFile, one await
-  // ahead of where `loaderDone` is consumed, so its rejection would reach a
-  // microtask checkpoint unhandled and surface as a page-level unhandled
-  // rejection. Attaching a no-op handler marks it handled without consuming it:
-  // the await below still observes the rejection and reports the dataset.
-  loaderDone.catch(() => {});
-
-  const t0 = performance.now();
   let loadDurationMs: number;
   try {
+    const listenerOpts = { once: true, signal: listeners.signal };
+
+    const dataChange = new Promise<void>((resolve) => {
+      args.plotElement.addEventListener('data-change', () => resolve(), listenerOpts);
+    });
+
+    const loaderDone = new Promise<void>((resolve, reject) => {
+      args.dataLoader.addEventListener('data-loaded', () => resolve(), listenerOpts);
+      args.dataLoader.addEventListener(
+        'data-error',
+        (event: Event) => {
+          const detail = (event as CustomEvent<DataErrorEventDetail>).detail;
+          reject(new Error(String(detail?.message ?? 'unknown error')));
+        },
+        listenerOpts,
+      );
+    });
+    // `data-error` fires while we are still awaiting loadFromFile, one await
+    // ahead of where `loaderDone` is consumed, so its rejection would reach a
+    // microtask checkpoint unhandled and surface as a page-level unhandled
+    // rejection. Attaching a no-op handler marks it handled without consuming it:
+    // the await below still observes the rejection and reports the dataset.
+    loaderDone.catch(() => {});
+
+    const t0 = performance.now();
     // Every wait below is bounded on its own deadline rather than inheriting an
     // enclosing one: the loader path has several ways to settle nothing at all —
     // dataset-controller swallows finalization errors, and `loadFromFile`

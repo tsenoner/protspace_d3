@@ -26,7 +26,8 @@
  */
 import { vi, describe, it, expect, afterEach } from 'vitest';
 import type { VisualizationData } from '@protspace/utils';
-import type { PlotInteractionController } from './interaction/plot-interaction-controller';
+import { PlotInteractionController } from './interaction/plot-interaction-controller';
+import type { PlotInteractionHost } from './interaction/plot-interaction-controller';
 
 vi.hoisted(() => {
   if (!('ResizeObserver' in globalThis)) {
@@ -134,10 +135,33 @@ describe('WebglRenderPerfRunner ↔ scatter-plot host contract (#453)', () => {
   });
 
   it('the readiness gate still rejects on a host that never loads data', async () => {
-    // Negative control: the gate must stay a real gate. Deleting the conditions
-    // that drifted would make the test above pass while leaving `pnpm perf`
-    // measuring an empty plot.
+    // Negative control for the data half of the gate: it must stay a real gate
+    // rather than resolve on anything that is merely mounted.
     const sp = await mountScatter(null);
+
+    await expect(
+      sp._webglRenderPerf._waitForHostFullyLoaded(NEVER_READY_BUDGET_MS),
+    ).rejects.toThrow(/timed out waiting for data to fully load/);
+  });
+
+  it('the readiness gate rejects when the interaction layer was never initialized', async () => {
+    // Negative control for the half that actually drifted. The `data: null` host
+    // above fails the gate on `host.data` alone, so it stays red even with the
+    // zoom condition deleted — on its own it does NOT make "delete the failing
+    // condition" a non-fix. This host has every other condition satisfied, so the
+    // gate can only reject by consulting the interaction layer.
+    const sp = await mountScatter(makeFamilyData());
+
+    // Exactly the shape #453 produced: a non-null controller carrying null zoom
+    // state, because `initialize()` early-returns when the host has no SVG.
+    const uninitialized = new PlotInteractionController({
+      getSvg: () => undefined,
+    } as unknown as PlotInteractionHost);
+    uninitialized.initialize();
+    expect(uninitialized.isZoomReady).toBe(false);
+
+    sp._interaction?.teardown();
+    sp._interaction = uninitialized;
 
     await expect(
       sp._webglRenderPerf._waitForHostFullyLoaded(NEVER_READY_BUDGET_MS),

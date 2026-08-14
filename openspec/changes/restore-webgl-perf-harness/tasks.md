@@ -4,8 +4,9 @@
       `mainGroup`/`overlayGroup`/`isBrushing` getters
 - [x] 1.2 Add `zoomBy`, `panBy`, `setTransform` to the controller, driving d3's zoom behaviour so
       the node's `__zoom` datum stays authoritative
-- [x] 1.3 Add a typed `_interaction()` accessor to `WebglRenderPerfRunner`, imported with
-      `import type` to avoid closing a runtime ESM cycle
+- [x] 1.3 Add a typed `_interaction()` accessor to `WebglRenderPerfRunner`, plus a
+      `_requireInteraction()` that throws rather than letting the zoom sites degrade to `?.`
+      no-ops; the controller is `import type`-only because nothing needs the class at runtime
 - [x] 1.4 Repoint all five `_zoom`/`_svgSelection` sites: the readiness gate, `_applyZoomScale`,
       `_applyZoomTranslate`, and the guard plus transform-restore in each of `_runZoomInOutScenario`
       and `_runDragCanvasScenario`
@@ -17,8 +18,10 @@
 - [x] 2.1 Add `webgl-render-perf.host-contract.test.ts` (jsdom), driving the runner instance the
       host owns rather than a freshly constructed one
 - [x] 2.2 Assert the gate resolves against a loaded host
-- [x] 2.3 Assert the gate still rejects on a host that never loads, so deleting the drifted
-      conditions cannot pass as a fix
+- [x] 2.3 Assert the gate still rejects on a host that never loads
+- [x] 2.3a Assert the gate rejects on a fully-loaded host whose interaction layer was never
+      initialized — this is the case that makes deleting the drifted condition a non-fix; 2.3
+      alone does not, because that host fails the gate on `data` before zoom is ever consulted
 - [x] 2.4 Assert the zoom helpers actually move the plot, read back through the controller's public
       `mainGroup` rather than any private field
 - [x] 2.5 Verify the test is red on the parent commit and green with the fix
@@ -39,9 +42,11 @@
       not treat a failure as a phantom dataset
 - [x] 4.3 Fail loudly when no dataset produced measurements, rather than emitting a file that reads
       as a successful run
-- [x] 4.4 Bound the three unbounded awaits in `loadDataset` so a load that never finalizes fails at
-      its own timeout, naming the dataset and the unmet condition
-- [x] 4.5 Stop the heap poller on the failure path so it does not outlive its dataset
+- [x] 4.4 Bound every unbounded await in `loadDataset` — the three loader waits plus the bundle
+      `fetch` and `arrayBuffer` — so a load that never finalizes fails at its own timeout, naming
+      the dataset and the unmet condition
+- [x] 4.5 Stop the heap poller on the failure path so it does not outlive its dataset, with the
+      `try` opening immediately after the poller so nothing can throw past the stop
 - [x] 4.6 Mark the `loaderDone` rejection handled at creation: `data-error` fires an await earlier
       than it is consumed, so its rejection reached a microtask checkpoint unhandled and surfaced as
       a page error, failing the run the per-dataset catch was meant to survive

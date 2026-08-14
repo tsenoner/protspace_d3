@@ -97,9 +97,14 @@ jsdom reproduces the break exactly: `WebGLRenderer`'s constructor only stores it
 defers GL acquisition, so `_webglRenderer` is non-null and five of the gate's seven conditions
 already hold — only the two that drifted fail. The test drives the runner instance the _host_ owns,
 so a future change to the runner's constructor keeps being exercised instead of rewriting the test
-that constrains it. It asserts the gate resolves, still rejects on a never-loading host, and that
-the zoom helpers move the plot — the last two together making "delete the failing conditions" a
-non-fix.
+that constrains it. It asserts the gate resolves, still rejects on a never-loading host, still
+rejects on a fully-loaded host whose interaction layer was never initialized, and that the zoom
+helpers move the plot.
+
+The third assertion is the one that makes "delete the failing condition" a non-fix, and it is not
+interchangeable with the second: a host with no `data` fails the gate on `host.data` alone, so it
+stays red whether or not the zoom condition is there. Only a host where every _other_ condition
+holds can prove the gate consults the interaction layer at all.
 
 ## Risks / Trade-offs
 
