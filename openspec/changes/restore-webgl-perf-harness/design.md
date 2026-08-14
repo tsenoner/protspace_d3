@@ -35,11 +35,15 @@ progressively larger synthetic bundles, where the largest dataset is expected to
   ~16 members is the durable fix for _name_ drift, but it is a larger refactor than restoring the
   benchmark warrants, and it cannot catch _semantic_ drift (a bridge method that keeps type-checking
   while returning null). Deferred; the regression test covers values in the meantime.
-- The remaining harness defects found while auditing: `reuseExistingServer: false` colliding with a
-  running dev server, the shared `outputDir` wiping prior runs, the OPFS write inside the measured
-  load window, `plot_perf_results.py` ingesting the CDP sidecar as a phantom browser, the 2s dead
-  wait after each scenario, and clickPoint measuring app-level click side effects. Each is a
-  separate follow-up; none makes the benchmark hang or lose data.
+- The remaining harness defects found while auditing: the OPFS write inside the measured load
+  window, `plot_perf_results.py` ingesting the CDP sidecar as a phantom browser, the 2s dead wait
+  after each scenario, and clickPoint measuring app-level click side effects. Each is a separate
+  follow-up; none makes the benchmark hang or lose data.
+
+  Two items originally deferred here were promoted into this change once diagnosed, because they
+  do lose data: the leaked dev server (which blocks the _next_ run outright) and the shared
+  `outputDir` (which deletes a previous sweep's results). See Decisions.
+
 - Adding `pnpm perf` to CI. It needs a headed GPU browser and real bundles; the unit-level
   regression test is what belongs in CI.
 
@@ -71,7 +75,9 @@ not-ready for a working controller and could reintroduce the hang on any DOM mov
 `storageState` seeding the tour's completion key is what the e2e config already does; the perf
 config never got it. This keeps application code free of any branch on a benchmark concern and
 suppresses the tour _before first paint_, rather than dismissing it after it has already painted and
-animated.
+animated. `openspec/specs/e2e-validation/spec.md` scopes performance tooling out of itself ("tight
+performance thresholds SHALL live in dedicated performance tooling"), so this is new behavior for
+the perf harness rather than a delta to that capability.
 
 The same rule then has to apply to the suite's own progress overlay, which was a full-viewport
 translucent scrim with an infinite spinner sitting over the plot for the entire measured window —
@@ -79,13 +85,12 @@ the identical confound, self-inflicted, and larger than the tour's. Measured on 
 in Chrome, two runs each: zoomInOut 2.81/2.62 → 0.68/0.70ms, dragCanvas 2.85/2.89 → 0.89/0.87ms,
 annotationChange 4.22/4.32 → 2.83/2.88ms. clickPoint records only 10 passes per run and its
 difference (7.36/6.18 → 5.71/6.26ms) is inside the noise.
+
 It is not deleted, because it does two separable jobs and only one is the confound: painting a veil,
 and swallowing a stray click during a long headed run. Dropping the background and parking the
 animation while measuring keeps the second. Hit testing uses the border box, so a transparent
 element still absorbs input; the card also moves out of the plot's centre, and the subtitle carries
-progress in place of the parked spinner. `openspec/specs/e2e-validation/spec.md` scopes performance tooling out of itself
-("tight performance thresholds SHALL live in dedicated performance tooling"), so this is new
-behavior for the perf harness rather than a delta to that capability.
+progress in place of the parked spinner.
 
 **Record dataset failures in the results file rather than aborting.**
 Catch per dataset, record the dataset id and error message, continue. The results file becomes the
@@ -97,6 +102,33 @@ Failures go in a **separate top-level `failures` array**, not as an `error` fiel
 failure record placed there would plot as a phantom dataset with empty bars — reproducing the exact
 bug the CDP sidecar already causes in that script. Keeping `results` homogeneous means the plotter
 needs no change at all.
+
+**Two harness defects that the Non-Goals list deferred turned out to be blocking, and are fixed here.**
+`reuseExistingServer: false` was listed as a papercut; it is not the bug. Playwright kills the
+process group it spawns, but turbo puts each task it runs into a _new_ group, so Vite escapes the
+SIGKILL and keeps :8080 — and the port guard is then correctly refusing to benchmark a server it did
+not start. That guard is worth keeping for a reason stronger than tidiness: turbo's `dev` task
+`dependsOn: ["^build"]` and the app resolves `@protspace/*` through `dist`, so adopting a stale
+server would silently benchmark stale package code. The fix is therefore teardown —
+`gracefulShutdown` with SIGINT, which turbo does handle — not relaxing the guard. The command also
+becomes `pnpm dev:app`, because the root `dev` script additionally boots the VitePress docs server,
+a second process competing for CPU inside the measured window and serving nothing `/explore` uses.
+
+The shared `outputDir` compounds it: Playwright deletes the output directory of every _selected_
+project at run start, before the web server starts, so the documented
+`pnpm perf -- --project=chrome` destroyed the other browsers' results from the previous sweep — and
+a run that then died on the port did not replace them. One directory per project fixes it.
+
+**The benchmark blocks the analytics beacon, for the same reason it suppresses the tour.**
+`index.html` loads Cloudflare Web Analytics unconditionally, so the beacon script executes and POSTs
+from inside the measured window. Beyond being a confound, it is why the `safari` project failed on
+every run since the beacon was added: the POST is cross-origin, WebKit raises the rejection as an
+uncaught page error, and the spec's fail-fast rethrows the first page error — killing the run 4ms
+after it began waiting for the plot. Chrome and Firefox report the same failure as a console error
+only, so only Safari died, and its reported error pointed at the download wait rather than the
+cause. Blocking the request rather than filtering the error is what the tour decision already
+implies, and it is also the only complete fix: the final `expect(pageErrors).toEqual([])` would
+still have failed on a filtered race.
 
 **Abandoning a load is not cancelling it.**
 Bounding a wait stops the suite waiting; it does not stop the load. `load-queue.ts` serializes every

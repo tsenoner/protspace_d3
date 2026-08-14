@@ -76,6 +76,16 @@
       zoom render path
 - [x] 6.5 Make the readiness gate's budget injectable so it inherits the dataset's remaining time
       rather than holding its own ten minutes
+- [x] 6.6 Block the Cloudflare Web Analytics beacon during the run. It executes and POSTs inside the
+      measured window, and WebKit raises its cross-origin rejection as an uncaught page error, which
+      the spec's fail-fast treats as fatal — the sole reason the `safari` project failed every run,
+      and therefore why `pnpm perf` with no `--project` always failed
+- [x] 6.7 Stop the run leaking its dev server: `gracefulShutdown` with SIGINT, because Playwright
+      SIGKILLs its own process group but turbo spawns each task into a new one, so Vite escapes it.
+      Also switch to `pnpm dev:app` (the root `dev` script additionally boots the docs server, which
+      competes for CPU inside the measured window), pin `cwd`, use `url` over `port`, and pipe stdout
+- [x] 6.8 Give each browser its own `outputDir`; the shared one meant a scoped re-run deleted the
+      other browsers' results from the previous sweep, before the server had even started
 
 ## 7. Verify
 

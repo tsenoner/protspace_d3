@@ -70,11 +70,17 @@ fails, which is the expected outcome when probing for a ceiling.
 - `apps/web/src/perf/webgl-perf-suite.ts` — per-dataset error capture, shared per-dataset budgets,
   a run-deadline watchdog that always emits the results file, load-identity fencing, and an
   overlay that no longer paints or animates over the canvas while measuring.
-- `perf/playwright.config.ts` — tour-completion `storageState`, a `webServer` start timeout, and a
-  project timeout that no longer contradicts the spec's own.
+- `perf/playwright.config.ts` — tour-completion `storageState`; a `webServer` block that no longer
+  leaks its dev server (`gracefulShutdown` with SIGINT, since turbo spawns tasks into a process
+  group Playwright's SIGKILL does not reach), starts only the app rather than the app plus the docs
+  server, and pipes stdout; per-project `outputDir` so a scoped re-run stops deleting other
+  browsers' results; and a project timeout that no longer contradicts the spec's own.
 - `perf/webgl-perf.spec.ts` — assertions that a captured error, a skipped dataset and an empty run
   all fail; the page budget derived from the download wait; diagnostics dumped in `afterEach` so a
-  run that never downloads still reports its console and page errors.
+  run that never downloads still reports its console and page errors; and the Cloudflare Web
+  Analytics beacon blocked, which both removes a request from the measured window and repairs the
+  `safari` project — and with it `pnpm perf` run with no `--project`, which had been failing
+  outright since the beacon was added.
 - `perf/README.md` — the two new budget parameters.
 - Results-file shape gains top-level `failures` and `skipped` arrays. `results` itself is
   unchanged, so `perf/plot_perf_results.py` needs no modification.

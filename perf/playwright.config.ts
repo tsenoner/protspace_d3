@@ -3,6 +3,7 @@ import * as path from 'path';
 import { tourCompletedStorageState } from '../apps/web/tests/helpers/tour-storage-state';
 
 const BASE_URL = 'http://localhost:8080';
+const REPO_ROOT = path.resolve(__dirname, '..');
 
 export default defineConfig({
   testDir: __dirname,
@@ -27,6 +28,7 @@ export default defineConfig({
   projects: [
     {
       name: 'chrome',
+      outputDir: path.join(__dirname, 'test-results', 'chrome'),
       use: {
         ...devices['Desktop Chrome'],
         channel: 'chrome',
@@ -52,6 +54,7 @@ export default defineConfig({
     },
     {
       name: 'firefox',
+      outputDir: path.join(__dirname, 'test-results', 'firefox'),
       use: {
         ...devices['Desktop Firefox'],
         viewport: { width: 1920, height: 1080 },
@@ -72,6 +75,7 @@ export default defineConfig({
     },
     {
       name: 'safari',
+      outputDir: path.join(__dirname, 'test-results', 'safari'),
       use: {
         ...devices['Desktop Safari'],
         viewport: { width: 1920, height: 1080 },
@@ -79,12 +83,42 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev',
-    port: 8080,
+    // `pnpm dev:app`, not `npm run dev`: the root `dev` script is
+    // `concurrently "pnpm dev:app" "pnpm dev:docs"`, so it also boots the
+    // VitePress docs server on :5174 — a second node process competing for CPU
+    // inside the window this suite measures, for a server /explore never touches.
+    command: 'pnpm dev:app',
+    // Playwright defaults a webServer's cwd to the config's directory, and perf/
+    // has no package.json; pin it like the e2e config does.
+    cwd: REPO_ROOT,
+    // `url`, not `port`: a port check is a raw TCP connect, which Vite's socket
+    // accepts before it can serve anything. A GET proves the origin is live.
+    url: BASE_URL,
+    // Deliberately not `!process.env.CI`. Turbo's `dev` task dependsOn `^build`
+    // and the app resolves @protspace/core and @protspace/utils through their
+    // dist entry points, so a dev server someone left running was built from
+    // whatever was checked out then — reusing it would benchmark stale package
+    // code, the same silent-wrong-result class this harness is being fixed for.
     reuseExistingServer: false,
-    // Matches the e2e config for the same command; the 60s default is not enough
-    // for a cold Vite start on this workspace.
+    // The 60s default is not enough for a cold Vite start on this workspace.
     timeout: 180_000,
+    // Without this the dev server outlives the run and holds :8080, so the next
+    // run dies on "already used". Playwright does kill its own process group,
+    // but turbo spawns each task into a NEW group, so Vite is not in the group
+    // that gets the SIGKILL. SIGINT to the group is what Ctrl-C sends, and turbo
+    // stops its task group on it; Playwright still falls back to SIGKILL after
+    // the timeout.
+    gracefulShutdown: { signal: 'SIGINT', timeout: 15_000 },
+    // Vite announces "Port 8080 is in use, trying another one!" on stdout, and
+    // apps/web's vite config sets no strictPort — without piping stdout that
+    // silent move to :8081 is invisible.
+    stdout: 'pipe',
+    stderr: 'pipe',
   },
-  outputDir: path.join(__dirname, 'test-results'),
+  // Per project, not shared. Playwright deletes the outputDir of every SELECTED
+  // project at run start, before the web server is even started — so with one
+  // shared directory the documented `pnpm perf -- --project=chrome` destroyed the
+  // firefox and safari results from the previous full run, and the plotter then
+  // silently drew single-browser charts. plot_perf_results.py rglobs, so it needs
+  // no change.
 });

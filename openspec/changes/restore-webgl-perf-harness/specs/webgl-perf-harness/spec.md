@@ -166,3 +166,26 @@ the harness rather than by a branch in application code.
 - **WHEN** a scenario is being measured while the suite's progress overlay is shown
 - **THEN** the overlay paints nothing over the canvas and runs no animation, while still reporting
   progress and absorbing stray input
+
+#### Scenario: The page loads third-party analytics
+
+- **WHEN** the application's analytics beacon would load and report during a measured window
+- **THEN** the harness blocks it, so neither its script nor its request runs while measuring
+
+### Requirement: A run SHALL leave no server behind and SHALL NOT destroy earlier results
+
+The harness SHALL terminate the development server it started, so a subsequent run is not blocked
+by it, and SHALL keep each browser's results in its own output directory so that re-running one
+browser does not delete another's. It SHALL start its own server rather than reusing one it did
+not start, because the packages the application loads are built by that server's task.
+
+#### Scenario: Two runs in succession
+
+- **WHEN** a run completes and another is started
+- **THEN** the second run starts its own server, rather than failing because the first run's server
+  is still holding the port
+
+#### Scenario: One browser is re-run after a full sweep
+
+- **WHEN** a run is scoped to a single browser after a sweep that produced results for all of them
+- **THEN** the other browsers' results from the earlier sweep are still present afterwards

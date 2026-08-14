@@ -41,6 +41,22 @@ test.describe('WebGL render perf benchmark (headed)', () => {
   }, testInfo) => {
     test.setTimeout(SUITE_TIMEOUT_MS);
 
+    // Third-party analytics has no place in a benchmark: `index.html` loads the
+    // Cloudflare Web Analytics beacon, which fetches a script and POSTs to
+    // /cdn-cgi/rum from inside the window this suite measures. Blocking it is
+    // the same call as suppressing the product tour — keep the harness's own
+    // noise out of the measurement rather than subtracting it afterwards.
+    //
+    // It is also the entire reason the `safari` project failed every run: the
+    // POST is cross-origin, and WebKit surfaces the rejection as an uncaught
+    // page error, which the fail-fast below treats as fatal. Chrome and Firefox
+    // report the same failure as a console error only, so only Safari died —
+    // after 1.3s, with the reported error pointing at the download wait.
+    await page.route(
+      (url) => url.hostname.endsWith('cloudflareinsights.com'),
+      (route) => route.abort(),
+    );
+
     page.on('console', (msg) => {
       if (msg.type() === 'error') {
         consoleErrors.push(msg.text());

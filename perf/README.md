@@ -10,7 +10,13 @@ PERF_ITERATIONS=5 pnpm perf      # override iteration count
 ```
 
 This launches headed browsers (Chrome, Firefox, Safari), loads every dataset
-listed in `apps/web/public/data/datasets.json`, and runs four scenarios per dataset:
+listed in `apps/web/public/data/datasets.json`, and runs four scenarios per dataset.
+
+The run blocks the Cloudflare Web Analytics beacon that `apps/web/index.html`
+loads. It has no place inside a measured window, and its cross-origin POST was
+reported by WebKit as an uncaught page error, which made the `safari` project
+fail every run. `performance.memory` is Chrome-only, so the heap fields in the
+`load` block are `null` on Firefox and Safari.
 
 #### Scoping to specific datasets
 
@@ -51,17 +57,35 @@ the two cannot drift; the defaults above apply only to a hand-typed
 | `dragCanvas`       | Pan / drag across the canvas          |
 | `clickPoint`       | Select a point by clicking            |
 
-Each browser produces a JSON file saved under `perf/test-results/`, e.g.:
+Each browser produces a JSON file under its own directory in
+`perf/test-results/` (Playwright names the inner directory after the test, so
+the exact name tracks the test title):
 
 ```
 perf/test-results/
-  webgl-perf-suite-chrome/
-    webgl-perf-suite-chrome.json
-  webgl-perf-suite-firefox/
-    webgl-perf-suite-firefox.json
-  webgl-perf-suite-safari/
-    webgl-perf-suite-safari.json
+  chrome/
+    webgl-perf-…-chrome/
+      webgl-perf-suite-chrome.json
+      webgl-perf-suite-chrome-cdp.json
+  firefox/
+    webgl-perf-…-firefox/
+      webgl-perf-suite-firefox.json
+  safari/
+    webgl-perf-…-safari/
+      webgl-perf-suite-safari.json
 ```
+
+The per-browser split matters: Playwright deletes the output directory of every
+_selected_ project when a run starts, so with one shared directory
+`pnpm perf -- --project=chrome` used to delete the Firefox and Safari results
+from the previous full run, and the plotter would then quietly draw
+single-browser charts. The plotter searches recursively, so it needs no change.
+
+A completed run prints `[WebServer] @protspace/app:dev: ELIFECYCLE Command
+failed.` just before its result line. That is the dev server reacting to the
+`SIGINT` Playwright sends to shut it down, not a test failure — read the
+`N passed` line below it. The signal is what stops the server leaking the port
+into the next run; see the `gracefulShutdown` comment in `playwright.config.ts`.
 
 Each JSON contains per-dataset, per-scenario render-pass timings, dataset
 metadata (point count), and browser/hardware metadata collected at runtime.
