@@ -10,7 +10,9 @@ export default defineConfig({
   workers: 1,
   retries: 0,
   reporter: 'list',
-  timeout: 15 * 60_000,
+  // The spec calls test.setTimeout(45 min) for the sweep itself, which overrides
+  // this; kept in step so the config does not read as contradicting it.
+  timeout: 45 * 60_000,
   use: {
     baseURL: BASE_URL,
     // Keep the product tour off the canvas for the whole measured window; see
@@ -80,6 +82,9 @@ export default defineConfig({
     command: 'npm run dev',
     port: 8080,
     reuseExistingServer: false,
+    // Matches the e2e config for the same command; the 60s default is not enough
+    // for a cold Vite start on this workspace.
+    timeout: 180_000,
   },
   outputDir: path.join(__dirname, 'test-results'),
 });

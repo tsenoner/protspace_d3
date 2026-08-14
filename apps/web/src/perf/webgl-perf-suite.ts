@@ -1,4 +1,10 @@
-import type { DataErrorEventDetail, DataLoader, ProtspaceScatterplot } from '@protspace/core';
+import type {
+  DataErrorEventDetail,
+  DataLoadedEventDetail,
+  DataLoader,
+  ProtspaceScatterplot,
+} from '@protspace/core';
+import type { VisualizationData } from '@protspace/utils';
 
 type Args = {
   plotElement: ProtspaceScatterplot;
@@ -10,6 +16,11 @@ type PerfDatasetFailure = {
   error: string;
 };
 
+type PerfDatasetSkip = {
+  datasetId: string;
+  reason: string;
+};
+
 type PerfSuiteResult = {
   createdAt: string;
   iterations: number;
@@ -18,7 +29,27 @@ type PerfSuiteResult = {
   // plot_perf_results.py yields every entry of `results` as a dataset payload,
   // so a failure record in there would plot as a phantom dataset with empty bars.
   failures: PerfDatasetFailure[];
+  // Datasets never attempted. Separate from `failures` so a run that stopped for
+  // one cause does not read as N independent failures: the spec reports the one
+  // that actually broke, and lists these as consequences.
+  skipped: PerfDatasetSkip[];
 };
+
+/**
+ * Raised when a load is abandoned at its deadline rather than failing cleanly.
+ *
+ * The distinction is the whole point: a clean failure (bad bundle, data-error)
+ * leaves the app's load queue drained and the next dataset can proceed, but a
+ * load we merely stopped waiting for is still running. `load-queue.ts` serializes
+ * on it with no cancel path, so every later dataset would block behind it — and
+ * its late `data-loaded` would land while a *different* dataset is listening.
+ */
+class PerfPageStateLostError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PerfPageStateLostError';
+  }
+}
 
 type PerfSuiteGlobalState = typeof globalThis & {
   __protspaceWebglPerfSuiteInFlight?: boolean;
@@ -42,34 +73,65 @@ type LoadMetrics = {
 
 const PERF_OVERLAY_ID = 'webgl-perf-suite-overlay';
 const PERF_OVERLAY_STYLE_ID = 'webgl-perf-suite-overlay-style';
+const PERF_OVERLAY_MEASURING_CLASS = 'perf-suite-measuring';
 
 function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
-function timeoutError(timeoutMs: number, what: string): Error {
-  return new Error(`perf: timed out after ${timeoutMs}ms waiting for ${what}`);
+/**
+ * An absolute window, not a duration.
+ *
+ * Every wait in a dataset's load path shares ONE of these. Giving each wait its
+ * own duration multiplies the worst case by the number of waits, which is how a
+ * single stalled dataset used to outlive the whole harness's budget; sharing a
+ * deadline makes a dataset cost at most what it was given.
+ */
+type Budget = { readonly startedAt: number; readonly endsAt: number; readonly totalMs: number };
+
+/** A window of `totalMs`, never outliving `cap` when one is supplied. */
+function budgetFrom(totalMs: number, cap?: Budget): Budget {
+  const startedAt = performance.now();
+  const endsAt = cap ? Math.min(startedAt + totalMs, cap.endsAt) : startedAt + totalMs;
+  return { startedAt, endsAt, totalMs: endsAt - startedAt };
 }
 
+function remaining(budget: Budget): number {
+  return Math.max(0, budget.endsAt - performance.now());
+}
+
+function budgetError(budget: Budget, what: string): Error {
+  const spent = Math.round(performance.now() - budget.startedAt);
+  return new Error(
+    `perf: spent ${spent}ms of a ${Math.round(budget.totalMs)}ms budget waiting for ${what}`,
+  );
+}
+
+/**
+ * Predicate first, deadline second — deliberately, not stylistically. With a
+ * shared budget the remaining slice is routinely at or near zero by the time a
+ * late wait is reached, and a `while (remaining > 0)` head would report a
+ * timeout for a condition it never once evaluated.
+ */
 async function waitUntil(
   predicate: () => boolean,
-  timeoutMs: number,
+  budget: Budget,
   what: string,
   intervalMs = 250,
 ): Promise<void> {
-  const start = performance.now();
-  while (performance.now() - start < timeoutMs) {
+  for (;;) {
     if (predicate()) return;
-    await sleep(intervalMs);
+    const left = remaining(budget);
+    if (left <= 0) throw budgetError(budget, what);
+    await sleep(Math.min(intervalMs, left));
   }
-  throw timeoutError(timeoutMs, what);
 }
 
-/** Reject at `timeoutMs` if `promise` has not settled by then. */
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, what: string): Promise<T> {
+/** Reject when `budget` runs out, if `promise` has not settled by then. */
+function withTimeout<T>(promise: Promise<T>, budget: Budget, what: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;
   const deadline = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(timeoutError(timeoutMs, what)), timeoutMs);
+    timer = setTimeout(() => reject(budgetError(budget, what)), remaining(budget));
   });
   return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
 }
@@ -113,6 +175,21 @@ async function readDatasetList(): Promise<string[]> {
   }
 }
 
+/**
+ * Fallbacks only. A run driven by the Playwright spec is handed a run budget
+ * derived from that spec's own download wait, so the two cannot drift; these
+ * apply to a hand-typed `?webglPerf=1` in a browser, where nothing else is
+ * imposing a deadline.
+ */
+const DEFAULT_RUN_BUDGET_MS = 40 * 60_000;
+const DEFAULT_DATASET_BUDGET_MS = 6 * 60_000;
+
+function readPositiveIntParam(params: URLSearchParams, key: string, fallback: number): number {
+  const raw = params.get(key);
+  const n = raw ? Number(raw) : NaN;
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+}
+
 async function resolveDatasetList(params: URLSearchParams): Promise<string[]> {
   const raw = params.get('webglPerfDatasets');
   if (raw && raw.length > 0) {
@@ -145,13 +222,31 @@ function ensurePerfOverlayStyles() {
   const style = document.createElement('style');
   style.id = PERF_OVERLAY_STYLE_ID;
   style.textContent = `
+    /*
+     * No scrim, and the card sits in a corner rather than over the plot.
+     * A full-viewport translucent layer makes the compositor blend over the
+     * canvas on every frame of the window this suite exists to measure — the
+     * same class of confound as the driver.js tour overlay, and self-inflicted.
+     *
+     * Measured on 5K at 10 iterations, Chrome, two runs each, this rule plus the
+     * parked animation below: zoomInOut 2.81/2.62 -> 0.68/0.70ms, dragCanvas
+     * 2.85/2.89 -> 0.89/0.87ms, annotationChange 4.22/4.32 -> 2.83/2.88ms.
+     * clickPoint (7.36/6.18 -> 5.71/6.26ms) has only 10 passes per run and the
+     * difference there is inside the noise.
+     *
+     * The element still hit-tests, because hit testing uses the border box and
+     * only pointer-events/visibility/display opt out of it. So it keeps doing
+     * its real job — swallowing a stray click during a long headed run — while
+     * painting nothing over the canvas.
+     */
     #${PERF_OVERLAY_ID} {
       position: fixed;
       inset: 0;
       display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(255, 255, 255, 0.86);
+      align-items: flex-end;
+      justify-content: flex-end;
+      padding: 1rem;
+      background: transparent;
       z-index: 99999;
       font-family: system-ui, -apple-system, sans-serif;
     }
@@ -175,6 +270,17 @@ function ensurePerfOverlayStyles() {
       border-top-color: #3b82f6;
       border-radius: 999px;
       animation: perf-suite-spin 1s linear infinite;
+    }
+
+    /*
+     * An infinite animation keeps the compositor producing frames for the whole
+     * measured window, and the perf config runs Chrome with
+     * --disable-frame-rate-limit, so that loop is uncapped. Park it while a
+     * dataset is being measured; the subtitle carries progress instead.
+     */
+    #${PERF_OVERLAY_ID}.${PERF_OVERLAY_MEASURING_CLASS} .perf-suite-spinner {
+      animation: none;
+      opacity: 0.35;
     }
 
     #${PERF_OVERLAY_ID} .perf-suite-title {
@@ -219,7 +325,22 @@ function hidePerfOverlay() {
   document.getElementById(PERF_OVERLAY_ID)?.remove();
 }
 
-async function loadDataset(args: Args, datasetId: string, timeoutMs: number): Promise<LoadMetrics> {
+/** Park the spinner animation for the duration of a measured window. */
+function setPerfOverlayMeasuring(measuring: boolean) {
+  document
+    .getElementById(PERF_OVERLAY_ID)
+    ?.classList.toggle(PERF_OVERLAY_MEASURING_CLASS, measuring);
+}
+
+/** Progress signal, since the parked spinner no longer provides one. */
+function setPerfOverlayStatus(text: string) {
+  const subtitle = document
+    .getElementById(PERF_OVERLAY_ID)
+    ?.querySelector<HTMLElement>('.perf-suite-subtitle');
+  if (subtitle) subtitle.textContent = text;
+}
+
+async function loadDataset(args: Args, datasetId: string, budget: Budget): Promise<LoadMetrics> {
   const url = `/data/${datasetId}.parquetbundle`;
 
   // Bounded like every other wait in this path: a dev server that accepts the
@@ -227,15 +348,11 @@ async function loadDataset(args: Args, datasetId: string, timeoutMs: number): Pr
   // is the same undiagnosable "waiting for event download" the waits below exist
   // to avoid — and the bundles are up to ~45 MB, so a stalled body is the likely
   // shape of it.
-  const response = await withTimeout(fetch(url), timeoutMs, `${datasetId} bundle response`);
+  const response = await withTimeout(fetch(url), budget, `${datasetId} bundle response`);
   if (!response.ok) {
     throw new Error(`perf: failed to fetch ${url}: ${response.status} ${response.statusText}`);
   }
-  const arrayBuffer = await withTimeout(
-    response.arrayBuffer(),
-    timeoutMs,
-    `${datasetId} bundle body`,
-  );
+  const arrayBuffer = await withTimeout(response.arrayBuffer(), budget, `${datasetId} bundle body`);
   const file = new File([arrayBuffer], `${datasetId}.parquetbundle`, {
     type: 'application/octet-stream',
   });
@@ -260,59 +377,88 @@ async function loadDataset(args: Args, datasetId: string, timeoutMs: number): Pr
     }
   })();
 
-  // Torn down together in the finally below: `{ once: true }` detaches a listener
-  // only when it actually fires, so on a healthy dataset the `data-error` one
-  // would outlive the load and accumulate across every dataset in the sweep.
-  // Declared out here because only the finally can reach it; everything else lives
-  // inside the try, so nothing between the poller's creation and the try can throw
-  // past the `polling = false` that stops it.
+  // Torn down in the finally below. Declared out here because only the finally
+  // can reach it; everything else lives inside the try, so nothing between the
+  // poller's creation and the try can throw past the `polling = false`.
   const listeners = new AbortController();
 
   let loadDurationMs: number;
   try {
-    const listenerOpts = { once: true, signal: listeners.signal };
+    // Deliberately NOT `{ once: true }`. After an earlier dataset was abandoned
+    // at its deadline its load is still queued ahead of us — load-queue.ts
+    // serializes with no cancel path — so a foreign `data-loaded` can land
+    // first, and a once-listener would be spent on it.
+    //
+    // `detail.file` is the only field in any of these events that says which
+    // load it belongs to, and it is the very File object we hand to
+    // loadFromFile, so this compares object identity, not a name that two
+    // datasets could share.
+    let ourData: VisualizationData | null = null;
+    args.dataLoader.addEventListener(
+      'data-loaded',
+      (event: Event) => {
+        const detail = (event as CustomEvent<DataLoadedEventDetail>).detail;
+        // `file` is absent on the loadFromUrl path. Nothing else initiates a
+        // load while the perf suite owns the page, so an undefined `file` here
+        // is a foreign event by definition.
+        if (detail?.file !== file) return;
+        ourData = detail.data;
+      },
+      { signal: listeners.signal },
+    );
 
-    const dataChange = new Promise<void>((resolve) => {
-      args.plotElement.addEventListener('data-change', () => resolve(), listenerOpts);
-    });
-
-    const loaderDone = new Promise<void>((resolve, reject) => {
-      args.dataLoader.addEventListener('data-loaded', () => resolve(), listenerOpts);
-      args.dataLoader.addEventListener(
-        'data-error',
-        (event: Event) => {
-          const detail = (event as CustomEvent<DataErrorEventDetail>).detail;
-          reject(new Error(String(detail?.message ?? 'unknown error')));
-        },
-        listenerOpts,
-      );
-    });
-    // `data-error` fires while we are still awaiting loadFromFile, one await
-    // ahead of where `loaderDone` is consumed, so its rejection would reach a
-    // microtask checkpoint unhandled and surface as a page-level unhandled
-    // rejection. Attaching a no-op handler marks it handled without consuming it:
-    // the await below still observes the rejection and reports the dataset.
-    loaderDone.catch(() => {});
+    // `data-error` carries no file, id or sequence at all, so it cannot be
+    // attributed to a load. Keep the first one only as an explanation for a
+    // missing `data-loaded`; never let it decide the outcome by itself.
+    let firstError: Error | null = null;
+    args.dataLoader.addEventListener(
+      'data-error',
+      (event: Event) => {
+        const detail = (event as CustomEvent<DataErrorEventDetail>).detail;
+        firstError ??= new Error(String(detail?.message ?? 'unknown error'));
+      },
+      { signal: listeners.signal },
+    );
 
     const t0 = performance.now();
-    // Every wait below is bounded on its own deadline rather than inheriting an
-    // enclosing one: the loader path has several ways to settle nothing at all —
-    // dataset-controller swallows finalization errors, and `loadFromFile`
-    // resolves rather than rejects once a load handler is installed — so an
-    // unbounded await surfaces only as Playwright's terminal "waiting for event
-    // download" tens of minutes later, naming neither dataset nor condition.
-    await withTimeout(args.dataLoader.loadFromFile(file), timeoutMs, `${datasetId} to load`);
-    await withTimeout(loaderDone, timeoutMs, `${datasetId} data-loaded`);
-    await withTimeout(dataChange, timeoutMs, `${datasetId} data-change`);
+    // Bounded on the dataset's shared budget rather than left open: the loader
+    // path has several ways to settle nothing at all — dataset-controller
+    // swallows finalization errors, and `loadFromFile` resolves rather than
+    // rejects once a load handler is installed — so an unbounded await surfaces
+    // only as Playwright's terminal "waiting for event download" tens of minutes
+    // later, naming neither dataset nor condition.
+    //
+    // With the app's queue installed this settles only after THIS file's load
+    // has finalized, and data-loaded is dispatched strictly before that. So once
+    // it resolves, either `ourData` is set or this dataset's load failed.
+    try {
+      await withTimeout(args.dataLoader.loadFromFile(file), budget, `${datasetId} to load`);
+    } catch (error) {
+      throw new PerfPageStateLostError(
+        `${error instanceof Error ? error.message : String(error)} ` +
+          `(load abandoned, not cancelled: the app's load queue has no cancel path, ` +
+          `so page state is indeterminate from here)`,
+      );
+    }
 
+    if (!ourData) {
+      throw firstError ?? new Error(`perf: ${datasetId} finalized without a data-loaded event`);
+    }
+
+    // Replaces a bare `data-change` wait. `data-change` is dispatched from five
+    // sites in scatter-plot.ts with no load identity, so it cannot say WHICH
+    // dataset rendered. The app assigns `plotElement.data` the very object the
+    // loader emitted (data-renderer.ts) and the plot never reassigns it, so this
+    // identity check is exact — and it is a positive check for OUR data rather
+    // than a check that some data arrived.
     await waitUntil(
-      () => !!args.plotElement.data?.protein_ids?.length,
-      timeoutMs,
-      `${datasetId} protein_ids on the plot`,
+      () => args.plotElement.data === ourData,
+      budget,
+      `${datasetId} to become the rendered dataset`,
     );
     await waitUntil(
       () => !document.getElementById('progressive-loading'),
-      timeoutMs,
+      budget,
       `${datasetId} progressive-loading overlay to clear`,
     );
 
@@ -348,66 +494,133 @@ export async function maybeRunWebglPerfSuite(args: Args): Promise<boolean> {
   g.__protspaceWebglPerfSuiteInFlight = true;
   showPerfOverlay();
 
-  const iterations = (() => {
-    const raw = params.get('webglPerfIterations');
-    const n = raw ? Number(raw) : NaN;
-    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 10;
-  })();
+  const iterations = readPositiveIntParam(params, 'webglPerfIterations', 10);
+  const runBudgetMs = readPositiveIntParam(params, 'webglPerfBudgetMs', DEFAULT_RUN_BUDGET_MS);
+  const datasetBudgetMs = readPositiveIntParam(
+    params,
+    'webglPerfDatasetBudgetMs',
+    DEFAULT_DATASET_BUDGET_MS,
+  );
 
-  let success = false;
+  let emitted = false;
   try {
     const datasets = await resolveDatasetList(params);
-    const timeoutMs = 12 * 60_000;
+    const runBudget = budgetFrom(runBudgetMs);
     const createdAt = new Date().toISOString();
     const results: unknown[] = [];
     const failures: PerfDatasetFailure[] = [];
+    const skipped: PerfDatasetSkip[] = [];
 
-    for (const datasetId of datasets) {
-      // Per dataset, so one failure costs its own results and nothing else. The
-      // run is a sweep over increasingly large bundles looking for the point at
-      // which rendering gives out; the dataset that finds it is expected to
-      // fail, and losing every smaller dataset's measurements with it would
-      // discard exactly the data the sweep exists to collect.
-      try {
-        const loadMetrics = await loadDataset(args, datasetId, timeoutMs);
+    const emitSuite = () => {
+      if (emitted) return;
+      emitted = true;
+      const suite: PerfSuiteResult = { createdAt, iterations, results, failures, skipped };
+      downloadJson(`protspace-webgl-perf-suite-${createdAt.split(':').join('-')}.json`, suite);
+    };
 
-        const result = await args.plotElement.runWebGLRenderPerfMeasurements(iterations, {
-          download: false,
-          dataset: { id: datasetId, url: `/data/${datasetId}.parquetbundle` },
-        });
-        if (!result) {
-          throw new Error(`perf: no result for dataset ${datasetId}`);
+    // Index of the dataset currently being attempted, so both the budget check
+    // and the watchdog can name what never ran.
+    let current = 0;
+    const skipFrom = (index: number, reason: string) => {
+      for (const datasetId of datasets.slice(index)) skipped.push({ datasetId, reason });
+    };
+
+    // The guarantee that makes a stalled run diagnosable: the file is emitted at
+    // the run deadline no matter where the sweep has got to. Checking the budget
+    // only between datasets would still let the LAST dataset overrun past the
+    // harness's download wait, which is exactly how a broken run used to report
+    // nothing but "waiting for event download".
+    const watchdog = setTimeout(() => {
+      skipFrom(current, `run budget of ${runBudgetMs}ms expired before this dataset completed`);
+      console.error(`perf: run budget of ${runBudgetMs}ms expired; emitting partial results`);
+      emitSuite();
+    }, remaining(runBudget));
+
+    try {
+      for (let index = 0; index < datasets.length; index++) {
+        if (emitted) break;
+        current = index;
+        const datasetId = datasets[index];
+
+        if (remaining(runBudget) <= 0) {
+          skipFrom(index, `run budget of ${runBudgetMs}ms exhausted before this dataset started`);
+          break;
         }
-        results.push({ ...(result as Record<string, unknown>), load: loadMetrics });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        console.error(`perf: dataset ${datasetId} failed:`, error);
-        failures.push({ datasetId, error: message });
+
+        // Per dataset, so one failure costs its own results and nothing else. The
+        // run is a sweep over increasingly large bundles looking for the point at
+        // which rendering gives out; the dataset that finds it is expected to
+        // fail, and losing every smaller dataset's measurements with it would
+        // discard exactly the data the sweep exists to collect.
+        //
+        // One shared window per dataset, capped by what is left of the run, so
+        // the load path cannot multiply its budget by the number of waits in it.
+        const datasetBudget = budgetFrom(datasetBudgetMs, runBudget);
+        try {
+          setPerfOverlayStatus(`Loading ${datasetId} (${index + 1}/${datasets.length})…`);
+          const loadMetrics = await loadDataset(args, datasetId, datasetBudget);
+
+          setPerfOverlayStatus(`Measuring ${datasetId} (${index + 1}/${datasets.length})…`);
+          setPerfOverlayMeasuring(true);
+          let result;
+          try {
+            result = await args.plotElement.runWebGLRenderPerfMeasurements(iterations, {
+              download: false,
+              dataset: { id: datasetId, url: `/data/${datasetId}.parquetbundle` },
+              // The gate inherits what this dataset has left rather than its own
+              // ten minutes, which would otherwise outlive the window it runs in.
+              readyTimeoutMs: remaining(datasetBudget),
+            });
+          } finally {
+            setPerfOverlayMeasuring(false);
+          }
+          if (!result) {
+            throw new Error(`perf: no result for dataset ${datasetId}`);
+          }
+          results.push({ ...(result as Record<string, unknown>), load: loadMetrics });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          console.error(`perf: dataset ${datasetId} failed:`, error);
+          failures.push({ datasetId, error: message });
+
+          // A load we merely stopped waiting for is still running, and the app's
+          // queue serializes every later load behind it with no cancel path. So
+          // the rest of the sweep cannot load anything: it would spend each
+          // dataset's full budget reaching the same deadline, and the abandoned
+          // load's late events would land while another dataset is listening.
+          // Stop and say so, rather than sweeping an hour into a run whose
+          // numbers could no longer be trusted anyway.
+          if (error instanceof PerfPageStateLostError) {
+            skipFrom(
+              index + 1,
+              `page state indeterminate after ${datasetId} was abandoned mid-load`,
+            );
+            break;
+          }
+        }
       }
+    } finally {
+      clearTimeout(watchdog);
     }
 
-    // Nothing measured is a failed run, not a results file full of nothing —
-    // emitting one would let the spec's download arrive and read as green.
     if (results.length === 0) {
-      throw new Error(
+      // Emitted anyway, rather than thrown. The file is the diagnosis — it names
+      // every failure and every skip — and the spec fails the run on it in
+      // seconds (it asserts results is non-empty). Throwing here instead skips
+      // the download and leaves the harness waiting out its full download budget
+      // before reporting nothing but a timeout.
+      console.error(
         `perf: no dataset produced measurements (${datasets.length} attempted): ` +
           failures.map((f) => `${f.datasetId}: ${f.error}`).join('; '),
       );
     }
 
-    const suite: PerfSuiteResult = {
-      createdAt,
-      iterations,
-      results,
-      failures,
-    };
-
-    const safeCreatedAt = createdAt.split(':').join('-');
-    downloadJson(`protspace-webgl-perf-suite-${safeCreatedAt}.json`, suite);
-    success = true;
+    emitSuite();
   } finally {
     g.__protspaceWebglPerfSuiteInFlight = false;
-    if (success) g.__protspaceWebglPerfSuiteConsumed = true;
+    // Consumed once a file has been emitted: the page has said everything it is
+    // going to, success or not, and must not start the sweep over.
+    if (emitted) g.__protspaceWebglPerfSuiteConsumed = true;
     hidePerfOverlay();
   }
 

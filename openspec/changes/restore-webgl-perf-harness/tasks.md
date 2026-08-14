@@ -60,18 +60,35 @@
 - [x] 5.2 Assert every expected scenario recorded at least one pass, closing the pre-existing gap
       where an all-timeouts run passed and became NaN bars in the plotter
 
-## 6. Verify
+## 6. Close the review findings
 
-- [ ] 6.1 `pnpm test` green across the workspace
-- [ ] 6.2 `pnpm precommit` green
-- [ ] 6.3 `PERF_DATASETS=5K PERF_ITERATIONS=2 pnpm perf --project=chrome` completes and records real
+- [x] 6.1 Fence the abandoned load: gate `data-loaded` on `detail.file` object identity and wait on
+      `plotElement.data === ourData`, so a load the suite stopped waiting for cannot satisfy the
+      next dataset's waits, and stop the sweep on abandonment because the app's load queue
+      serializes behind it with no cancel path
+- [x] 6.2 Give each dataset one shared `Budget` instead of a fresh timeout per wait, cap it by a
+      run budget the spec derives from its own download wait, and emit the results file from a
+      watchdog at the run deadline so a stalled sweep is diagnosable rather than an opaque timeout
+- [x] 6.3 Keep the suite's own overlay off the canvas for the measured window: no scrim, no
+      animation while measuring, card moved out of the plot's centre, input blocking retained
+- [x] 6.4 Assert the recorded render pass — by trigger, not by count — in the zoom and pan
+      host-contract tests, since a `plot` pass lands in the same frame and would mask a dead
+      zoom render path
+- [x] 6.5 Make the readiness gate's budget injectable so it inherits the dataset's remaining time
+      rather than holding its own ten minutes
+
+## 7. Verify
+
+- [ ] 7.1 `pnpm test` green across the workspace
+- [ ] 7.2 `pnpm precommit` green
+- [ ] 7.3 `PERF_DATASETS=5K PERF_ITERATIONS=2 pnpm perf --project=chrome` completes and records real
       passes for all four scenarios
-- [ ] 6.4 Fault-inject a bad dataset id and confirm the run still emits results for the good
+- [ ] 7.4 Fault-inject a bad dataset id and confirm the run still emits results for the good
       dataset, records the failure, and fails the spec
-- [ ] 6.5 CI green on the PR, including the E2E suite
+- [ ] 7.5 CI green on the PR, including the E2E suite
 
-## 7. Close out
+## 8. Close out
 
-- [ ] 7.1 Reread `proposal.md` and `design.md` against the final diff
-- [ ] 7.2 `openspec archive restore-webgl-perf-harness` as the last commit on the branch, before
+- [ ] 8.1 Reread `proposal.md` and `design.md` against the final diff
+- [ ] 8.2 `openspec archive restore-webgl-perf-harness` as the last commit on the branch, before
       the merge, and confirm the new capability's `## Purpose` is not left as a TBD placeholder

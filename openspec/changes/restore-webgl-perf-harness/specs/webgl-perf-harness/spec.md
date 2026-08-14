@@ -62,19 +62,46 @@ prevent the results of already-measured datasets from being written.
 #### Scenario: Every dataset fails
 
 - **WHEN** no dataset produces measurements
-- **THEN** the run fails loudly rather than emitting a results file that reads as a successful run
+- **THEN** the results file is still emitted, recording every failure, and validation fails the run
+  on it rather than the harness reporting only that no file arrived
 
-### Requirement: Dataset loading waits SHALL be bounded
+### Requirement: Dataset loading waits SHALL be bounded by a shared budget
 
-Every wait in the dataset load path SHALL fail at its own timeout with an error identifying the
-dataset and the condition that was not met. No wait SHALL be able to hang until an enclosing
-harness timeout.
+Every wait in the dataset load path SHALL fail at a deadline with an error identifying the dataset
+and the condition that was not met, and the waits for one dataset SHALL share a single budget
+rather than each holding its own. That budget, and the budget for the run as a whole, SHALL be
+sized so the suite emits its results file before the enclosing harness's download wait and test
+timeout expire.
 
 #### Scenario: A dataset load never finalizes
 
 - **WHEN** a load is initiated and the application never reaches a loaded state for it
-- **THEN** the wait fails at its own timeout, naming the dataset and the unmet condition, rather
-  than blocking indefinitely
+- **THEN** the wait fails at its deadline, naming the dataset and the unmet condition, rather than
+  blocking indefinitely
+
+#### Scenario: A sweep runs out of time
+
+- **WHEN** the run's budget expires before every dataset has been measured
+- **THEN** the results file is emitted with the datasets that were never reached recorded as
+  skipped, rather than the harness failing with an opaque timeout that names nothing
+
+### Requirement: An abandoned load SHALL NOT contaminate the next dataset
+
+A load abandoned at its deadline SHALL NOT be able to satisfy any wait belonging to a later
+dataset, and every recorded measurement SHALL be attributable to the dataset that produced it. The
+suite SHALL treat abandoning a load as distinct from a load that failed cleanly, because the
+abandoned one is still running.
+
+#### Scenario: An abandoned load finalizes later
+
+- **WHEN** a load times out, the suite moves on, and the abandoned load then completes
+- **THEN** its completion does not satisfy any wait for the dataset that followed it
+
+#### Scenario: Measurements are attributed
+
+- **WHEN** a dataset's measurements are recorded
+- **THEN** they were taken against the data that dataset loaded, not against data left behind by a
+  previous one
 
 ### Requirement: An empty run SHALL NOT pass validation
 
@@ -96,7 +123,8 @@ SHALL NOT be sufficient.
 
 A test SHALL assert the benchmark runner's observable contract with the scatter-plot host, and
 SHALL run in the unit suite that gates frontend changes. It SHALL assert behavior rather than the
-names of host members, so that relaxing the readiness gate cannot make it pass.
+names of host members, so that relaxing the readiness gate cannot make it pass. It SHALL assert the
+render pass a zoom or pan records, not only the transform it leaves behind.
 
 #### Scenario: A refactor moves state the runner depends on
 
@@ -109,11 +137,19 @@ names of host members, so that relaxing the readiness gate cannot make it pass.
 - **THEN** a test still fails, because readiness is asserted together with the zoom behavior it
   is supposed to guarantee
 
-### Requirement: The benchmark SHALL run without the product tour
+#### Scenario: A zoom moves the plot but renders nothing
 
-The benchmark's browser context SHALL start with the product tour already marked complete, so no
-tour overlay paints during a measured window. Suppression SHALL be configured in the harness rather
-than by a branch in application code.
+- **WHEN** a zoom or pan updates the rendered transform without the deferred render it should
+  trigger
+- **THEN** the test fails, because it asserts a render pass carrying that gesture's trigger rather
+  than merely that some pass was recorded
+
+### Requirement: No overlay SHALL paint over the canvas during a measured window
+
+The benchmark SHALL leave the canvas unobscured while it measures: its browser context SHALL start
+with the product tour already marked complete, and the harness's own progress overlay SHALL NOT
+paint over the canvas or animate during a measured window. Tour suppression SHALL be configured in
+the harness rather than by a branch in application code.
 
 #### Scenario: A benchmark run opens the application
 
@@ -124,3 +160,9 @@ than by a branch in application code.
 
 - **WHEN** a user opens the explore view for the first time outside the benchmark
 - **THEN** the product tour still auto-starts
+
+#### Scenario: The harness's own progress overlay is up
+
+- **WHEN** a scenario is being measured while the suite's progress overlay is shown
+- **THEN** the overlay paints nothing over the canvas and runs no animation, while still reporting
+  progress and absorbing stray input

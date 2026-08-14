@@ -68,7 +68,11 @@ export interface ScatterplotElementLike extends Element {
   numericManualOrderIdsByAnnotation?: Record<string, string[]>;
   runWebGLRenderPerfMeasurements?: (
     iterations?: number,
-    options?: { download?: boolean; dataset?: { id: string; url?: string; proteinCount?: number } },
+    options?: {
+      download?: boolean;
+      dataset?: { id: string; url?: string; proteinCount?: number };
+      readyTimeoutMs?: number;
+    },
   ) => Promise<unknown>;
 
   // Data access

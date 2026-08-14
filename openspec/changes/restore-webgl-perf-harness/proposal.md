@@ -23,14 +23,24 @@ fails, which is the expected outcome when probing for a ceiling.
 - Suppress the product tour during benchmark runs via `storageState`, matching the e2e config.
   The tour auto-starts on the same `data-loaded` event the benchmark drives and is never
   dismissed, so driver.js composited a dimming overlay over the canvas for the whole measured
-  window — inflating results (5K: clickPoint 28.35ms → 7.00ms, zoomInOut 1.75ms → 1.17ms).
+  window — inflating results (5K: clickPoint 28.35ms → 7.00ms, zoomInOut 1.75ms → 1.17ms). Apply
+  the same rule to the suite's own progress overlay, which was a full-viewport translucent scrim
+  with an infinite spinner over the plot for the entire measured window — a larger confound than
+  the tour (5K, 10 iterations, Chrome: zoomInOut 2.7 → 0.7ms, dragCanvas 2.9 → 0.9ms).
 - Capture per-dataset failures instead of discarding the whole run. The suite loops datasets with
   no per-dataset catch and downloads only after the loop completes, so one throw loses every
   already-measured dataset and yields zero output.
-- Bound the three unbounded awaits in the dataset load path, so a load that never finalizes fails
-  with a diagnosable error instead of hanging until the spec's 44-minute download timeout.
+- Bound every wait in the dataset load path on one budget shared per dataset, capped by a run
+  budget the spec derives from its own download wait, so a load that never finalizes fails with a
+  diagnosable error instead of hanging until the 44-minute download timeout — and emit the results
+  file at the run deadline wherever the sweep has got to.
+- Fence an abandoned load off from the datasets that follow it. Bounding a wait stops the suite
+  waiting but does not stop the load, and the app's load queue serializes behind it with no cancel
+  path, so its late completion would otherwise satisfy the next dataset's waits and mis-attribute
+  that dataset's measurements.
 - Add a jsdom regression test asserting the runner's observable contract with its host, so the
-  next extraction fails in CI rather than silently.
+  next extraction fails in CI rather than silently — including the render pass a zoom or pan
+  records, not only the transform it leaves behind.
 - Strengthen spec validation so a run whose scenarios recorded nothing cannot pass as green.
 
 ## Capabilities
@@ -53,13 +63,20 @@ fails, which is the expected outcome when probing for a ceiling.
 - `packages/core/src/components/scatter-plot/interaction/plot-interaction-controller.ts` — four new
   public members; no behavior change for existing callers.
 - `packages/core/src/components/scatter-plot/webgl-render-perf.ts` — five rewritten call sites, a
-  typed controller accessor, four `no-explicit-any` disables removed.
+  typed controller accessor, four `no-explicit-any` disables removed, and an injectable readiness
+  budget (`PerfRunOptions.readyTimeoutMs`) so the gate inherits its caller's deadline.
 - `packages/core/src/components/scatter-plot/webgl-render-perf.host-contract.test.ts` — new; runs
   in the existing `pnpm test:ci` gate on every frontend PR.
-- `apps/web/src/perf/webgl-perf-suite.ts` — per-dataset error capture, bounded load waits.
-- `perf/playwright.config.ts` — tour-completion `storageState`.
-- `perf/webgl-perf.spec.ts` — assertions that a captured error and an empty run both fail.
-- Results-file shape gains a top-level `failures` array. `results` itself is unchanged, so
-  `perf/plot_perf_results.py` needs no modification.
+- `apps/web/src/perf/webgl-perf-suite.ts` — per-dataset error capture, shared per-dataset budgets,
+  a run-deadline watchdog that always emits the results file, load-identity fencing, and an
+  overlay that no longer paints or animates over the canvas while measuring.
+- `perf/playwright.config.ts` — tour-completion `storageState`, a `webServer` start timeout, and a
+  project timeout that no longer contradicts the spec's own.
+- `perf/webgl-perf.spec.ts` — assertions that a captured error, a skipped dataset and an empty run
+  all fail; the page budget derived from the download wait; diagnostics dumped in `afterEach` so a
+  run that never downloads still reports its console and page errors.
+- `perf/README.md` — the two new budget parameters.
+- Results-file shape gains top-level `failures` and `skipped` arrays. `results` itself is
+  unchanged, so `perf/plot_perf_results.py` needs no modification.
 - No product behavior changes. No PyPI release: `protspace-release.yml` is path-filtered to
   `apps/protspace/**`, which this change does not touch.

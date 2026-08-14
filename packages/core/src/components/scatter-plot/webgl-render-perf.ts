@@ -7,6 +7,13 @@ import { materializePlotDataPoint } from '@protspace/utils';
 import type { PlotInteractionController } from './interaction/plot-interaction-controller';
 
 const PERF_MEASURE_ITERATIONS = 10;
+/**
+ * Default budget for the readiness gate. Only a default: a caller sweeping many
+ * datasets under an enclosing deadline (the in-page perf suite) passes what is
+ * left of the dataset's budget instead, so the gate cannot spend ten minutes
+ * inside a window that has less than that to give.
+ */
+const PERF_READY_TIMEOUT_MS = 10 * 60_000;
 const PERF_MEASURE_ZOOM_FACTOR = 3;
 const PERF_MEASURE_PAN_DISTANCE_PX = 160;
 const PERF_MEASURE_PAN_STEPS = 6;
@@ -38,6 +45,17 @@ export type PerfDatasetInfo = {
   id: string;
   url?: string;
   proteinCount?: number;
+};
+
+export type PerfRunOptions = {
+  download?: boolean;
+  dataset?: PerfDatasetInfo;
+  /**
+   * Budget for the readiness gate, defaulting to PERF_READY_TIMEOUT_MS. Callers
+   * running under their own deadline pass what remains of it, so this wait
+   * cannot outlive the window that owns it.
+   */
+  readyTimeoutMs?: number;
 };
 
 type PerfMeasurementResult = {
@@ -119,7 +137,7 @@ export class WebglRenderPerfRunner {
 
   public async runWebGLRenderPerfMeasurements(
     iterations: number = PERF_MEASURE_ITERATIONS,
-    options: { download?: boolean; dataset?: PerfDatasetInfo } = {},
+    options: PerfRunOptions = {},
   ): Promise<PerfMeasurementResult | null> {
     if (this._recorder) return null;
     const runId = (globalThis.crypto as unknown as { randomUUID?: () => string })?.randomUUID?.();
@@ -136,7 +154,7 @@ export class WebglRenderPerfRunner {
     try {
       const metadata = await this._collectPerfMetadata();
       const dataset = this._collectDatasetInfo(options.dataset);
-      await this._waitForHostFullyLoaded(10 * 60_000);
+      await this._waitForHostFullyLoaded(options.readyTimeoutMs ?? PERF_READY_TIMEOUT_MS);
 
       await this._runAnnotationChangeScenario(iterations);
       await this._runZoomInOutScenario(iterations);

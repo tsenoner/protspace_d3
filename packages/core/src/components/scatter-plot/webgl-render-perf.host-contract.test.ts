@@ -41,12 +41,30 @@ vi.hoisted(() => {
 
 import './scatter-plot';
 import type { ProtspaceScatterplot } from './scatter-plot';
+import type { RenderWebGLTrigger } from './webgl-render-perf';
 
-/** Private surface of `WebglRenderPerfRunner` these tests drive directly. */
+/**
+ * Private surface of `WebglRenderPerfRunner` these tests drive directly. The
+ * recorder shapes are declared structurally because the runtime types are
+ * module-local, exactly as this file already does for the runner itself.
+ */
+type PerfPass = { trigger: RenderWebGLTrigger; renderedPoints: number };
+type PerfScenario = { name: string; passes: PerfPass[] };
+
 type PerfRunnerInternals = {
   _waitForHostFullyLoaded(timeoutMs: number): Promise<void>;
   _applyZoomScale(scaleFactor: number): Promise<void>;
   _applyZoomTranslate(dx: number, dy: number): Promise<void>;
+  _recorder: {
+    runId: string;
+    iterations: number;
+    passSeq: number;
+    lastRenderEndTs: number;
+    activeScenario: PerfScenario | null;
+    scenarios: PerfScenario[];
+  } | null;
+  _beginScenario(name: string, iterations: number, active?: boolean): PerfScenario | null;
+  _endScenario(): void;
 };
 
 type PerfHostInternals = ProtspaceScatterplot & {
@@ -117,6 +135,34 @@ function mainGroupTransform(sp: PerfHostInternals): string | null {
   return sp._interaction?.mainGroup?.attr('transform') ?? null;
 }
 
+/**
+ * Open the recording window that `runWebGLRenderPerfMeasurements` opens per
+ * scenario. `start()` returns null unless a scenario is active, so without this
+ * every render below would be measured as nothing at all — which is precisely
+ * the state the benchmark was stuck in.
+ */
+function beginRecordingScenario(runner: PerfRunnerInternals, name: string): PerfScenario {
+  runner._recorder = {
+    runId: 'host-contract',
+    iterations: 1,
+    passSeq: 0,
+    lastRenderEndTs: 0,
+    activeScenario: null,
+    scenarios: [],
+  };
+  const scenario = runner._beginScenario(name, 1);
+  if (!scenario) throw new Error('failed to begin perf scenario');
+  return scenario;
+}
+
+function endRecording(runner: PerfRunnerInternals) {
+  runner._endScenario();
+  runner._recorder = null;
+}
+
+/** applyZoom defers its render into a RAF, so the pass lands a frame later. */
+const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
 describe('WebglRenderPerfRunner ↔ scatter-plot host contract (#453)', () => {
   afterEach(() => {
     while (mounted.length) mounted.pop()?.remove();
@@ -168,20 +214,50 @@ describe('WebglRenderPerfRunner ↔ scatter-plot host contract (#453)', () => {
     ).rejects.toThrow(/timed out waiting for data to fully load/);
   });
 
-  it('the zoom scenarios actually move the plot', async () => {
+  it('a programmatic zoom moves the plot and records a render pass', async () => {
     const sp = await mountScatter(makeFamilyData());
+    const runner = sp._webglRenderPerf;
+    const scenario = beginRecordingScenario(runner, 'zoomInOut');
+    try {
+      // `_runZoomInOutScenario` drives every zoom through this helper; when the
+      // d3 zoom handle is unreachable it returns at its guard and the scenario
+      // silently measures nothing. The `resetZoom()` that the first `data`
+      // assignment triggers is a 750ms transition from identity to identity, so
+      // it never competes with the value asserted here.
+      await runner._applyZoomScale(3);
+      expect(mainGroupTransform(sp)).toMatch(/scale\(3\)/);
 
-    // `_runZoomInOutScenario` drives every zoom through this helper; when the d3
-    // zoom handle is unreachable it returns at its guard and the scenario
-    // silently measures nothing. The `resetZoom()` that the first `data`
-    // assignment triggers is a 750ms transition from identity to identity, so it
-    // never competes with the value asserted here.
-    await sp._webglRenderPerf._applyZoomScale(3);
-    const zoomed = mainGroupTransform(sp);
-    expect(zoomed).toMatch(/scale\(3\)/);
+      // The transform is written synchronously but the render is deferred into a
+      // RAF, so a regression that breaks only the render path would leave every
+      // assertion above green while making zoomInOut measure nothing.
+      await nextFrame();
 
-    // `_runDragCanvasScenario` pans through this one.
-    await sp._webglRenderPerf._applyZoomTranslate(50, 20);
-    expect(mainGroupTransform(sp)).not.toBe(zoomed);
+      // Assert the TRIGGER, not the count: an unrelated 'plot' pass can land in
+      // the same frame, so `passes.length > 0` would stay green with the zoom
+      // render path dead — the exact regression this is here to catch.
+      expect(scenario.passes.map((p) => p.trigger)).toContain('zoom');
+      expect(scenario.passes.find((p) => p.trigger === 'zoom')?.renderedPoints).toBe(6);
+    } finally {
+      endRecording(runner);
+    }
+  });
+
+  it('a programmatic pan moves the plot and records a render pass', async () => {
+    const sp = await mountScatter(makeFamilyData());
+    const runner = sp._webglRenderPerf;
+    const scenario = beginRecordingScenario(runner, 'dragCanvas');
+    try {
+      // `_runDragCanvasScenario` pans through this helper.
+      const before = mainGroupTransform(sp);
+      await runner._applyZoomTranslate(50, 20);
+      expect(mainGroupTransform(sp)).not.toBe(before);
+
+      await nextFrame();
+      // 'zoom', not a pan-specific trigger: applyZoom is the single call site for
+      // both gestures, so d3-driven pans are recorded under the same trigger.
+      expect(scenario.passes.map((p) => p.trigger)).toContain('zoom');
+    } finally {
+      endRecording(runner);
+    }
   });
 });

@@ -29,6 +29,21 @@ PERF_DATASETS=573K_swissprot,127K_beta_lactamase pnpm perf -- --project=chrome
 The spec passes the IDs to the in-page suite via the `webglPerfDatasets` URL
 parameter, which overrides the default `datasets.json` list.
 
+#### Budgets
+
+The in-page suite runs against two deadlines, so a stalled run produces a
+results file naming what broke instead of an opaque Playwright timeout:
+
+| URL parameter              | Default | Meaning                                                                                                                                     |
+| -------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `webglPerfBudgetMs`        | 40 min  | Whole run. The results file is emitted when this expires, wherever the sweep has got to; datasets not reached are recorded under `skipped`. |
+| `webglPerfDatasetBudgetMs` | 6 min   | One dataset's load path and readiness gate, shared by every wait in it and capped by the run budget.                                        |
+
+`pnpm perf` derives `webglPerfBudgetMs` from the spec's own download wait, so
+the two cannot drift; the defaults above apply only to a hand-typed
+`?webglPerf=1` in a browser. Raise both, and `SUITE_TIMEOUT_MS` in
+`perf/webgl-perf.spec.ts`, if a legitimately slow sweep needs longer.
+
 | Scenario           | What it measures                      |
 | ------------------ | ------------------------------------- |
 | `annotationChange` | Re-render after switching annotations |

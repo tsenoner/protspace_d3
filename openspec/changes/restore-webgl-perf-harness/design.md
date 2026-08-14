@@ -67,11 +67,23 @@ retries it; and `disconnectedCallback` tears down without nulling the field. Del
 "torn down" flag — teardown leaves zoom installed and functional, so such a flag would report
 not-ready for a working controller and could reintroduce the hang on any DOM move.
 
-**Suppress the tour in the harness, not in the app.**
+**Keep every overlay off the canvas, the harness's own included.**
 `storageState` seeding the tour's completion key is what the e2e config already does; the perf
 config never got it. This keeps application code free of any branch on a benchmark concern and
 suppresses the tour _before first paint_, rather than dismissing it after it has already painted and
-animated. `openspec/specs/e2e-validation/spec.md` scopes performance tooling out of itself
+animated.
+
+The same rule then has to apply to the suite's own progress overlay, which was a full-viewport
+translucent scrim with an infinite spinner sitting over the plot for the entire measured window —
+the identical confound, self-inflicted, and larger than the tour's. Measured on 5K at 10 iterations
+in Chrome, two runs each: zoomInOut 2.81/2.62 → 0.68/0.70ms, dragCanvas 2.85/2.89 → 0.89/0.87ms,
+annotationChange 4.22/4.32 → 2.83/2.88ms. clickPoint records only 10 passes per run and its
+difference (7.36/6.18 → 5.71/6.26ms) is inside the noise.
+It is not deleted, because it does two separable jobs and only one is the confound: painting a veil,
+and swallowing a stray click during a long headed run. Dropping the background and parking the
+animation while measuring keeps the second. Hit testing uses the border box, so a transparent
+element still absorbs input; the card also moves out of the plot's centre, and the subtitle carries
+progress in place of the parked spinner. `openspec/specs/e2e-validation/spec.md` scopes performance tooling out of itself
 ("tight performance thresholds SHALL live in dedicated performance tooling"), so this is new
 behavior for the perf harness rather than a delta to that capability.
 
@@ -86,6 +98,34 @@ failure record placed there would plot as a phantom dataset with empty bars — 
 bug the CDP sidecar already causes in that script. Keeping `results` homogeneous means the plotter
 needs no change at all.
 
+**Abandoning a load is not cancelling it.**
+Bounding a wait stops the suite waiting; it does not stop the load. `load-queue.ts` serializes every
+later load behind the abandoned one and has no cancel path, and the loader's completion events are
+broadcast to whoever is listening — so the next dataset's listeners would consume the previous
+dataset's completion and its measurements would be taken against the wrong points while carrying the
+right label. Two defences, because either alone is insufficient. `DataLoadedEventDetail.file` is the
+only field in any of these events that identifies a load, and it is the very `File` object the suite
+passed in, so the listener compares object identity; the plot-side wait then asserts
+`plotElement.data === ourData` rather than waiting on `data-change`, which is dispatched from five
+sites with no load identity at all. And because the queue is now blocked regardless, a load abandoned
+at its deadline ends the sweep — the remaining datasets are recorded as skipped rather than each
+spending its full budget reaching the same deadline.
+
+**Size every budget against the harness's enclosing deadlines.**
+Deadlines only help if they compose. Each wait holding its own timeout multiplied the worst case by
+the number of waits in the load path, so one dataset could outlive the spec's download wait
+(`SUITE_TIMEOUT_MS - 60_000`) and the run would report nothing but `waiting for event download` —
+the very symptom the bounding was added to remove. A dataset now gets one absolute `Budget` shared
+by every wait in its load path and by the readiness gate, capped by a run budget the spec derives
+from its own download wait and passes in, so the two layers cannot drift.
+
+The guarantee is carried by a watchdog rather than by a check between datasets: at the run deadline
+the results file is emitted wherever the sweep has got to. Checking only between datasets would
+still let the last dataset overrun. That in turn makes the empty-run throw counterproductive — it
+suppressed the download and left the harness waiting out its full budget to report a timeout — so an
+empty run now emits a file naming every failure, and the spec's existing "results is non-empty"
+assertion fails it in seconds.
+
 **Pair that catch with stricter validation.**
 Swallowing per-dataset errors would otherwise convert loud failures into a green run with quiet
 gaps — trading one silent-failure mode for another. The spec assertion must therefore fail on a
@@ -99,12 +139,21 @@ already hold — only the two that drifted fail. The test drives the runner inst
 so a future change to the runner's constructor keeps being exercised instead of rewriting the test
 that constrains it. It asserts the gate resolves, still rejects on a never-loading host, still
 rejects on a fully-loaded host whose interaction layer was never initialized, and that the zoom
-helpers move the plot.
+helpers both move the plot and record a render pass.
 
 The third assertion is the one that makes "delete the failing condition" a non-fix, and it is not
 interchangeable with the second: a host with no `data` fails the gate on `host.data` alone, so it
 stays red whether or not the zoom condition is there. Only a host where every _other_ condition
 holds can prove the gate consults the interaction layer at all.
+
+Asserting the render pass, not just the transform, matters because `applyZoom` writes the transform
+synchronously but defers the render into a `requestAnimationFrame` — so a break confined to the
+render path leaves every transform assertion green while making every `zoomInOut` and `dragCanvas`
+measurement empty. Passes are only recorded while a scenario is active (`start()` returns null
+otherwise), so the test opens a recording window through the runner's `_recorder`/`_beginScenario`
+rather than driving a whole measurement run. It asserts on the pass's **trigger**: an unrelated
+`plot` pass lands in the same frame, so `passes.length > 0` stays green with the zoom render path
+dead — verified by mutation, which reports `expected [ 'plot' ] to include 'zoom'`.
 
 ## Risks / Trade-offs
 
