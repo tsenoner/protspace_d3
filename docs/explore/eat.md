@@ -101,7 +101,9 @@ The mode dropdown picks which side of the confidence scale to cut:
 | **Hide above**   | predictions at or below the bound          | inspect the weak predictions — where the transfer struggled |
 | **Keep between** | predictions inside the band, ends included | isolate a confidence band to compare like with like         |
 
-**Hide above** and **Keep between** both show a second **Upper bound** slider. Only the bound a mode actually uses stays editable — in **Hide above** the first slider is greyed out — so a number you can change is always a number that is filtering.
+All three modes share one control: a single track carrying one handle per bound the mode actually filters on. **Hide below** and **Hide above** have one handle each, **Keep between** has two. A bound a mode ignores has no widget at all, so every number on screen is a number that is filtering.
+
+The coloured part of the track is always the part you keep — to the right of the handle in **Hide below**, to its left in **Hide above**, and between the two in **Keep between**.
 
 ![Raising the threshold thins out the ringed points and leaves the curated ones](./images/eat-reliability.gif)
 

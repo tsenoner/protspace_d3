@@ -420,12 +420,53 @@ describe('legend EAT reliability band (one track, two thumbs)', () => {
     expect(fill.style.right).toBe('59%');
   });
 
-  it('keeps a single bar in the modes that have one bound', async () => {
+  it('gives every mode the same one-track layout, with a thumb per bound it filters on', async () => {
+    // The modes used to look like different controls: `atMost` rendered a dead,
+    // disabled lower slider plus a separate "Upper bound" label row — four rows against
+    // `atLeast`'s two — so switching modes reshuffled the panel.
     const { legend } = await setup();
+
+    for (const [state, expected] of [
+      [{ mode: 'atLeast' as const, min: 0.3, max: 1 }, ['eat-reliability-threshold']],
+      [{ mode: 'atMost' as const, min: 0, max: 0.5 }, ['eat-reliability-upper']],
+      [
+        { mode: 'between' as const, min: 0.3, max: 0.7 },
+        ['eat-reliability-threshold', 'eat-reliability-upper'],
+      ],
+    ] as const) {
+      legend.setReliabilityState(state);
+      await legend.updateComplete;
+      const root = legend.shadowRoot!;
+
+      expect(root.querySelectorAll('.eat-threshold-band')).toHaveLength(1);
+      expect(
+        Array.from(root.querySelectorAll('.eat-threshold-band input[type="range"]')).map(
+          (el) => el.id,
+        ),
+      ).toEqual(expected);
+      // One number box per bound, and never a dead one for a bound the mode ignores.
+      expect(root.querySelectorAll('.eat-threshold-percent')).toHaveLength(expected.length);
+      expect(root.querySelector('.eat-threshold-band input:disabled')).toBeNull();
+    }
+  });
+
+  it('fills the kept side in every mode, not whichever side a range input fills', async () => {
+    // A plain range input always fills from the left, so `atLeast` — which keeps
+    // everything ABOVE its thumb — was colouring exactly the hidden half.
+    const { legend } = await setup();
+    const fill = () => legend.shadowRoot!.querySelector<HTMLElement>('.eat-threshold-fill')!.style;
+
     legend.setReliabilityState({ mode: 'atLeast', min: 0.3, max: 1 });
     await legend.updateComplete;
-    expect(legend.shadowRoot!.querySelector('.eat-threshold-band')).toBeNull();
-    expect(legend.shadowRoot!.querySelector('#eat-reliability-threshold')).not.toBeNull();
+    expect([fill().left, fill().right]).toEqual(['30%', '0%']);
+
+    legend.setReliabilityState({ mode: 'atMost', min: 0, max: 0.5 });
+    await legend.updateComplete;
+    expect([fill().left, fill().right]).toEqual(['0%', '50%']);
+
+    legend.setReliabilityState({ mode: 'between', min: 0.3, max: 0.7 });
+    await legend.updateComplete;
+    expect([fill().left, fill().right]).toEqual(['30%', '30%']);
   });
 
   it('stops the lower thumb at the upper one instead of letting it pass', async () => {

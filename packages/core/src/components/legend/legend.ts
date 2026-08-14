@@ -1223,13 +1223,14 @@ export class ProtspaceLegend extends LitElement {
   }
 
   /**
-   * The lower bound is dead in `atMost` mode — `conditionsForReliability` reads only
-   * the upper one — so both of its controls are disabled together. They used to
-   * disagree: the range was disabled but the percent box beside the mode select
-   * stayed editable, so a user could type a lower bound that silently did nothing.
+   * Which bounds the selected mode actually filters on, and therefore which controls
+   * exist. `atMost` used to render the lower bound anyway, disabled and stuck at 0 —
+   * a dead slider and a dead number box that did nothing but take up half the control.
    */
-  private get _lowerBoundDisabled(): boolean {
-    return !this._eatOverlayEnabled || this._eatReliabilityMode === 'atMost';
+  private get _activeBounds(): readonly EatBound[] {
+    if (this._eatReliabilityMode === 'atLeast') return ['lower'];
+    if (this._eatReliabilityMode === 'atMost') return ['upper'];
+    return ['lower', 'upper'];
   }
 
   /**
@@ -1262,63 +1263,39 @@ export class ProtspaceLegend extends LitElement {
   }
 
   /**
-   * One reliability bound: a heading, a percent box and a range slider, wired to the
-   * same commit pair. The lower bound's heading is the mode `<select>` and carries the
-   * help popover; the upper bound's is a plain label, and it only renders in the two
-   * modes that have an upper bound.
+   * All three modes share ONE layout: the mode select and its bound(s) on a heading row,
+   * then a single track carrying one thumb per bound the mode actually filters on.
    *
-   * The two rows were copy-pasted and had already drifted — only the lower one honoured
-   * `_lowerBoundDisabled`, so every edit to a bound row had to be made twice to stay in
-   * step.
-   */
-  private _renderReliabilityBound(bound: EatBound) {
-    const isLower = bound === 'lower';
-    const id = isLower ? 'eat-reliability-threshold' : 'eat-reliability-upper';
-    const value = isLower ? this._eatConfidenceThreshold : this._eatConfidenceUpper;
-    // The upper row renders only when the mode actually has an upper bound, so the
-    // overlay switch is the only thing that can disable it.
-    const disabled = isLower ? this._lowerBoundDisabled : !this._eatOverlayEnabled;
-
-    return html`
-      <div class="eat-threshold-heading">
-        ${isLower
-          ? this._renderReliabilityModeSelect()
-          : html`<label for=${id}>Upper bound</label>`}
-        <span class="eat-threshold-value">
-          ${this._renderReliabilityPercent(bound, value, disabled)}
-          <span aria-hidden="true">%</span>
-          ${isLower ? this._renderReliabilityInfo() : ''}
-        </span>
-      </div>
-      ${this._renderReliabilityRange(bound, value, disabled)}
-    `;
-  }
-
-  /**
-   * `between` as ONE track with two thumbs, rather than two independent bars.
+   * The modes used to look like different controls. `atMost` rendered a dead, disabled
+   * lower slider above its real one plus a separate "Upper bound" label row — four rows
+   * against `atLeast`'s two — so switching modes reshuffled the panel and left widgets on
+   * screen that did nothing.
    *
-   * Two bars misrepresented the filter: each drew its own fill from 0 to its own value,
-   * so a 25–41% band showed an upper bar filled 0–41% — reading as "keep everything
-   * below 41", which is not the band being applied. One track with the fill drawn
-   * BETWEEN the thumbs is the shape of the thing: what is coloured is what is kept.
-   *
-   * The two `input[type=range]` elements are stacked on the same track. Only their
-   * thumbs take pointer events (see `layout.ts`), so each is dragged independently
-   * while the track underneath is shared, and both keep their own label, id and
-   * keyboard behaviour.
+   * The fill always marks what SURVIVES the filter, which a plain range input cannot do:
+   * it fills from the left, so `atLeast` (which keeps everything ABOVE the thumb) was
+   * colouring exactly the hidden half, while `atMost` happened to be right. Drawing the
+   * kept region explicitly makes the bar mean one thing in every mode.
    */
   private _renderReliabilityBand() {
     const disabled = !this._eatOverlayEnabled;
+    const bounds = this._activeBounds;
     const min = this._eatConfidenceThreshold;
     const max = this._eatConfidenceUpper;
+    // An absent bound does not clip the kept region: `atLeast` keeps up to the top,
+    // `atMost` from the bottom.
+    const fillLeft = bounds.includes('lower') ? min : 0;
+    const fillRight = bounds.includes('upper') ? 1 - max : 0;
 
     return html`
       <div class="eat-threshold-heading">
         ${this._renderReliabilityModeSelect()}
         <span class="eat-threshold-value">
-          ${this._renderReliabilityPercent('lower', min, disabled)}
-          <span class="eat-threshold-sep" aria-hidden="true">–</span>
-          ${this._renderReliabilityPercent('upper', max, disabled)}
+          ${bounds.map((bound, index) =>
+            index === 0
+              ? this._renderReliabilityPercent(bound, this._boundValue(bound), disabled)
+              : html`<span class="eat-threshold-sep" aria-hidden="true">–</span>
+                  ${this._renderReliabilityPercent(bound, this._boundValue(bound), disabled)}`,
+          )}
           <span aria-hidden="true">%</span>
           ${this._renderReliabilityInfo()}
         </span>
@@ -1327,13 +1304,18 @@ export class ProtspaceLegend extends LitElement {
         <span class="eat-threshold-track" aria-hidden="true">
           <span
             class="eat-threshold-fill"
-            style=${`left:${bandPercent(min)}%;right:${bandPercent(1 - max)}%`}
+            style=${`left:${bandPercent(fillLeft)}%;right:${bandPercent(fillRight)}%`}
           ></span>
         </span>
-        ${this._renderReliabilityRange('lower', min, disabled)}
-        ${this._renderReliabilityRange('upper', max, disabled)}
+        ${bounds.map((bound) =>
+          this._renderReliabilityRange(bound, this._boundValue(bound), disabled),
+        )}
       </div>
     `;
+  }
+
+  private _boundValue(bound: EatBound): number {
+    return bound === 'lower' ? this._eatConfidenceThreshold : this._eatConfidenceUpper;
   }
 
   private _renderReliabilityRange(bound: EatBound, value: number, disabled: boolean) {
@@ -2616,17 +2598,7 @@ export class ProtspaceLegend extends LitElement {
                     <span>Show</span>
                   </label>
                 </div>
-                <div class="eat-threshold">
-                  ${this._eatReliabilityMode === 'between'
-                    ? // One track, two thumbs — a band is one range, not two thresholds.
-                      this._renderReliabilityBand()
-                    : html`
-                        ${this._renderReliabilityBound('lower')}
-                        ${this._eatReliabilityMode === 'atMost'
-                          ? this._renderReliabilityBound('upper')
-                          : ''}
-                      `}
-                </div>
+                <div class="eat-threshold">${this._renderReliabilityBand()}</div>
                 ${this._eatOverlayEnabled && this._eatCounts
                   ? html`
                       <div

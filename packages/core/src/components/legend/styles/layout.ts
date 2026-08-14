@@ -150,17 +150,12 @@ export const layoutStyles = css`
     color: var(--legend-text-secondary);
   }
 
-  .eat-threshold > input[type='range'] {
-    display: block;
-    width: 100%;
-    margin: 0;
-  }
-
   /*
-   * "between" renders ONE track carrying both thumbs. The two range inputs are stacked
+   * Every mode renders ONE track. It carries one thumb per bound the mode filters on,
+   * so the control keeps its shape when the mode changes. The range inputs are stacked
    * on top of each other, transparent and inert, so what the user sees is the track and
-   * fill drawn below them; only the thumbs take pointer events, which is what lets each
-   * bound be dragged independently on a shared bar.
+   * fill drawn below them; only the thumbs take pointer events, which is what lets two
+   * bounds be dragged independently on a shared bar.
    */
   .eat-threshold-band {
     position: relative;
