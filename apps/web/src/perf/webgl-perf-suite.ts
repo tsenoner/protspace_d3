@@ -100,9 +100,24 @@ function remaining(budget: Budget): number {
   return Math.max(0, budget.endsAt - performance.now());
 }
 
-function budgetError(budget: Budget, what: string): Error {
+/**
+ * A wait that ran out of budget, as opposed to an operation that failed.
+ *
+ * Its own class because the two demand opposite responses: a clean failure is
+ * survivable and the sweep moves on, while a wait we abandoned leaves the app's
+ * uncancellable load queue in an unknown state and ends the run. Callers that
+ * conflate them lose every remaining dataset to a dataset that merely errored.
+ */
+class PerfBudgetExpiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PerfBudgetExpiredError';
+  }
+}
+
+function budgetError(budget: Budget, what: string): PerfBudgetExpiredError {
   const spent = Math.round(performance.now() - budget.startedAt);
-  return new Error(
+  return new PerfBudgetExpiredError(
     `perf: spent ${spent}ms of a ${Math.round(budget.totalMs)}ms budget waiting for ${what}`,
   );
 }
@@ -465,8 +480,13 @@ async function loadDataset(args: Args, datasetId: string, budget: Budget): Promi
         `${datasetId} to load`,
       );
     } catch (error) {
+      // Only a budget expiry means the load is still running. Anything else is a
+      // rejection from the load itself, which leaves the queue drained — exactly
+      // the survivable failure the per-dataset catch exists for — so it must not
+      // be relabelled as page-state loss and take the rest of the sweep with it.
+      if (!(error instanceof PerfBudgetExpiredError)) throw error;
       throw new PerfPageStateLostError(
-        `${error instanceof Error ? error.message : String(error)} ` +
+        `${error.message} ` +
           `(load abandoned, not cancelled: the app's load queue has no cancel path, ` +
           `so page state is indeterminate from here)`,
       );

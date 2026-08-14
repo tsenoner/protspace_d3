@@ -256,9 +256,18 @@ export class WebglRenderPerfRunner {
     return undefined;
   }
 
+  /**
+   * Readiness first, deadline second — for the same reason the perf suite's
+   * `waitUntil` is written that way. `timeoutMs` is no longer a fixed ten
+   * minutes: a caller sweeping datasets under a shared budget passes what is
+   * LEFT of it, which is routinely at or near zero once a large bundle has just
+   * finished loading. A `while (elapsed < timeoutMs)` head would then report
+   * "timed out waiting for data to fully load" for a host it never once looked
+   * at — failing a dataset that had in fact loaded.
+   */
   private async _waitForHostFullyLoaded(timeoutMs: number) {
     const startTs = performance.now();
-    while (performance.now() - startTs < timeoutMs) {
+    for (;;) {
       await (this._hostAny().updateComplete ?? Promise.resolve());
       await this._sleep(16);
       const host = this._hostAny();
@@ -278,8 +287,10 @@ export class WebglRenderPerfRunner {
       ) {
         return;
       }
+      if (performance.now() - startTs >= timeoutMs) {
+        throw new Error('WebGL perf runner: timed out waiting for data to fully load');
+      }
     }
-    throw new Error('WebGL perf runner: timed out waiting for data to fully load');
   }
 
   private async _waitForNextRender(prevSeq: number, timeoutMs: number): Promise<boolean> {

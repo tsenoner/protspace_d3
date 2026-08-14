@@ -91,6 +91,13 @@
       competes for CPU inside the measured window), pin `cwd`, use `url` over `port`, and pipe stdout
 - [x] 6.8 Give each browser its own `outputDir`; the shared one meant a scoped re-run deleted the
       other browsers' results from the previous sweep, before the server had even started
+- [x] 6.9 Rewrite the readiness gate predicate-first, like `waitUntil`. Once its budget became the
+      dataset's remaining time (6.5) rather than a fixed ten minutes, a `while (elapsed < timeoutMs)`
+      head could report "timed out waiting for data to fully load" for a host it never evaluated —
+      recording a dataset that had in fact loaded as a failure, which 5.1 then fails the run on
+- [x] 6.10 Classify budget expiry as its own error so only an abandoned wait — never a load that
+      rejected cleanly — is treated as page-state loss. A drained queue is the survivable
+      per-dataset failure section 4 exists for, and must not take the rest of the sweep with it
 
 ## 7. Verify
 
