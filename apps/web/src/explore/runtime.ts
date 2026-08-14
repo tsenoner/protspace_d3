@@ -292,9 +292,7 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
     controlBar.setEatReliability(legendElement.selectedAnnotation, reliability);
   });
   addTrackedEventListener(lifecycle, controlBar, 'eat-threshold-mirror', (event: Event) => {
-    const { state } = (
-      event as CustomEvent<{ value: number; base: string; state: EatReliabilityState }>
-    ).detail;
+    const { state } = (event as CustomEvent<{ value: number; state: EatReliabilityState }>).detail;
     legendElement.setReliabilityState(state);
   });
   addTrackedEventListener(

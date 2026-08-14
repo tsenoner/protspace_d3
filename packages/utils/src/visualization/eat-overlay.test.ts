@@ -139,6 +139,17 @@ describe('normalizeReliability', () => {
     });
   });
 
+  it('falls a non-finite bound back to its OWN neutral position', () => {
+    // An emptied upper box means "no constraint above", i.e. 1. Defaulting it to 0 —
+    // the LOWER bound's neutral position — turned it into `<= 0`, which hides every
+    // prediction: the exact opposite filter.
+    expect(normalizeReliability({ mode: 'atMost', min: 0, max: Number.NaN })).toEqual({
+      mode: 'atMost',
+      min: 0,
+      max: 1,
+    });
+  });
+
   it('leaves the canonical default untouched', () => {
     expect(normalizeReliability(DEFAULT_EAT_RELIABILITY)).toEqual(DEFAULT_EAT_RELIABILITY);
   });

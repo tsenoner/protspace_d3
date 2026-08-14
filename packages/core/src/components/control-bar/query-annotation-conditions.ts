@@ -41,11 +41,16 @@ export function findConditionsForAnnotation(
 }
 
 /**
- * Substitute `next` for every numeric condition on `annotation`, at any depth.
- * Conditions on a DIFFERENT annotation, and every hand-built condition elsewhere,
- * are preserved untouched.
+ * Leave `next` as the column's only numeric condition, at any depth — or, given
+ * `null`, remove the column's conditions entirely. Conditions on a DIFFERENT
+ * annotation, and every hand-built condition elsewhere, are preserved untouched.
  *
- * Replacement happens IN PLACE — each condition keeps its slot, its group, and the
+ * One condition, not a list: a reliability state is always expressible as a single
+ * un-negated condition (`conditionsForReliability` emits at most one), so a list
+ * parameter would only ever carry zero or one and the queue that served it was
+ * machinery no caller could reach.
+ *
+ * Replacement happens IN PLACE — the condition keeps its slot, its group, and the
  * connector the surrounding query gave it. Stripping and re-appending at the top
  * level instead rewrote `A OR <condition>` into `A AND <condition>`: with the
  * condition gone, `A` became first, and a first item's leading operator is ignored,
@@ -53,9 +58,9 @@ export function findConditionsForAnnotation(
  * is not carried over — the control only ever emits positive conditions, and
  * re-negating one would invert the mode the user just picked.
  *
- * Surplus replacements (more `next` than slots) are appended at the top level;
- * surplus existing conditions are dropped, which is how duplicates left by an older
- * build get swept up.
+ * Only the FIRST match is replaced; any further condition on the same column is a
+ * duplicate left by an older build and is swept up. With no match at all, `next`
+ * joins at the top level.
  *
  * A group left empty by the removal is pruned: `evaluateItems` treats an empty group
  * as match-all, but keeping a visibly empty group in the builder is confusing, and an
@@ -64,9 +69,9 @@ export function findConditionsForAnnotation(
 export function replaceConditionsForAnnotation(
   query: FilterQuery,
   annotation: string,
-  next: readonly NumericCondition[],
+  next: NumericCondition | null,
 ): FilterQuery {
-  const pending = [...next];
+  let placed = false;
 
   const rewrite = (items: readonly FilterQueryItem[]): FilterQueryItem[] => {
     const out: FilterQueryItem[] = [];
@@ -76,12 +81,12 @@ export function replaceConditionsForAnnotation(
         if (conditions.length > 0)
           out.push({ ...item, conditions: clearLeadingOpInList(conditions) });
       } else if (isConditionFor(item, annotation)) {
-        const replacement = pending.shift();
-        if (replacement) {
+        if (next && !placed) {
+          placed = true;
           out.push(
             item.logicalOp === undefined || item.logicalOp === 'NOT'
-              ? replacement
-              : { ...replacement, logicalOp: item.logicalOp },
+              ? next
+              : { ...next, logicalOp: item.logicalOp },
           );
         }
       } else {
@@ -91,5 +96,7 @@ export function replaceConditionsForAnnotation(
     return out;
   };
 
-  return clearLeadingOpInList([...rewrite(query), ...pending]);
+  const rewritten = rewrite(query);
+  if (next && !placed) rewritten.push(next);
+  return clearLeadingOpInList(rewritten);
 }

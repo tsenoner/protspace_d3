@@ -38,13 +38,14 @@ async function setup() {
   return { data, legend, plot };
 }
 
-describe('legend-owned EAT controls', () => {
-  afterEach(() => {
-    document.body.innerHTML = '';
-    vi.restoreAllMocks();
-    vi.useRealTimers();
-  });
+/** One teardown for every describe in this file — Vitest applies a file-level hook to all of them. */
+afterEach(() => {
+  document.body.innerHTML = '';
+  vi.restoreAllMocks();
+  vi.useRealTimers();
+});
 
+describe('legend-owned EAT controls', () => {
   it('renders the controls with counts', async () => {
     const { legend } = await setup();
     const root = legend.shadowRoot!;
@@ -257,12 +258,12 @@ describe('legend-owned EAT controls', () => {
     expect(listener).not.toHaveBeenCalled();
   });
 
-  it('setReliabilityThreshold updates the slider without re-emitting (reverse mirror)', async () => {
+  it('setReliabilityState updates the slider without re-emitting (reverse mirror)', async () => {
     const { legend } = await setup();
     const listener = vi.fn();
     legend.addEventListener('eat-overlay-change', listener);
 
-    legend.setReliabilityThreshold(0.42);
+    legend.setReliabilityState({ mode: 'atLeast', min: 0.42, max: 1 });
     await legend.updateComplete;
 
     expect(legend.reliabilityThreshold).toBe(0.42);
@@ -304,12 +305,6 @@ describe('legend-owned EAT controls', () => {
  * which is what keeps curated points visible.
  */
 describe('legend EAT reliability modes (#380)', () => {
-  afterEach(() => {
-    document.body.innerHTML = '';
-    vi.restoreAllMocks();
-    vi.useRealTimers();
-  });
-
   async function selectMode(mode: 'atLeast' | 'atMost' | 'between') {
     const { legend } = await setup();
     const listener = vi.fn();
@@ -385,12 +380,6 @@ describe('legend EAT reliability modes (#380)', () => {
  * everything below 41", which is not the filter being applied.
  */
 describe('legend EAT reliability band (one track, two thumbs)', () => {
-  afterEach(() => {
-    document.body.innerHTML = '';
-    vi.restoreAllMocks();
-    vi.useRealTimers();
-  });
-
   async function band(min: number, max: number) {
     const { legend } = await setup();
     legend.setReliabilityState({ mode: 'between', min, max });

@@ -21,7 +21,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import './control-bar';
-import type { FilterQuery } from './query-types';
+import type { FilterQuery, NumericCondition } from './query-types';
 import type { ProtspaceData } from './types';
 import { findConditionsForAnnotation } from './query-annotation-conditions';
 import { NA_VALUE } from '@protspace/utils';
@@ -186,40 +186,61 @@ function makeEatData(): ProtspaceData {
   };
 }
 
+/**
+ * Mounts a control bar wired to a stub scatter plot. The stub is a hand-maintained
+ * contract with the component — every method the control bar reaches for through
+ * `_scatterplotElement` — so it is stated once: a copy per describe block meant a new
+ * call surfaced as `TypeError: sp.foo is not a function` inside the component, reading
+ * as a component bug rather than a fixture gap.
+ *
+ * `selectedAnnotation` matters because the reverse mirror is scoped to the SELECTED
+ * base's eat-confidence column; it is what makes the derived threshold resolve.
+ */
+async function mountControlBar(
+  makeData: () => ProtspaceData,
+  selectedAnnotation?: string,
+): Promise<{ controlBar: ControlBarInternals; scatter: StubScatterplot }> {
+  document.body.innerHTML = '';
+  const controlBar = document.createElement('protspace-control-bar') as ControlBarInternals;
+  controlBar.autoSync = false;
+  document.body.appendChild(controlBar);
+  await controlBar.updateComplete;
+
+  const scatter: StubScatterplot = {
+    selectedProteinIds: ['sentinel'],
+    isolateSelection: vi.fn(),
+    resetIsolation: vi.fn(),
+    getCurrentData: vi.fn(() => makeData()),
+    getMaterializedData: vi.fn(() => makeData()),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  };
+
+  controlBar._scatterplotElement = scatter;
+  controlBar._currentData = makeData();
+  if (selectedAnnotation !== undefined) controlBar.selectedAnnotation = selectedAnnotation;
+  await controlBar.updateComplete;
+
+  return { controlBar, scatter };
+}
+
+/** The column's live reliability condition, which is always the first (and only) one. */
+function eatCondition(query: FilterQuery, key: string = EAT_KEY): NumericCondition | undefined {
+  return findConditionsForAnnotation(query, key)[0];
+}
+
 describe('control-bar EAT reliability slider <-> query mirror', () => {
   let controlBar: ControlBarInternals;
   let scatter: StubScatterplot;
 
   beforeEach(async () => {
-    document.body.innerHTML = '';
-    controlBar = document.createElement('protspace-control-bar') as ControlBarInternals;
-    controlBar.autoSync = false;
-    document.body.appendChild(controlBar);
-    await controlBar.updateComplete;
-
-    scatter = {
-      selectedProteinIds: ['sentinel'],
-      isolateSelection: vi.fn(),
-      resetIsolation: vi.fn(),
-      getCurrentData: vi.fn(() => makeEatData()),
-      getMaterializedData: vi.fn(() => makeEatData()),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    };
-
-    controlBar._scatterplotElement = scatter;
-    controlBar._currentData = makeEatData();
-    // The reverse mirror is scoped to the SELECTED base's eat-confidence column,
-    // so the color-by annotation must name the base ('family') for the derived
-    // threshold to resolve.
-    controlBar.selectedAnnotation = 'family';
-    await controlBar.updateComplete;
+    ({ controlBar, scatter } = await mountControlBar(makeEatData, 'family'));
   });
 
   it('forward: upserts a single "EAT_confidence >= x or N/A" condition and applies it', () => {
     controlBar.setEatConfidenceThreshold('family', 0.5);
 
-    const eat = findConditionsForAnnotation(controlBar.filterQuery, EAT_KEY)[0];
+    const eat = eatCondition(controlBar.filterQuery);
     expect(eat).toMatchObject({
       kind: 'numeric',
       annotation: EAT_KEY,
@@ -255,7 +276,7 @@ describe('control-bar EAT reliability slider <-> query mirror', () => {
     expect(controlBar.filterQuery.filter((i) => 'kind' in i && i.kind === 'numeric')).toHaveLength(
       1,
     );
-    expect(findConditionsForAnnotation(controlBar.filterQuery, EAT_KEY)[0]).toMatchObject({
+    expect(eatCondition(controlBar.filterQuery)).toMatchObject({
       min: 0.8,
     });
     // Kept = curated (5) + predictions >= 0.8 (p16–p19 = 4) = 9.
@@ -297,7 +318,7 @@ describe('control-bar EAT reliability slider <-> query mirror', () => {
 
     controlBar.setEatConfidenceThreshold('family', 0);
 
-    expect(findConditionsForAnnotation(controlBar.filterQuery, EAT_KEY)[0]).toBeUndefined();
+    expect(eatCondition(controlBar.filterQuery)).toBeUndefined();
     expect(controlBar.filterQuery).toHaveLength(0);
     expect(scatter.filtersActive).toBe(false);
     expect(scatter.filteredProteinIds).toEqual([]);
@@ -447,24 +468,7 @@ describe('control-bar per-base EAT reliability filter (multi-EAT)', () => {
   let scatter: StubScatterplot;
 
   beforeEach(async () => {
-    document.body.innerHTML = '';
-    controlBar = document.createElement('protspace-control-bar') as ControlBarInternals;
-    controlBar.autoSync = false;
-    document.body.appendChild(controlBar);
-    await controlBar.updateComplete;
-
-    scatter = {
-      selectedProteinIds: ['sentinel'],
-      isolateSelection: vi.fn(),
-      resetIsolation: vi.fn(),
-      getCurrentData: vi.fn(() => makeMultiEatData()),
-      getMaterializedData: vi.fn(() => makeMultiEatData()),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    };
-
-    controlBar._scatterplotElement = scatter;
-    controlBar._currentData = makeMultiEatData();
+    ({ controlBar, scatter } = await mountControlBar(makeMultiEatData));
   });
 
   it('scopes the condition to the base: setting GO does not clobber EC', () => {
@@ -551,25 +555,7 @@ describe('control-bar EAT reliability filter — all operators (#380)', () => {
   let scatter: StubScatterplot;
 
   beforeEach(async () => {
-    document.body.innerHTML = '';
-    controlBar = document.createElement('protspace-control-bar') as ControlBarInternals;
-    controlBar.autoSync = false;
-    document.body.appendChild(controlBar);
-    await controlBar.updateComplete;
-
-    scatter = {
-      selectedProteinIds: ['sentinel'],
-      isolateSelection: vi.fn(),
-      resetIsolation: vi.fn(),
-      getCurrentData: vi.fn(() => makeEatData()),
-      getMaterializedData: vi.fn(() => makeEatData()),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    };
-    controlBar._scatterplotElement = scatter;
-    controlBar._currentData = makeEatData();
-    controlBar.selectedAnnotation = 'family';
-    await controlBar.updateComplete;
+    ({ controlBar, scatter } = await mountControlBar(makeEatData, 'family'));
   });
 
   // A hand-built condition on the eat-confidence column IS the reliability filter,

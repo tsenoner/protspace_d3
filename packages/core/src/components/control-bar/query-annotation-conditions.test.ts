@@ -61,7 +61,7 @@ describe('replaceConditionsForAnnotation', () => {
     const untouched = createNumericCondition({ annotation: 'length', operator: 'gt', min: 10 });
     const query: FilterQuery = [untouched, createGroup({ conditions: [onKey()] })];
 
-    const next = replaceConditionsForAnnotation(query, KEY, [onKey({ operator: 'gt', min: 0.8 })]);
+    const next = replaceConditionsForAnnotation(query, KEY, onKey({ operator: 'gt', min: 0.8 }));
 
     const flat = next.filter((i): i is NumericCondition => !isFilterGroup(i));
     expect(flat.some((c) => c.annotation === 'length')).toBe(true);
@@ -72,19 +72,34 @@ describe('replaceConditionsForAnnotation', () => {
   it('drops the column’s conditions entirely when given none', () => {
     const query: FilterQuery = [onKey()];
     expect(
-      findConditionsForAnnotation(replaceConditionsForAnnotation(query, KEY, []), KEY),
+      findConditionsForAnnotation(replaceConditionsForAnnotation(query, KEY, null), KEY),
     ).toHaveLength(0);
+  });
+
+  // An older build could append rather than replace, leaving two conditions on the
+  // column; the replacement keeps the first slot and sweeps the rest up.
+  it('collapses duplicates on the column onto the first slot', () => {
+    const query: FilterQuery = [onKey({ max: 0.3 }), onKey({ max: 0.9 })];
+
+    const next = replaceConditionsForAnnotation(
+      query,
+      KEY,
+      onKey({ operator: 'gte', min: 0.6, logicalOp: undefined }),
+    );
+
+    expect(findConditionsForAnnotation(next, KEY)).toHaveLength(1);
+    expect(findConditionsForAnnotation(next, KEY)[0]?.operator).toBe('gte');
   });
 
   it('leaves another base annotation’s condition alone', () => {
     const other = onKey({ annotation: 'go__eat_confidence' });
-    const next = replaceConditionsForAnnotation([other, onKey()], KEY, []);
+    const next = replaceConditionsForAnnotation([other, onKey()], KEY, null);
     expect(findConditionsForAnnotation(next, 'go__eat_confidence')).toHaveLength(1);
   });
 
   it('prunes a group left empty so it cannot AND-kill the query', () => {
     const query: FilterQuery = [createGroup({ conditions: [onKey()] })];
-    const next = replaceConditionsForAnnotation(query, KEY, []);
+    const next = replaceConditionsForAnnotation(query, KEY, null);
     expect(next.filter(isFilterGroup)).toHaveLength(0);
   });
 
@@ -95,9 +110,11 @@ describe('replaceConditionsForAnnotation', () => {
     const first = createNumericCondition({ annotation: 'length', operator: 'gt', min: 10 });
     const query: FilterQuery = [first, onKey({ logicalOp: 'OR' })];
 
-    const next = replaceConditionsForAnnotation(query, KEY, [
+    const next = replaceConditionsForAnnotation(
+      query,
+      KEY,
       onKey({ operator: 'gte', min: 0.6, logicalOp: undefined }),
-    ]);
+    );
 
     expect(next).toHaveLength(2);
     expect((next[1] as NumericCondition).logicalOp).toBe('OR');
@@ -107,9 +124,11 @@ describe('replaceConditionsForAnnotation', () => {
   it('replaces a nested condition inside its group rather than hoisting it', () => {
     const query: FilterQuery = [createGroup({ conditions: [onKey()] })];
 
-    const next = replaceConditionsForAnnotation(query, KEY, [
+    const next = replaceConditionsForAnnotation(
+      query,
+      KEY,
       onKey({ operator: 'gte', min: 0.6, logicalOp: undefined }),
-    ]);
+    );
 
     const groups = next.filter(isFilterGroup);
     expect(groups).toHaveLength(1);
@@ -122,9 +141,11 @@ describe('replaceConditionsForAnnotation', () => {
   it('does not carry a NOT onto the replacement', () => {
     const query: FilterQuery = [onKey({ logicalOp: 'NOT' })];
 
-    const next = replaceConditionsForAnnotation(query, KEY, [
+    const next = replaceConditionsForAnnotation(
+      query,
+      KEY,
       onKey({ operator: 'gte', min: 0.6, logicalOp: undefined }),
-    ]);
+    );
 
     expect((next[0] as NumericCondition).logicalOp).toBeUndefined();
   });

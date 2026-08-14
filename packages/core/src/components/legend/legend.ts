@@ -15,8 +15,11 @@ import {
   resolveNumericAnnotationDisplaySettings,
   annotationLabel,
   clampReliabilityBound,
+  isSameReliability,
   normalizeReliability,
   DEFAULT_EAT_RELIABILITY,
+  NEUTRAL_BOUND,
+  RELIABILITY_BOUNDS,
   hasEatPredictionsForAnnotation,
   isPredictedAnnotation,
   getAnnotationMeta,
@@ -96,9 +99,9 @@ import { createLegendErrorEventDetail } from './legend.events';
 const EAT_THRESHOLD_COMMIT_DELAY_MS = 150;
 
 /**
- * Smallest gap the two `between` thumbs may be dragged to, matching the sliders' own
- * 0.01 step. Keeping them one step apart means they never occupy the same pixel, where
- * whichever sits on top would be the only one the pointer could reach.
+ * Smallest gap the two `between` thumbs may be dragged to. Doubles as the sliders'
+ * `step`, so "one step apart" is literally true: the thumbs never occupy the same
+ * pixel, where whichever sits on top would be the only one the pointer could reach.
  */
 const EAT_BAND_MIN_GAP = 0.01;
 
@@ -110,10 +113,67 @@ const EAT_BAND_MIN_GAP = 0.01;
 const bandPercent = (value: number): number => Number((value * 100).toFixed(2));
 
 /**
- * Which end of the reliability range a control edits. `atLeast` uses only the
- * lower bound, `atMost` only the upper, `between` both.
+ * Which end of the reliability range a control edits. Deliberately the field name on
+ * `EatReliabilityState`, so a bound indexes its own value, its own neutral position
+ * (`NEUTRAL_BOUND`) and its own row in `RELIABILITY_BOUNDS` with no hand-written
+ * lower/upper -> min/max mapping in between.
  */
-type EatBound = 'lower' | 'upper';
+type EatBound = 'min' | 'max';
+
+const EAT_BOUNDS: readonly EatBound[] = ['min', 'max'];
+
+function boundsForMode(mode: EatReliabilityMode): readonly EatBound[] {
+  const uses = RELIABILITY_BOUNDS[mode];
+  return EAT_BOUNDS.filter((bound) => uses[bound]);
+}
+
+/**
+ * Which bounds each mode renders a thumb and a percent box for — derived from the
+ * shared `RELIABILITY_BOUNDS` rather than restated, so the control cannot offer a
+ * widget for a bound the filter ignores. `atMost` used to render the lower bound
+ * anyway, disabled and stuck at 0: a dead slider and a dead number box taking up half
+ * the control. Keyed by the mode union, so a fourth mode is a compile error here.
+ */
+const EAT_BOUNDS_FOR_MODE: Record<EatReliabilityMode, readonly EatBound[]> = {
+  atLeast: boundsForMode('atLeast'),
+  atMost: boundsForMode('atMost'),
+  between: boundsForMode('between'),
+};
+
+/**
+ * Per-bound identity and accessible names. `soloLabel` is what the slider is called
+ * when its mode renders it alone — a single thumb is the filter's threshold, not one
+ * end of a band.
+ */
+const EAT_BOUND_UI: Record<
+  EatBound,
+  { id: string; sliderLabel: string; soloLabel: string; percentLabel: string }
+> = {
+  min: {
+    id: 'eat-reliability-threshold',
+    sliderLabel: 'EAT reliability filter lower bound',
+    soloLabel: 'EAT reliability filter threshold',
+    percentLabel: 'EAT reliability filter percentage',
+  },
+  max: {
+    id: 'eat-reliability-upper',
+    sliderLabel: 'EAT reliability filter upper bound',
+    soloLabel: 'EAT reliability filter upper bound',
+    percentLabel: 'EAT reliability upper bound percentage',
+  },
+};
+
+/**
+ * What each mode actually does to the plot. The popover sits beside the mode select,
+ * so it has to describe the mode that is selected; it used to say "predictions below
+ * this reliability are hidden" unconditionally, which is false in two of the three.
+ */
+const EAT_RELIABILITY_EFFECT: Record<EatReliabilityMode, string> = {
+  atLeast: 'Predictions below this reliability are hidden (filtered out). Set to 0% to show all.',
+  atMost: 'Predictions above the upper bound are hidden (filtered out). Set to 100% to show all.',
+  between:
+    'Only predictions between the two bounds are kept; everything outside the band is hidden. Widen the band to 0–100% to show all.',
+};
 
 // Types
 import type {
@@ -207,17 +267,27 @@ export class ProtspaceLegend extends LitElement {
    */
   @state() private _hoveredCategory: string | null = null;
   @state() private _eatOverlayEnabled = true;
-  @state() private _eatConfidenceThreshold = DEFAULT_EAT_RELIABILITY.min;
   /**
-   * Which side(s) of the reliability scale the filter constrains (#380).
-   * `atLeast` hides low-confidence predictions (the original, default behaviour);
-   * `atMost` hides high-confidence ones, which is how you inspect what you would
-   * throw away; `between` isolates a band — the mid-confidence transfers worth
+   * The reliability filter's position: which side(s) of the scale it constrains, and
+   * where (#380). `atLeast` hides low-confidence predictions (the original, default
+   * behaviour); `atMost` hides high-confidence ones, which is how you inspect what you
+   * would throw away; `between` isolates a band — the mid-confidence transfers worth
    * reviewing by hand. Curated proteins stay visible in all three.
+   *
+   * One field rather than a mode and two loose bounds: the three are only ever written
+   * together, by `_setReliability`, and holding them apart meant every reader had to
+   * reassemble them and every writer had to remember all three.
+   *
+   * `hasChanged` compares by value because `_setReliability` always assigns a fresh
+   * normalized object — under Lit's default identity check, re-normalizing an unchanged
+   * position would re-render the whole legend. `prev` is undefined for the initial
+   * field write, which Lit performs from the constructor.
    */
-  @state() private _eatReliabilityMode: EatReliabilityMode = DEFAULT_EAT_RELIABILITY.mode;
-  /** Upper bound, used by `atMost` and `between`. 1 means "no upper bound". */
-  @state() private _eatConfidenceUpper = DEFAULT_EAT_RELIABILITY.max;
+  @state({
+    hasChanged: (next: EatReliabilityState, prev: EatReliabilityState | undefined) =>
+      prev === undefined || !isSameReliability(next, prev),
+  })
+  private _reliability: EatReliabilityState = DEFAULT_EAT_RELIABILITY;
   @state() private _keyboardDragValue: string | null = null;
   private _announceManualPromotionOnNextReorder = false;
   private _keyboardReorderSnapshot: {
@@ -1129,7 +1199,7 @@ export class ProtspaceLegend extends LitElement {
    * bar. Exposed so bundle export can persist the saved slider position (#6b).
    */
   public get reliabilityThreshold(): number {
-    return this._eatConfidenceThreshold;
+    return this._reliability.min;
   }
 
   public applyEatSettings(enabled: boolean, threshold: number): void {
@@ -1139,7 +1209,7 @@ export class ProtspaceLegend extends LitElement {
     this._eatOverlayEnabled = enabled;
     // A bundle restores the lower bound only; the current mode decides what that
     // means, and normalizing keeps the other bound coherent with it.
-    this._setReliability({ ...this.reliabilityState, min: threshold });
+    this._setReliability({ ...this._reliability, min: threshold });
 
     // The overlay switch still coalesces predictions into the base annotation on
     // the scatter plot. The threshold, however, only feeds the reliability query
@@ -1153,22 +1223,9 @@ export class ProtspaceLegend extends LitElement {
     this._emitEatOverlayChange();
   }
 
-  /**
-   * Reverse mirror: set the slider position from the query filter WITHOUT
-   * re-emitting `eat-overlay-change`, so the control-bar->legend direction does
-   * not loop back into the legend->control-bar direction (#6b).
-   */
-  public setReliabilityThreshold(value: number): void {
-    this._setReliability({ ...this.reliabilityState, min: value });
-  }
-
   /** The reliability filter as the control bar models it: a mode plus bounds. */
   public get reliabilityState(): EatReliabilityState {
-    return {
-      mode: this._eatReliabilityMode,
-      min: this._eatConfidenceThreshold,
-      max: this._eatConfidenceUpper,
-    };
+    return this._reliability;
   }
 
   /**
@@ -1180,17 +1237,17 @@ export class ProtspaceLegend extends LitElement {
    * control bar filtered on the ordered one).
    */
   private _setReliability(state: EatReliabilityState): void {
-    const { mode, min, max } = normalizeReliability(state);
-    this._eatReliabilityMode = mode;
-    this._eatConfidenceThreshold = min;
-    this._eatConfidenceUpper = max;
+    this._reliability = normalizeReliability(state);
   }
 
   /**
-   * Reverse mirror for the full state. Cancels any pending drag commit first: a
-   * discrete update from the query side supersedes an in-flight drag, and leaving
-   * the timer armed let a stale late emit overwrite what the user had just typed
-   * into the Filter builder (#380).
+   * Reverse mirror: set the control's position from the query filter WITHOUT
+   * re-emitting `eat-overlay-change`, so the control-bar->legend direction does not
+   * loop back into the legend->control-bar direction (#6b).
+   *
+   * Cancels any pending drag commit first: a discrete update from the query side
+   * supersedes an in-flight drag, and leaving the timer armed let a stale late emit
+   * overwrite what the user had just typed into the Filter builder (#380).
    */
   public setReliabilityState(state: EatReliabilityState): void {
     this._cancelEatThresholdCommit();
@@ -1198,16 +1255,12 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _emitEatOverlayChange(): void {
-    // Canonicalize before publishing: a live drag is free to cross the two bounds,
-    // but what leaves this component — and what the thumbs settle on — is the band
-    // the filter will actually apply.
-    this._setReliability(this.reliabilityState);
     this.dispatchEvent(
       new CustomEvent('eat-overlay-change', {
         detail: {
           enabled: this._eatOverlayEnabled,
-          confidenceThreshold: this._eatConfidenceThreshold,
-          reliability: this.reliabilityState,
+          confidenceThreshold: this._reliability.min,
+          reliability: this._reliability,
         },
         bubbles: true,
         composed: true,
@@ -1216,38 +1269,17 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _handleEatOverlayToggle(event: Event): void {
-    this.applyEatSettings(
-      (event.currentTarget as HTMLInputElement).checked,
-      this._eatConfidenceThreshold,
-    );
+    this.applyEatSettings((event.currentTarget as HTMLInputElement).checked, this._reliability.min);
   }
 
-  /**
-   * Which bounds the selected mode actually filters on, and therefore which controls
-   * exist. `atMost` used to render the lower bound anyway, disabled and stuck at 0 —
-   * a dead slider and a dead number box that did nothing but take up half the control.
-   */
+  /** Which bounds the selected mode filters on, and therefore which controls exist. */
   private get _activeBounds(): readonly EatBound[] {
-    if (this._eatReliabilityMode === 'atLeast') return ['lower'];
-    if (this._eatReliabilityMode === 'atMost') return ['upper'];
-    return ['lower', 'upper'];
+    return EAT_BOUNDS_FOR_MODE[this._reliability.mode];
   }
 
-  /**
-   * The popover sits beside the mode select, so it has to describe the mode that is
-   * actually selected. It used to say "predictions below this reliability are hidden"
-   * unconditionally, which is false in two of the three modes.
-   */
   private _reliabilityHelpText(): string {
     const label = annotationLabel(this.selectedAnnotation);
-    const effect = {
-      atLeast:
-        'Predictions below this reliability are hidden (filtered out). Set to 0% to show all.',
-      atMost:
-        'Predictions above the upper bound are hidden (filtered out). Set to 100% to show all.',
-      between:
-        'Only predictions between the two bounds are kept; everything outside the band is hidden. Widen the band to 0–100% to show all.',
-    }[this._eatReliabilityMode];
+    const effect = EAT_RELIABILITY_EFFECT[this._reliability.mode];
     return `${effect} Curated “${label}” annotations always stay visible. This mirrors a Filter condition on “${label} — EAT confidence”.`;
   }
 
@@ -1256,7 +1288,7 @@ export class ProtspaceLegend extends LitElement {
     // `normalizeReliability` blanks the bound the new mode does not use, so switching
     // modes cannot leave a stale constraint applied from a side the user can no longer
     // see or edit.
-    this._setReliability({ ...this.reliabilityState, mode });
+    this._setReliability({ ...this._reliability, mode });
     // A mode change is a discrete decision, not a drag — apply it immediately.
     this._cancelEatThresholdCommit();
     this._emitEatOverlayChange();
@@ -1279,22 +1311,23 @@ export class ProtspaceLegend extends LitElement {
   private _renderReliabilityBand() {
     const disabled = !this._eatOverlayEnabled;
     const bounds = this._activeBounds;
-    const min = this._eatConfidenceThreshold;
-    const max = this._eatConfidenceUpper;
+    const { min, max } = this._reliability;
     // An absent bound does not clip the kept region: `atLeast` keeps up to the top,
     // `atMost` from the bottom.
-    const fillLeft = bounds.includes('lower') ? min : 0;
-    const fillRight = bounds.includes('upper') ? 1 - max : 0;
+    const fillLeft = bounds.includes('min') ? min : NEUTRAL_BOUND.min;
+    const fillRight = bounds.includes('max') ? NEUTRAL_BOUND.max - max : NEUTRAL_BOUND.min;
 
     return html`
       <div class="eat-threshold-heading">
         ${this._renderReliabilityModeSelect()}
         <span class="eat-threshold-value">
-          ${bounds.map((bound, index) =>
-            index === 0
-              ? this._renderReliabilityPercent(bound, this._boundValue(bound), disabled)
-              : html`<span class="eat-threshold-sep" aria-hidden="true">–</span>
-                  ${this._renderReliabilityPercent(bound, this._boundValue(bound), disabled)}`,
+          ${bounds.map(
+            (bound, index) => html`
+              ${index > 0
+                ? html`<span class="eat-threshold-sep" aria-hidden="true">–</span>`
+                : null}
+              ${this._renderReliabilityPercent(bound, disabled)}
+            `,
           )}
           <span aria-hidden="true">%</span>
           ${this._renderReliabilityInfo()}
@@ -1307,40 +1340,30 @@ export class ProtspaceLegend extends LitElement {
             style=${`left:${bandPercent(fillLeft)}%;right:${bandPercent(fillRight)}%`}
           ></span>
         </span>
-        ${bounds.map((bound) =>
-          this._renderReliabilityRange(bound, this._boundValue(bound), disabled),
-        )}
+        ${bounds.map((bound) => this._renderReliabilityRange(bound, disabled))}
       </div>
     `;
   }
 
-  private _boundValue(bound: EatBound): number {
-    return bound === 'lower' ? this._eatConfidenceThreshold : this._eatConfidenceUpper;
-  }
-
-  private _renderReliabilityRange(bound: EatBound, value: number, disabled: boolean) {
-    const isLower = bound === 'lower';
+  private _renderReliabilityRange(bound: EatBound, disabled: boolean) {
+    const ui = EAT_BOUND_UI[bound];
     return html`
       <input
-        id=${isLower ? 'eat-reliability-threshold' : 'eat-reliability-upper'}
+        id=${ui.id}
         type="range"
-        min="0"
-        max="1"
-        step="0.01"
-        .value=${String(value)}
+        min=${NEUTRAL_BOUND.min}
+        max=${NEUTRAL_BOUND.max}
+        step=${EAT_BAND_MIN_GAP}
+        .value=${String(this._reliability[bound])}
         ?disabled=${disabled}
-        aria-label=${isLower
-          ? this._eatReliabilityMode === 'between'
-            ? 'EAT reliability filter lower bound'
-            : 'EAT reliability filter threshold'
-          : 'EAT reliability filter upper bound'}
+        aria-label=${this._activeBounds.length > 1 ? ui.sliderLabel : ui.soloLabel}
         @input=${(event: Event) => this._handleEatBoundInput(bound, event)}
         @change=${this._flushEatThresholdCommit}
       />
     `;
   }
 
-  private _renderReliabilityPercent(bound: EatBound, value: number, disabled: boolean) {
+  private _renderReliabilityPercent(bound: EatBound, disabled: boolean) {
     return html`
       <input
         class="eat-threshold-percent"
@@ -1348,11 +1371,9 @@ export class ProtspaceLegend extends LitElement {
         min="0"
         max="100"
         step="1"
-        .value=${String(Math.round(value * 100))}
+        .value=${String(Math.round(this._reliability[bound] * 100))}
         ?disabled=${disabled}
-        aria-label=${bound === 'lower'
-          ? 'EAT reliability filter percentage'
-          : 'EAT reliability upper bound percentage'}
+        aria-label=${EAT_BOUND_UI[bound].percentLabel}
         @input=${(event: Event) => this._handleEatBoundPercentInput(bound, event)}
         @change=${this._flushEatThresholdCommit}
       />
@@ -1364,7 +1385,7 @@ export class ProtspaceLegend extends LitElement {
       <select
         class="eat-threshold-mode"
         aria-label="EAT reliability filter mode"
-        .value=${this._eatReliabilityMode}
+        .value=${this._reliability.mode}
         ?disabled=${!this._eatOverlayEnabled}
         @change=${this._handleEatModeChange}
       >
@@ -1415,14 +1436,12 @@ export class ProtspaceLegend extends LitElement {
    * geometry — to a drag-pause/release.
    */
   private _setEatBoundLive(bound: EatBound, value: number): number {
-    // Each bound falls back to its own "constrains nothing" position: 0 for the
-    // lower bound, 1 for the upper.
-    const next = this._clampBandBound(
-      bound,
-      clampReliabilityBound(value, bound === 'lower' ? 0 : 1),
-    );
-    if (bound === 'lower') this._eatConfidenceThreshold = next;
-    else this._eatConfidenceUpper = next;
+    // Each bound falls back to its own "constrains nothing" position, so an emptied
+    // box reads as no constraint on that side.
+    const next = this._clampBandBound(bound, clampReliabilityBound(value, NEUTRAL_BOUND[bound]));
+    // Through the one writer, so a live drag lands in the same canonical form as every
+    // other path and what the thumbs settle on is the band the filter will apply.
+    this._setReliability({ ...this._reliability, [bound]: next });
     this._debounceEatThresholdCommit();
     // Returned so the caller can pin its control back onto the value that was applied.
     return next;
@@ -1442,10 +1461,11 @@ export class ProtspaceLegend extends LitElement {
    * the same pixel, where the one on top would be the only one you could grab.
    */
   private _clampBandBound(bound: EatBound, value: number): number {
-    if (this._eatReliabilityMode !== 'between') return value;
-    return bound === 'lower'
-      ? Math.min(value, this._eatConfidenceUpper - EAT_BAND_MIN_GAP)
-      : Math.max(value, this._eatConfidenceThreshold + EAT_BAND_MIN_GAP);
+    const { mode, min, max } = this._reliability;
+    if (mode !== 'between') return value;
+    return bound === 'min'
+      ? Math.min(value, max - EAT_BAND_MIN_GAP)
+      : Math.max(value, min + EAT_BAND_MIN_GAP);
   }
 
   private _debounceEatThresholdCommit(): void {

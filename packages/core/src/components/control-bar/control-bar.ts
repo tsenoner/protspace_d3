@@ -1679,7 +1679,9 @@ export class ProtspaceControlBar extends LitElement {
     if (!key) return;
 
     const existing = findConditionsForAnnotation(this.filterQuery, key);
+    // A reliability state is one un-negated condition, or none at all.
     const nextConditions = conditionsForReliability(key, state, existing[0]?.id);
+    const [replacement = null] = nextConditions;
 
     // Record what the query will READ BACK as, not what was requested. The reverse
     // mirror compares this against `reliabilityFromConditions`, and state -> conditions
@@ -1699,7 +1701,7 @@ export class ProtspaceControlBar extends LitElement {
     // Compare the CONDITIONS, not the states they derive from — see `sameConditions`.
     if (sameConditions(existing, nextConditions)) return;
 
-    this.filterQuery = replaceConditionsForAnnotation(this.filterQuery, key, nextConditions);
+    this.filterQuery = replaceConditionsForAnnotation(this.filterQuery, key, replacement);
     this._applyQuery();
   }
 
@@ -1726,7 +1728,7 @@ export class ProtspaceControlBar extends LitElement {
     this._lastMirroredState.set(key, derived);
     this.dispatchEvent(
       new CustomEvent('eat-threshold-mirror', {
-        detail: { base: this.selectedAnnotation, state: derived, value: derived.min },
+        detail: { state: derived, value: derived.min },
         bubbles: true,
         composed: true,
       }),

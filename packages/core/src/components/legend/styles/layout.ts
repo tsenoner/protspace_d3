@@ -2,6 +2,25 @@ import { css } from 'lit';
 import { srOnlyMixin } from '../../../styles/mixins';
 
 /**
+ * The reliability band's drag handle. Stated once and interpolated into both vendor
+ * pseudo-elements: `::-webkit-slider-thumb` and `::-moz-range-thumb` cannot be grouped
+ * into one selector (an engine drops the whole rule on a selector it does not know),
+ * so the declarations are what has to be shared. Two hand-kept copies meant a thumb
+ * resize applied to the webkit one was invisible in Chrome dev and CI and showed up
+ * only in Firefox.
+ */
+const bandThumb = css`
+  width: 0.85rem;
+  height: 0.85rem;
+  border: 2px solid var(--legend-bg, #fff);
+  border-radius: 50%;
+  background: var(--legend-accent-color, var(--primary, #2563eb));
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 20%);
+  cursor: grab;
+  pointer-events: auto;
+`;
+
+/**
  * Legend Layout Styles
  *
  * Structural styles for the Legend component including:
@@ -216,25 +235,11 @@ export const layoutStyles = css`
   .eat-threshold-band input[type='range']::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 0.85rem;
-    height: 0.85rem;
-    border: 2px solid var(--legend-bg, #fff);
-    border-radius: 50%;
-    background: var(--legend-accent-color, var(--primary, #2563eb));
-    box-shadow: 0 0 0 1px rgb(0 0 0 / 20%);
-    cursor: grab;
-    pointer-events: auto;
+    ${bandThumb}
   }
 
   .eat-threshold-band input[type='range']::-moz-range-thumb {
-    width: 0.85rem;
-    height: 0.85rem;
-    border: 2px solid var(--legend-bg, #fff);
-    border-radius: 50%;
-    background: var(--legend-accent-color, var(--primary, #2563eb));
-    box-shadow: 0 0 0 1px rgb(0 0 0 / 20%);
-    cursor: grab;
-    pointer-events: auto;
+    ${bandThumb}
   }
 
   .eat-threshold-band.is-disabled {
