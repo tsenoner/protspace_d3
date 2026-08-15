@@ -56,6 +56,11 @@ because an RGBA8 row is always a multiple of 4 bytes.
 normatively requires a two-label transferred cell to render both hues in live _and_ exported
 markers. Stride 1 would satisfy no scenario that stride 0 does not.
 
+`planLabelAtlas` takes an optional `maxStride`, which the export renderer feeds the live view's
+stride. Implementation note: the export inherits fidelity by _planning at that stride_, not by
+planning at full stride and capping afterwards — capping after the fact would size the texture for
+slices it then refuses to draw.
+
 ### Stride is planned against capacity, not against the drawn count
 
 The atlas is planned from `this.capacity`, like every other array, so it stays valid across the
@@ -116,9 +121,26 @@ that one console-only would be incoherent.
 
 ## Risks / Trade-offs
 
+**A texture-limit stub alone cannot reproduce the failure.** `gl.getParameter` only changes what the
+application believes; the driver under the test still accepts whatever it is handed, so the pre-fix
+renderer passes a stub-only test. And the reported failure is silent — nothing called
+`gl.getError()` — so a console-error assertion passes on broken code too. The Playwright layer
+therefore simulates the _driver_ as well (`helpers/gl-simulation.ts`): `texImage2D` past the
+simulated limit does not call through and arms `getError`, and a later `texSubImage2D` against that
+texture reports `INVALID_OPERATION`. The assertion is then that the renderer never _issues_ an
+allocation the device would refuse, which is red on the parent commit
+(`[[2048, 31]]`) and green after. A companion case runs the same simulation at an ample limit, so
+the simulation itself cannot be what fails the others.
+
+Corollary on dataset size: the shipped demo is ~7.8K proteins, whose atlas is 2048x31 — no realistic
+limit refuses it, and no limit forces a stride reduction. The default suite therefore covers the
+"no atlas fits" path at a simulated limit of 1024, and the reduced-stride path lives in the opt-in
+573K spec, which is the case the issue actually reported.
+
 **The mock GL context is a blocker, not a nicety.** `test-support/mock-webgl2.ts` has no
-`getParameter` and no `getError`, and `texImage2D`/`texSubImage2D` are bare no-ops. Adding either
-call throws `TypeError` in every existing renderer suite. Mitigation: extend the mock as the first
+`getParameter` and no `getError`, and `texImage2D`/`texSubImage2D` are bare no-ops — and
+`bufferSubData` is absent outright, so no test had ever reached the already-initialised upload path.
+Adding either call throws `TypeError` in every existing renderer suite. Mitigation: extend the mock as the first
 commit, so a mock regression bisects separately from a renderer regression.
 
 **Reduced fidelity is a visible change on the affected tier.** A user on a 2048 device sees

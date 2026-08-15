@@ -102,3 +102,25 @@ describe('planLabelAtlas', () => {
     }
   });
 });
+
+describe('planLabelAtlas stride inheritance', () => {
+  // The export renderer plans against its OWN context's limit but must never
+  // exceed the live view's fidelity, or a figure would show eight segments where
+  // the user saw four. Capacities differ between the two (export is not
+  // row-snapped), so the bound has to be the stride, not the geometry.
+  it('never exceeds the inherited stride even when the device could hold more', () => {
+    const plan = planLabelAtlas(SWISS_PROT_CAPACITY, 8192, 4);
+    expect(plan).toMatchObject({ stride: 4, reducedDetail: true });
+  });
+
+  it('takes the smaller of the device limit and the inherited stride', () => {
+    // Device forces 4; live view is at 8. The device wins.
+    expect(planLabelAtlas(SWISS_PROT_CAPACITY, 2048, MAX_LABELS)).toMatchObject({ stride: 4 });
+    // Device allows 8; live view is at 2. The live view wins.
+    expect(planLabelAtlas(SWISS_PROT_CAPACITY, 8192, 2)).toMatchObject({ stride: 2 });
+  });
+
+  it('plans no atlas at all when the live view has none', () => {
+    expect(planLabelAtlas(SWISS_PROT_CAPACITY, 8192, null)).toBeNull();
+  });
+});

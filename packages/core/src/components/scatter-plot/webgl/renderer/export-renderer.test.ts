@@ -171,6 +171,33 @@ describe('ExportRenderer.renderToCanvas (guards)', () => {
     ).toThrow(/exceed this device's limit/);
   });
 
+  it('enforces the device texture limit, and names the limit it enforced', () => {
+    // MAX_DIMENSION alone was described as "the browser limit" but is a constant,
+    // so on a device below 8192 the message named a limit that was not the one
+    // being enforced — and the export failed later, inside the driver.
+    const pd = makePlotData([0, 1], [0, 1]);
+    expect(() =>
+      renderer.renderToCanvas(pd, config, style, {
+        width: 4000,
+        height: 100,
+        ...baseOptions,
+        deviceMaxTextureSize: 2048,
+      }),
+    ).toThrow(/exceed this device's limit of 2048px/);
+  });
+
+  it('does not tighten the limit when the device reports more than the cap', () => {
+    const pd = makePlotData([0, 1], [0, 1]);
+    expect(() =>
+      renderer.renderToCanvas(pd, config, style, {
+        width: 4000,
+        height: 100,
+        ...baseOptions,
+        deviceMaxTextureSize: 16384,
+      }),
+    ).not.toThrow(/exceed this device's limit/);
+  });
+
   it('throws when the export area exceeds the pixel-count limit', () => {
     const pd = makePlotData([0, 1], [0, 1]);
     // 8000 x 8000 = 64M (within MAX_DIMENSION) but with dpr 3 -> 24000 hits dimension first;
