@@ -40,6 +40,7 @@ import { computeVisibilityModel } from './styling/visibility-model';
 import type { VisibilityModel } from './styling/visibility-model';
 import { MAX_POINTS_DIRECT_RENDER, WebGLRenderer, computeSizeScaleFactor } from './webgl';
 import { resolveColor } from './webgl/color-utils';
+import type { RendererDegradedDetail } from './scatter-plot.events';
 import { QuadtreeIndex } from './interaction/quadtree-index';
 import { computeViewportWindow, buildViewKey } from './duplicate-stacks/duplicate-stack-viewport';
 import { DuplicateStackOverlayController } from './duplicate-stacks/duplicate-stack-overlay-controller';
@@ -502,6 +503,14 @@ export class ProtspaceScatterplot extends LitElement {
       },
       this._handleWebglContextLost,
       () => resolveColor(getComputedStyle(this).backgroundColor),
+      (detail) =>
+        this.dispatchEvent(
+          new CustomEvent<RendererDegradedDetail>('renderer-degraded', {
+            detail,
+            bubbles: true,
+            composed: true,
+          }),
+        ),
     );
     this._updateStyleSignature();
     this._webglRenderer.setStyleSignature(this._styleSig);

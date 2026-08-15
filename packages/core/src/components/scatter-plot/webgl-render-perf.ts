@@ -385,6 +385,11 @@ export class WebglRenderPerfRunner {
           shadingLanguageVersion: gl.getParameter(gl.SHADING_LANGUAGE_VERSION),
           vendor: gl.getParameter(gl.VENDOR),
           renderer: gl.getParameter(gl.RENDERER),
+          // Bounds the label atlas, and therefore the largest dataset that can be
+          // drawn with full multi-value markers. Recorded so the cross-device perf
+          // corpus becomes evidence about the real distribution of this limit,
+          // which we currently have none of.
+          maxTextureSize: gl.getParameter(gl.MAX_TEXTURE_SIZE),
         };
         const debugExt = gl.getExtension('WEBGL_debug_renderer_info') as {
           UNMASKED_VENDOR_WEBGL: number;

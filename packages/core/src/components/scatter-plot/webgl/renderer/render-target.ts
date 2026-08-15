@@ -46,12 +46,21 @@ interface PointDrawStateParams {
   gamma: number;
   /** Resolved plot-surface color in sRGB, used to mask overlapping marker interiors. */
   knockoutColor: readonly [number, number, number];
-  /** Max labels per point (u_maxLabels). */
+  /** Label slices reserved per point (u_maxLabels); the atlas plan's stride. */
   maxLabels: number;
   /** Label color texture atlas width in texels. */
   labelTextureWidth: number;
-  /** Total length of the label-color texel array (RGBA u8); used to derive atlas height. */
-  labelColorDataLength: number;
+  /**
+   * Label color texture atlas height in texels. Taken from the atlas plan rather
+   * than derived from the array length, because the plan is the only thing that
+   * knows the width the array was allocated against.
+   */
+  labelTextureHeight: number;
+  /**
+   * Points the atlas covers (u_labelAtlasCapacity). The shader refuses to sample
+   * beyond it, so 0 means "no atlas — paint dominant colours".
+   */
+  labelAtlasCapacity: number;
 }
 
 /**
@@ -89,11 +98,8 @@ export function bindPointDrawState(
   gl.uniform1f(uniforms.gamma, params.gamma);
   gl.uniform3f(uniforms.knockoutColor, ...params.knockoutColor);
   gl.uniform1i(uniforms.maxLabels, params.maxLabels);
-  gl.uniform2f(
-    uniforms.labelTextureSize,
-    params.labelTextureWidth,
-    params.labelColorDataLength / 4 / params.labelTextureWidth,
-  );
+  gl.uniform1i(uniforms.labelAtlasCapacity, params.labelAtlasCapacity);
+  gl.uniform2f(uniforms.labelTextureSize, params.labelTextureWidth, params.labelTextureHeight);
 
   gl.activeTexture(gl.TEXTURE1);
   gl.bindTexture(gl.TEXTURE_2D, labelTexture);

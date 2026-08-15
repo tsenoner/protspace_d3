@@ -83,7 +83,9 @@ function makeGL(opts: MockGLOptions, isLost: () => boolean): Record<string, unkn
   const obj: Record<string, unknown> = {
     ...C,
     isContextLost: () => isLost(),
-    getParameter: (pname: number) => (pname === C.MAX_TEXTURE_SIZE ? maxTextureSize : 0),
+    // Recording: "how often do we ask the driver for its limits" is itself part
+    // of the contract — the probe belongs at context creation, not per frame.
+    getParameter: vi.fn((pname: number) => (pname === C.MAX_TEXTURE_SIZE ? maxTextureSize : 0)),
     // Drains the queue, then reports clean — matching the real API, where getError
     // also clears the flag it returns.
     getError: () => (errorQueue.length > 0 ? errorQueue.shift() : C.NO_ERROR),
@@ -110,7 +112,11 @@ function makeGL(opts: MockGLOptions, isLost: () => boolean): Record<string, unkn
     getUniformLocation: () => ({}),
     createBuffer: () => ({}),
     bindBuffer: noop,
-    bufferData: noop,
+    // Recording, and bufferSubData was absent entirely — nothing ever exercised
+    // the already-initialised upload path, which is where a capacity change is
+    // distinguished from a refresh.
+    bufferData: vi.fn(),
+    bufferSubData: vi.fn(),
     deleteBuffer: noop,
     createVertexArray: () => ({}),
     bindVertexArray: noop,

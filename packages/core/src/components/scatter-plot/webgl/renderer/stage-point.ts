@@ -3,16 +3,20 @@ import { getShapeIndex } from '@protspace/utils';
 import type { WebGLStyleGetters } from '../types';
 import { resolveColor } from '../color-utils';
 import { fillLabelColorTexels } from './label-texture-utils';
+import { MAX_LABELS } from './label-atlas-plan';
 
 // ============================================================================
-// Per-point staging constants (owned here; only MAX_LABELS is re-imported by
-// the renderer — the rest are internal to the staging helpers).
+// Per-point staging constants (owned here; the rest are internal to the
+// staging helpers).
 // ============================================================================
 
 const POINT_SIZE_DIVISOR = 3;
 const MIN_POINT_SIZE = 1;
 const DIAMOND_SIZE_SCALE = 1.25;
-export const MAX_LABELS = 8;
+
+// MAX_LABELS lives with the atlas geometry it describes; re-exported here so
+// existing importers are unaffected.
+export { MAX_LABELS };
 
 /**
  * The parallel target arrays a staged point is written into. The renderer holds
@@ -27,7 +31,18 @@ export interface StagePointArrays {
   labelCounts: Float32Array;
   shapes: Float32Array;
   predicted: Float32Array;
-  labelColorData: Uint8Array;
+  /**
+   * Null when no label atlas is allocated — either because the device could not
+   * hold one, or because nothing multi-label is on screen. Staging still runs;
+   * it just writes no texels, and the shader paints dominant colours.
+   */
+  labelColorData: Uint8Array | null;
+  /**
+   * Texels reserved per point in `labelColorData`, i.e. the most slices a marker
+   * can show. Comes from the atlas plan, so a device-forced fidelity reduction
+   * reaches the staged label count instead of being applied only at upload.
+   */
+  maxLabels: number;
 }
 
 /** The subset of style getters a single staged-point write depends on. */
@@ -39,7 +54,7 @@ export type StagePointStyle = Pick<
 /** The style channels (everything except position + depth) a staged point writes. */
 type StagePointStyleArrays = Pick<
   StagePointArrays,
-  'colors' | 'sizes' | 'labelCounts' | 'shapes' | 'predicted' | 'labelColorData'
+  'colors' | 'sizes' | 'labelCounts' | 'shapes' | 'predicted' | 'labelColorData' | 'maxLabels'
 >;
 
 /**
@@ -72,11 +87,17 @@ export function stagePointStyle(
 
   const basePointSize = Math.max(MIN_POINT_SIZE, size * 2 * dpr * sizeScaleFactor);
   target.sizes[idx] = shapeIndex === 2 ? basePointSize * DIAMOND_SIZE_SCALE : basePointSize;
-  target.labelCounts[idx] = pointColors.length;
+  // Clamped to what the atlas actually reserves for this point. Unclamped, a point
+  // with more colours than `maxLabels` told the shader to draw slices that were
+  // never written — so it sampled the NEXT point's texels and painted an unrelated
+  // protein's colours.
+  target.labelCounts[idx] = Math.min(pointColors.length, target.maxLabels);
   target.shapes[idx] = shapeIndex;
   target.predicted[idx] = style.isPredicted(sp) ? 1 : 0;
 
-  fillLabelColorTexels(target.labelColorData, idx, pointColors, MAX_LABELS);
+  if (target.labelColorData) {
+    fillLabelColorTexels(target.labelColorData, idx, pointColors, target.maxLabels);
+  }
 }
 
 /**

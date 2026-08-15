@@ -160,7 +160,7 @@ describe('ExportRenderer.renderToCanvas (guards)', () => {
     ).toThrow(/No points available/);
   });
 
-  it('throws when a single export dimension exceeds the browser limit', () => {
+  it('throws when a single export dimension exceeds the device limit', () => {
     const pd = makePlotData([0, 1], [0, 1]);
     expect(() =>
       renderer.renderToCanvas(pd, config, style, {
@@ -168,7 +168,7 @@ describe('ExportRenderer.renderToCanvas (guards)', () => {
         height: 100,
         ...baseOptions,
       }),
-    ).toThrow(/exceed browser limit/);
+    ).toThrow(/exceed this device's limit/);
   });
 
   it('throws when the export area exceeds the pixel-count limit', () => {
@@ -184,6 +184,6 @@ describe('ExportRenderer.renderToCanvas (guards)', () => {
         height: 1,
         ...baseOptions,
       }),
-    ).toThrow(/exceed browser limit/);
+    ).toThrow(/exceed this device's limit/);
   });
 });

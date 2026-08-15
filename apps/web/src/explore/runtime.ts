@@ -1,5 +1,8 @@
 import '@protspace/core'; // Registers all web components
+import type { RendererDegradedDetail } from '@protspace/core';
 import type { EatReliabilityState } from '@protspace/utils';
+import { notify } from '../lib/notify';
+import { getRendererDegradedNotification } from './notifications';
 import { startProductTour } from '../tour/product-tour';
 import { bindControlBarEvents } from './control-bar-events';
 import { createDatasetController } from './dataset-controller';
@@ -319,6 +322,13 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
     'data-change',
     interactionController.handlePlotDataChange,
   );
+  // The renderer reports capability reductions (device texture limits, a refused
+  // GPU allocation, the gamma fallback) that were previously silent or
+  // console-only. Latched once per reason in the renderer, deduped again here.
+  addTrackedEventListener(lifecycle, plotElement, 'renderer-degraded', (event: Event) => {
+    const detail = (event as CustomEvent<RendererDegradedDetail>).detail;
+    notify.warning(getRendererDegradedNotification(detail));
+  });
   addTrackedEventListener(lifecycle, plotElement, 'file-dropped', (event: Event) => {
     const file = (event as CustomEvent<{ file?: File }>).detail.file;
     if (file) {
