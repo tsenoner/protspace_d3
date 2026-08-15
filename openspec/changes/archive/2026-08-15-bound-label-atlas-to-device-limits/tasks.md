@@ -131,4 +131,4 @@
 - [x] 11.3 `openspec validate --strict` passes for this change
 - [x] 11.4 Reread `proposal.md` / `design.md` against the final diff, tick every task, run
       `/opsx:archive` on the branch
-- [ ] 11.5 Open the PR against `main`; merge or rebase — never squash
+- [x] 11.5 Open the PR against `main`; merge or rebase — never squash
