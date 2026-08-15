@@ -11,6 +11,12 @@ export interface MockGLOptions {
   missingFloatExtensions?: boolean;
   /** checkFramebufferStatus returns a non-COMPLETE value (F-09 framebuffer-incomplete fallback). */
   framebufferIncomplete?: boolean;
+  /** Value reported for getParameter(MAX_TEXTURE_SIZE). Defaults to 8192 — the tier ~97% of
+   *  WebGL2 devices report, so existing suites keep the geometry they always had. */
+  maxTextureSize?: number;
+  /** Queue drained by successive getError() calls; NO_ERROR once exhausted. Lets a test force
+   *  the INVALID_VALUE an over-size texImage2D raises, which is not a JS exception. */
+  glErrors?: number[];
 }
 
 export function createMockCanvas(opts: MockGLOptions = {}): {
@@ -65,11 +71,22 @@ function makeGL(opts: MockGLOptions, isLost: () => boolean): Record<string, unkn
     RENDERBUFFER: 0x8d41,
     ONE: 1,
     ONE_MINUS_SRC_ALPHA: 0x0303,
+    MAX_TEXTURE_SIZE: 0x0d33,
+    NO_ERROR: 0,
+    INVALID_VALUE: 0x0501,
+    INVALID_OPERATION: 0x0502,
+    OUT_OF_MEMORY: 0x0505,
   };
   const noop = () => {};
+  const errorQueue = [...(opts.glErrors ?? [])];
+  const maxTextureSize = opts.maxTextureSize ?? 8192;
   const obj: Record<string, unknown> = {
     ...C,
     isContextLost: () => isLost(),
+    getParameter: (pname: number) => (pname === C.MAX_TEXTURE_SIZE ? maxTextureSize : 0),
+    // Drains the queue, then reports clean — matching the real API, where getError
+    // also clears the flag it returns.
+    getError: () => (errorQueue.length > 0 ? errorQueue.shift() : C.NO_ERROR),
     getExtension: (name: string) =>
       opts.missingFloatExtensions &&
       (name === 'EXT_color_buffer_float' || name === 'EXT_float_blend')
@@ -102,9 +119,12 @@ function makeGL(opts: MockGLOptions, isLost: () => boolean): Record<string, unkn
     vertexAttribPointer: noop,
     createTexture: () => ({}),
     bindTexture: noop,
-    texImage2D: noop,
+    // Recording, not noop: the atlas contract is "what geometry did we hand the driver",
+    // which is only observable through the arguments of these two calls.
+    texImage2D: vi.fn(),
     texParameteri: noop,
-    texSubImage2D: noop,
+    texSubImage2D: vi.fn(),
+    // Left a plain noop: webgl-renderer.lifecycle.test.ts wraps it with vi.spyOn.
     deleteTexture: noop,
     activeTexture: noop,
     createFramebuffer: () => ({}),
@@ -132,7 +152,9 @@ function makeGL(opts: MockGLOptions, isLost: () => boolean): Record<string, unkn
     depthMask: noop,
     drawArrays: noop,
     uniform1f: noop,
-    uniform1i: noop,
+    // Recording: the atlas-capacity and stride uniforms are how the shader learns
+    // what was actually allocated, so tests assert on their values.
+    uniform1i: vi.fn(),
     uniform2f: noop,
     uniform3f: noop,
     uniformMatrix3fv: noop,
