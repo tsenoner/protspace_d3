@@ -150,6 +150,14 @@ export default defineConfig({
       testMatch: /load-large-bundle\.spec\.ts/,
     }),
     {
+      name: 'label-atlas-limit',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /label-atlas-limit\.spec\.ts/,
+    },
+    {
       name: 'figure-editor',
       use: {
         ...devices['Desktop Chrome'],
