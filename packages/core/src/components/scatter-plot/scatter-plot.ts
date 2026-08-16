@@ -486,6 +486,7 @@ export class ProtspaceScatterplot extends LitElement {
         getDepth: (p: PlotDataPoint) => this._getDepth(p),
         getShape: (p: PlotDataPoint) => this._getPointShape(p),
         isPredicted: (p: PlotDataPoint) => this._getStyleGetters().isPredicted(p),
+        isMultilabel: () => this._getStyleGetters().isMultilabel(),
       },
       this._handleWebglContextLost,
       () => resolveColor(getComputedStyle(this).backgroundColor),

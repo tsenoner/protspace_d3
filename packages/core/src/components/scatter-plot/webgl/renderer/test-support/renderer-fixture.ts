@@ -42,12 +42,18 @@ function style(colors: string[] = ['#f00']): WebGLStyleGetters {
     getDepth: () => 0,
     getShape: () => 'circle',
     isPredicted: () => false,
+    // Storage-shaped in production; here, "does this fixture render pies".
+    isMultilabel: () => colors.length > 1,
   };
 }
 
 export type MockGL = Record<string, ReturnType<typeof vi.fn>>;
 
-export function makeRenderer(opts: MockGLOptions = {}, colors?: string[]) {
+/**
+ * A renderer over a mock GL context, with the style getters supplied by the
+ * caller — for suites whose getters change mid-session.
+ */
+export function makeRendererWithStyle(styleGetters: WebGLStyleGetters, opts: MockGLOptions = {}) {
   const { canvas, gl } = createMockCanvas(opts);
   const degraded: RendererDegradedDetail[] = [];
   const renderer = new WebGLRenderer(
@@ -55,10 +61,14 @@ export function makeRenderer(opts: MockGLOptions = {}, colors?: string[]) {
     scales,
     () => d3.zoomIdentity,
     () => ({ width: 800, height: 600 }),
-    style(colors),
+    styleGetters,
     undefined,
     () => [1, 1, 1],
     (detail) => degraded.push(detail),
   );
   return { renderer, gl: gl as unknown as MockGL, degraded };
+}
+
+export function makeRenderer(opts: MockGLOptions = {}, colors?: string[]) {
+  return makeRendererWithStyle(style(colors), opts);
 }

@@ -10,7 +10,12 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { RendererDegradedDetail } from '../../scatter-plot.events';
-import { plotData, makeRenderer, type MockGL } from './test-support/renderer-fixture';
+import {
+  plotData,
+  makeRenderer,
+  makeRendererWithStyle,
+  type MockGL,
+} from './test-support/renderer-fixture';
 
 const GL_MAX_TEXTURE_SIZE = 0x0d33;
 const GL_INVALID_VALUE = 0x0501;
@@ -19,6 +24,23 @@ const GL_OUT_OF_MEMORY = 0x0505;
 /** Arguments of every texImage2D call, as [width, height] pairs. */
 function texImageSizes(gl: MockGL): Array<[number, number]> {
   return gl.texImage2D.mock.calls.map((c) => [c[3] as number, c[4] as number]);
+}
+
+/**
+ * Atlas allocations only. The gamma pipeline allocates its own linear
+ * framebuffer texture at canvas size, which is not what these tests are about;
+ * the atlas is always one of the planned widths, or the 1x1 placeholder.
+ */
+const ATLAS_WIDTHS = new Set([1, 2048, 4096, 8192]);
+function atlasAllocations(gl: Record<string, ReturnType<typeof vi.fn>>): Array<[number, number]> {
+  return texImageSizes(gl).filter(([width]) => ATLAS_WIDTHS.has(width));
+}
+
+/** Atlas allocations that reserve real storage, i.e. not the placeholder. */
+function realAtlasAllocations(
+  gl: Record<string, ReturnType<typeof vi.fn>>,
+): Array<[number, number]> {
+  return atlasAllocations(gl).filter(([w, h]) => w > 1 || h > 1);
 }
 
 describe('WebGLRenderer label atlas', () => {
@@ -177,5 +199,95 @@ describe('WebGLRenderer label atlas', () => {
     renderer.invalidatePositionCache();
     renderer.render(plotData(1000));
     expect(gl.bufferSubData.mock.calls.length).toBeGreaterThan(colorUploadsBefore);
+  });
+});
+
+describe('WebGLRenderer label atlas is allocated only when it is needed', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  /** A renderer whose multi-label state the test can flip mid-session. */
+  function makeSwitchableRenderer() {
+    let multilabel = false;
+    let colors = ['#f00'];
+    const { renderer, gl } = makeRendererWithStyle(
+      {
+        getColors: () => colors,
+        getPointSize: () => 9,
+        getOpacity: () => 1,
+        getDepth: () => 0,
+        getShape: () => 'circle',
+        isPredicted: () => false,
+        isMultilabel: () => multilabel,
+      },
+      { maxTextureSize: 8192 },
+    );
+    return {
+      renderer,
+      gl,
+      setMultilabel(next: boolean) {
+        multilabel = next;
+        colors = next ? ['#f00', '#0f0'] : ['#f00'];
+      },
+    };
+  }
+
+  it('allocates nothing beyond the placeholder for a single-label annotation', () => {
+    // 32 of the 76 bytes per point on the GPU — 42% — for a feature that is not
+    // sampled: the shader's pie branch needs labelCount > 1.5, and the staging
+    // helper skips a single-label point's texels entirely.
+    const { renderer, gl } = makeSwitchableRenderer();
+    renderer.render(plotData(573_649));
+
+    // Only the 1x1 sampler placeholder; no capacity-sized allocation.
+    expect(atlasAllocations(gl)).toEqual([[1, 1]]);
+    expect(gl.texSubImage2D).not.toHaveBeenCalled();
+  });
+
+  it('allocates on the transition into multi-label, and releases on the way out', () => {
+    const { renderer, gl, setMultilabel } = makeSwitchableRenderer();
+
+    renderer.render(plotData(100_000));
+    expect(atlasAllocations(gl)).toEqual([[1, 1]]);
+
+    setMultilabel(true);
+    renderer.render(plotData(100_000));
+    expect(realAtlasAllocations(gl)).toHaveLength(1);
+
+    setMultilabel(false);
+    renderer.render(plotData(100_000));
+    // Released: no further capacity-sized allocation, and the placeholder is back.
+    expect(realAtlasAllocations(gl)).toHaveLength(1);
+    expect(atlasAllocations(gl).at(-1)).toEqual([1, 1]);
+  });
+
+  it('re-stages on the transition even though the style signature cannot see it', () => {
+    // computeStyleSignature samples four points' colours. A change in
+    // multi-label-ness need not move any of them, but it changes every point's
+    // staged slice count — so the renderer tracks the transition itself rather
+    // than relying on a caller to invalidate.
+    const { renderer, gl, setMultilabel } = makeSwitchableRenderer();
+    renderer.render(plotData(10_000));
+    const uploadsBefore = gl.bufferSubData.mock.calls.length + gl.bufferData.mock.calls.length;
+
+    setMultilabel(true);
+    renderer.render(plotData(10_000));
+    const uploadsAfter = gl.bufferSubData.mock.calls.length + gl.bufferData.mock.calls.length;
+    expect(uploadsAfter).toBeGreaterThan(uploadsBefore);
+  });
+
+  it('does not re-allocate while the annotation stays multi-label', () => {
+    const { renderer, gl, setMultilabel } = makeSwitchableRenderer();
+    setMultilabel(true);
+    renderer.render(plotData(100_000));
+    const allocations = realAtlasAllocations(gl).length;
+
+    renderer.invalidateStyleCache();
+    renderer.render(plotData(100_000));
+    renderer.invalidateStyleCache();
+    renderer.render(plotData(100_000));
+
+    // Refreshed in place with texSubImage2D, not reallocated.
+    expect(realAtlasAllocations(gl).length).toBe(allocations);
+    expect(gl.texSubImage2D).toHaveBeenCalled();
   });
 });

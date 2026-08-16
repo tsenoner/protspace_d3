@@ -129,6 +129,8 @@ export class WebGLRenderer {
   private atlas: { plan: LabelAtlasPlan; texels: Uint8Array } | null = null;
   /** Latched after an allocation failure, so we do not retry it every populate. */
   private labelAtlasDisabled = false;
+  /** Last observed multi-label state, so a transition can force a re-stage. */
+  private labelAtlasActive = false;
   /** Degradation reasons already reported, so each is surfaced at most once. */
   private readonly degradeReported = new Set<RendererDegradedReason>();
 
@@ -426,6 +428,21 @@ export class WebGLRenderer {
     this.resize(width, height);
 
     const transform = this.getTransform();
+
+    // A change in multi-label-ness is not observable in the style signature (it
+    // samples four points' colours), but it changes what must be staged: the
+    // atlas is allocated or released, and every point's slice count with it.
+    // `_refreshSelectedAnnotationValues` nulls the style-getter cache without
+    // calling invalidateStyleCache, so this cannot rely on that path alone.
+    // Optional-called and defaulting to TRUE: the failure direction matters. A
+    // consumer that omits the getter over-allocates, which wastes memory; one
+    // that under-reports would silently lose pie segments. Only the first is
+    // acceptable, and the type keeps TypeScript consumers honest either way.
+    const multilabel = this.style.isMultilabel?.() ?? true;
+    if (multilabel !== this.labelAtlasActive) {
+      this.labelAtlasActive = multilabel;
+      this.stylesDirty = true;
+    }
 
     const dataSignature = this.computeDataSignature(pd);
     const styleSignature = this.computeStyleSignature(pd);
@@ -741,6 +758,7 @@ export class WebGLRenderer {
     this.labelTextureInitialized = false;
     this.atlas = null;
     this.labelAtlasDisabled = false;
+    this.labelAtlasActive = false;
     this.degradeReported.clear();
     this.gammaPipelineAvailable = true;
     this.warnedGammaFallback = false;
@@ -1305,7 +1323,17 @@ export class WebGLRenderer {
    * other staging array, so the colour-only fast path never has to re-plan.
    */
   private syncLabelAtlas(): void {
-    if (this.labelAtlasDisabled) return;
+    // Nothing samples the atlas unless a point carries more than one colour, so
+    // a single-label annotation pays 32 B/point — 42% of GPU residency — for a
+    // feature it is not using. Release it, and allocate on the transition back.
+    if (this.labelAtlasDisabled || !(this.style.isMultilabel?.() ?? true)) {
+      if (this.atlas) {
+        this.atlas = null;
+        this.labelTextureInitialized = false;
+        this.stageArrays = this.buildStageArrays();
+      }
+      return;
+    }
     // Nothing to cover yet. An empty render — no data loaded, or a viewport cull
     // that matched nothing — reaches here with capacity 0, and `planLabelAtlas`
     // rejects that as un-plannable. Latching the atlas off on it would kill pie

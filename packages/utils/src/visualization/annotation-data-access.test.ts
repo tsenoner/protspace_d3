@@ -4,6 +4,7 @@ import {
   getProteinAnnotationCount,
   getFirstAnnotationIndex,
   isMultilabelAnnotationData,
+  isMultilabelAnnotationDataCached,
   sliceAnnotationData,
 } from './annotation-data-access';
 
@@ -130,5 +131,43 @@ describe('annotation-data-access', () => {
       expect(isMultilabelAnnotationData(Int32Array.from([0, 1]))).toBe(false);
       expect(isMultilabelAnnotationData([[0], [1, 2]])).toBe(true);
     });
+  });
+});
+
+describe('isMultilabelAnnotationDataCached', () => {
+  it('agrees with the uncached form on every storage shape', () => {
+    const dense: number[][] = [[0], [1, 2], [0]];
+    const single: number[][] = [[0], [1], [0]];
+    const compact = Int32Array.from([0, 1, 2]);
+
+    for (const data of [dense, single, compact]) {
+      expect(isMultilabelAnnotationDataCached(data)).toBe(isMultilabelAnnotationData(data));
+    }
+  });
+
+  it('memoizes per storage object, not per content', () => {
+    // The memo exists because the dense form is O(N) and callers want the answer
+    // on every style-getter rebuild — a legend hide, a selection, a projection
+    // switch. Two equal-content objects are distinct storage and must be
+    // computed independently, or a fresh dataset could inherit a stale answer.
+    const a: number[][] = [[0], [1, 2]];
+    const b: number[][] = [[0], [1, 2]];
+    expect(isMultilabelAnnotationDataCached(a)).toBe(true);
+    expect(isMultilabelAnnotationDataCached(a)).toBe(true);
+    expect(isMultilabelAnnotationDataCached(b)).toBe(true);
+  });
+
+  it('answers from STORAGE, so hiding cannot retract the multi-label state', () => {
+    // The property that makes this safe to gate resource allocation on. A
+    // colour-shaped test would read false once hiding collapses every point to a
+    // single colour — and would then release the atlas exactly one un-hide before
+    // it is needed again.
+    const data: number[][] = [
+      [0, 1],
+      [0, 1],
+    ];
+    expect(isMultilabelAnnotationDataCached(data)).toBe(true);
+    // No hidden-value input exists here at all: that is the point. Visibility is
+    // not an argument to this question.
   });
 });

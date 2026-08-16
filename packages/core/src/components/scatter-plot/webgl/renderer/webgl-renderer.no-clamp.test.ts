@@ -94,7 +94,8 @@ describe('WebGLRenderer capacity shrink', () => {
     // re-planning whenever the existing plan is large enough, which is *always*
     // true after a shrink, so it followed the same hysteresis or the shrink
     // handed back only the arrays and kept the biggest allocation for the session.
-    const { renderer, gl } = makeRenderer();
+    // Multi-label colours because the atlas is only allocated when it is sampled.
+    const { renderer, gl } = makeBaseRenderer({ maxTextureSize: 8192 }, ['#f00', '#0f0']);
     renderer.render(plotData(400_000));
     const planHeights = () => gl.texImage2D.mock.calls.map((c) => c[4] as number);
     const afterLarge = planHeights().at(-1)!;
