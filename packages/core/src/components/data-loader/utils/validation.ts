@@ -1,15 +1,31 @@
 import type { Rows } from './types';
 import { sanitizeForMessage } from '@protspace/utils';
+import { MAX_POINTS_PER_PROJECTION } from '../../../utils/limits';
 
 // Parquet magic bytes 'PAR1'
 const PARQUET_MAGIC = new Uint8Array([0x50, 0x41, 0x52, 0x31]);
 
 // Safety limits to avoid abusive inputs
 const MAX_FILE_SIZE_BYTES_DEFAULT = 500 * 1024 * 1024; // 500MB
-const MAX_ROWS_DEFAULT = 2_000_000;
+// projections_data is long-format: one row per (protein x projection). Capping
+// ROWS at the per-projection POINT cap therefore bounds proteins-per-projection
+// for any projection count >= 1, with no distinct-protein scan — which matters,
+// because this runs before grouping. Derived rather than duplicated so the
+// loader and the renderer cannot disagree again (#456); pinned by
+// limits.invariant.test.ts.
+const MAX_ROWS_DEFAULT = MAX_POINTS_PER_PROJECTION;
 const MAX_COLUMNS_DEFAULT = 200;
 const MAX_TOTAL_CELLS_DEFAULT = 1_000_000_000;
 const MAX_CELL_STRING_LENGTH_DEFAULT = 256;
+
+/**
+ * The limits above, for the test that pins the loader/renderer relationship.
+ * They are module constants with a parameter seam nothing uses, so there is no
+ * other way to read them.
+ */
+export function getValidationLimitsForTest() {
+  return { maxRows: MAX_ROWS_DEFAULT } as const;
+}
 
 export function assertValidParquetMagic(buffer: ArrayBuffer): void {
   const u8 = new Uint8Array(buffer);
@@ -63,7 +79,15 @@ export function validateRowsBasic(
     throw new Error('No data rows found in file');
   }
   if (rows.length > maxRows) {
-    throw new Error(`Too many rows: ${rows.length} exceeds limit`);
+    // Name the limit and what it counts. The old message ("Too many rows: N
+    // exceeds limit") gave the user an unexplained number, no limit, no
+    // remediation — and the toast then offered a "Report this" bug-report
+    // action for entirely intended behaviour.
+    throw new Error(
+      `Dataset too large: ${rows.length.toLocaleString()} rows exceeds the limit of ` +
+        `${maxRows.toLocaleString()} (proteins x projections). Split the projections into ` +
+        `separate bundles, or subset the dataset before bundling.`,
+    );
   }
   const first = rows[0];
   if (typeof first !== 'object' || first == null) {

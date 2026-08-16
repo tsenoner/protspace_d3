@@ -107,7 +107,6 @@ type Internals = HTMLElement & {
   _shapeMapping: Record<string, string> | null;
   _styleGettersCache: unknown;
   _renderPlot(): void;
-  _invalidateVirtualizationCache(): void;
   _webglRenderer: WebglStub;
   _numericRecomputeRunning: boolean;
   _handleZOrderChange(event: Event): void;
@@ -198,11 +197,13 @@ describe('legend mapping handlers — single render path (F-31)', () => {
   });
 });
 
+// The virtualization-invalidate half of this contract went away with the cull
+// itself (#456); the depth-order half is the part that governs whether the
+// renderer can take its colour-only fast path, and it is unchanged.
 describe('legend mapping handlers — INV-08 colorOnly contract (guardrail, stays GREEN)', () => {
-  it('colorOnly=true does NOT call invalidateDepthOrder / virtualization invalidate', () => {
+  it('colorOnly=true does NOT call invalidateDepthOrder', () => {
     const el = makeEl();
     vi.spyOn(el, '_renderPlot').mockImplementation(() => {});
-    const virtSpy = vi.spyOn(el, '_invalidateVirtualizationCache').mockImplementation(() => {});
 
     el._handleColorMappingChange(
       colorMappingEvent({
@@ -213,13 +214,11 @@ describe('legend mapping handlers — INV-08 colorOnly contract (guardrail, stay
     );
 
     expect(el._webglRenderer.invalidateDepthOrder).not.toHaveBeenCalled();
-    expect(virtSpy).not.toHaveBeenCalled();
   });
 
-  it('colorOnly=false DOES call invalidateDepthOrder + virtualization invalidate', () => {
+  it('colorOnly=false DOES call invalidateDepthOrder', () => {
     const el = makeEl();
     vi.spyOn(el, '_renderPlot').mockImplementation(() => {});
-    const virtSpy = vi.spyOn(el, '_invalidateVirtualizationCache').mockImplementation(() => {});
 
     el._handleColorMappingChange(
       colorMappingEvent({
@@ -230,7 +229,6 @@ describe('legend mapping handlers — INV-08 colorOnly contract (guardrail, stay
     );
 
     expect(el._webglRenderer.invalidateDepthOrder).toHaveBeenCalledTimes(1);
-    expect(virtSpy).toHaveBeenCalledTimes(1);
   });
 });
 

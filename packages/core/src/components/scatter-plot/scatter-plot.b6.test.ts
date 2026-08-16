@@ -26,8 +26,8 @@
  *  - F-40 filtered correctness             : GREEN  (existing slice)
  *  - F-40 filtered memoization (toBe)      : RED    (not-yet-wired memo)
  *  - F-40 recompute on ref change          : GREEN  (rebuilds anyway today)
- *  - F-17 generation bump                  : RED    (_quadtreeGeneration absent)
- *  - F-17 cacheKey folds generation        : RED    (rebuild ignores virt key)
+ *  - F-17 (virtualization cache)           : REMOVED — the cull it served was
+ *                                            deleted in #456; see the note below
  *  - F-18 filter clear before reprocess    : GREEN  (existing order)
  *  - F-18 data-change emit gating          : GREEN  (existing gate)
  *  - F-18 INV-10 re-default                : GREEN  (existing default)
@@ -66,8 +66,6 @@ type Internals = HTMLElement & {
   numericAnnotationSettings: NumericAnnotationDisplaySettingsMap;
   // internals under test
   _plotData: PlotData;
-  _quadtreeGeneration: number;
-  _virtualizationCacheKey: string | null;
   updated(changed: Map<string, unknown>): void;
   _processData(): void;
   _buildQuadtree(): void;
@@ -242,41 +240,14 @@ describe('B6 F-40 filtered display-data memoization', () => {
 });
 
 // ---------------------------------------------------------------------------
-// F-17 — virtualization cache invalidation on quadtree rebuild (sanctioned bug fix)
+// F-17 — virtualization cache invalidation on quadtree rebuild
 //
-// The >=1M-point regime is not unit-reproducible cheaply, so we test the
-// MECHANISM directly: a quadtree rebuild must advance a generation counter that
-// is folded into the virtualization cacheKey, forcing the next visible-points
-// read to miss even when the transform is unchanged.
-// ---------------------------------------------------------------------------
-describe('B6 F-17 virtualization cache invalidated on quadtree rebuild', () => {
-  function withPlotData(): Internals {
-    const el = makeScatter();
-    el.data = makeFamilyData({ n: 8 });
-    el.selectedAnnotation = 'fam';
-    // Build _plotData + _scales so _buildQuadtree takes the real rebuild path
-    // (not the empty early-return).
-    el._processData();
-    return el;
-  }
-
-  it('bumps the quadtree generation when the quadtree is rebuilt (RED pre-wire — field absent)', () => {
-    const el = withPlotData();
-    const before = el._quadtreeGeneration;
-    el._buildQuadtree();
-    const after = el._quadtreeGeneration;
-    expect(after).toBe(before + 1);
-  });
-
-  it('virtualization cacheKey is invalidated by a quadtree rebuild (RED pre-wire — rebuild ignores virt key)', () => {
-    const el = withPlotData();
-    // Prime with a sentinel key; a rebuild must invalidate it (key cleared OR
-    // generation advanced so the next computed key differs from the sentinel).
-    el._virtualizationCacheKey = 'STALE';
-    el._buildQuadtree();
-    expect(el._virtualizationCacheKey).not.toBe('STALE');
-  });
-});
+// F-17 covered the virtualization cache: `_quadtreeGeneration` was folded into
+// the cull's memo key so a quadtree rebuild could not serve a stale visible set.
+// Both the cache and the cull it served were deleted in #456 — camera motion no
+// longer culls at any dataset size, so there is no visible-set memo to keep
+// fresh. The quadtree itself is unchanged and still covered, by the hover, click,
+// brush and lasso tests that actually depend on it.
 
 // ---------------------------------------------------------------------------
 // F-18 — updated() effect ordering & INV-11 gate

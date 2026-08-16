@@ -29,7 +29,7 @@ import {
   type ScalePair,
   type FramebufferResources,
   type PointUniformLocations,
-  MAX_POINTS_DIRECT_RENDER,
+  MAX_RENDERABLE_POINTS,
 } from '../types';
 import { createProgramFromSources } from '../shader-utils';
 import { resolvePointLocations } from './point-locations';
@@ -405,7 +405,7 @@ export class ExportRenderer {
     // Get attribute and uniform locations
     const { attribs, uniforms } = resolvePointLocations(gl, pointProgram);
 
-    const maxPoints = Math.min(pd.length, MAX_POINTS_DIRECT_RENDER);
+    const maxPoints = Math.min(pd.length, MAX_RENDERABLE_POINTS);
 
     // This context is not the live one, so it must be asked its own limit — but
     // the stride is inherited, so the exported figure segments its markers exactly

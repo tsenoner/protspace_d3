@@ -29,7 +29,26 @@ export type PerfRenderPass = {
   startTs: number;
   endTs: number;
   durationMs: number;
+  /**
+   * Points handed to the renderer. NOT the count drawn — see `drawnPoints`.
+   * Kept as-is because the jsdom host-contract test asserts it against a
+   * six-point fixture, and in jsdom `render()` early-returns before any drawn
+   * count exists.
+   */
   renderedPoints: number;
+  /**
+   * Points the renderer actually drew. Lower than `renderedPoints` exactly when
+   * the staging clamp truncated, which is the state that used to be silent.
+   * Undefined when the renderer was unavailable.
+   */
+  drawnPoints?: number;
+  /**
+   * Bytes pushed to the GPU during this pass. For a pan or a zoom this must be
+   * zero: the camera is a shader uniform, so motion cannot require an upload.
+   * That is the #456 regression gate, and unlike a wall-clock threshold it is
+   * machine-independent.
+   */
+  uploadedBytes?: number;
 };
 
 export type PerfScenarioRun = {
@@ -92,7 +111,11 @@ export class WebglRenderPerfRunner {
     return { trigger, startTs: performance.now() };
   }
 
-  public stop(token: PerfPassToken | null, renderedPoints: number) {
+  public stop(
+    token: PerfPassToken | null,
+    renderedPoints: number,
+    extra?: { drawnPoints?: number; uploadedBytes?: number },
+  ) {
     if (!token) return;
     const recorder = this._recorder;
     const scenario = recorder?.activeScenario;
@@ -107,6 +130,8 @@ export class WebglRenderPerfRunner {
       endTs,
       durationMs: endTs - token.startTs,
       renderedPoints,
+      drawnPoints: extra?.drawnPoints,
+      uploadedBytes: extra?.uploadedBytes,
     });
   }
 

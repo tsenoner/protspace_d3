@@ -54,11 +54,22 @@ export interface PointUniformLocations {
 }
 
 // ============================================================================
-// Configuration Constants (tuned for performance)
+// Configuration Constants
 // ============================================================================
 
-/** Maximum points to render directly */
-export const MAX_POINTS_DIRECT_RENDER = 1_000_000;
+/**
+ * Last-resort staging clamp, equal to the loader's per-projection cap.
+ *
+ * Because `projections_data` is long-format — one row per (protein x projection)
+ * — the loader's row cap bounds proteins-per-projection for any projection count,
+ * so this is unreachable through any file a user can load. It exists only because
+ * a `@protspace/core` embedder can assign `.data` directly, bypassing validation.
+ *
+ * It was 1_000_000, and doubled as the viewport-culling threshold. That aliasing
+ * is what made the renderer degrade ~850x at exactly the largest two-projection
+ * dataset the loader would accept (#456).
+ */
+export { MAX_POINTS_PER_PROJECTION as MAX_RENDERABLE_POINTS } from '../../../utils/limits';
 
 /** Default gamma value (standard sRGB) */
 export const DEFAULT_GAMMA = 2.2;

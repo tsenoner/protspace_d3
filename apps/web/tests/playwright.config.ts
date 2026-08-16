@@ -150,6 +150,14 @@ export default defineConfig({
       testMatch: /load-large-bundle\.spec\.ts/,
     }),
     {
+      name: 'camera-no-restage',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /camera-no-restage\.spec\.ts/,
+    },
+    {
       name: 'label-atlas-limit',
       use: {
         ...devices['Desktop Chrome'],
