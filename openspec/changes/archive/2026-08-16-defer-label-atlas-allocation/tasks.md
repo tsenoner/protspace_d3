@@ -33,4 +33,4 @@
 - [x] 4.1 `pnpm test` (2,293 tests), `pnpm test:e2e` (124), `pnpm precommit`, `pnpm format:check`
 - [x] 4.2 `openspec validate --strict`
 - [x] 4.3 Reread proposal/design against the final diff, tick tasks, archive on the branch
-- [ ] 4.4 Open the PR stacked on `fix/render-cliff-456`; merge or rebase — never squash
+- [x] 4.4 Open the PR stacked on `fix/render-cliff-456`; merge or rebase — never squash
