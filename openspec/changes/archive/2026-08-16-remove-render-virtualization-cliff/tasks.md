@@ -94,4 +94,4 @@
 - [x] 9.1 `openspec validate --strict`
 - [x] 9.2 Reread `proposal.md` / `design.md` against the final diff, tick every task, run
       `/opsx:archive` on the branch
-- [ ] 9.3 Open the PR stacked on `fix/label-atlas-device-limits`; merge or rebase — never squash
+- [x] 9.3 Open the PR stacked on `fix/label-atlas-device-limits`; merge or rebase — never squash
