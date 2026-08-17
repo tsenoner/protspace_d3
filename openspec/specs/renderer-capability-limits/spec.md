@@ -152,15 +152,32 @@ greater than the live renderer's, so an exported figure carries the same marker 
 user saw on screen. Its declared maximum output dimension SHALL be the smaller of its own limit and
 its configured maximum.
 
+Whether an atlas is wanted at all SHALL be decided from the same styling authority the export stages
+its colours through, and SHALL NOT be inferred from whichever atlas the last completed render left
+behind — nothing forces a render before an export, so that allocation is stale in both directions. A
+live plan, where one exists, still caps the stride.
+
 #### Scenario: A figure matches the screen
 
 - **WHEN** the live view is rendering at reduced stride and the user exports an image
 - **THEN** the exported markers use the same stride
 
-#### Scenario: The live view has no atlas
+#### Scenario: The device cannot hold an atlas
 
-- **WHEN** the live renderer has no label atlas
+- **WHEN** the live renderer has permanently disabled its atlas because no layout fits the device
 - **THEN** the export allocates none either and renders dominant colours
+
+#### Scenario: A single-value annotation is selected
+
+- **WHEN** the selected annotation stores one value per protein
+- **THEN** the export allocates no atlas, whether or not the live renderer still holds one staged
+  for an earlier annotation
+
+#### Scenario: A multi-value annotation has not been staged yet
+
+- **WHEN** a multi-value annotation is selected and no frame has been rendered since
+- **THEN** the export still allocates an atlas and renders multi-segment markers, planned at full
+  fidelity against its own context's limit, because no live plan exists to cap it
 
 #### Scenario: The declared export dimension limit is truthful
 
@@ -229,3 +246,28 @@ assumed. The performance harness SHALL record both per render pass.
 
 - **WHEN** the drawn count is lower than the count handed to the renderer
 - **THEN** the difference is present in the recorded results rather than being silent
+
+### Requirement: Resources for an unused feature SHALL NOT be allocated
+
+The renderer SHALL allocate the multi-label colour atlas only while the selected annotation actually
+stores more than one value for some protein, and SHALL release it when that ceases to be true. It
+SHALL re-stage on either transition, because the change alters every point's slice count without
+necessarily altering any sampled style value.
+
+#### Scenario: A single-value annotation costs nothing
+
+- **WHEN** a dataset is rendered with an annotation whose every protein has one value
+- **THEN** no capacity-sized colour atlas is allocated on the CPU or the GPU
+- **AND** markers render exactly as they did when the atlas was allocated unconditionally
+
+#### Scenario: Switching to a multi-value annotation mid-session
+
+- **WHEN** the user selects a multi-value annotation after a single-value one
+- **THEN** the atlas is allocated once and the points are re-staged with their slice counts
+- **AND** switching back releases it
+
+#### Scenario: The gate does not depend on what is currently visible
+
+- **WHEN** hidden values reduce every point to a single rendered colour
+- **THEN** the annotation is still treated as multi-value and the atlas is retained, so restoring a
+  hidden value needs no reallocation

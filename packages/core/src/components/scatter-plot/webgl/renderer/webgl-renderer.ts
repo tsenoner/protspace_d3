@@ -129,6 +129,17 @@ export class WebGLRenderer {
   private atlas: { plan: LabelAtlasPlan; texels: Uint8Array } | null = null;
   /** Latched after an allocation failure, so we do not retry it every populate. */
   private labelAtlasDisabled = false;
+  /**
+   * The multi-label answer this render pass is staging against, refreshed once
+   * per `render()` from {@link WebGLStyleGetters.isMultilabel}. Single source of
+   * truth for the RENDER pass: `syncLabelAtlas` allocates against it, and a
+   * change from the previous pass forces a re-stage. Seeded `false`, which the
+   * first render corrects before anything reads it.
+   *
+   * `exportLabelStride` deliberately asks the getters afresh instead — an export
+   * runs outside a render pass, where this latch is the staler of the two.
+   */
+  private labelAtlasActive = false;
   /** Degradation reasons already reported, so each is surfaced at most once. */
   private readonly degradeReported = new Set<RendererDegradedReason>();
 
@@ -427,6 +438,20 @@ export class WebGLRenderer {
 
     const transform = this.getTransform();
 
+    // A change in multi-label-ness is not observable in the style signature (it
+    // samples four points' colours), but it changes what must be staged: the
+    // atlas is allocated or released, and every point's slice count with it.
+    // `_refreshSelectedAnnotationValues` nulls the style-getter cache without
+    // calling invalidateStyleCache, so this cannot rely on that path alone.
+    // Read ONCE per pass and latched into `labelAtlasActive`, which `syncLabelAtlas`
+    // then allocates against — one answer per frame, so the gate and the re-stage
+    // it triggers cannot disagree. See `isMultilabel` for the default's direction.
+    const multilabel = this.isMultilabel();
+    if (multilabel !== this.labelAtlasActive) {
+      this.labelAtlasActive = multilabel;
+      this.stylesDirty = true;
+    }
+
     const dataSignature = this.computeDataSignature(pd);
     const styleSignature = this.computeStyleSignature(pd);
 
@@ -576,12 +601,37 @@ export class WebGLRenderer {
       transform: resetView ? d3.zoomIdentity : this.getTransform(),
       gamma: this.gamma,
       knockoutColor,
-      // The export plans its own atlas against its own context's limit, but never
-      // at higher fidelity than the screen — otherwise a figure would show eight
-      // segments where the user saw four.
-      labelStride: this.atlas?.plan.stride ?? null,
+      // See `exportLabelStride` for what the export inherits and why.
+      labelStride: this.exportLabelStride(),
       deviceMaxTextureSize: this.maxTextureSize,
     });
+  }
+
+  /**
+   * The stride the export should inherit, or null for "no atlas at all".
+   *
+   * The WANT question is asked of the live style getters, not of `this.atlas`:
+   * the export stages through those same getters, so its atlas decision has to
+   * come from the same authority as its colours. `this.atlas` records only what
+   * the last completed render staged, and nothing forces a render before an
+   * export, so it is wrong in both directions. It is null while a multi-label
+   * annotation is selected — before the first populate, on an empty render, in
+   * the window between an annotation switch and the next frame — and reading it
+   * there would export dominant colours for a multi-label view: a wrong picture,
+   * presented as data. It is equally non-null in the mirror window, after a
+   * switch to a single-label annotation, where inheriting its stride would build
+   * and upload a capacity-sized atlas (~18 MB at 573K) of texels the shader never
+   * samples, because every `labelCount` is 1.
+   *
+   * Only once the answer is yes does the live plan matter, and then it wins: the
+   * export plans against its own context's limit but never at higher fidelity
+   * than the screen, so a figure cannot show eight segments where the user saw
+   * four. With no plan there is no such cap to respect, and the export is free to
+   * plan at full fidelity against its own device.
+   */
+  private exportLabelStride(): number | null {
+    if (this.labelAtlasDisabled || !this.isMultilabel()) return null;
+    return this.atlas?.plan.stride ?? MAX_LABELS;
   }
 
   /**
@@ -741,6 +791,7 @@ export class WebGLRenderer {
     this.labelTextureInitialized = false;
     this.atlas = null;
     this.labelAtlasDisabled = false;
+    this.labelAtlasActive = false;
     this.degradeReported.clear();
     this.gammaPipelineAvailable = true;
     this.warnedGammaFallback = false;
@@ -1291,10 +1342,24 @@ export class WebGLRenderer {
    */
   private disableLabelAtlas(reason: RendererDegradedReason | null) {
     this.labelAtlasDisabled = true;
+    this.releaseLabelAtlas();
+    if (reason) this.reportDegraded(reason);
+  }
+
+  /**
+   * Hand the atlas back: drop the plan and its texels, and re-point the staging
+   * view so `stagePoint` writes no label texels.
+   *
+   * Clearing `labelTextureInitialized` is what carries the release to the GPU —
+   * the next `uploadLabelAtlas` takes the placeholder branch, which is the call
+   * that actually frees the texture storage. Both reasons to release (the device
+   * refused one, the annotation does not need one) run the identical sequence, so
+   * it lives here rather than being spelled out at each.
+   */
+  private releaseLabelAtlas(): void {
     this.atlas = null;
     this.labelTextureInitialized = false;
     this.stageArrays = this.buildStageArrays();
-    if (reason) this.reportDegraded(reason);
   }
 
   /**
@@ -1305,7 +1370,19 @@ export class WebGLRenderer {
    * other staging array, so the colour-only fast path never has to re-plan.
    */
   private syncLabelAtlas(): void {
+    // Already released by `disableLabelAtlas`, and it must stay that way.
     if (this.labelAtlasDisabled) return;
+    // Nothing samples the atlas unless a point carries more than one colour, so
+    // a single-label annotation pays 32 B/point — 42% of GPU residency — for a
+    // feature it is not using. Release it, and allocate on the transition back.
+    // Reads the value `render()` latched for this pass rather than re-asking the
+    // getter, so the gate and the re-stage that follows it cannot disagree.
+    // Guarded on `this.atlas`: without it every single-label frame would re-point
+    // the staging view and re-upload the placeholder for a release already done.
+    if (!this.labelAtlasActive) {
+      if (this.atlas) this.releaseLabelAtlas();
+      return;
+    }
     // Nothing to cover yet. An empty render — no data loaded, or a viewport cull
     // that matched nothing — reaches here with capacity 0, and `planLabelAtlas`
     // rejects that as un-plannable. Latching the atlas off on it would kill pie
@@ -1334,6 +1411,19 @@ export class WebGLRenderer {
     this.labelTextureInitialized = false;
     this.stageArrays = this.buildStageArrays();
     if (plan.stride < MAX_LABELS) this.reportDegraded('reduced-label-detail');
+  }
+
+  /**
+   * Whether the selected annotation stores more than one value for some protein.
+   *
+   * Optional-called and defaulting to TRUE, in one place: the failure direction
+   * matters. A consumer that omits the getter over-allocates, which wastes
+   * memory; one that under-reports would silently lose pie segments. Only the
+   * first is acceptable, and `WebGLStyleGetters` keeps TypeScript consumers
+   * honest either way.
+   */
+  private isMultilabel(): boolean {
+    return this.style.isMultilabel?.() ?? true;
   }
 
   private planCapacity(minCapacity: number): number {

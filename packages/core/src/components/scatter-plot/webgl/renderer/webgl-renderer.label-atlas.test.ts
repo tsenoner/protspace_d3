@@ -9,17 +9,19 @@
  * then latched it as successful.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import type { RendererDegradedDetail } from '../../scatter-plot.events';
-import { plotData, makeRenderer, type MockGL } from './test-support/renderer-fixture';
+import {
+  plotData,
+  makeRenderer,
+  makeRendererWithStyle,
+  styleGetters,
+  texImageSizes,
+  atlasAllocations,
+  realAtlasAllocations,
+} from './test-support/renderer-fixture';
 
 const GL_MAX_TEXTURE_SIZE = 0x0d33;
 const GL_INVALID_VALUE = 0x0501;
 const GL_OUT_OF_MEMORY = 0x0505;
-
-/** Arguments of every texImage2D call, as [width, height] pairs. */
-function texImageSizes(gl: MockGL): Array<[number, number]> {
-  return gl.texImage2D.mock.calls.map((c) => [c[3] as number, c[4] as number]);
-}
 
 describe('WebGLRenderer label atlas', () => {
   afterEach(() => vi.restoreAllMocks());
@@ -177,5 +179,137 @@ describe('WebGLRenderer label atlas', () => {
     renderer.invalidatePositionCache();
     renderer.render(plotData(1000));
     expect(gl.bufferSubData.mock.calls.length).toBeGreaterThan(colorUploadsBefore);
+  });
+});
+
+describe('WebGLRenderer label atlas is allocated only when it is needed', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  /**
+   * A renderer whose multi-label state the test can flip mid-session.
+   *
+   * Spreads the shared stub rather than re-listing its members: `type-check`
+   * skips `*.test.ts`, so a hand-written copy that misses a newly required getter
+   * compiles clean and only misbehaves at runtime — and for `isMultilabel` the
+   * `?? true` default would silently restore the over-allocation these very tests
+   * assert is gone.
+   */
+  function makeSwitchableRenderer() {
+    let colors = ['#f00'];
+    const { renderer, gl } = makeRendererWithStyle(
+      {
+        ...styleGetters(),
+        getColors: () => colors,
+        isMultilabel: () => colors.length > 1,
+      },
+      { maxTextureSize: 8192 },
+    );
+    return {
+      renderer,
+      gl,
+      setMultilabel(next: boolean) {
+        colors = next ? ['#f00', '#0f0'] : ['#f00'];
+      },
+    };
+  }
+
+  it('allocates nothing beyond the placeholder for a single-label annotation', () => {
+    // 32 of the 76 bytes per point on the GPU — 42% — for a feature that is not
+    // sampled: the shader's pie branch needs labelCount > 1.5, and the staging
+    // helper skips a single-label point's texels entirely.
+    const { renderer, gl } = makeSwitchableRenderer();
+    renderer.render(plotData(573_649));
+
+    // Only the 1x1 sampler placeholder; no capacity-sized allocation.
+    expect(atlasAllocations(gl)).toEqual([[1, 1]]);
+    expect(gl.texSubImage2D).not.toHaveBeenCalled();
+  });
+
+  it('allocates on the transition into multi-label, and releases on the way out', () => {
+    const { renderer, gl, setMultilabel } = makeSwitchableRenderer();
+
+    renderer.render(plotData(100_000));
+    expect(atlasAllocations(gl)).toEqual([[1, 1]]);
+
+    setMultilabel(true);
+    renderer.render(plotData(100_000));
+    expect(realAtlasAllocations(gl)).toHaveLength(1);
+
+    setMultilabel(false);
+    renderer.render(plotData(100_000));
+    // Released: no further capacity-sized allocation, and the placeholder is back.
+    expect(realAtlasAllocations(gl)).toHaveLength(1);
+    expect(atlasAllocations(gl).at(-1)).toEqual([1, 1]);
+  });
+
+  it('re-stages on the transition even though the style signature cannot see it', () => {
+    // computeStyleSignature samples four points' colours. A change in
+    // multi-label-ness need not move any of them, but it changes every point's
+    // staged slice count — so the renderer tracks the transition itself rather
+    // than relying on a caller to invalidate.
+    const { renderer, gl, setMultilabel } = makeSwitchableRenderer();
+    renderer.render(plotData(10_000));
+    const uploadsBefore = gl.bufferSubData.mock.calls.length + gl.bufferData.mock.calls.length;
+
+    setMultilabel(true);
+    renderer.render(plotData(10_000));
+    const uploadsAfter = gl.bufferSubData.mock.calls.length + gl.bufferData.mock.calls.length;
+    expect(uploadsAfter).toBeGreaterThan(uploadsBefore);
+  });
+
+  it('does not re-allocate while the annotation stays multi-label', () => {
+    const { renderer, gl, setMultilabel } = makeSwitchableRenderer();
+    setMultilabel(true);
+    renderer.render(plotData(100_000));
+    const allocations = realAtlasAllocations(gl).length;
+
+    renderer.invalidateStyleCache();
+    renderer.render(plotData(100_000));
+    renderer.invalidateStyleCache();
+    renderer.render(plotData(100_000));
+
+    // Refreshed in place with texSubImage2D, not reallocated.
+    expect(realAtlasAllocations(gl).length).toBe(allocations);
+    expect(gl.texSubImage2D).toHaveBeenCalled();
+  });
+
+  it('composes the two release paths, and re-entry plans against current capacity', () => {
+    // The atlas has two independent releases — the multi-label gate here, and the
+    // capacity hysteresis in `syncLabelAtlas` — and every other test drives one in
+    // isolation. They meet in one method, so the risk is order: the gate nulls the
+    // atlas, and the hysteresis check that follows is guarded on it being non-null.
+    // A single session that fires both is what proves the second cannot resurrect
+    // or outlive the first.
+    const { renderer, gl, setMultilabel } = makeSwitchableRenderer();
+    const area = ([w, h]: [number, number]) => w * h;
+
+    // 1. Multi-label at a large capacity: the atlas is planned for it.
+    setMultilabel(true);
+    renderer.render(plotData(400_000));
+    expect(realAtlasAllocations(gl)).toHaveLength(1);
+    const large = realAtlasAllocations(gl).at(-1)!;
+
+    // 2. Hysteresis path, gate still open. 400k -> 5k is past the 4x shrink
+    //    factor, so capacity drops and the atlas must be re-planned smaller
+    //    rather than retained merely because it is large enough.
+    renderer.render(plotData(5_000));
+    expect(realAtlasAllocations(gl)).toHaveLength(2);
+    const small = realAtlasAllocations(gl).at(-1)!;
+    expect(area(small)).toBeLessThan(area(large));
+
+    // 3. Gate path, on top of the already-shrunk atlas. Releases outright: no new
+    //    capacity-sized allocation, and the 1x1 placeholder hands the storage back.
+    setMultilabel(false);
+    renderer.render(plotData(5_000));
+    expect(realAtlasAllocations(gl)).toHaveLength(2);
+    expect(atlasAllocations(gl).at(-1)).toEqual([1, 1]);
+
+    // 4. Back in, at the same capacity. The plan must come from capacity as it is
+    //    NOW — a released plan that survived step 3 would reallocate the step-1
+    //    geometry for a 5k dataset, which is the leak both paths exist to prevent.
+    setMultilabel(true);
+    renderer.render(plotData(5_000));
+    expect(realAtlasAllocations(gl)).toHaveLength(3);
+    expect(realAtlasAllocations(gl).at(-1)).toEqual(small);
   });
 });

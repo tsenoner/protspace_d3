@@ -9,9 +9,18 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { MAX_RENDERABLE_POINTS } from '../types';
-import { plotData, makeRenderer as makeBaseRenderer } from './test-support/renderer-fixture';
+import {
+  plotData,
+  makeRenderer as makeBaseRenderer,
+  realAtlasAllocations,
+} from './test-support/renderer-fixture';
 
-const makeRenderer = () => makeBaseRenderer({ maxTextureSize: 8192 });
+/**
+ * Pass two colours for anything asserting on the label atlas: it is only
+ * allocated when it would be sampled, so a single-label renderer plans none and
+ * the assertion passes vacuously.
+ */
+const makeRenderer = (colors?: string[]) => makeBaseRenderer({ maxTextureSize: 8192 }, colors);
 
 describe('WebGLRenderer draw count', () => {
   afterEach(() => vi.restoreAllMocks());
@@ -74,8 +83,9 @@ describe('WebGLRenderer capacity shrink', () => {
     // Grow-only capacity was harmless while the clamp bounded it at 1,000,000.
     // At a 2,000,000 cap, "load 2M then open the 5K demo" would hold the larger
     // footprint for the rest of the session. The bytes counter is the observable
-    // proxy for the footprint.
-    const { renderer } = makeRenderer();
+    // proxy for the footprint — and the atlas is the bulk of it, so this needs
+    // the multi-label renderer or those bytes never enter the count.
+    const { renderer } = makeRenderer(['#f00', '#0f0']);
     renderer.render(plotData(400_000));
     const afterLarge = renderer.uploadedBytesTotal;
 
@@ -94,19 +104,22 @@ describe('WebGLRenderer capacity shrink', () => {
     // re-planning whenever the existing plan is large enough, which is *always*
     // true after a shrink, so it followed the same hysteresis or the shrink
     // handed back only the arrays and kept the biggest allocation for the session.
-    const { renderer, gl } = makeRenderer();
+    const { renderer, gl } = makeRenderer(['#f00', '#0f0']);
     renderer.render(plotData(400_000));
-    const planHeights = () => gl.texImage2D.mock.calls.map((c) => c[4] as number);
-    const afterLarge = planHeights().at(-1)!;
+    // Atlas allocations specifically: the unfiltered texImage2D list also holds
+    // the gamma pipeline's canvas-sized texture, so `.at(-1)` on it would be
+    // "the last texture allocated", not "the atlas".
+    const afterLarge = realAtlasAllocations(gl).at(-1)!;
 
     renderer.render(plotData(5_000));
-    expect(planHeights().at(-1)!).toBeLessThan(afterLarge);
+    const afterSmall = realAtlasAllocations(gl).at(-1)!;
+    expect(afterSmall[0] * afterSmall[1]).toBeLessThan(afterLarge[0] * afterLarge[1]);
   });
 
   it('does not thrash on an ordinary dataset switch', () => {
     // Within 4x, capacity is retained: the second load must reuse the buffers
-    // rather than reallocate them.
-    const { renderer, gl } = makeRenderer();
+    // rather than reallocate them — including the atlas, hence two colours.
+    const { renderer, gl } = makeRenderer(['#f00', '#0f0']);
     renderer.render(plotData(400_000));
     const bufferDataCalls = gl.bufferData.mock.calls.length;
     const texImageCalls = gl.texImage2D.mock.calls.length;

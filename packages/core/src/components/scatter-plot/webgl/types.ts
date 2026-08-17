@@ -15,6 +15,12 @@ export interface WebGLStyleGetters {
   getDepth: (point: PlotDataPoint) => number;
   getShape: (point: PlotDataPoint) => string;
   isPredicted: (point: PlotDataPoint) => boolean;
+  /**
+   * Whether the selected annotation stores more than one value for any protein.
+   * Gates allocation of the multi-label colour atlas, which is 32 B/point and is
+   * never sampled when this is false.
+   */
+  isMultilabel: () => boolean;
 }
 
 /**
