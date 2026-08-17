@@ -111,11 +111,19 @@ function makeGL(opts: MockGLOptions, isLost: () => boolean): Record<string, unkn
       errorFlag = C.NO_ERROR;
       return raised;
     },
-    getExtension: (name: string) =>
-      opts.missingFloatExtensions &&
-      (name === 'EXT_color_buffer_float' || name === 'EXT_float_blend')
-        ? null
-        : {},
+    getExtension: (name: string) => {
+      if (
+        opts.missingFloatExtensions &&
+        (name === 'EXT_color_buffer_float' || name === 'EXT_float_blend')
+      ) {
+        return null;
+      }
+      // Shaped, not `{}`: the export path's `finally` calls `loseContext()` on it,
+      // and a bare object makes that throw a TypeError that replaces whatever the
+      // test was actually asserting about.
+      if (name === 'WEBGL_lose_context') return { loseContext: noop, restoreContext: noop };
+      return {};
+    },
     createShader: () => ({}),
     shaderSource: noop,
     compileShader: noop,

@@ -47,7 +47,11 @@ export type StagePointStyle = Pick<
   'getColors' | 'getPointSize' | 'getShape' | 'isPredicted'
 >;
 
-/** The style channels (everything except position + depth) a staged point writes. */
+/**
+ * What `stagePointStyle` touches: the style channels it writes (everything except
+ * position and depth), plus `maxLabels`, which is an INPUT — the atlas stride it
+ * clamps against, not a channel it fills.
+ */
 type StagePointStyleArrays = Pick<
   StagePointArrays,
   'colors' | 'sizes' | 'labelCounts' | 'shapes' | 'predicted' | 'labelColorData' | 'maxLabels'

@@ -14,13 +14,16 @@
  *
  * The bound never starves a load: it is floored at the snapped requirement, so asking for more
  * than `maxCapacity` still returns enough capacity for the request.
+ *
+ * `maxCapacity` is deliberately required rather than defaulted to Infinity: an unbounded plan is
+ * the bug this function exists to prevent, so a caller that forgets it should not silently get one.
  */
 export function planRendererCapacity(
   minCapacity: number,
   currentCapacity: number,
   minCapacityFloor: number,
   capacityGranularity: number,
-  maxCapacity: number = Number.POSITIVE_INFINITY,
+  maxCapacity: number,
 ): number {
   const snap = (value: number) => Math.ceil(value / capacityGranularity) * capacityGranularity;
   const required = Math.max(minCapacity, minCapacityFloor);

@@ -52,6 +52,7 @@ import { stagePoint, type StagePointArrays } from './stage-point';
 import { planLabelAtlas, MAX_LABELS, type LabelAtlasPlan } from './label-atlas-plan';
 import {
   readMaxTextureSize,
+  drainGlErrors,
   allocateLabelAtlas,
   uploadPlaceholderAtlas,
 } from './label-atlas-texture';
@@ -438,7 +439,11 @@ export class ExportRenderer {
       labelAtlas,
     );
 
-    // Create and upload buffers
+    // Create and upload buffers. The flag has to start clean for the check after
+    // them to mean "these uploads failed": this context is fresh, but program
+    // compilation and linking above share it.
+    drainGlErrors(gl);
+
     const dataPositionBuffer = gl.createBuffer();
     const sizeBuffer = gl.createBuffer();
     const colorBuffer = gl.createBuffer();
@@ -469,6 +474,19 @@ export class ExportRenderer {
     gl.bindBuffer(gl.ARRAY_BUFFER, predictedBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, predicted.subarray(0, pointCount), gl.STATIC_DRAW);
 
+    // An out-of-memory bufferData raises into the error flag rather than throwing,
+    // so without this the export would draw from storage that was never allocated
+    // and hand back a blank or half-populated PNG — written to disk, published,
+    // with nothing logged anywhere. Throwing matches how this method already
+    // rejects an over-size request: an export is a discrete user action with an
+    // error path, and a figure that is quietly wrong is worse than one that failed.
+    if (gl.getError() !== gl.NO_ERROR) {
+      throw new Error(
+        `The graphics driver could not allocate memory for ${pointCount.toLocaleString()} points ` +
+          `at ${width}×${height}. Export at smaller dimensions, or with fewer points visible.`,
+      );
+    }
+
     // Setup label color texture. When no atlas was planned — the live view has
     // none, or nothing fits — or when the driver refuses the allocation (which
     // raises a GL error rather than throwing, so the export would otherwise
@@ -478,9 +496,9 @@ export class ExportRenderer {
     gl.bindTexture(gl.TEXTURE_2D, labelColorTexture);
     let effectiveAtlas = labelAtlas;
     if (effectiveAtlas && labelColorData) {
-      // The bufferData uploads just above share this context's sticky error flag,
-      // so allocateLabelAtlas drains before allocating — without that, a buffer
-      // failure would be misread here as an atlas failure.
+      // The buffer uploads above already had their own check, and
+      // allocateLabelAtlas drains again before allocating, so this verdict is
+      // about the atlas and nothing else.
       if (allocateLabelAtlas(gl, effectiveAtlas, labelColorData) !== gl.NO_ERROR) {
         effectiveAtlas = null;
       }
