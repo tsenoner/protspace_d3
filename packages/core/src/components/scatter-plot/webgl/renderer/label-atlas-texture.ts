@@ -22,6 +22,9 @@ import { MIN_MAX_TEXTURE_SIZE, type LabelAtlasPlan } from './label-atlas-plan';
  */
 const PLACEHOLDER_TEXEL = new Uint8Array([0, 0, 0, 255]);
 
+/** Upper bound on {@link drainGlErrors}; far above any real driver's queue. */
+const MAX_ERROR_DRAIN = 32;
+
 /**
  * Read `gl.MAX_TEXTURE_SIZE`, falling back to the WebGL2 specification floor if
  * the driver returns something unusable. Costs a synchronous round-trip, so
@@ -52,9 +55,12 @@ export function sanitizeMaxTextureSize(value: unknown): number {
  * "this call failed".
  */
 export function drainGlErrors(gl: WebGL2RenderingContext): void {
-  // Bounded in practice: drivers keep a short error queue and return NO_ERROR
-  // once it is empty.
-  while (gl.getError() !== gl.NO_ERROR) {
+  // Explicitly bounded rather than "bounded in practice": a conformant driver
+  // keeps a short queue and returns NO_ERROR once it is empty, but this runs on
+  // the main thread, and a context that keeps reporting the same code — lost,
+  // proxied, instrumented — would freeze the tab in a `while`. Overshooting the
+  // queue only means the next check may inherit one stale error; never hanging.
+  for (let i = 0; i < MAX_ERROR_DRAIN && gl.getError() !== gl.NO_ERROR; i++) {
     /* discard */
   }
 }

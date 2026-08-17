@@ -1123,8 +1123,16 @@ export class WebGLRenderer {
       // reports handle validity, not whether storage was allocated.
       if (allocating && gl.getError() !== gl.NO_ERROR) {
         this.reportDegraded('point-buffer-allocation-failed');
-        // Free the 32 B/point the atlas costs so the retry has a chance.
-        this.disableLabelAtlas('label-atlas-out-of-memory');
+        // Give the atlas back so the retry has a chance. No second reason is
+        // reported: the atlas allocation was never attempted, so claiming it ran
+        // out of memory would be a fabricated second toast.
+        this.disableLabelAtlas(null);
+        // `disableLabelAtlas` only drops the CPU-side texels. This is what hands
+        // the GPU storage back — the memory the retry actually needs — by
+        // replacing a previously allocated atlas with the 1x1 placeholder. It has
+        // to happen here, because every later populate takes this same early
+        // return (`buffersInitialized` stays false) and never reaches the upload.
+        this.uploadLabelAtlas(gl);
         gl.bindVertexArray(null);
         // buffersInitialized stays false: the retry must reallocate with
         // bufferData, because bufferSubData against a zero-sized store is
@@ -1234,13 +1242,19 @@ export class WebGLRenderer {
     );
   }
 
-  /** Release the atlas and stop trying to allocate one for this context. */
-  private disableLabelAtlas(reason: RendererDegradedReason) {
+  /**
+   * Release the atlas and stop trying to allocate one for this context.
+   *
+   * `reason` is null when the caller has already reported the real cause — the
+   * atlas is collateral there, not the failure, and a second toast naming it
+   * would describe something that never happened.
+   */
+  private disableLabelAtlas(reason: RendererDegradedReason | null) {
     this.labelAtlasDisabled = true;
     this.atlas = null;
     this.labelTextureInitialized = false;
     this.stageArrays = this.buildStageArrays();
-    this.reportDegraded(reason);
+    if (reason) this.reportDegraded(reason);
   }
 
   /**
@@ -1252,6 +1266,12 @@ export class WebGLRenderer {
    */
   private syncLabelAtlas(): void {
     if (this.labelAtlasDisabled) return;
+    // Nothing to cover yet. An empty render — no data loaded, or a viewport cull
+    // that matched nothing — reaches here with capacity 0, and `planLabelAtlas`
+    // rejects that as un-plannable. Latching the atlas off on it would kill pie
+    // markers for the rest of the session and toast the user about a device that
+    // "cannot hold a colour table for 0 points".
+    if (this.capacity < 1) return;
     // Already covers this capacity — the common case, including every re-render.
     if (this.atlas && this.atlas.plan.pointCapacity >= this.capacity) return;
 

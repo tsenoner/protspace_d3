@@ -10,6 +10,11 @@ import type { Page } from '@playwright/test';
  * renderer's behaviour meaningful — and it reproduces the exact shape of the
  * real failure: `texImage2D` past the limit raises `GL_INVALID_VALUE`, which is
  * not a JS exception, so nothing unwinds and the texture is left unallocated.
+ *
+ * It patches the prototype, so it sees EVERY WebGL2 texture in the page, not
+ * just the label atlas — including the renderer's canvas-sized gamma-pipeline
+ * colour target. Pick a `limit` above the plot canvas's physical size, or the
+ * stats will blame the renderer for an allocation the atlas work never made.
  */
 interface SimulatedGlStats {
   /** [width, height] of every allocation the simulated device refused. */
@@ -62,9 +67,16 @@ export async function simulateTextureLimit(page: Page, limit: number): Promise<v
       this: WebGL2RenderingContext,
       ...args: unknown[]
     ) {
-      const width = args[3] as number;
-      const height = args[4] as number;
       const texture = boundTexture.get(this) ?? null;
+      // Only the explicit-dimension overloads carry width/height at 3 and 4. The
+      // 6-argument DOM-source form — texImage2D(target, level, internalformat,
+      // format, type, source) — puts enum values there instead (RGBA is 6408,
+      // UNSIGNED_BYTE is 5121), which would read as an enormous allocation and be
+      // recorded as a refusal the renderer never issued, then evict the texture
+      // from `allocated` so its next update counted as a refused update too.
+      const hasExplicitSize = args.length >= 9;
+      const width = hasExplicitSize ? (args[3] as number) : null;
+      const height = hasExplicitSize ? (args[4] as number) : null;
 
       if (
         typeof width === 'number' &&

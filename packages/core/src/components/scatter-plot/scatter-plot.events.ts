@@ -26,7 +26,12 @@ export interface RendererDegradedContext {
   maxTextureSize: number;
   /** Label slices per marker now in effect; 0 when no atlas is allocated. */
   stride: number;
-  /** Points the renderer was staging when the reduction took effect. */
+  /**
+   * Points the renderer had capacity allocated for when the reduction took
+   * effect. This is the number the atlas is sized from, so it is what explains
+   * the reduction — it is the session's high-water capacity, which can exceed
+   * the currently loaded dataset.
+   */
   pointCount: number;
   /** Free-text detail for reasons that carry one (e.g. the gamma fallback's cause). */
   detail?: string;
@@ -51,7 +56,8 @@ const MESSAGES: Record<RendererDegradedReason, (c: RendererDegradedContext) => s
   'label-atlas-out-of-memory': () =>
     'The graphics driver ran out of memory for the multi-value colour table. Markers show a single dominant colour; every point is still drawn.',
   'point-buffer-allocation-failed': (c) =>
-    `The graphics driver ran out of memory for ${c.pointCount.toLocaleString()} points. Rendering will retry with a smaller footprint.`,
+    `The graphics driver refused to allocate memory for ${c.pointCount.toLocaleString()} points. ` +
+    `Multi-value markers now show a single dominant colour to free memory, and rendering will retry.`,
   'gamma-pipeline-unavailable': (c) =>
     'Colour blending is running in sRGB rather than linear light, so overlapping points may look slightly darker than intended.' +
     // The cause is the only actionable part of this one — without it the message

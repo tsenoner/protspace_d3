@@ -32,12 +32,22 @@ import {
 // in play. `cath` and `superfamily` are the others.
 const MULTI_VALUE_ANNOTATION = 'keyword';
 
+/**
+ * One texel below the narrowest atlas width (2048), so no atlas layout fits and
+ * the renderer must allocate none. The broken code ignored the limit entirely
+ * and issued 2048 x 31, which this simulated driver refuses.
+ *
+ * Deliberately not something far lower like 1024: the simulation intercepts
+ * *every* texture in the page, and the renderer's own gamma-pipeline colour
+ * target is allocated at the plot canvas's physical size (`framebuffer.ts`). A
+ * limit under that size would record it as a refusal the atlas work never
+ * caused, coupling these assertions to the viewport and the sidebar's width.
+ */
+const NO_ATLAS_FITS_LIMIT = 2047;
+
 test.describe('label atlas on a device that cannot hold it', () => {
   test('never issues an allocation the device would refuse', async ({ page }) => {
-    // 1024 is below the narrowest atlas width, so no layout fits and the
-    // renderer must allocate none. The broken code ignored the limit entirely
-    // and issued 2048 x 31, which this simulated driver refuses.
-    await simulateTextureLimit(page, 1024);
+    await simulateTextureLimit(page, NO_ATLAS_FITS_LIMIT);
 
     await page.goto(`/explore?annotation=${MULTI_VALUE_ANNOTATION}`);
     await dismissTourIfPresent(page);
@@ -54,7 +64,7 @@ test.describe('label atlas on a device that cannot hold it', () => {
   });
 
   test('still draws every point, in colour rather than black', async ({ page }) => {
-    await simulateTextureLimit(page, 1024);
+    await simulateTextureLimit(page, NO_ATLAS_FITS_LIMIT);
 
     await page.goto(`/explore?annotation=${MULTI_VALUE_ANNOTATION}`);
     await dismissTourIfPresent(page);
@@ -77,7 +87,7 @@ test.describe('label atlas on a device that cannot hold it', () => {
   });
 
   test('tells the user that marker fidelity was reduced', async ({ page }) => {
-    await simulateTextureLimit(page, 1024);
+    await simulateTextureLimit(page, NO_ATLAS_FITS_LIMIT);
 
     await page.goto(`/explore?annotation=${MULTI_VALUE_ANNOTATION}`);
     await dismissTourIfPresent(page);

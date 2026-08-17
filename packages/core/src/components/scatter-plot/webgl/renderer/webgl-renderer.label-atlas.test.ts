@@ -181,8 +181,18 @@ describe('WebGLRenderer label atlas', () => {
     renderer.render(plotData(600_000));
 
     expect(degraded.map((d) => d.context?.reason)).toContain('point-buffer-allocation-failed');
-    // Bailed before the atlas upload, so nothing was uploaded on that pass.
+    // Bailed before any partial update, so nothing was written into storage that
+    // may not exist.
     expect(gl.texSubImage2D).not.toHaveBeenCalled();
+    // Releasing the atlas has to reach the GPU, not just the CPU array: the 1x1
+    // placeholder is what actually hands the storage back, and it is the memory
+    // the retry needs. Every later populate takes the same early return, so this
+    // is the only pass that can do it.
+    expect(texImageSizes(gl)).toContainEqual([1, 1]);
+    // One toast, naming the failure that actually happened. The atlas allocation
+    // was never attempted, so reporting it as out of memory would be invented.
+    expect(degraded.map((d) => d.context?.reason)).not.toContain('label-atlas-out-of-memory');
+    expect(degraded).toHaveLength(1);
 
     // buffersInitialized stayed false, so the retry reallocates with bufferData
     // rather than writing into storage that was never created.
@@ -190,6 +200,22 @@ describe('WebGLRenderer label atlas', () => {
     renderer.invalidatePositionCache();
     renderer.render(plotData(600_000));
     expect(gl.bufferData.mock.calls.length).toBeGreaterThan(bufferDataCallsAfterFirstPass);
+  });
+
+  it('does not latch the atlas off after an empty render', () => {
+    // capacity is 0 before any data arrives, and no atlas can be planned for zero
+    // points — but that is "nothing to cover yet", not "this device cannot hold
+    // one". Latching it killed multi-value markers for the rest of the session
+    // and toasted the user about a colour table for 0 points. Reachable whenever
+    // a render precedes the data: the zoom/pan path calls the renderer directly.
+    const { renderer, gl, degraded } = makeRenderer({ maxTextureSize: 8192 }, ['#f00', '#0f0']);
+
+    renderer.render(plotData(0));
+    expect(degraded).toEqual([]);
+
+    renderer.render(plotData(1000));
+    expect(texImageSizes(gl).some(([width]) => width === 2048)).toBe(true);
+    expect(degraded).toEqual([]);
   });
 
   it('uploads style buffers on a positions-only restage', () => {
