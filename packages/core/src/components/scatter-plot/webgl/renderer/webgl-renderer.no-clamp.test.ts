@@ -8,66 +8,18 @@
  * cap, so nothing a user can load reaches it.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import * as d3 from 'd3';
-import { WebGLRenderer } from './webgl-renderer';
 import { MAX_RENDERABLE_POINTS } from '../types';
-import type { PlotData } from '@protspace/utils';
-import type { ScalePair, WebGLStyleGetters } from '../types';
-import { createMockCanvas } from './test-support/mock-webgl2';
+import { plotData, makeRenderer as makeBaseRenderer } from './test-support/renderer-fixture';
 
-/**
- * A PlotData of `length` points backed by tiny arrays. Capacity planning and the
- * clamp both read `length`; the staging loops read xs/ys/proteinIds at the slots
- * they visit, and reading past the end yields undefined rather than throwing.
- */
-function plotData(length: number): PlotData {
-  return {
-    length,
-    xs: new Float32Array(length),
-    ys: new Float32Array(length),
-    zs: null,
-    originalIndices: null,
-    proteinIds: new Array(length).fill('p'),
-  };
-}
-
-const scales = (): ScalePair => ({
-  x: d3.scaleLinear().domain([0, 1]).range([0, 800]),
-  y: d3.scaleLinear().domain([0, 1]).range([0, 600]),
-});
-
-const style = (): WebGLStyleGetters => ({
-  getColors: () => ['#f00'],
-  getPointSize: () => 9,
-  getOpacity: () => 1,
-  getDepth: () => 0,
-  getShape: () => 'circle',
-  isPredicted: () => false,
-});
-
-function makeRenderer() {
-  const { canvas, gl } = createMockCanvas({ maxTextureSize: 8192 });
-  const renderer = new WebGLRenderer(
-    canvas,
-    scales,
-    () => d3.zoomIdentity,
-    () => ({ width: 800, height: 600 }),
-    style(),
-  );
-  return { renderer, gl: gl as unknown as Record<string, ReturnType<typeof vi.fn>> };
-}
+const makeRenderer = () => makeBaseRenderer({ maxTextureSize: 8192 });
 
 describe('WebGLRenderer draw count', () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it('draws every point of a dataset the loader would admit', () => {
-    const { renderer } = makeRenderer();
-    renderer.render(plotData(1_500_000));
-    // Above the old 1,000,000 threshold, where the renderer used to draw half.
-    expect(renderer.drawnPointCount).toBe(1_500_000);
-  });
-
   it('draws every point at exactly the cap', () => {
+    // Also covers the whole range above the old 1,000,000 threshold, where the
+    // renderer used to draw half: the clamp is `min(length, cap)`, so the cap
+    // itself is the only interesting point below it.
     const { renderer } = makeRenderer();
     renderer.render(plotData(MAX_RENDERABLE_POINTS));
     expect(renderer.drawnPointCount).toBe(MAX_RENDERABLE_POINTS);
@@ -121,8 +73,8 @@ describe('WebGLRenderer capacity shrink', () => {
   it('releases an outsized footprint when a much smaller dataset replaces it', () => {
     // Grow-only capacity was harmless while the clamp bounded it at 1,000,000.
     // At a 2,000,000 cap, "load 2M then open the 5K demo" would hold the larger
-    // footprint for the session and re-upload a capacity-sized atlas on every
-    // restage. The bytes counter is the observable proxy for the footprint.
+    // footprint for the rest of the session. The bytes counter is the observable
+    // proxy for the footprint.
     const { renderer } = makeRenderer();
     renderer.render(plotData(400_000));
     const afterLarge = renderer.uploadedBytesTotal;
@@ -136,14 +88,31 @@ describe('WebGLRenderer capacity shrink', () => {
     expect(smallUpload).toBeLessThan(afterLarge / 4);
   });
 
+  it('releases the label atlas too, not just the SoA arrays', () => {
+    // The atlas is the largest capacity-sized resource there is — 64 MB of CPU
+    // texels at a 2,000,000 plan, plus its GPU storage. `syncLabelAtlas` skips
+    // re-planning whenever the existing plan is large enough, which is *always*
+    // true after a shrink, so it followed the same hysteresis or the shrink
+    // handed back only the arrays and kept the biggest allocation for the session.
+    const { renderer, gl } = makeRenderer();
+    renderer.render(plotData(400_000));
+    const planHeights = () => gl.texImage2D.mock.calls.map((c) => c[4] as number);
+    const afterLarge = planHeights().at(-1)!;
+
+    renderer.render(plotData(5_000));
+    expect(planHeights().at(-1)!).toBeLessThan(afterLarge);
+  });
+
   it('does not thrash on an ordinary dataset switch', () => {
     // Within 4x, capacity is retained: the second load must reuse the buffers
     // rather than reallocate them.
     const { renderer, gl } = makeRenderer();
     renderer.render(plotData(400_000));
     const bufferDataCalls = gl.bufferData.mock.calls.length;
+    const texImageCalls = gl.texImage2D.mock.calls.length;
 
     renderer.render(plotData(200_000));
     expect(gl.bufferData.mock.calls.length).toBe(bufferDataCalls);
+    expect(gl.texImage2D.mock.calls.length).toBe(texImageCalls);
   });
 });

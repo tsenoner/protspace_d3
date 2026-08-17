@@ -10,7 +10,15 @@
  * symbol so they cannot drift apart again. They previously did: the loader
  * admitted 2,000,000 rows while the renderer drew at most 1,000,000 points, so a
  * single-projection bundle at the loader's limit displayed half its proteins,
- * silently, cut by array position.
+ * silently, cut by array position. The renderer's clamp was also the
+ * viewport-culling threshold, and that aliasing is what made rendering degrade
+ * ~850x at exactly the largest two-projection dataset the loader would accept.
+ *
+ * Because `projections_data` is long-format — one row per (protein x projection)
+ * — capping ROWS here bounds proteins-per-projection for any projection count,
+ * so the renderer's clamp is unreachable through any file a user can load. It
+ * survives only because a `@protspace/core` embedder can assign `.data`
+ * directly, bypassing validation.
  *
  * Do NOT raise this without re-measuring peak heap. At the measured ~1.3 GB per
  * million, 3M is ~4.0 GB against that ~4.40 GB limit — 8% headroom — and 5M does

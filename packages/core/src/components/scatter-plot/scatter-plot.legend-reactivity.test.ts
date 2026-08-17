@@ -17,9 +17,8 @@
  *     does not (GREEN after F-31). This is observable without connecting and
  *     without any `updateComplete` await (which hangs on an un-appended element).
  *
- *   - INV-08 colorOnly guardrail: colorOnly=true skips `invalidateDepthOrder()`
- *     + virtualization invalidation; colorOnly=false forces them. Must stay
- *     GREEN across the batch.
+ *   - INV-08 colorOnly guardrail: colorOnly=true skips `invalidateDepthOrder()`;
+ *     colorOnly=false forces it. Must stay GREEN across the batch.
  *
  *   - F-19 key-validation: a malformed/partial detail must NOT overwrite the
  *     mapping fields with `undefined`. Today the handlers blind-cast
@@ -197,9 +196,6 @@ describe('legend mapping handlers — single render path (F-31)', () => {
   });
 });
 
-// The virtualization-invalidate half of this contract went away with the cull
-// itself (#456); the depth-order half is the part that governs whether the
-// renderer can take its colour-only fast path, and it is unchanged.
 describe('legend mapping handlers — INV-08 colorOnly contract (guardrail, stays GREEN)', () => {
   it('colorOnly=true does NOT call invalidateDepthOrder', () => {
     const el = makeEl();

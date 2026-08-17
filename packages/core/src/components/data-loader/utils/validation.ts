@@ -5,27 +5,24 @@ import { MAX_POINTS_PER_PROJECTION } from '../../../utils/limits';
 // Parquet magic bytes 'PAR1'
 const PARQUET_MAGIC = new Uint8Array([0x50, 0x41, 0x52, 0x31]);
 
-// Safety limits to avoid abusive inputs
-const MAX_FILE_SIZE_BYTES_DEFAULT = 500 * 1024 * 1024; // 500MB
-// projections_data is long-format: one row per (protein x projection). Capping
-// ROWS at the per-projection POINT cap therefore bounds proteins-per-projection
-// for any projection count >= 1, with no distinct-protein scan — which matters,
-// because this runs before grouping. Derived rather than duplicated so the
-// loader and the renderer cannot disagree again (#456); pinned by
-// limits.invariant.test.ts.
-const MAX_ROWS_DEFAULT = MAX_POINTS_PER_PROJECTION;
-const MAX_COLUMNS_DEFAULT = 200;
-const MAX_TOTAL_CELLS_DEFAULT = 1_000_000_000;
-const MAX_CELL_STRING_LENGTH_DEFAULT = 256;
-
 /**
- * The limits above, for the test that pins the loader/renderer relationship.
- * They are module constants with a parameter seam nothing uses, so there is no
- * other way to read them.
+ * Safety limits to avoid abusive inputs. Exported so callers and tests read the
+ * same numbers the defaults below are built from.
+ *
+ * `maxRows`: projections_data is long-format — one row per (protein x
+ * projection) — so capping ROWS at the per-projection POINT cap bounds
+ * proteins-per-projection for any projection count >= 1, with no
+ * distinct-protein scan, which matters because this runs before grouping.
+ * Derived rather than duplicated so the loader and the renderer cannot disagree
+ * again (#456); pinned by limits.invariant.test.ts.
  */
-export function getValidationLimitsForTest() {
-  return { maxRows: MAX_ROWS_DEFAULT } as const;
-}
+export const DEFAULT_VALIDATION_LIMITS = {
+  maxFileSizeBytes: 500 * 1024 * 1024, // 500MB
+  maxRows: MAX_POINTS_PER_PROJECTION,
+  maxColumns: 200,
+  maxTotalCells: 1_000_000_000,
+  maxCellStringLength: 256,
+} as const;
 
 export function assertValidParquetMagic(buffer: ArrayBuffer): void {
   const u8 = new Uint8Array(buffer);
@@ -51,7 +48,7 @@ export function assertValidFileExtension(fileName: string): void {
 
 export function assertWithinFileSizeLimit(
   sizeBytes: number,
-  maxSizeBytes = MAX_FILE_SIZE_BYTES_DEFAULT,
+  maxSizeBytes = DEFAULT_VALIDATION_LIMITS.maxFileSizeBytes,
 ): void {
   if (sizeBytes > maxSizeBytes) {
     throw new Error(`File too large: ${(sizeBytes / (1024 * 1024)).toFixed(2)}MB exceeds limit`);
@@ -61,10 +58,10 @@ export function assertWithinFileSizeLimit(
 export function validateRowsBasic(
   rows: unknown,
   {
-    maxRows = MAX_ROWS_DEFAULT,
-    maxColumns = MAX_COLUMNS_DEFAULT,
-    maxTotalCells = MAX_TOTAL_CELLS_DEFAULT,
-    maxCellStringLength = MAX_CELL_STRING_LENGTH_DEFAULT,
+    maxRows = DEFAULT_VALIDATION_LIMITS.maxRows,
+    maxColumns = DEFAULT_VALIDATION_LIMITS.maxColumns,
+    maxTotalCells = DEFAULT_VALIDATION_LIMITS.maxTotalCells,
+    maxCellStringLength = DEFAULT_VALIDATION_LIMITS.maxCellStringLength,
   }: {
     maxRows?: number;
     maxColumns?: number;

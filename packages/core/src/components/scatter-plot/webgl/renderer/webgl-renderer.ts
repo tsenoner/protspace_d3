@@ -22,7 +22,7 @@ import { createProgramFromSources } from '../shader-utils';
 import { resolvePointLocations } from './point-locations';
 import { setupAttributes } from './point-attributes';
 import { buildPaintOrder, composePaintDepth } from './point-staging';
-import { planRendererCapacity } from './capacity-planner';
+import { planRendererCapacity, shouldReplanCapacityResource } from './capacity-planner';
 import { createLinearFramebuffer, destroyFramebuffer } from './framebuffer';
 import { GLResources } from './gl-resources';
 import {
@@ -916,16 +916,14 @@ export class WebGLRenderer {
 
     const maxPoints = Math.min(pd.length, MAX_RENDERABLE_POINTS);
 
-    // Grow to fit, and shrink when the retained footprint has become absurd for
-    // the data on screen. `expandCapacity` used to be grow-only, which the old
-    // 1,000,000 clamp made harmless; at a 2,000,000 cap, loading 2M and then a
-    // 5K demo would hold the larger footprint for the session AND re-upload a
-    // capacity-sized atlas on every restage, because the atlas is sized by
-    // capacity rather than by the drawn count. 4x hysteresis keeps ordinary
-    // dataset switches from reallocating.
-    const shrinkFloor = Math.max(MIN_CAPACITY, maxPoints * 4);
-    if (maxPoints > this.capacity || this.capacity > shrinkFloor) {
-      this.expandCapacity(maxPoints, this.capacity > shrinkFloor);
+    // Grow to fit, and release a footprint that has become absurd for the data on
+    // screen. Capacity used to be grow-only, which the old 1,000,000 clamp made
+    // harmless; at a 2,000,000 cap, loading 2M and then a 5K demo would hold the
+    // larger footprint for the rest of the session. The planner owns both rules,
+    // so reallocating is simply "the plan changed".
+    const plannedCapacity = this.planCapacity(maxPoints);
+    if (plannedCapacity !== this.capacity) {
+      this.resizeCapacity(plannedCapacity);
       updatePositions = true;
       updateStyles = true;
     }
@@ -1206,9 +1204,9 @@ export class WebGLRenderer {
       // actually crossed the bus rather than the capacity-sized backing array.
       this.uploadedBytes += refreshLabelAtlas(gl, atlas.plan, atlas.texels, this.currentPointCount);
     } else if (atlas) {
-      this.uploadedBytes += atlas.plan.byteLength;
       const error = allocateLabelAtlas(gl, atlas.plan, atlas.texels);
       if (error === gl.NO_ERROR) {
+        this.uploadedBytes += atlas.plan.byteLength;
         this.labelTextureInitialized = true;
       } else {
         this.disableLabelAtlas(
@@ -1314,8 +1312,17 @@ export class WebGLRenderer {
     // markers for the rest of the session and toast the user about a device that
     // "cannot hold a colour table for 0 points".
     if (this.capacity < 1) return;
-    // Already covers this capacity — the common case, including every re-render.
-    if (this.atlas && this.atlas.plan.pointCapacity >= this.capacity) return;
+    // Already sized for this capacity — the common case, including every
+    // re-render. A plan that is merely *large enough* is not enough on its own:
+    // capacity can shrink, and the atlas is the biggest capacity-sized resource
+    // there is (64 MB of texels at a 2,000,000 plan, plus its GPU storage), so a
+    // plan left far above the drawn count would be retained for the session while
+    // the SoA arrays around it were released. Same hysteresis as the planner.
+    if (
+      this.atlas &&
+      !shouldReplanCapacityResource(this.atlas.plan.pointCapacity, this.capacity, MIN_CAPACITY)
+    )
+      return;
 
     const plan = planLabelAtlas(this.capacity, this.maxTextureSize);
     if (!plan) {
@@ -1329,16 +1336,17 @@ export class WebGLRenderer {
     if (plan.stride < MAX_LABELS) this.reportDegraded('reduced-label-detail');
   }
 
-  private expandCapacity(minCapacity: number, shrinking = false) {
-    const nextCapacity = planRendererCapacity(
+  private planCapacity(minCapacity: number): number {
+    return planRendererCapacity(
       minCapacity,
-      // Passing 0 on the shrink path stops the 1.5x growth rule fighting the
-      // shrink: it is a rule about growing ACROSS reloads, not a floor.
-      shrinking ? 0 : this.capacity,
+      this.capacity,
       MIN_CAPACITY,
       CAPACITY_GRANULARITY,
       MAX_RENDERABLE_POINTS,
     );
+  }
+
+  private resizeCapacity(nextCapacity: number) {
     this.capacity = nextCapacity;
     this.dataPositions = new Float32Array(nextCapacity * 2);
     this.colors = new Float32Array(nextCapacity * 4);
@@ -1350,9 +1358,9 @@ export class WebGLRenderer {
     this.sortOrder = new Uint32Array(nextCapacity);
     this.sortDepths = new Float32Array(nextCapacity);
     // The atlas is NOT touched here: its geometry depends on the device texture
-    // limit, so `syncLabelAtlas` owns it and re-plans on this same populate pass.
-    // It always does: this method is only reached when capacity strictly grows,
-    // so the existing plan can never still cover it.
+    // limit, so `syncLabelAtlas` owns it and decides on this same populate pass
+    // whether the existing plan still fits — which, since capacity can now shrink
+    // as well as grow, it sometimes does.
 
     // Re-point the staging view at the freshly reallocated arrays (zero copy).
     // Still needed even though `syncLabelAtlas` also rebuilds it — that call

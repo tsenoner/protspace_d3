@@ -57,18 +57,9 @@ export interface PointUniformLocations {
 // Configuration Constants
 // ============================================================================
 
-/**
- * Last-resort staging clamp, equal to the loader's per-projection cap.
- *
- * Because `projections_data` is long-format — one row per (protein x projection)
- * — the loader's row cap bounds proteins-per-projection for any projection count,
- * so this is unreachable through any file a user can load. It exists only because
- * a `@protspace/core` embedder can assign `.data` directly, bypassing validation.
- *
- * It was 1_000_000, and doubled as the viewport-culling threshold. That aliasing
- * is what made the renderer degrade ~850x at exactly the largest two-projection
- * dataset the loader would accept (#456).
- */
+// Last-resort staging clamp: the renderer's name for the shared cap. See
+// `utils/limits.ts` for why it sits where it does and why nothing a user can
+// load reaches it.
 export { MAX_POINTS_PER_PROJECTION as MAX_RENDERABLE_POINTS } from '../../../utils/limits';
 
 /** Default gamma value (standard sRGB) */

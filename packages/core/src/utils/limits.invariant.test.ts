@@ -13,26 +13,17 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_POINTS_PER_PROJECTION } from './limits';
 import { MAX_RENDERABLE_POINTS } from '../components/scatter-plot/webgl/types';
-import { getValidationLimitsForTest } from '../components/data-loader/utils/validation';
+import { DEFAULT_VALIDATION_LIMITS } from '../components/data-loader/utils/validation';
 
 describe('point-count limits', () => {
+  // Both hold by construction today — each site imports the shared symbol rather
+  // than copying its value. They are here to fail the moment someone replaces a
+  // derivation with a literal, which is exactly how the two drifted apart before.
   it('the renderer clamp is the shared cap', () => {
     expect(MAX_RENDERABLE_POINTS).toBe(MAX_POINTS_PER_PROJECTION);
   });
 
   it('the loader row cap is the shared cap', () => {
-    expect(getValidationLimitsForTest().maxRows).toBe(MAX_POINTS_PER_PROJECTION);
-  });
-
-  it('the loader can never admit more points per projection than the renderer draws', () => {
-    // projections_data is long-format: rows = proteins x projections. So for any
-    // projection count >= 1, capping rows at the point cap bounds proteins per
-    // projection by that same cap — which is what makes the renderer's clamp
-    // unreachable through any file a user can load.
-    const rowCap = getValidationLimitsForTest().maxRows;
-    for (const projections of [1, 2, 3, 10]) {
-      const maxProteinsAdmitted = Math.floor(rowCap / projections);
-      expect(maxProteinsAdmitted).toBeLessThanOrEqual(MAX_RENDERABLE_POINTS);
-    }
+    expect(DEFAULT_VALIDATION_LIMITS.maxRows).toBe(MAX_POINTS_PER_PROJECTION);
   });
 });

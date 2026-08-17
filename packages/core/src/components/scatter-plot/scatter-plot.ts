@@ -204,9 +204,6 @@ export class ProtspaceScatterplot extends LitElement {
     eatOverlayEnabled: boolean;
   } | null = null;
   private _quadtreeRebuildRafId: number | null = null;
-  // F-17: advanced on every quadtree rebuild and folded into the virtualization
-  // cacheKey so a rebuild forces a miss even when the transform is unchanged
-  // (otherwise un-hidden points stay missing until a pan/zoom changes the key).
   // Slot list the quadtree was last rebuilt with (legend/filter-visible
   // slots). Retained for the duplicate-badge capture path (#301): the
   // full-extent compute iterates it against the raw PlotData arrays instead
@@ -618,7 +615,7 @@ export class ProtspaceScatterplot extends LitElement {
     this._styleGettersCache = null;
 
     if (this._plotData.length > 0) {
-      // INV-08: color-only changes skip depth re-sort + virtualization invalidation.
+      // INV-08: color-only changes skip the depth re-sort.
       if (!colorOnly) {
         this._webglRenderer?.invalidateDepthOrder();
       }
@@ -1147,9 +1144,7 @@ export class ProtspaceScatterplot extends LitElement {
     if (!this._plotData.length || !this._scales) {
       this._visibleSlots = null;
       this._dupOverlay.resetState();
-      // F-17: an emptied quadtree also changes the indexed slot set; bump the
-      // generation and invalidate so the transform-keyed cache cannot serve a
-      // stale slot set. No render here — there is nothing to draw.
+      // No render here — there is nothing to draw.
       return;
     }
     const pd = this._plotData;
@@ -1178,10 +1173,8 @@ export class ProtspaceScatterplot extends LitElement {
     // re-trigger them after the deferred quadtree rebuild.
     this._dupOverlay.updateSelectionOverlays({ duplicateImmediate: true });
 
-    // F-17: any rebuild can change the indexed (isInteractive) slot set, so the
-    // transform-keyed virtualization cache is now stale even if the transform is
-    // unchanged. Bump the generation (folded into the cacheKey), force a miss,
-    // and schedule a render so un-hidden points reappear without a pan/zoom.
+    // A rebuild can change the indexed (isInteractive) slot set, so re-render to
+    // make un-hidden points reappear without waiting for a pan or zoom.
     this._renderPlot();
   }
 
@@ -1370,19 +1363,25 @@ export class ProtspaceScatterplot extends LitElement {
 
   private _renderWebGL(trigger: RenderWebGLTrigger = 'unknown') {
     if (!this._webglRenderer) return;
+    // `start` returns null unless a benchmark scenario is recording, which is the
+    // normal case — so the byte accounting stays behind the token rather than
+    // running on every frame for a `stop` that discards it.
     const perfToken = this._webglRenderPerf.start(trigger);
-    const bytesBefore = this._webglRenderer.uploadedBytesTotal;
+    const bytesBefore = perfToken ? this._webglRenderer.uploadedBytesTotal : 0;
 
     const pd = this._getPointsForRendering();
 
     this._webglRenderer.setTrackRenderedPointIds(pd.length > MAX_RENDERABLE_POINTS);
     this._webglRenderer.render(pd);
-    this._interaction?.mainGroup?.selectAll('.protein-point').remove();
 
-    this._webglRenderPerf.stop(perfToken, pd.length, {
-      drawnPoints: this._webglRenderer.drawnPointCount,
-      uploadedBytes: this._webglRenderer.uploadedBytesTotal - bytesBefore,
-    });
+    if (perfToken) {
+      this._webglRenderPerf.stop(
+        perfToken,
+        pd.length,
+        this._webglRenderer.drawnPointCount,
+        this._webglRenderer.uploadedBytesTotal - bytesBefore,
+      );
+    }
   }
 
   public async runWebGLRenderPerfMeasurements(iterations?: number, options?: PerfRunOptions) {

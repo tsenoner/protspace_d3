@@ -78,9 +78,11 @@ function hostWithPointCount(length: number) {
 describe('_getPointsForRendering returns a referentially stable set', () => {
   afterEach(() => vi.restoreAllMocks());
 
-  // 1.5M is above the old VIRTUALIZATION_THRESHOLD of 1,000,000, and is also the
-  // size at which the old code both culled AND truncated.
-  it.each([999_999, 1_000_000, 1_500_000, 2_000_000])(
+  // Straddles the old VIRTUALIZATION_THRESHOLD of 1,000,000 — 1.5M is also the
+  // size at which the old code both culled AND truncated. Post-fix the method
+  // branches only on emptiness, so these two cases are what is left of a gate
+  // that used to be size-dependent; the empty case is covered separately below.
+  it.each([999_999, 1_500_000])(
     'hands the renderer the same object across camera moves at %i points',
     (length) => {
       const { el, queryByPixels } = hostWithPointCount(length);
@@ -98,22 +100,15 @@ describe('_getPointsForRendering returns a referentially stable set', () => {
       expect(second).toBe(el._plotData);
       expect(second).toBe(first);
 
-      // And nothing consulted the quadtree to get there.
+      // And nothing consulted the quadtree to get there. The pre-fix gate was
+      // `length < THRESHOLD || !hasTree()`, and the fixture always reports a
+      // ready tree — so a large dataset whose quadtree was still being built took
+      // the direct path while one whose quadtree was ready took the culled one,
+      // meaning *which* points were drawn changed with quadtree readiness, frame
+      // to frame, during the rAF-deferred rebuild.
       expect(queryByPixels).not.toHaveBeenCalled();
     },
   );
-
-  it('does not consult the quadtree even when one is available', () => {
-    // The pre-fix gate was `length < THRESHOLD || !hasTree()`, so a large dataset
-    // whose quadtree was still being built took the direct path and a large
-    // dataset whose quadtree was ready took the culled one — meaning *which*
-    // points were drawn changed with quadtree readiness, frame to frame, during
-    // the rAF-deferred rebuild.
-    const { el, queryByPixels } = hostWithPointCount(1_500_000);
-    el._transform = d3.zoomIdentity.scale(8);
-    el._getPointsForRendering();
-    expect(queryByPixels).not.toHaveBeenCalled();
-  });
 
   it('still returns the empty set when there is nothing to draw', () => {
     const { el } = hostWithPointCount(0);

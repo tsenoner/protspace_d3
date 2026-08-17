@@ -39,16 +39,15 @@ export type PerfRenderPass = {
   /**
    * Points the renderer actually drew. Lower than `renderedPoints` exactly when
    * the staging clamp truncated, which is the state that used to be silent.
-   * Undefined when the renderer was unavailable.
    */
-  drawnPoints?: number;
+  drawnPoints: number;
   /**
    * Bytes pushed to the GPU during this pass. For a pan or a zoom this must be
    * zero: the camera is a shader uniform, so motion cannot require an upload.
    * That is the #456 regression gate, and unlike a wall-clock threshold it is
    * machine-independent.
    */
-  uploadedBytes?: number;
+  uploadedBytes: number;
 };
 
 export type PerfScenarioRun = {
@@ -114,7 +113,8 @@ export class WebglRenderPerfRunner {
   public stop(
     token: PerfPassToken | null,
     renderedPoints: number,
-    extra?: { drawnPoints?: number; uploadedBytes?: number },
+    drawnPoints: number,
+    uploadedBytes: number,
   ) {
     if (!token) return;
     const recorder = this._recorder;
@@ -130,8 +130,8 @@ export class WebglRenderPerfRunner {
       endTs,
       durationMs: endTs - token.startTs,
       renderedPoints,
-      drawnPoints: extra?.drawnPoints,
-      uploadedBytes: extra?.uploadedBytes,
+      drawnPoints,
+      uploadedBytes,
     });
   }
 

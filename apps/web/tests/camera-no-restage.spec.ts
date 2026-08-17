@@ -56,7 +56,9 @@ async function gesture(page: Page, kind: 'zoom' | 'pan'): Promise<void> {
 }
 
 test.describe('camera motion does not rebuild GPU buffers', () => {
-  test('a zoom and a pan upload zero bytes', async ({ page }) => {
+  // One load, both assertions: they read the same post-load state, and a demo
+  // dataset load is the expensive part of this spec.
+  test('every protein is drawn, and camera motion uploads nothing', async ({ page }) => {
     await page.goto('/explore');
     await dismissTourIfPresent(page);
     await waitForExploreDataLoad(page);
@@ -64,6 +66,11 @@ test.describe('camera motion does not rebuild GPU buffers', () => {
     const initial = await rendererStats(page);
     expect(initial.uploadedBytes, 'renderer internals not reachable').toBeGreaterThan(0);
     expect(initial.zoomReady, 'interaction layer never initialised').toBe(true);
+
+    // The renderer used to report the full count while drawing at most 1,000,000
+    // of them, cut by array position, with nothing in the UI saying so.
+    expect(initial.proteinCount).toBeGreaterThan(0);
+    expect(initial.drawnPoints).toBe(initial.proteinCount);
 
     await gesture(page, 'zoom');
     const afterZoom = await rendererStats(page);
@@ -85,32 +92,9 @@ test.describe('camera motion does not rebuild GPU buffers', () => {
     expect(afterSecondZoom.uploadedBytes - afterPan.uploadedBytes).toBe(0);
   });
 
-  test('every protein the loader admitted is actually drawn', async ({ page }) => {
-    await page.goto('/explore');
-    await dismissTourIfPresent(page);
-    await waitForExploreDataLoad(page);
-
-    const stats = await rendererStats(page);
-    expect(stats.proteinCount).toBeGreaterThan(0);
-    // The renderer used to report the full count while drawing at most 1,000,000
-    // of them, cut by array position, with nothing in the UI saying so.
-    expect(stats.drawnPoints).toBe(stats.proteinCount);
-  });
-
-  test('a real styling change still restages', async ({ page }) => {
-    // The guardrail must not be satisfiable by a renderer that has stopped
-    // uploading altogether.
-    await page.goto('/explore');
-    await dismissTourIfPresent(page);
-    await waitForExploreDataLoad(page);
-
-    const before = await rendererStats(page);
-    await page.goto('/explore?annotation=cath');
-    await dismissTourIfPresent(page);
-    await waitForExploreDataLoad(page);
-    const after = await rendererStats(page);
-
-    expect(after.uploadedBytes).toBeGreaterThan(0);
-    expect(after.uploadedBytes).not.toBe(before.uploadedBytes);
-  });
+  // The "a real styling change still restages" counterpart — that the guardrail
+  // is not satisfiable by a renderer which has stopped uploading altogether — is
+  // `webgl-renderer.no-clamp.test.ts`. It has to be: `uploadedBytesTotal` counts
+  // from construction, so comparing it across two `page.goto`s compares two
+  // different renderer instances, both of which start at zero.
 });
