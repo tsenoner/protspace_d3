@@ -17,9 +17,8 @@
  *     does not (GREEN after F-31). This is observable without connecting and
  *     without any `updateComplete` await (which hangs on an un-appended element).
  *
- *   - INV-08 colorOnly guardrail: colorOnly=true skips `invalidateDepthOrder()`
- *     + virtualization invalidation; colorOnly=false forces them. Must stay
- *     GREEN across the batch.
+ *   - INV-08 colorOnly guardrail: colorOnly=true skips `invalidateDepthOrder()`;
+ *     colorOnly=false forces it. Must stay GREEN across the batch.
  *
  *   - F-19 key-validation: a malformed/partial detail must NOT overwrite the
  *     mapping fields with `undefined`. Today the handlers blind-cast
@@ -107,7 +106,6 @@ type Internals = HTMLElement & {
   _shapeMapping: Record<string, string> | null;
   _styleGettersCache: unknown;
   _renderPlot(): void;
-  _invalidateVirtualizationCache(): void;
   _webglRenderer: WebglStub;
   _numericRecomputeRunning: boolean;
   _handleZOrderChange(event: Event): void;
@@ -199,10 +197,9 @@ describe('legend mapping handlers — single render path (F-31)', () => {
 });
 
 describe('legend mapping handlers — INV-08 colorOnly contract (guardrail, stays GREEN)', () => {
-  it('colorOnly=true does NOT call invalidateDepthOrder / virtualization invalidate', () => {
+  it('colorOnly=true does NOT call invalidateDepthOrder', () => {
     const el = makeEl();
     vi.spyOn(el, '_renderPlot').mockImplementation(() => {});
-    const virtSpy = vi.spyOn(el, '_invalidateVirtualizationCache').mockImplementation(() => {});
 
     el._handleColorMappingChange(
       colorMappingEvent({
@@ -213,13 +210,11 @@ describe('legend mapping handlers — INV-08 colorOnly contract (guardrail, stay
     );
 
     expect(el._webglRenderer.invalidateDepthOrder).not.toHaveBeenCalled();
-    expect(virtSpy).not.toHaveBeenCalled();
   });
 
-  it('colorOnly=false DOES call invalidateDepthOrder + virtualization invalidate', () => {
+  it('colorOnly=false DOES call invalidateDepthOrder', () => {
     const el = makeEl();
     vi.spyOn(el, '_renderPlot').mockImplementation(() => {});
-    const virtSpy = vi.spyOn(el, '_invalidateVirtualizationCache').mockImplementation(() => {});
 
     el._handleColorMappingChange(
       colorMappingEvent({
@@ -230,7 +225,6 @@ describe('legend mapping handlers — INV-08 colorOnly contract (guardrail, stay
     );
 
     expect(el._webglRenderer.invalidateDepthOrder).toHaveBeenCalledTimes(1);
-    expect(virtSpy).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -119,3 +119,40 @@ describe('WebGLRenderer dead-accessor removal guards (F-55, F-56)', () => {
     expect(typeof surface.setStyleSignature).toBe('function');
   });
 });
+
+describe('WebGLRenderer data signature — why re-materialisation was catastrophic (#456)', () => {
+  it('a length change rebuilds even when every sampled coordinate is identical', () => {
+    // This is the mechanism behind the 1M cliff. The viewport cull returned a
+    // freshly materialised PlotData per camera move; its CONTENT at the sampled
+    // slots was often unchanged, but its LENGTH moved as points entered and left
+    // the viewport — and length is the first term of the signature. So a pan that
+    // changed nothing visible still forced a full re-stage: an O(N log N) depth
+    // sort, ~8 style-getter calls per point, and ~44 MB of uploads.
+    //
+    // The fix is upstream of this check, not in it: the renderer is now always
+    // handed the same object, so the signature cannot move. The check itself is
+    // correct and stays.
+    const renderer = makeRenderer();
+    const populateSpy = vi
+      .spyOn(
+        renderer as unknown as { populateBuffers: (...a: unknown[]) => void },
+        'populateBuffers',
+      )
+      .mockImplementation(() => {});
+    vi.spyOn(
+      renderer as unknown as { renderWithGammaCorrection: (...a: unknown[]) => void },
+      'renderWithGammaCorrection',
+    ).mockImplementation(() => {});
+
+    // Same first, middle and last coordinates; one fewer point in between.
+    const full = pd([0, 5, 5, 9], [0, 5, 5, 9]);
+    const subset = pd([0, 5, 9], [0, 5, 9]);
+
+    renderer.render(full);
+    populateSpy.mockClear();
+    renderer.render(subset);
+    expect(populateSpy).toHaveBeenCalled();
+
+    vi.restoreAllMocks();
+  });
+});

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planRendererCapacity } from './capacity-planner';
+import { planRendererCapacity, shouldReplanCapacityResource } from './capacity-planner';
 
 const FLOOR = 1024;
 const ROW = 256;
@@ -83,6 +83,45 @@ describe('planRendererCapacity', () => {
       // The bound is floored at the snapped requirement, so a caller asking for more
       // than the cap still gets buffers big enough for what it asked for.
       expect(planRendererCapacity(1_500_000, 0, FLOOR, ROW, CAP)).toBe(1_500_160);
+    });
+  });
+
+  describe('shrink hysteresis', () => {
+    const CAP = 2_000_000;
+
+    it('releases a footprint more than 4x the requirement', () => {
+      // "Load 2M, then open the 5K demo". Grow-only retention held the 2M
+      // footprint for the rest of the session (#456 follow-up).
+      expect(planRendererCapacity(5_000, 2_000_128, FLOOR, ROW, CAP)).toBe(5_120);
+    });
+
+    it('retains capacity on an ordinary dataset switch', () => {
+      // Within 4x the requirement, what we hold is returned unchanged, so the
+      // caller reuses the buffers instead of reallocating them.
+      expect(planRendererCapacity(200_000, 400_128, FLOOR, ROW, CAP)).toBe(400_128);
+    });
+
+    it('never shrinks below the floor', () => {
+      expect(planRendererCapacity(1, 2_000_128, FLOOR, ROW, CAP)).toBe(FLOOR);
+    });
+  });
+
+  describe('shouldReplanCapacityResource', () => {
+    it('re-plans a resource too small for the capacity', () => {
+      expect(shouldReplanCapacityResource(5_120, 400_128, FLOOR)).toBe(true);
+    });
+
+    it('keeps a resource that merely overshoots a little', () => {
+      expect(shouldReplanCapacityResource(600_192, 400_128, FLOOR)).toBe(false);
+    });
+
+    it('re-plans a resource left far above the capacity', () => {
+      // The label atlas after a shrink: large enough, and 64 MB of texels.
+      expect(shouldReplanCapacityResource(2_000_128, 5_120, FLOOR)).toBe(true);
+    });
+
+    it('uses the floor so tiny datasets do not thrash the atlas', () => {
+      expect(shouldReplanCapacityResource(4_096, 1, FLOOR)).toBe(false);
     });
   });
 });

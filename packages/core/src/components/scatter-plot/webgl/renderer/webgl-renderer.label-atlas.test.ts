@@ -9,67 +9,15 @@
  * then latched it as successful.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import * as d3 from 'd3';
-import { WebGLRenderer } from './webgl-renderer';
-import type { PlotData } from '@protspace/utils';
-import type { ScalePair, WebGLStyleGetters } from '../types';
 import type { RendererDegradedDetail } from '../../scatter-plot.events';
-import { createMockCanvas, type MockGLOptions } from './test-support/mock-webgl2';
+import { plotData, makeRenderer, type MockGL } from './test-support/renderer-fixture';
 
 const GL_MAX_TEXTURE_SIZE = 0x0d33;
 const GL_INVALID_VALUE = 0x0501;
 const GL_OUT_OF_MEMORY = 0x0505;
 
-/**
- * A PlotData of `length` points backed by tiny arrays. The renderer only reads
- * xs/ys/proteinIds at staged slots, and capacity planning reads `length` alone,
- * so this exercises million-point geometry without allocating million-point data.
- */
-function plotData(length: number): PlotData {
-  return {
-    length,
-    xs: new Float32Array(length),
-    ys: new Float32Array(length),
-    zs: null,
-    originalIndices: null,
-    proteinIds: new Array(length).fill('p'),
-  };
-}
-
-const scales = (): ScalePair => ({
-  x: d3.scaleLinear().domain([0, 1]).range([0, 800]),
-  y: d3.scaleLinear().domain([0, 1]).range([0, 600]),
-});
-
-function style(colors: string[] = ['#f00']): WebGLStyleGetters {
-  return {
-    getColors: () => colors,
-    getPointSize: () => 9,
-    getOpacity: () => 1,
-    getDepth: () => 0,
-    getShape: () => 'circle',
-    isPredicted: () => false,
-  };
-}
-
-function makeRenderer(opts: MockGLOptions = {}, colors?: string[]) {
-  const { canvas, gl } = createMockCanvas(opts);
-  const degraded: RendererDegradedDetail[] = [];
-  const renderer = new WebGLRenderer(
-    canvas,
-    scales,
-    () => d3.zoomIdentity,
-    () => ({ width: 800, height: 600 }),
-    style(colors),
-    undefined,
-    () => [1, 1, 1],
-    (detail) => degraded.push(detail),
-  );
-  return { renderer, gl: gl as unknown as Record<string, ReturnType<typeof vi.fn>>, degraded };
-}
-
 /** Arguments of every texImage2D call, as [width, height] pairs. */
-function texImageSizes(gl: Record<string, ReturnType<typeof vi.fn>>): Array<[number, number]> {
+function texImageSizes(gl: MockGL): Array<[number, number]> {
   return gl.texImage2D.mock.calls.map((c) => [c[3] as number, c[4] as number]);
 }
 

@@ -4,7 +4,7 @@ import { MAX_LABELS, planLabelAtlas } from './label-atlas-plan';
 // Capacities are the row-snapped values planRendererCapacity actually produces,
 // so these cases describe geometry the renderer can really ask for.
 const SWISS_PROT_CAPACITY = 573_696; // 573,649 proteins snapped to 256
-const CLAMPED_CAPACITY = 1_000_192; // MAX_POINTS_DIRECT_RENDER snapped to 256
+const CLAMPED_CAPACITY = 1_000_192; // the old 1,000,000 renderer clamp, snapped to 256
 const TWO_MILLION_CAPACITY = 2_000_128; // the ceiling #456 raises the clamp to
 
 describe('planLabelAtlas', () => {

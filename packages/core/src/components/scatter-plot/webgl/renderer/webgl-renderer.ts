@@ -15,14 +15,14 @@ import {
   type ScalePair,
   type PointAttribLocations,
   type PointUniformLocations,
-  MAX_POINTS_DIRECT_RENDER,
+  MAX_RENDERABLE_POINTS,
   DEFAULT_GAMMA,
 } from '../types';
 import { createProgramFromSources } from '../shader-utils';
 import { resolvePointLocations } from './point-locations';
 import { setupAttributes } from './point-attributes';
 import { buildPaintOrder, composePaintDepth } from './point-staging';
-import { planRendererCapacity } from './capacity-planner';
+import { planRendererCapacity, shouldReplanCapacityResource } from './capacity-planner';
 import { createLinearFramebuffer, destroyFramebuffer } from './framebuffer';
 import { GLResources } from './gl-resources';
 import {
@@ -163,6 +163,9 @@ export class WebGLRenderer {
   private lastDataSignature: string | null = null;
   private lastStyleSignature: string | null = null;
 
+  // Bytes pushed to the GPU since construction; see uploadedBytesTotal.
+  private uploadedBytes = 0;
+
   // Track rendered point IDs for hover detection
   private trackRenderedPointIds = false;
   private renderedPointIds = new Set<string>();
@@ -226,9 +229,9 @@ export class WebGLRenderer {
    * Enable/disable tracking of the exact set of rendered point IDs.
    *
    * This exists to guard hover/click behavior when the renderer truncates the
-   * number of points (e.g. datasets > MAX_POINTS_DIRECT_RENDER).
+   * number of points (e.g. datasets > MAX_RENDERABLE_POINTS).
    *
-   * For typical datasets (<= MAX_POINTS_DIRECT_RENDER), tracking is unnecessary
+   * For typical datasets (<= MAX_RENDERABLE_POINTS), tracking is unnecessary
    * and expensive (it adds/clears ~N string IDs on every buffer rebuild), so it
    * should be kept disabled.
    */
@@ -242,6 +245,30 @@ export class WebGLRenderer {
   isPointRendered(pointId: string): boolean {
     if (!this.trackRenderedPointIds) return true;
     return this.renderedPointIds.has(pointId);
+  }
+
+  /**
+   * Points the last completed stage actually drew. Zero before the first stage.
+   *
+   * Distinct from the count handed to `render()`: they differ exactly when the
+   * staging clamp truncates, which is the state that used to be invisible. The
+   * perf harness records both, so a run reports its own truncation.
+   */
+  get drawnPointCount(): number {
+    return this.currentPointCount;
+  }
+
+  /**
+   * Monotonic total of bytes pushed to the GPU — every buffer upload and every
+   * atlas upload — since this renderer was constructed.
+   *
+   * This is the deterministic instrument behind the #456 regression gate: a
+   * camera move must upload zero bytes. Unlike a wall-clock threshold it is
+   * machine-independent, and unlike a cache-hit counter it cannot be satisfied
+   * by a memo that still re-materialises on a miss.
+   */
+  get uploadedBytesTotal(): number {
+    return this.uploadedBytes;
   }
 
   invalidatePositionCache() {
@@ -887,10 +914,16 @@ export class WebGLRenderer {
     if (!this.gl) return;
     const gl = this.gl;
 
-    const maxPoints = Math.min(pd.length, MAX_POINTS_DIRECT_RENDER);
+    const maxPoints = Math.min(pd.length, MAX_RENDERABLE_POINTS);
 
-    if (maxPoints > this.capacity) {
-      this.expandCapacity(maxPoints);
+    // Grow to fit, and release a footprint that has become absurd for the data on
+    // screen. Capacity used to be grow-only, which the old 1,000,000 clamp made
+    // harmless; at a 2,000,000 cap, loading 2M and then a 5K demo would hold the
+    // larger footprint for the rest of the session. The planner owns both rules,
+    // so reallocating is simply "the plan changed".
+    const plannedCapacity = this.planCapacity(maxPoints);
+    if (plannedCapacity !== this.capacity) {
+      this.resizeCapacity(plannedCapacity);
       updatePositions = true;
       updateStyles = true;
     }
@@ -1167,10 +1200,13 @@ export class WebGLRenderer {
     const atlas = this.atlas;
 
     if (atlas && this.labelTextureInitialized) {
-      refreshLabelAtlas(gl, atlas.plan, atlas.texels, this.currentPointCount);
+      // Only the rows the drawn points occupy, so the accounting reflects what
+      // actually crossed the bus rather than the capacity-sized backing array.
+      this.uploadedBytes += refreshLabelAtlas(gl, atlas.plan, atlas.texels, this.currentPointCount);
     } else if (atlas) {
       const error = allocateLabelAtlas(gl, atlas.plan, atlas.texels);
       if (error === gl.NO_ERROR) {
+        this.uploadedBytes += atlas.plan.byteLength;
         this.labelTextureInitialized = true;
       } else {
         this.disableLabelAtlas(
@@ -1198,8 +1234,12 @@ export class WebGLRenderer {
     if (!buffer) return;
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     if (this.buffersInitialized) {
-      gl.bufferSubData(gl.ARRAY_BUFFER, 0, data.subarray(0, length));
+      const view = data.subarray(0, length);
+      this.uploadedBytes += view.byteLength;
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, view);
     } else {
+      // Note this uploads the whole capacity-sized array, not just `length`.
+      this.uploadedBytes += data.byteLength;
       gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
     }
   }
@@ -1272,8 +1312,17 @@ export class WebGLRenderer {
     // markers for the rest of the session and toast the user about a device that
     // "cannot hold a colour table for 0 points".
     if (this.capacity < 1) return;
-    // Already covers this capacity — the common case, including every re-render.
-    if (this.atlas && this.atlas.plan.pointCapacity >= this.capacity) return;
+    // Already sized for this capacity — the common case, including every
+    // re-render. A plan that is merely *large enough* is not enough on its own:
+    // capacity can shrink, and the atlas is the biggest capacity-sized resource
+    // there is (64 MB of texels at a 2,000,000 plan, plus its GPU storage), so a
+    // plan left far above the drawn count would be retained for the session while
+    // the SoA arrays around it were released. Same hysteresis as the planner.
+    if (
+      this.atlas &&
+      !shouldReplanCapacityResource(this.atlas.plan.pointCapacity, this.capacity, MIN_CAPACITY)
+    )
+      return;
 
     const plan = planLabelAtlas(this.capacity, this.maxTextureSize);
     if (!plan) {
@@ -1287,14 +1336,17 @@ export class WebGLRenderer {
     if (plan.stride < MAX_LABELS) this.reportDegraded('reduced-label-detail');
   }
 
-  private expandCapacity(minCapacity: number) {
-    const nextCapacity = planRendererCapacity(
+  private planCapacity(minCapacity: number): number {
+    return planRendererCapacity(
       minCapacity,
       this.capacity,
       MIN_CAPACITY,
       CAPACITY_GRANULARITY,
-      MAX_POINTS_DIRECT_RENDER,
+      MAX_RENDERABLE_POINTS,
     );
+  }
+
+  private resizeCapacity(nextCapacity: number) {
     this.capacity = nextCapacity;
     this.dataPositions = new Float32Array(nextCapacity * 2);
     this.colors = new Float32Array(nextCapacity * 4);
@@ -1306,9 +1358,9 @@ export class WebGLRenderer {
     this.sortOrder = new Uint32Array(nextCapacity);
     this.sortDepths = new Float32Array(nextCapacity);
     // The atlas is NOT touched here: its geometry depends on the device texture
-    // limit, so `syncLabelAtlas` owns it and re-plans on this same populate pass.
-    // It always does: this method is only reached when capacity strictly grows,
-    // so the existing plan can never still cover it.
+    // limit, so `syncLabelAtlas` owns it and decides on this same populate pass
+    // whether the existing plan still fits — which, since capacity can now shrink
+    // as well as grow, it sometimes does.
 
     // Re-point the staging view at the freshly reallocated arrays (zero copy).
     // Still needed even though `syncLabelAtlas` also rebuilds it — that call

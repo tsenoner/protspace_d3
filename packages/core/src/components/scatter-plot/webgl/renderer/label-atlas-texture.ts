@@ -110,15 +110,18 @@ export function allocateLabelAtlas(
  * Storage is sized from *capacity*, which overshoots the drawn count after a
  * geometric grow, and this runs on every recolour — so uploading `plan.height`
  * rows would push megabytes of never-sampled texels per legend click.
+ *
+ * Returns the bytes actually uploaded, for the renderer's upload accounting.
  */
 export function refreshLabelAtlas(
   gl: WebGL2RenderingContext,
   plan: LabelAtlasPlan,
   texels: Uint8Array,
   pointCount: number,
-): void {
+): number {
   const rows = Math.min(plan.height, Math.ceil((pointCount * plan.stride) / plan.width));
-  if (rows < 1) return;
+  if (rows < 1) return 0;
+  const byteLength = rows * plan.width * 4;
   gl.texSubImage2D(
     gl.TEXTURE_2D,
     0,
@@ -128,8 +131,9 @@ export function refreshLabelAtlas(
     rows,
     gl.RGBA,
     gl.UNSIGNED_BYTE,
-    texels.subarray(0, rows * plan.width * 4),
+    texels.subarray(0, byteLength),
   );
+  return byteLength;
 }
 
 /** NEAREST in both directions: the atlas is a lookup table, never interpolated. */
