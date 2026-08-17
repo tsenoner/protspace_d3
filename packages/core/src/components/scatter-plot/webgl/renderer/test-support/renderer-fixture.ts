@@ -34,7 +34,15 @@ const scales = (): ScalePair => ({
   y: d3.scaleLinear().domain([0, 1]).range([0, 600]),
 });
 
-function style(colors: string[] = ['#f00']): WebGLStyleGetters {
+/**
+ * The canonical `WebGLStyleGetters` stub.
+ *
+ * Exported because every renderer suite needs one, and a copy per file is what
+ * this module exists to prevent: `type-check` skips `*.test.ts`, so a copy that
+ * misses a newly required member compiles clean and only misbehaves at runtime
+ * (a missing `isMultilabel` silently falls back to the over-allocating default).
+ */
+export function styleGetters(colors: string[] = ['#f00']): WebGLStyleGetters {
   return {
     getColors: () => colors,
     getPointSize: () => 9,
@@ -70,5 +78,5 @@ export function makeRendererWithStyle(styleGetters: WebGLStyleGetters, opts: Moc
 }
 
 export function makeRenderer(opts: MockGLOptions = {}, colors?: string[]) {
-  return makeRendererWithStyle(style(colors), opts);
+  return makeRendererWithStyle(styleGetters(colors), opts);
 }

@@ -75,7 +75,9 @@ describe('WebGLRenderer capacity shrink', () => {
     // At a 2,000,000 cap, "load 2M then open the 5K demo" would hold the larger
     // footprint for the rest of the session. The bytes counter is the observable
     // proxy for the footprint.
-    const { renderer } = makeRenderer();
+    // Multi-label colours: the atlas is the resource this is really about, and a
+    // single-label renderer allocates none, so its bytes would never appear here.
+    const { renderer } = makeBaseRenderer({ maxTextureSize: 8192 }, ['#f00', '#0f0']);
     renderer.render(plotData(400_000));
     const afterLarge = renderer.uploadedBytesTotal;
 
@@ -107,7 +109,9 @@ describe('WebGLRenderer capacity shrink', () => {
   it('does not thrash on an ordinary dataset switch', () => {
     // Within 4x, capacity is retained: the second load must reuse the buffers
     // rather than reallocate them.
-    const { renderer, gl } = makeRenderer();
+    // Multi-label colours so the texImage2D assertion has an atlas to be about;
+    // a single-label renderer never plans one, which would pass vacuously.
+    const { renderer, gl } = makeBaseRenderer({ maxTextureSize: 8192 }, ['#f00', '#0f0']);
     renderer.render(plotData(400_000));
     const bufferDataCalls = gl.bufferData.mock.calls.length;
     const texImageCalls = gl.texImage2D.mock.calls.length;

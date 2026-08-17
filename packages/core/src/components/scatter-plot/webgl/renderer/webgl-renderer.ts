@@ -129,7 +129,13 @@ export class WebGLRenderer {
   private atlas: { plan: LabelAtlasPlan; texels: Uint8Array } | null = null;
   /** Latched after an allocation failure, so we do not retry it every populate. */
   private labelAtlasDisabled = false;
-  /** Last observed multi-label state, so a transition can force a re-stage. */
+  /**
+   * The multi-label answer this render pass is staging against, refreshed once
+   * per `render()` from {@link WebGLStyleGetters.isMultilabel}. Single source of
+   * truth for the pass: `syncLabelAtlas` allocates against it, and a change from
+   * the previous pass forces a re-stage. Seeded `false`, which the first render
+   * corrects before anything reads it.
+   */
   private labelAtlasActive = false;
   /** Degradation reasons already reported, so each is surfaced at most once. */
   private readonly degradeReported = new Set<RendererDegradedReason>();
@@ -434,11 +440,10 @@ export class WebGLRenderer {
     // atlas is allocated or released, and every point's slice count with it.
     // `_refreshSelectedAnnotationValues` nulls the style-getter cache without
     // calling invalidateStyleCache, so this cannot rely on that path alone.
-    // Optional-called and defaulting to TRUE: the failure direction matters. A
-    // consumer that omits the getter over-allocates, which wastes memory; one
-    // that under-reports would silently lose pie segments. Only the first is
-    // acceptable, and the type keeps TypeScript consumers honest either way.
-    const multilabel = this.style.isMultilabel?.() ?? true;
+    // Read ONCE per pass and latched into `labelAtlasActive`, which `syncLabelAtlas`
+    // then allocates against — one answer per frame, so the gate and the re-stage
+    // it triggers cannot disagree. See `isMultilabel` for the default's direction.
+    const multilabel = this.isMultilabel();
     if (multilabel !== this.labelAtlasActive) {
       this.labelAtlasActive = multilabel;
       this.stylesDirty = true;
@@ -596,9 +601,30 @@ export class WebGLRenderer {
       // The export plans its own atlas against its own context's limit, but never
       // at higher fidelity than the screen — otherwise a figure would show eight
       // segments where the user saw four.
-      labelStride: this.atlas?.plan.stride ?? null,
+      labelStride: this.exportLabelStride(),
       deviceMaxTextureSize: this.maxTextureSize,
     });
+  }
+
+  /**
+   * The stride the export should inherit, or null for "no atlas at all".
+   *
+   * Asked of the live style getters, NOT of `this.atlas` alone: the export stages
+   * through those same getters, so its atlas decision has to come from the same
+   * authority as its colours. `this.atlas` only records what the last completed
+   * render staged, and it is legitimately null while a multi-label annotation is
+   * selected — before the first populate, on an empty render, and in the window
+   * between an annotation switch and the next frame (nothing forces a render
+   * before an export). Reading it there would export dominant colours for a
+   * multi-label annotation: a wrong picture, presented as data.
+   *
+   * A live plan still wins when there is one, so a device-forced fidelity
+   * reduction is never exceeded by the figure.
+   */
+  private exportLabelStride(): number | null {
+    if (this.atlas) return this.atlas.plan.stride;
+    if (this.labelAtlasDisabled || !this.isMultilabel()) return null;
+    return MAX_LABELS;
   }
 
   /**
@@ -1323,10 +1349,14 @@ export class WebGLRenderer {
    * other staging array, so the colour-only fast path never has to re-plan.
    */
   private syncLabelAtlas(): void {
+    // Already released by `disableLabelAtlas`, and it must stay that way.
+    if (this.labelAtlasDisabled) return;
     // Nothing samples the atlas unless a point carries more than one colour, so
     // a single-label annotation pays 32 B/point — 42% of GPU residency — for a
     // feature it is not using. Release it, and allocate on the transition back.
-    if (this.labelAtlasDisabled || !(this.style.isMultilabel?.() ?? true)) {
+    // Reads the value `render()` latched for this pass rather than re-asking the
+    // getter, so the gate and the re-stage that follows it cannot disagree.
+    if (!this.labelAtlasActive) {
       if (this.atlas) {
         this.atlas = null;
         this.labelTextureInitialized = false;
@@ -1362,6 +1392,19 @@ export class WebGLRenderer {
     this.labelTextureInitialized = false;
     this.stageArrays = this.buildStageArrays();
     if (plan.stride < MAX_LABELS) this.reportDegraded('reduced-label-detail');
+  }
+
+  /**
+   * Whether the selected annotation stores more than one value for some protein.
+   *
+   * Optional-called and defaulting to TRUE, in one place: the failure direction
+   * matters. A consumer that omits the getter over-allocates, which wastes
+   * memory; one that under-reports would silently lose pie segments. Only the
+   * first is acceptable, and `WebGLStyleGetters` keeps TypeScript consumers
+   * honest either way.
+   */
+  private isMultilabel(): boolean {
+    return this.style.isMultilabel?.() ?? true;
   }
 
   private planCapacity(minCapacity: number): number {

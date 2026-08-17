@@ -9,7 +9,7 @@
  * then latched it as successful.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import type { RendererDegradedDetail } from '../../scatter-plot.events';
+import { ATLAS_WIDTHS as PLANNABLE_ATLAS_WIDTHS } from './label-atlas-plan';
 import {
   plotData,
   makeRenderer,
@@ -31,15 +31,13 @@ function texImageSizes(gl: MockGL): Array<[number, number]> {
  * framebuffer texture at canvas size, which is not what these tests are about;
  * the atlas is always one of the planned widths, or the 1x1 placeholder.
  */
-const ATLAS_WIDTHS = new Set([1, 2048, 4096, 8192]);
-function atlasAllocations(gl: Record<string, ReturnType<typeof vi.fn>>): Array<[number, number]> {
+const ATLAS_WIDTHS = new Set<number>([1, ...PLANNABLE_ATLAS_WIDTHS]);
+function atlasAllocations(gl: MockGL): Array<[number, number]> {
   return texImageSizes(gl).filter(([width]) => ATLAS_WIDTHS.has(width));
 }
 
 /** Atlas allocations that reserve real storage, i.e. not the placeholder. */
-function realAtlasAllocations(
-  gl: Record<string, ReturnType<typeof vi.fn>>,
-): Array<[number, number]> {
+function realAtlasAllocations(gl: MockGL): Array<[number, number]> {
   return atlasAllocations(gl).filter(([w, h]) => w > 1 || h > 1);
 }
 
@@ -289,5 +287,45 @@ describe('WebGLRenderer label atlas is allocated only when it is needed', () => 
     // Refreshed in place with texSubImage2D, not reallocated.
     expect(realAtlasAllocations(gl).length).toBe(allocations);
     expect(gl.texSubImage2D).toHaveBeenCalled();
+  });
+
+  it('composes the two release paths, and re-entry plans against current capacity', () => {
+    // The atlas has two independent releases — the multi-label gate here, and the
+    // capacity hysteresis in `syncLabelAtlas` — and every other test drives one in
+    // isolation. They meet in one method, so the risk is order: the gate nulls the
+    // atlas, and the hysteresis check that follows is guarded on it being non-null.
+    // A single session that fires both is what proves the second cannot resurrect
+    // or outlive the first.
+    const { renderer, gl, setMultilabel } = makeSwitchableRenderer();
+    const area = ([w, h]: [number, number]) => w * h;
+
+    // 1. Multi-label at a large capacity: the atlas is planned for it.
+    setMultilabel(true);
+    renderer.render(plotData(400_000));
+    expect(realAtlasAllocations(gl)).toHaveLength(1);
+    const large = realAtlasAllocations(gl).at(-1)!;
+
+    // 2. Hysteresis path, gate still open. 400k -> 5k is past the 4x shrink
+    //    factor, so capacity drops and the atlas must be re-planned smaller
+    //    rather than retained merely because it is large enough.
+    renderer.render(plotData(5_000));
+    expect(realAtlasAllocations(gl)).toHaveLength(2);
+    const small = realAtlasAllocations(gl).at(-1)!;
+    expect(area(small)).toBeLessThan(area(large));
+
+    // 3. Gate path, on top of the already-shrunk atlas. Releases outright: no new
+    //    capacity-sized allocation, and the 1x1 placeholder hands the storage back.
+    setMultilabel(false);
+    renderer.render(plotData(5_000));
+    expect(realAtlasAllocations(gl)).toHaveLength(2);
+    expect(atlasAllocations(gl).at(-1)).toEqual([1, 1]);
+
+    // 4. Back in, at the same capacity. The plan must come from capacity as it is
+    //    NOW — a released plan that survived step 3 would reallocate the step-1
+    //    geometry for a 5k dataset, which is the leak both paths exist to prevent.
+    setMultilabel(true);
+    renderer.render(plotData(5_000));
+    expect(realAtlasAllocations(gl)).toHaveLength(3);
+    expect(realAtlasAllocations(gl).at(-1)).toEqual(small);
   });
 });

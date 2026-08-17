@@ -31,7 +31,7 @@ export const MIN_MAX_TEXTURE_SIZE = 2048;
  * ample limits allocate byte-identical geometry to the one it allocated before
  * this module existed.
  */
-const ATLAS_WIDTHS = [MIN_MAX_TEXTURE_SIZE, 4096, 8192] as const;
+export const ATLAS_WIDTHS = [MIN_MAX_TEXTURE_SIZE, 4096, 8192] as const;
 
 /**
  * Slice counts to fall back through, widest first. The floor is 2, not 1,

@@ -3,7 +3,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as d3 from 'd3';
 import { WebGLRenderer } from './webgl-renderer';
 import type { PlotData } from '@protspace/utils';
-import type { ScalePair, WebGLStyleGetters } from '../types';
+import type { ScalePair } from '../types';
+import { styleGetters } from './test-support/renderer-fixture';
 import { createMockCanvas } from './test-support/mock-webgl2';
 
 function pd(xs: number[], ys: number[]): PlotData {
@@ -20,15 +21,6 @@ const scales = (): ScalePair => ({
   x: d3.scaleLinear().domain([0, 10]).range([0, 800]),
   y: d3.scaleLinear().domain([0, 10]).range([0, 600]),
 });
-const style = (): WebGLStyleGetters => ({
-  getColors: () => ['#ff0000'],
-  getPointSize: () => 9,
-  getOpacity: () => 1,
-  getDepth: () => 0,
-  getShape: () => 'circle',
-  isPredicted: () => false,
-});
-
 function makeRenderer() {
   const { canvas } = createMockCanvas();
   return new WebGLRenderer(
@@ -36,7 +28,7 @@ function makeRenderer() {
     scales,
     () => d3.zoomIdentity,
     () => ({ width: 800, height: 600 }),
-    style(),
+    styleGetters(['#ff0000']),
   );
 }
 
