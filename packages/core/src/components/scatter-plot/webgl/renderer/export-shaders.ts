@@ -51,6 +51,11 @@ void main() {
 
 export const POINT_FRAGMENT_SHADER = `#version 300 es
 precision highp float;
+// ES 3.00 defaults fragment int to mediump, whose guaranteed range is 16 bits.
+// v_pointIndex and the atlas index derived from it exceed 32767 at any dataset
+// past ~32K points, so on a driver that honours the minimum they are undefined
+// — exactly the low-end hardware the atlas limits are about.
+precision highp int;
 
 in vec4 v_color;
 in float v_labelCount;
@@ -61,6 +66,9 @@ flat in int v_pointIndex;
 uniform sampler2D u_labelColors;
 uniform vec2 u_labelTextureSize;
 uniform int u_maxLabels;
+// Points the atlas covers. Zero when none is allocated, which makes every marker
+// fall through to its dominant color rather than sampling unallocated storage.
+uniform int u_labelAtlasCapacity;
 uniform float u_gamma;
 uniform vec3 u_knockoutColor;
 
@@ -171,14 +179,21 @@ void main() {
 
   vec3 finalColor = v_color.rgb;
 
-  // Pie Chart Logic (only for multi-label points, which always use circle shape)
-  if (v_labelCount > 1.5) {
+  // Pie Chart Logic (only for multi-label points, which always use circle shape).
+  // The capacity test is what keeps a point outside the atlas — or a session with
+  // no atlas at all — painting its dominant color instead of sampling storage that
+  // belongs to another protein, or to nothing.
+  if (v_labelCount > 1.5 && v_pointIndex < u_labelAtlasCapacity) {
     float angle = atan(coord.y, coord.x); // -PI to PI
     // Map to 0..1
     float normalizedAngle = (angle + PI) / (2.0 * PI);
 
-    float count = floor(v_labelCount + 0.5);
-    float sliceIndex = floor(normalizedAngle * count);
+    // Clamped to what the atlas actually reserves per point: a point with more
+    // colors than u_maxLabels would otherwise index into the NEXT point's texels.
+    float count = min(floor(v_labelCount + 0.5), float(u_maxLabels));
+    // atan(+0, x < 0) is exactly +PI, so normalizedAngle reaches 1.0 on the middle
+    // pixel row of any odd-height sprite, so sliceIndex would otherwise reach count.
+    float sliceIndex = min(floor(normalizedAngle * count), count - 1.0);
 
     // Calculate texture lookup index
     int globalIndex = v_pointIndex * u_maxLabels + int(sliceIndex);

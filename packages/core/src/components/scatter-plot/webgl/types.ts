@@ -49,6 +49,8 @@ export interface PointUniformLocations {
   labelColors: WebGLUniformLocation | null;
   labelTextureSize: WebGLUniformLocation | null;
   maxLabels: WebGLUniformLocation | null;
+  /** Points the label atlas covers; 0 disables the multi-label branch entirely. */
+  labelAtlasCapacity: WebGLUniformLocation | null;
 }
 
 // ============================================================================

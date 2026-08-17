@@ -4,18 +4,33 @@
  * - At least `minCapacityFloor` (MIN_CAPACITY).
  * - Across reloads (currentCapacity > 0), grow geometrically by 1.5x so progressively larger
  *   datasets don't trigger a reallocation every time.
- * - Rounded UP to a whole label-texture row (`pointsPerTextureRow` points) so the label texture
- *   (LABEL_TEXTURE_WIDTH wide, MAX_LABELS texels/point) has no partial-row waste — and so SoA
- *   arrays aren't oversized to the next power of two (which wasted ~83% at 573K).
+ * - Rounded UP to a whole `capacityGranularity` block, so SoA arrays aren't oversized to the next
+ *   power of two (which wasted ~83% at 573K) and the label atlas has no partial-row waste at its
+ *   narrowest supported width.
+ * - Bounded by `maxCapacity`, the largest point count the renderer will ever draw. Without this
+ *   the 1.5x growth allocates for points that can never be rendered — and, because the label
+ *   atlas is sized from capacity, pushes its height past `gl.MAX_TEXTURE_SIZE` at point counts
+ *   well under the cap (900k then 950k used to plan 1,350,144).
+ *
+ * The bound never starves a load: it is floored at the snapped requirement, so asking for more
+ * than `maxCapacity` still returns enough capacity for the request.
+ *
+ * `maxCapacity` is deliberately required rather than defaulted to Infinity: an unbounded plan is
+ * the bug this function exists to prevent, so a caller that forgets it should not silently get one.
  */
 export function planRendererCapacity(
   minCapacity: number,
   currentCapacity: number,
   minCapacityFloor: number,
-  pointsPerTextureRow: number,
+  capacityGranularity: number,
+  maxCapacity: number,
 ): number {
+  const snap = (value: number) => Math.ceil(value / capacityGranularity) * capacityGranularity;
   const required = Math.max(minCapacity, minCapacityFloor);
   const target =
     currentCapacity > 0 ? Math.max(required, Math.ceil(currentCapacity * 1.5)) : required;
-  return Math.ceil(target / pointsPerTextureRow) * pointsPerTextureRow;
+  // Clamp first, snap once: `snap` is monotone, so snapping the clamped value is
+  // identical to clamping the snapped ones — and this reads as the sentence the
+  // doc block above states.
+  return snap(Math.max(required, Math.min(target, maxCapacity)));
 }
