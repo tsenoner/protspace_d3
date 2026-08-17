@@ -33,8 +33,20 @@ import {
 } from './render-target';
 import { QUAD_VERTICES, drawGammaQuad } from './gamma-quad';
 import { DEFAULT_VIEWPORT_WIDTH, DEFAULT_VIEWPORT_HEIGHT } from './viewport-defaults';
-import { stagePoint, stagePointStyle, type StagePointArrays, MAX_LABELS } from './stage-point';
-import { planLabelAtlas, type LabelAtlasPlan } from './label-atlas-plan';
+import { stagePoint, stagePointStyle, type StagePointArrays } from './stage-point';
+import {
+  planLabelAtlas,
+  MAX_LABELS,
+  MIN_MAX_TEXTURE_SIZE,
+  type LabelAtlasPlan,
+} from './label-atlas-plan';
+import {
+  readMaxTextureSize,
+  drainGlErrors,
+  allocateLabelAtlas,
+  refreshLabelAtlas,
+  uploadPlaceholderAtlas,
+} from './label-atlas-texture';
 import {
   createRendererDegradedDetail,
   type RendererDegradedDetail,
@@ -59,8 +71,6 @@ const MIN_CAPACITY = 1024;
  * from the plan would be circular.
  */
 const CAPACITY_GRANULARITY = 256;
-/** The WebGL2 / GLES3 guaranteed minimum for `gl.MAX_TEXTURE_SIZE`. */
-const MIN_MAX_TEXTURE_SIZE = 2048;
 
 // ============================================================================
 // WebGL2 Renderer Implementation
@@ -93,8 +103,6 @@ export class WebGLRenderer {
   private labelCounts = new Float32Array(0);
   private shapes = new Float32Array(0);
   private predicted = new Float32Array(0);
-  /** Null whenever no atlas is allocated — see {@link syncLabelAtlas}. */
-  private labelColorData: Uint8Array | null = null;
 
   // Zero-copy view over the parallel staging arrays above, passed to `stagePoint`.
   // Re-pointed in `refreshStageArrays()` whenever capacity is reallocated.
@@ -110,8 +118,15 @@ export class WebGLRenderer {
    * whose driver returns nonsense) plans conservatively rather than unbounded.
    */
   private maxTextureSize = MIN_MAX_TEXTURE_SIZE;
-  /** Geometry of the currently allocated atlas; null when none is allocated. */
-  private labelAtlas: LabelAtlasPlan | null = null;
+  /**
+   * The currently allocated atlas: its geometry and the texels backing it, or
+   * null when none is allocated.
+   *
+   * One field rather than two, because the plan and its backing array are only
+   * ever meaningful together — a live plan with no texels stages nothing while
+   * the shader keeps sampling. {@link syncLabelAtlas} is the sole writer.
+   */
+  private atlas: { plan: LabelAtlasPlan; texels: Uint8Array } | null = null;
   /** Latched after an allocation failure, so we do not retry it every populate. */
   private labelAtlasDisabled = false;
   /** Degradation reasons already reported, so each is surfaced at most once. */
@@ -537,7 +552,7 @@ export class WebGLRenderer {
       // The export plans its own atlas against its own context's limit, but never
       // at higher fidelity than the screen — otherwise a figure would show eight
       // segments where the user saw four.
-      labelStride: this.labelAtlas?.stride ?? null,
+      labelStride: this.atlas?.plan.stride ?? null,
       deviceMaxTextureSize: this.maxTextureSize,
     });
   }
@@ -629,11 +644,7 @@ export class WebGLRenderer {
     // queries that already stall here. The label atlas is sized from point
     // capacity, so this is the only thing standing between a large dataset and
     // an over-size allocation the driver rejects without throwing.
-    const reportedMaxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number;
-    this.maxTextureSize =
-      Number.isFinite(reportedMaxTextureSize) && reportedMaxTextureSize >= 1
-        ? reportedMaxTextureSize
-        : MIN_MAX_TEXTURE_SIZE;
+    this.maxTextureSize = readMaxTextureSize(gl);
 
     // Enable extensions for float textures
     const colorBufferFloatExt = gl.getExtension('EXT_color_buffer_float');
@@ -701,8 +712,7 @@ export class WebGLRenderer {
     this.pointUniformLocations = null;
     this.gammaCorrectionUniformLocations = null;
     this.labelTextureInitialized = false;
-    this.labelAtlas = null;
-    this.labelColorData = null;
+    this.atlas = null;
     this.labelAtlasDisabled = false;
     this.degradeReported.clear();
     this.gammaPipelineAvailable = true;
@@ -816,12 +826,9 @@ export class WebGLRenderer {
         dpr: this.dpr,
         gamma: this.getEffectiveGamma(),
         knockoutColor: this.getKnockoutColor(),
-        maxLabels: this.labelAtlas?.stride ?? MAX_LABELS,
-        labelTextureWidth: this.labelAtlas?.width ?? 1,
-        labelTextureHeight: this.labelAtlas?.height ?? 1,
-        // Zero when no atlas is allocated, which makes the shader's pie branch
+        // Null when no atlas is allocated, which makes the shader's pie branch
         // unreachable and every marker fall through to its dominant colour.
-        labelAtlasCapacity: this.labelAtlas?.pointCapacity ?? 0,
+        labelAtlas: this.atlas?.plan ?? null,
       },
     );
 
@@ -1085,6 +1092,10 @@ export class WebGLRenderer {
     // `updateBuffer` takes the allocating bufferData branch while this is false.
     // Captured before the uploads, which set it.
     const allocating = !this.buffersInitialized;
+    // The GL error flag is sticky and context-wide, so it has to start clean for
+    // the check after the uploads to mean "these uploads failed" rather than
+    // "something failed at some point in this context's life".
+    if (allocating) drainGlErrors(gl);
 
     gl.bindVertexArray(this.resources.pointVao);
 
@@ -1107,8 +1118,9 @@ export class WebGLRenderer {
       // One error check per capacity change, on the allocating (bufferData) path
       // only — never on bufferSubData, so never per frame. It runs BEFORE any
       // texture call so a failed buffer allocation is neither masked by nor
-      // misattributed to the atlas upload. gl.isBuffer cannot see this: it reports
-      // handle validity, not whether storage was allocated.
+      // misattributed to the atlas upload, and against a queue drained just above
+      // so it cannot inherit an unrelated error. gl.isBuffer cannot see this: it
+      // reports handle validity, not whether storage was allocated.
       if (allocating && gl.getError() !== gl.NO_ERROR) {
         this.reportDegraded('point-buffer-allocation-failed');
         // Free the 32 B/point the atlas costs so the retry has a chance.
@@ -1131,76 +1143,39 @@ export class WebGLRenderer {
    * Allocate or refresh the atlas texture.
    *
    * Storage is allocated once per plan and refreshed in place afterwards, so a
-   * recolor does not reallocate. `labelTextureInitialized` is set only when the
-   * driver accepted the allocation — the previous code set it unconditionally, so
-   * a rejected `texImage2D` left every later `texSubImage2D` writing into storage
+   * recolor does not reallocate. A rejected allocation is downgraded to the
+   * placeholder here and now: the previous code recorded the texture as
+   * initialised regardless, so every later `texSubImage2D` wrote into storage
    * that did not exist, permanently, with nothing in the console.
+   *
+   * The GL mechanics live in `label-atlas-texture.ts`, shared with the export
+   * path so the two cannot drift on placeholder format or filter mode.
    */
   private uploadLabelAtlas(gl: WebGL2RenderingContext): void {
     const texture = this.resources.labelColorTexture;
     if (!texture) return;
 
     gl.bindTexture(gl.TEXTURE_2D, texture);
-    const plan = this.labelAtlas;
+    const atlas = this.atlas;
 
-    if (!plan || !this.labelColorData) {
-      if (!this.labelTextureInitialized) {
-        // A 1x1 opaque texel keeps the sampler texture-complete. It is never read:
-        // the shader's atlas capacity uniform is 0, so the pie branch is skipped.
-        gl.texImage2D(
-          gl.TEXTURE_2D,
-          0,
-          gl.RGBA8,
-          1,
-          1,
-          0,
-          gl.RGBA,
-          gl.UNSIGNED_BYTE,
-          new Uint8Array([0, 0, 0, 255]),
-        );
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    if (atlas && this.labelTextureInitialized) {
+      refreshLabelAtlas(gl, atlas.plan, atlas.texels, this.currentPointCount);
+    } else if (atlas) {
+      const error = allocateLabelAtlas(gl, atlas.plan, atlas.texels);
+      if (error === gl.NO_ERROR) {
         this.labelTextureInitialized = true;
-      }
-    } else if (!this.labelTextureInitialized) {
-      gl.texImage2D(
-        gl.TEXTURE_2D,
-        0,
-        gl.RGBA8,
-        plan.width,
-        plan.height,
-        0,
-        gl.RGBA,
-        gl.UNSIGNED_BYTE,
-        this.labelColorData,
-      );
-      const error = gl.getError();
-      if (error !== gl.NO_ERROR) {
-        gl.bindTexture(gl.TEXTURE_2D, null);
+      } else {
         this.disableLabelAtlas(
           error === gl.OUT_OF_MEMORY
             ? 'label-atlas-out-of-memory'
             : 'label-atlas-allocation-failed',
         );
-        // Bounded recursion: the plan is now null, so this takes the placeholder branch.
-        this.uploadLabelAtlas(gl);
-        return;
+        uploadPlaceholderAtlas(gl);
+        this.labelTextureInitialized = true;
       }
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    } else if (!this.labelTextureInitialized) {
+      uploadPlaceholderAtlas(gl);
       this.labelTextureInitialized = true;
-    } else {
-      gl.texSubImage2D(
-        gl.TEXTURE_2D,
-        0,
-        0,
-        0,
-        plan.width,
-        plan.height,
-        gl.RGBA,
-        gl.UNSIGNED_BYTE,
-        this.labelColorData,
-      );
     }
 
     gl.bindTexture(gl.TEXTURE_2D, null);
@@ -1235,8 +1210,8 @@ export class WebGLRenderer {
       labelCounts: this.labelCounts,
       shapes: this.shapes,
       predicted: this.predicted,
-      labelColorData: this.labelColorData,
-      maxLabels: this.labelAtlas?.stride ?? MAX_LABELS,
+      labelColorData: this.atlas?.texels ?? null,
+      maxLabels: this.atlas?.plan.stride ?? MAX_LABELS,
     };
   }
 
@@ -1252,7 +1227,7 @@ export class WebGLRenderer {
       createRendererDegradedDetail({
         reason,
         maxTextureSize: this.maxTextureSize,
-        stride: this.labelAtlas?.stride ?? 0,
+        stride: this.atlas?.plan.stride ?? 0,
         pointCount: this.capacity,
         detail,
       }),
@@ -1262,8 +1237,7 @@ export class WebGLRenderer {
   /** Release the atlas and stop trying to allocate one for this context. */
   private disableLabelAtlas(reason: RendererDegradedReason) {
     this.labelAtlasDisabled = true;
-    this.labelAtlas = null;
-    this.labelColorData = null;
+    this.atlas = null;
     this.labelTextureInitialized = false;
     this.stageArrays = this.buildStageArrays();
     this.reportDegraded(reason);
@@ -1279,7 +1253,7 @@ export class WebGLRenderer {
   private syncLabelAtlas(): void {
     if (this.labelAtlasDisabled) return;
     // Already covers this capacity — the common case, including every re-render.
-    if (this.labelAtlas && this.labelAtlas.pointCapacity >= this.capacity) return;
+    if (this.atlas && this.atlas.plan.pointCapacity >= this.capacity) return;
 
     const plan = planLabelAtlas(this.capacity, this.maxTextureSize);
     if (!plan) {
@@ -1287,11 +1261,10 @@ export class WebGLRenderer {
       return;
     }
 
-    this.labelAtlas = plan;
-    this.labelColorData = new Uint8Array(plan.byteLength);
+    this.atlas = { plan, texels: new Uint8Array(plan.byteLength) };
     this.labelTextureInitialized = false;
     this.stageArrays = this.buildStageArrays();
-    if (plan.reducedDetail) this.reportDegraded('reduced-label-detail');
+    if (plan.stride < MAX_LABELS) this.reportDegraded('reduced-label-detail');
   }
 
   private expandCapacity(minCapacity: number) {
@@ -1312,13 +1285,14 @@ export class WebGLRenderer {
     this.predicted = new Float32Array(nextCapacity);
     this.sortOrder = new Uint32Array(nextCapacity);
     this.sortDepths = new Float32Array(nextCapacity);
-    // The atlas is NOT sized here: its geometry depends on the device texture
-    // limit, so `syncLabelAtlas` plans it on this same populate pass.
-    this.labelAtlas = null;
-    this.labelColorData = null;
-    this.labelTextureInitialized = false;
+    // The atlas is NOT touched here: its geometry depends on the device texture
+    // limit, so `syncLabelAtlas` owns it and re-plans on this same populate pass.
+    // It always does: this method is only reached when capacity strictly grows,
+    // so the existing plan can never still cover it.
 
     // Re-point the staging view at the freshly reallocated arrays (zero copy).
+    // Still needed even though `syncLabelAtlas` also rebuilds it — that call
+    // returns early once the atlas is disabled, and these arrays are new.
     this.stageArrays = this.buildStageArrays();
 
     this.buffersInitialized = false;

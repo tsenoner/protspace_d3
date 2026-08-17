@@ -18,7 +18,6 @@ describe('planLabelAtlas', () => {
       stride: MAX_LABELS,
       pointCapacity: SWISS_PROT_CAPACITY,
       byteLength: 2048 * 2241 * 4,
-      reducedDetail: false,
     });
   });
 
@@ -27,7 +26,6 @@ describe('planLabelAtlas', () => {
       width: 2048,
       height: 2241,
       stride: MAX_LABELS,
-      reducedDetail: false,
     });
     // The clamped capacity is the worst case a 4096 device can be asked for,
     // and it still fits at full fidelity: 1,000,192 * 8 / 2048 = 3907 <= 4096.
@@ -35,7 +33,6 @@ describe('planLabelAtlas', () => {
       width: 2048,
       height: 3907,
       stride: MAX_LABELS,
-      reducedDetail: false,
     });
   });
 
@@ -48,7 +45,6 @@ describe('planLabelAtlas', () => {
       stride: 4,
       pointCapacity: SWISS_PROT_CAPACITY,
       byteLength: 2048 * 1121 * 4,
-      reducedDetail: true,
     });
   });
 
@@ -59,7 +55,6 @@ describe('planLabelAtlas', () => {
       width: 4096,
       height: 3907,
       stride: MAX_LABELS,
-      reducedDetail: false,
     });
   });
 
@@ -68,7 +63,6 @@ describe('planLabelAtlas', () => {
       width: 2048,
       height: 1954,
       stride: 2,
-      reducedDetail: true,
     });
   });
 
@@ -97,7 +91,6 @@ describe('planLabelAtlas', () => {
         // Every point's slices must have somewhere to live.
         expect(capacity * plan.stride).toBeLessThanOrEqual(plan.width * plan.height);
         expect(plan.byteLength).toBe(plan.width * plan.height * 4);
-        expect(plan.reducedDetail).toBe(plan.stride < MAX_LABELS);
       }
     }
   });
@@ -110,7 +103,7 @@ describe('planLabelAtlas stride inheritance', () => {
   // row-snapped), so the bound has to be the stride, not the geometry.
   it('never exceeds the inherited stride even when the device could hold more', () => {
     const plan = planLabelAtlas(SWISS_PROT_CAPACITY, 8192, 4);
-    expect(plan).toMatchObject({ stride: 4, reducedDetail: true });
+    expect(plan).toMatchObject({ stride: 4 });
   });
 
   it('takes the smaller of the device limit and the inherited stride', () => {

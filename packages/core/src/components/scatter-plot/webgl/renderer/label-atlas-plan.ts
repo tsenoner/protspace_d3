@@ -16,12 +16,22 @@
 export const MAX_LABELS = 8;
 
 /**
- * Candidate atlas widths, narrowest first. 2048 is the historical
- * `LABEL_TEXTURE_WIDTH`; keeping it first is what makes a device with ample
- * limits allocate byte-identical geometry to the one it allocated before this
- * module existed.
+ * The WebGL2 / GLES3 guaranteed minimum for `gl.MAX_TEXTURE_SIZE`.
+ *
+ * Doubles as the conservative fallback for a context that has not been probed
+ * yet, or whose driver reports nonsense: planning against the floor can only
+ * under-commit, never over-commit.
  */
-const ATLAS_WIDTHS = [2048, 4096, 8192] as const;
+export const MIN_MAX_TEXTURE_SIZE = 2048;
+
+/**
+ * Candidate atlas widths, narrowest first. The narrowest is the spec floor
+ * itself, so it is the one width every conformant device supports — and it is
+ * also the historical `LABEL_TEXTURE_WIDTH`, which is what makes a device with
+ * ample limits allocate byte-identical geometry to the one it allocated before
+ * this module existed.
+ */
+const ATLAS_WIDTHS = [MIN_MAX_TEXTURE_SIZE, 4096, 8192] as const;
 
 /**
  * Slice counts to fall back through, widest first. The floor is 2, not 1,
@@ -42,8 +52,6 @@ export interface LabelAtlasPlan {
   pointCapacity: number;
   /** Bytes of backing store (RGBA8). */
   byteLength: number;
-  /** True when `stride < MAX_LABELS`, i.e. the device forced a fidelity drop. */
-  reducedDetail: boolean;
 }
 
 /**
@@ -86,7 +94,6 @@ export function planLabelAtlas(
           stride,
           pointCapacity: capacity,
           byteLength: width * height * 4,
-          reducedDetail: stride < MAX_LABELS,
         };
       }
     }

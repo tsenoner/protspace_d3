@@ -52,8 +52,11 @@ const MESSAGES: Record<RendererDegradedReason, (c: RendererDegradedContext) => s
     'The graphics driver ran out of memory for the multi-value colour table. Markers show a single dominant colour; every point is still drawn.',
   'point-buffer-allocation-failed': (c) =>
     `The graphics driver ran out of memory for ${c.pointCount.toLocaleString()} points. Rendering will retry with a smaller footprint.`,
-  'gamma-pipeline-unavailable': () =>
-    'Colour blending is running in sRGB rather than linear light, so overlapping points may look slightly darker than intended.',
+  'gamma-pipeline-unavailable': (c) =>
+    'Colour blending is running in sRGB rather than linear light, so overlapping points may look slightly darker than intended.' +
+    // The cause is the only actionable part of this one — without it the message
+    // says a pipeline is missing but not which capability the device lacks.
+    (c.detail ? ` (${c.detail})` : ''),
 };
 
 export function createRendererDegradedDetail(

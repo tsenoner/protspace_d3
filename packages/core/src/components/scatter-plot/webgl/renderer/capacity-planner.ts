@@ -26,5 +26,8 @@ export function planRendererCapacity(
   const required = Math.max(minCapacity, minCapacityFloor);
   const target =
     currentCapacity > 0 ? Math.max(required, Math.ceil(currentCapacity * 1.5)) : required;
-  return Math.min(snap(target), Math.max(snap(required), snap(maxCapacity)));
+  // Clamp first, snap once: `snap` is monotone, so snapping the clamped value is
+  // identical to clamping the snapped ones — and this reads as the sentence the
+  // doc block above states.
+  return snap(Math.max(required, Math.min(target, maxCapacity)));
 }

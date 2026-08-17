@@ -172,18 +172,25 @@ export function getSelectionDisabledNotification(
  * Copy for a renderer capability reduction.
  *
  * Every one of these was previously silent or console-only, on hardware that
- * never said anything was out of range. The report action carries the measured
- * texture limit and the renderer string, which is the pair that identifies the
- * device class.
+ * never said anything was out of range. The toast shows the user-facing message;
+ * the report action carries the measured numbers instead, because the device
+ * limit and the point count are what identify the device class in a bug report.
  */
 export function getRendererDegradedNotification(detail: RendererDegradedDetail): NotifyOptions {
-  const reason = detail.context?.reason ?? 'unknown';
+  const context = detail.context;
+  const reason = context?.reason ?? 'unknown';
   return {
     title: 'Rendering quality reduced.',
     description: detail.message,
     durationMs: 10_000,
     dedupeKey: `renderer-degraded:${reason}`,
-    action: buildReportAction('Rendering', detail.message),
+    action: buildReportAction(
+      'Rendering',
+      context
+        ? `${reason} (maxTextureSize=${context.maxTextureSize}, stride=${context.stride}, ` +
+            `points=${context.pointCount}${context.detail ? `, cause=${context.detail}` : ''})`
+        : detail.message,
+    ),
   };
 }
 

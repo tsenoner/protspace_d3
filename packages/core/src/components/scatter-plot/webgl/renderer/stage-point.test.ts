@@ -2,10 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   stagePoint,
   stagePointStyle,
-  MAX_LABELS,
   type StagePointArrays,
   type StagePointStyle,
 } from './stage-point';
+import { MAX_LABELS } from './label-atlas-plan';
 import type { PlotDataPoint } from '@protspace/utils';
 
 function arrays(capacity: number, maxLabels: number = MAX_LABELS): StagePointArrays {

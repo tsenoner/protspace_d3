@@ -3,20 +3,16 @@ import { getShapeIndex } from '@protspace/utils';
 import type { WebGLStyleGetters } from '../types';
 import { resolveColor } from '../color-utils';
 import { fillLabelColorTexels } from './label-texture-utils';
-import { MAX_LABELS } from './label-atlas-plan';
 
 // ============================================================================
 // Per-point staging constants (owned here; the rest are internal to the
-// staging helpers).
+// staging helpers). MAX_LABELS is NOT one of them — it lives in
+// `label-atlas-plan.ts` with the geometry it describes.
 // ============================================================================
 
 const POINT_SIZE_DIVISOR = 3;
 const MIN_POINT_SIZE = 1;
 const DIAMOND_SIZE_SCALE = 1.25;
-
-// MAX_LABELS lives with the atlas geometry it describes; re-exported here so
-// existing importers are unaffected.
-export { MAX_LABELS };
 
 /**
  * The parallel target arrays a staged point is written into. The renderer holds
@@ -91,6 +87,11 @@ export function stagePointStyle(
   // with more colours than `maxLabels` told the shader to draw slices that were
   // never written — so it sampled the NEXT point's texels and painted an unrelated
   // protein's colours.
+  //
+  // This is the layer that OWNS the invariant: it is the only writer of both
+  // `labelCounts` and the texels they index. The shader re-applies the same clamp
+  // (`min(count, u_maxLabels)` in POINT_FRAGMENT_SHADER) purely as belt-and-braces
+  // against a stale uniform — do not relax this one on the strength of that one.
   target.labelCounts[idx] = Math.min(pointColors.length, target.maxLabels);
   target.shapes[idx] = shapeIndex;
   target.predicted[idx] = style.isPredicted(sp) ? 1 : 0;

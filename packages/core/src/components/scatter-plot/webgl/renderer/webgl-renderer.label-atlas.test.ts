@@ -125,8 +125,10 @@ describe('WebGLRenderer label atlas', () => {
     // The reported defect: texImage2D raises INVALID_VALUE without throwing, the
     // texture is left unallocated, and every later update runs texSubImage2D
     // against it — INVALID_OPERATION, forever, silently.
+    // Advertises 8192 but refuses anything over 2048: a driver that lied, which is
+    // the only way to reach this path now that the plan respects the stated limit.
     const { renderer, gl, degraded } = makeRenderer(
-      { maxTextureSize: 8192, glErrors: [0, GL_INVALID_VALUE] },
+      { maxTextureSize: 8192, driverTextureLimit: 2048, driverError: GL_INVALID_VALUE },
       ['#f00', '#0f0'],
     );
 
@@ -147,7 +149,7 @@ describe('WebGLRenderer label atlas', () => {
 
   it('distinguishes an out-of-memory refusal from an over-size one', () => {
     const { renderer, degraded } = makeRenderer(
-      { maxTextureSize: 8192, glErrors: [0, GL_OUT_OF_MEMORY] },
+      { maxTextureSize: 8192, driverTextureLimit: 2048, driverError: GL_OUT_OF_MEMORY },
       ['#f00', '#0f0'],
     );
     renderer.render(plotData(600_000));
@@ -169,9 +171,11 @@ describe('WebGLRenderer label atlas', () => {
   });
 
   it('reports a failed point-buffer allocation and retries rather than compounding it', () => {
-    // The first getError follows the allocating bufferData, before any texture call.
+    // The check follows the allocating bufferData, before any texture call. 1 MB is
+    // above the gamma quad's vertices and below any 600k-point attribute array, so
+    // only the point buffers are refused.
     const { renderer, gl, degraded } = makeRenderer(
-      { maxTextureSize: 8192, glErrors: [GL_OUT_OF_MEMORY] },
+      { maxTextureSize: 8192, driverBufferByteLimit: 1_000_000, driverError: GL_OUT_OF_MEMORY },
       ['#f00', '#0f0'],
     );
     renderer.render(plotData(600_000));

@@ -8,6 +8,7 @@
  */
 
 import type { PointUniformLocations } from '../types';
+import { MAX_LABELS, type LabelAtlasPlan } from './label-atlas-plan';
 
 /**
  * Binds the given framebuffer (or the default framebuffer when `null`), sets the
@@ -46,21 +47,15 @@ interface PointDrawStateParams {
   gamma: number;
   /** Resolved plot-surface color in sRGB, used to mask overlapping marker interiors. */
   knockoutColor: readonly [number, number, number];
-  /** Label slices reserved per point (u_maxLabels); the atlas plan's stride. */
-  maxLabels: number;
-  /** Label color texture atlas width in texels. */
-  labelTextureWidth: number;
   /**
-   * Label color texture atlas height in texels. Taken from the atlas plan rather
-   * than derived from the array length, because the plan is the only thing that
-   * knows the width the array was allocated against.
+   * Geometry of the allocated label atlas, or null when none is allocated.
+   *
+   * Passed whole rather than flattened by the caller: the atlas uniforms are
+   * only coherent as a set (a stride is meaningless against the wrong texture
+   * size), and `null` is the one state that has to disable sampling. Deriving
+   * all four here is what stops the two draw paths choosing different fallbacks.
    */
-  labelTextureHeight: number;
-  /**
-   * Points the atlas covers (u_labelAtlasCapacity). The shader refuses to sample
-   * beyond it, so 0 means "no atlas — paint dominant colours".
-   */
-  labelAtlasCapacity: number;
+  labelAtlas: LabelAtlasPlan | null;
 }
 
 /**
@@ -97,9 +92,12 @@ export function bindPointDrawState(
   gl.uniform1f(uniforms.dpr, params.dpr);
   gl.uniform1f(uniforms.gamma, params.gamma);
   gl.uniform3f(uniforms.knockoutColor, ...params.knockoutColor);
-  gl.uniform1i(uniforms.maxLabels, params.maxLabels);
-  gl.uniform1i(uniforms.labelAtlasCapacity, params.labelAtlasCapacity);
-  gl.uniform2f(uniforms.labelTextureSize, params.labelTextureWidth, params.labelTextureHeight);
+  // No atlas: capacity 0 makes the shader's pie branch unreachable, so the
+  // remaining three describe the 1x1 placeholder that is bound in its place.
+  const atlas = params.labelAtlas;
+  gl.uniform1i(uniforms.maxLabels, atlas?.stride ?? MAX_LABELS);
+  gl.uniform1i(uniforms.labelAtlasCapacity, atlas?.pointCapacity ?? 0);
+  gl.uniform2f(uniforms.labelTextureSize, atlas?.width ?? 1, atlas?.height ?? 1);
 
   gl.activeTexture(gl.TEXTURE1);
   gl.bindTexture(gl.TEXTURE_2D, labelTexture);

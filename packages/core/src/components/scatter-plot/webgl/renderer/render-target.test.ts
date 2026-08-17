@@ -146,10 +146,13 @@ describe('bindPointDrawState label-atlas uniforms', () => {
     const { gl, uniforms, pushed } = uniformMockGL();
     bindPointDrawState(gl, {} as WebGLProgram, uniforms, null, null, {
       ...baseParams,
-      maxLabels: 8,
-      labelTextureWidth: 2048,
-      labelTextureHeight: 2241,
-      labelAtlasCapacity: 573_696,
+      labelAtlas: {
+        width: 2048,
+        height: 2241,
+        stride: 8,
+        pointCapacity: 573_696,
+        byteLength: 2048 * 2241 * 4,
+      },
     });
     expect(pushed.maxLabels).toBe(8);
     expect(pushed.labelTextureSize).toEqual([2048, 2241]);
@@ -160,11 +163,10 @@ describe('bindPointDrawState label-atlas uniforms', () => {
     const { gl, uniforms, pushed } = uniformMockGL();
     bindPointDrawState(gl, {} as WebGLProgram, uniforms, null, null, {
       ...baseParams,
-      maxLabels: 8,
-      labelTextureWidth: 1,
-      labelTextureHeight: 1,
-      labelAtlasCapacity: 0,
+      labelAtlas: null,
     });
     expect(pushed.labelAtlasCapacity).toBe(0);
+    // The remaining three describe the 1x1 placeholder that stands in for the atlas.
+    expect(pushed.labelTextureSize).toEqual([1, 1]);
   });
 });
