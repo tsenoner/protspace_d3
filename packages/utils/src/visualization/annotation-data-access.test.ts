@@ -148,26 +148,23 @@ describe('isMultilabelAnnotationDataCached', () => {
   it('memoizes per storage object, not per content', () => {
     // The memo exists because the dense form is O(N) and callers want the answer
     // on every style-getter rebuild — a legend hide, a selection, a projection
-    // switch. Two equal-content objects are distinct storage and must be
-    // computed independently, or a fresh dataset could inherit a stale answer.
+    // switch.
+    //
+    // Mutating storage in place is precisely what production never does, and what
+    // the memo's soundness rests on. It is used here purely as an observation
+    // device: a re-read would flip the answer, so the STALE result is the memo,
+    // caught in the act. Asserting two `true`s instead would pass just as well
+    // with the memo deleted.
     const a: number[][] = [[0], [1, 2]];
-    const b: number[][] = [[0], [1, 2]];
     expect(isMultilabelAnnotationDataCached(a)).toBe(true);
-    expect(isMultilabelAnnotationDataCached(a)).toBe(true);
-    expect(isMultilabelAnnotationDataCached(b)).toBe(true);
-  });
 
-  it('answers from STORAGE, so hiding cannot retract the multi-label state', () => {
-    // The property that makes this safe to gate resource allocation on. A
-    // colour-shaped test would read false once hiding collapses every point to a
-    // single colour — and would then release the atlas exactly one un-hide before
-    // it is needed again.
-    const data: number[][] = [
-      [0, 1],
-      [0, 1],
-    ];
-    expect(isMultilabelAnnotationDataCached(data)).toBe(true);
-    // No hidden-value input exists here at all: that is the point. Visibility is
-    // not an argument to this question.
+    a[1] = [1];
+    expect(isMultilabelAnnotationData(a)).toBe(false);
+    expect(isMultilabelAnnotationDataCached(a)).toBe(true);
+
+    // Equal-content but distinct storage is computed independently, so a fresh
+    // dataset cannot inherit another's answer.
+    const b: number[][] = [[0], [1]];
+    expect(isMultilabelAnnotationDataCached(b)).toBe(false);
   });
 });

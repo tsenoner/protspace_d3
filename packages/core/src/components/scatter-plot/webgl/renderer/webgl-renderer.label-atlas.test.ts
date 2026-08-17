@@ -9,37 +9,19 @@
  * then latched it as successful.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { ATLAS_WIDTHS as PLANNABLE_ATLAS_WIDTHS } from './label-atlas-plan';
 import {
   plotData,
   makeRenderer,
   makeRendererWithStyle,
-  type MockGL,
+  styleGetters,
+  texImageSizes,
+  atlasAllocations,
+  realAtlasAllocations,
 } from './test-support/renderer-fixture';
 
 const GL_MAX_TEXTURE_SIZE = 0x0d33;
 const GL_INVALID_VALUE = 0x0501;
 const GL_OUT_OF_MEMORY = 0x0505;
-
-/** Arguments of every texImage2D call, as [width, height] pairs. */
-function texImageSizes(gl: MockGL): Array<[number, number]> {
-  return gl.texImage2D.mock.calls.map((c) => [c[3] as number, c[4] as number]);
-}
-
-/**
- * Atlas allocations only. The gamma pipeline allocates its own linear
- * framebuffer texture at canvas size, which is not what these tests are about;
- * the atlas is always one of the planned widths, or the 1x1 placeholder.
- */
-const ATLAS_WIDTHS = new Set<number>([1, ...PLANNABLE_ATLAS_WIDTHS]);
-function atlasAllocations(gl: MockGL): Array<[number, number]> {
-  return texImageSizes(gl).filter(([width]) => ATLAS_WIDTHS.has(width));
-}
-
-/** Atlas allocations that reserve real storage, i.e. not the placeholder. */
-function realAtlasAllocations(gl: MockGL): Array<[number, number]> {
-  return atlasAllocations(gl).filter(([w, h]) => w > 1 || h > 1);
-}
 
 describe('WebGLRenderer label atlas', () => {
   afterEach(() => vi.restoreAllMocks());
@@ -203,19 +185,22 @@ describe('WebGLRenderer label atlas', () => {
 describe('WebGLRenderer label atlas is allocated only when it is needed', () => {
   afterEach(() => vi.restoreAllMocks());
 
-  /** A renderer whose multi-label state the test can flip mid-session. */
+  /**
+   * A renderer whose multi-label state the test can flip mid-session.
+   *
+   * Spreads the shared stub rather than re-listing its members: `type-check`
+   * skips `*.test.ts`, so a hand-written copy that misses a newly required getter
+   * compiles clean and only misbehaves at runtime — and for `isMultilabel` the
+   * `?? true` default would silently restore the over-allocation these very tests
+   * assert is gone.
+   */
   function makeSwitchableRenderer() {
-    let multilabel = false;
     let colors = ['#f00'];
     const { renderer, gl } = makeRendererWithStyle(
       {
+        ...styleGetters(),
         getColors: () => colors,
-        getPointSize: () => 9,
-        getOpacity: () => 1,
-        getDepth: () => 0,
-        getShape: () => 'circle',
-        isPredicted: () => false,
-        isMultilabel: () => multilabel,
+        isMultilabel: () => colors.length > 1,
       },
       { maxTextureSize: 8192 },
     );
@@ -223,7 +208,6 @@ describe('WebGLRenderer label atlas is allocated only when it is needed', () => 
       renderer,
       gl,
       setMultilabel(next: boolean) {
-        multilabel = next;
         colors = next ? ['#f00', '#0f0'] : ['#f00'];
       },
     };

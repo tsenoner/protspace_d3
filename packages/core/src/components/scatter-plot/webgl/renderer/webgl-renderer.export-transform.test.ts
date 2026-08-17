@@ -43,9 +43,23 @@ function setup(transform: d3.ZoomTransform, colors?: string[]) {
   return { renderer, spy };
 }
 
-function forwardedTransform(spy: ReturnType<typeof vi.fn>) {
-  const opts = spy.mock.calls[0][3] as { transform: { x: number; y: number; k: number } };
-  return { x: opts.transform.x, y: opts.transform.y, k: opts.transform.k };
+type ExportSpy = ReturnType<typeof setup>['spy'];
+
+/**
+ * The options object the facade forwarded to the export pass. One accessor for
+ * every forwarded field, typed off the real spy, so a new assertion needs
+ * neither another helper nor a cast at its call site.
+ */
+function forwarded(spy: ExportSpy) {
+  return spy.mock.calls[0][3] as {
+    transform: { x: number; y: number; k: number };
+    labelStride: number | null;
+  };
+}
+
+function forwardedTransform(spy: ExportSpy) {
+  const { transform } = forwarded(spy);
+  return { x: transform.x, y: transform.y, k: transform.k };
 }
 
 describe('WebGLRenderer.renderToCanvas — resetView transform handling (#294)', () => {
@@ -57,7 +71,7 @@ describe('WebGLRenderer.renderToCanvas — resetView transform handling (#294)',
 
     renderer.renderToCanvas(400, 300);
 
-    expect(forwardedTransform(spy as unknown as ReturnType<typeof vi.fn>)).toEqual({
+    expect(forwardedTransform(spy)).toEqual({
       x: 120,
       y: 60,
       k: 3,
@@ -70,7 +84,7 @@ describe('WebGLRenderer.renderToCanvas — resetView transform handling (#294)',
 
     renderer.renderToCanvas(400, 300, 1, undefined, undefined, true);
 
-    expect(forwardedTransform(spy as unknown as ReturnType<typeof vi.fn>)).toEqual({
+    expect(forwardedTransform(spy)).toEqual({
       x: 0,
       y: 0,
       k: 1,
@@ -84,7 +98,7 @@ describe('WebGLRenderer.renderToCanvas — resetView transform handling (#294)',
 
     renderer.renderToCanvas(200, 200, 1, dataDomain, undefined, true);
 
-    expect(forwardedTransform(spy as unknown as ReturnType<typeof vi.fn>)).toEqual({
+    expect(forwardedTransform(spy)).toEqual({
       x: 0,
       y: 0,
       k: 1,
@@ -94,10 +108,6 @@ describe('WebGLRenderer.renderToCanvas — resetView transform handling (#294)',
 
 describe('WebGLRenderer.renderToCanvas — inherited label-atlas stride', () => {
   afterEach(() => vi.restoreAllMocks());
-
-  function forwardedStride(spy: ReturnType<typeof vi.fn>) {
-    return (spy.mock.calls[0][3] as { labelStride: number | null }).labelStride;
-  }
 
   it('asks the style getters, not the last render, whether an atlas is wanted', () => {
     // The export stages through these getters, so its atlas decision has to come
@@ -112,7 +122,7 @@ describe('WebGLRenderer.renderToCanvas — inherited label-atlas stride', () => 
 
     // Full fidelity: with no live plan there is no screen cap to stay under, so
     // the export is free to plan against its own context's limit.
-    expect(forwardedStride(spy as unknown as ReturnType<typeof vi.fn>)).toBe(MAX_LABELS);
+    expect(forwarded(spy).labelStride).toBe(MAX_LABELS);
   });
 
   it('inherits no atlas for a single-label view', () => {
@@ -120,6 +130,6 @@ describe('WebGLRenderer.renderToCanvas — inherited label-atlas stride', () => 
 
     renderer.renderToCanvas(400, 300);
 
-    expect(forwardedStride(spy as unknown as ReturnType<typeof vi.fn>)).toBeNull();
+    expect(forwarded(spy).labelStride).toBeNull();
   });
 });

@@ -11,6 +11,7 @@ import type { PlotData } from '@protspace/utils';
 import type { ScalePair, WebGLStyleGetters } from '../../types';
 import type { RendererDegradedDetail } from '../../../scatter-plot.events';
 import { WebGLRenderer } from '../webgl-renderer';
+import { ATLAS_WIDTHS } from '../label-atlas-plan';
 import { createMockCanvas, type MockGLOptions } from './mock-webgl2';
 
 /**
@@ -55,7 +56,7 @@ export function styleGetters(colors: string[] = ['#f00']): WebGLStyleGetters {
   };
 }
 
-export type MockGL = Record<string, ReturnType<typeof vi.fn>>;
+type MockGL = Record<string, ReturnType<typeof vi.fn>>;
 
 /**
  * A renderer over a mock GL context, with the style getters supplied by the
@@ -79,4 +80,32 @@ export function makeRendererWithStyle(styleGetters: WebGLStyleGetters, opts: Moc
 
 export function makeRenderer(opts: MockGLOptions = {}, colors?: string[]) {
   return makeRendererWithStyle(styleGetters(colors), opts);
+}
+
+/** Arguments of every texImage2D call, as [width, height] pairs. */
+export function texImageSizes(gl: MockGL): Array<[number, number]> {
+  return gl.texImage2D.mock.calls.map((c) => [c[3] as number, c[4] as number]);
+}
+
+/**
+ * The width of every allocation the atlas can make: one of the planned widths,
+ * or the 1x1 placeholder. Derived from the production ladder rather than
+ * restated, so a new width there cannot leave these filters silently dropping
+ * real allocations — which would turn "no atlas was allocated" green while a
+ * full-size one had been.
+ */
+const ATLAS_ALLOCATION_WIDTHS = new Set<number>([1, ...ATLAS_WIDTHS]);
+
+/**
+ * Atlas allocations only. The gamma pipeline allocates its own linear
+ * framebuffer texture at canvas size, which is not what these assertions are
+ * about.
+ */
+export function atlasAllocations(gl: MockGL): Array<[number, number]> {
+  return texImageSizes(gl).filter(([width]) => ATLAS_ALLOCATION_WIDTHS.has(width));
+}
+
+/** Atlas allocations that reserve real storage, i.e. not the 1x1 placeholder. */
+export function realAtlasAllocations(gl: MockGL): Array<[number, number]> {
+  return atlasAllocations(gl).filter(([width]) => width > 1);
 }

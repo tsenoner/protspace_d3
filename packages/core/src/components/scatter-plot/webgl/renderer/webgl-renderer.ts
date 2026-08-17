@@ -132,9 +132,12 @@ export class WebGLRenderer {
   /**
    * The multi-label answer this render pass is staging against, refreshed once
    * per `render()` from {@link WebGLStyleGetters.isMultilabel}. Single source of
-   * truth for the pass: `syncLabelAtlas` allocates against it, and a change from
-   * the previous pass forces a re-stage. Seeded `false`, which the first render
-   * corrects before anything reads it.
+   * truth for the RENDER pass: `syncLabelAtlas` allocates against it, and a
+   * change from the previous pass forces a re-stage. Seeded `false`, which the
+   * first render corrects before anything reads it.
+   *
+   * `exportLabelStride` deliberately asks the getters afresh instead — an export
+   * runs outside a render pass, where this latch is the staler of the two.
    */
   private labelAtlasActive = false;
   /** Degradation reasons already reported, so each is surfaced at most once. */
@@ -598,9 +601,7 @@ export class WebGLRenderer {
       transform: resetView ? d3.zoomIdentity : this.getTransform(),
       gamma: this.gamma,
       knockoutColor,
-      // The export plans its own atlas against its own context's limit, but never
-      // at higher fidelity than the screen — otherwise a figure would show eight
-      // segments where the user saw four.
+      // See `exportLabelStride` for what the export inherits and why.
       labelStride: this.exportLabelStride(),
       deviceMaxTextureSize: this.maxTextureSize,
     });
@@ -609,22 +610,28 @@ export class WebGLRenderer {
   /**
    * The stride the export should inherit, or null for "no atlas at all".
    *
-   * Asked of the live style getters, NOT of `this.atlas` alone: the export stages
-   * through those same getters, so its atlas decision has to come from the same
-   * authority as its colours. `this.atlas` only records what the last completed
-   * render staged, and it is legitimately null while a multi-label annotation is
-   * selected — before the first populate, on an empty render, and in the window
-   * between an annotation switch and the next frame (nothing forces a render
-   * before an export). Reading it there would export dominant colours for a
-   * multi-label annotation: a wrong picture, presented as data.
+   * The WANT question is asked of the live style getters, not of `this.atlas`:
+   * the export stages through those same getters, so its atlas decision has to
+   * come from the same authority as its colours. `this.atlas` records only what
+   * the last completed render staged, and nothing forces a render before an
+   * export, so it is wrong in both directions. It is null while a multi-label
+   * annotation is selected — before the first populate, on an empty render, in
+   * the window between an annotation switch and the next frame — and reading it
+   * there would export dominant colours for a multi-label view: a wrong picture,
+   * presented as data. It is equally non-null in the mirror window, after a
+   * switch to a single-label annotation, where inheriting its stride would build
+   * and upload a capacity-sized atlas (~18 MB at 573K) of texels the shader never
+   * samples, because every `labelCount` is 1.
    *
-   * A live plan still wins when there is one, so a device-forced fidelity
-   * reduction is never exceeded by the figure.
+   * Only once the answer is yes does the live plan matter, and then it wins: the
+   * export plans against its own context's limit but never at higher fidelity
+   * than the screen, so a figure cannot show eight segments where the user saw
+   * four. With no plan there is no such cap to respect, and the export is free to
+   * plan at full fidelity against its own device.
    */
   private exportLabelStride(): number | null {
-    if (this.atlas) return this.atlas.plan.stride;
     if (this.labelAtlasDisabled || !this.isMultilabel()) return null;
-    return MAX_LABELS;
+    return this.atlas?.plan.stride ?? MAX_LABELS;
   }
 
   /**
@@ -1335,10 +1342,24 @@ export class WebGLRenderer {
    */
   private disableLabelAtlas(reason: RendererDegradedReason | null) {
     this.labelAtlasDisabled = true;
+    this.releaseLabelAtlas();
+    if (reason) this.reportDegraded(reason);
+  }
+
+  /**
+   * Hand the atlas back: drop the plan and its texels, and re-point the staging
+   * view so `stagePoint` writes no label texels.
+   *
+   * Clearing `labelTextureInitialized` is what carries the release to the GPU —
+   * the next `uploadLabelAtlas` takes the placeholder branch, which is the call
+   * that actually frees the texture storage. Both reasons to release (the device
+   * refused one, the annotation does not need one) run the identical sequence, so
+   * it lives here rather than being spelled out at each.
+   */
+  private releaseLabelAtlas(): void {
     this.atlas = null;
     this.labelTextureInitialized = false;
     this.stageArrays = this.buildStageArrays();
-    if (reason) this.reportDegraded(reason);
   }
 
   /**
@@ -1356,12 +1377,10 @@ export class WebGLRenderer {
     // feature it is not using. Release it, and allocate on the transition back.
     // Reads the value `render()` latched for this pass rather than re-asking the
     // getter, so the gate and the re-stage that follows it cannot disagree.
+    // Guarded on `this.atlas`: without it every single-label frame would re-point
+    // the staging view and re-upload the placeholder for a release already done.
     if (!this.labelAtlasActive) {
-      if (this.atlas) {
-        this.atlas = null;
-        this.labelTextureInitialized = false;
-        this.stageArrays = this.buildStageArrays();
-      }
+      if (this.atlas) this.releaseLabelAtlas();
       return;
     }
     // Nothing to cover yet. An empty render — no data loaded, or a viewport cull
