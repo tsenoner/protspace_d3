@@ -185,7 +185,9 @@ asked for.
 > protein leaves its self-similarity at 0, which suppresses the
 > similarity-to-distance conversion for the whole matrix and inverts the MDS
 > projection. A FASTA covering *more* than the embeddings is normal and is not
-> reported.
+> reported. The same FASTA supplies the sequences carried into the bundle, and it
+> applies to every HDF5 input — a directory of them as much as a single file. A
+> `-f` path that does not exist is rejected outright rather than ignored.
 
 ## `protspace project`
 

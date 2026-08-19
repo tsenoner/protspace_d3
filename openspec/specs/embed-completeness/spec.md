@@ -171,6 +171,27 @@ conversion, so a single uncovered protein inverts the entire MDS projection.
 - **THEN** nothing is reported, because a resumed embedding cache legitimately
   covers fewer proteins than the FASTA it was built from
 
+### Requirement: A supplied FASTA must exist and reaches every HDF5 input
+
+The CLI SHALL reject a `-f/--fasta` path that does not exist, and SHALL attach the
+supplied FASTA to every HDF5 input it loads, a directory of them as much as a
+single file. A path read only behind an existence guard turns a typo into silence,
+and attaching the FASTA to one input shape but not the other makes both the
+coverage check and the sequences carried into the bundle depend on how the input
+happened to be spelled.
+
+#### Scenario: A FASTA path that does not exist is a usage error
+
+- **WHEN** `-f/--fasta` names a path that is not on disk
+- **THEN** the command rejects it as a bad argument, on both `prepare` and
+  `project`, rather than continuing with the FASTA silently unused
+
+#### Scenario: A directory of embeddings receives the FASTA
+
+- **WHEN** the input is a directory of HDF5 files and `-f/--fasta` is supplied
+- **THEN** the FASTA is attached to the loaded embeddings, so its sequences reach
+  the bundle exactly as they do for a single HDF5 input
+
 #### Scenario: Identifier styles are reconciled before comparing
 
 - **WHEN** the HDF5 keys and the FASTA headers use different identifier styles,

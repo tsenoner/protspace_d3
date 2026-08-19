@@ -177,6 +177,8 @@ Opt_Fasta = Annotated[
         "-f",
         "--fasta",
         help="FASTA for -s/--similarity when input is HDF5.",
+        exists=True,
+        dir_okay=False,
         rich_help_panel="Input",
     ),
 ]

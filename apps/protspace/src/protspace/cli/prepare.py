@@ -479,13 +479,9 @@ def prepare(
                     if not h5s:
                         logger.warning(f"No embedding files in: {path}")
                         continue
-                    embedding_sets.append(load_h5(h5s, name_override=name_override))
+                    emb_set = load_h5(h5s, name_override=name_override)
                 elif path.suffix.lower() in EMBEDDING_EXTENSIONS:
                     emb_set = load_h5([path], name_override=name_override)
-                    # Attach FASTA path from -f flag if provided (for sequence reuse)
-                    if fasta_for_similarity:
-                        emb_set.fasta_path = fasta_for_similarity
-                    embedding_sets.append(emb_set)
                 elif path.suffix.lower() in {".fasta", ".fa", ".faa"}:
                     _embed_all(
                         embedders,
@@ -497,8 +493,15 @@ def prepare(
                         force_reembed="embed" in refetch_stages,
                     )
                     fasta_for_similarity = path
+                    continue
                 else:
                     raise typer.BadParameter(f"Unsupported file: {path}")
+
+                # -f carries the sequences into the bundle, and it applies to
+                # every HDF5 input -- a directory of them as much as one file.
+                if fasta_for_similarity:
+                    emb_set.fasta_path = fasta_for_similarity
+                embedding_sets.append(emb_set)
 
         if not embedding_sets:
             raise typer.BadParameter("No valid input data found.")

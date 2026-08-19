@@ -141,3 +141,124 @@ class TestFastaCoverage:
         with caplog.at_level("WARNING"):
             check_fasta_coverage(fasta, ["P12345"], required=True)
         assert caplog.text == ""
+
+
+class TestFastaOptionWiring:
+    """`-f/--fasta` reaches the pipeline, and a path that is not there says so.
+
+    Both sit upstream of the coverage check: sequences that never get attached
+    cannot be checked, and a typo'd path used to be swallowed silently by the
+    ``.exists()`` guard in ``ReductionPipeline._extract_sequences``.
+    """
+
+    @staticmethod
+    def _inputs(tmp_path):
+        """A directory of embeddings plus the FASTA they came from."""
+        d = tmp_path / "embs"
+        d.mkdir()
+        _write(d / "prot_t5.h5", ["P1", "P2"])
+        with h5py.File(d / "prot_t5.h5", "a") as f:
+            f.attrs["model_name"] = "prot_t5"
+        fasta = tmp_path / "seqs.fasta"
+        fasta.write_text(">P1\nAAAA\n>P2\nCCCC\n")
+        return d, fasta
+
+    @staticmethod
+    def _stub_pipeline(monkeypatch, captured):
+        """Capture the embedding sets instead of reducing and annotating them.
+
+        Also keeps a regression here off the network: without it, a lost
+        ``exists=True`` would let the run reach the real annotation fetch.
+        """
+        import protspace.data.processors.pipeline as pipeline_mod
+
+        class _Capture:
+            def __init__(self, config):
+                pass
+
+            def run(self, embedding_sets):
+                captured["sets"] = embedding_sets
+
+        monkeypatch.setattr(pipeline_mod, "ReductionPipeline", _Capture)
+
+    @staticmethod
+    def _prepare(d, fasta, tmp_path):
+        return [
+            "prepare",
+            "-i",
+            str(d),
+            "-f",
+            str(fasta),
+            "-m",
+            "pca2",
+            "-o",
+            str(tmp_path / "out"),
+            "--no-scores",
+            "--no-log",
+        ]
+
+    def test_fasta_reaches_a_directory_input(self, tmp_path, monkeypatch):
+        """``-i <dir> -f x.fasta`` must attach the FASTA, as ``-i <file>`` does.
+
+        Only the single-file branch attached it, so a directory of embeddings
+        got similarity but shipped a bundle carrying no sequences.
+        """
+        from typer.testing import CliRunner
+
+        from protspace.cli.app import app
+
+        d, fasta = self._inputs(tmp_path)
+        captured: dict = {}
+        self._stub_pipeline(monkeypatch, captured)
+
+        result = CliRunner().invoke(app, self._prepare(d, fasta, tmp_path))
+
+        assert result.exit_code == 0, result.output
+        assert [s.fasta_path for s in captured["sets"]] == [fasta]
+
+    def test_prepare_rejects_a_fasta_that_is_not_there(self, tmp_path, monkeypatch):
+        """Same invocation as above, only the FASTA path is a typo.
+
+        Pinned on exit code 2 -- the usage error typer raises for a path that
+        does not exist -- rather than merely non-zero: the coverage check would
+        also fail this run, at exit 1, from `parse_fasta` deep in the pipeline.
+        The point is that the typo is caught as a bad argument. Exit codes are
+        immune to the terminal width that reflows the message in its panel.
+        """
+        from typer.testing import CliRunner
+
+        from protspace.cli.app import app
+
+        d, _ = self._inputs(tmp_path)
+        self._stub_pipeline(monkeypatch, {})
+
+        result = CliRunner().invoke(
+            app, self._prepare(d, tmp_path / "typo.fasta", tmp_path)
+        )
+
+        assert result.exit_code == 2, result.output
+
+    def test_project_rejects_a_fasta_that_is_not_there(self, tmp_path):
+        """`project` swallowed it whole: without -s the FASTA is never read, so
+        a typo'd -f exited 0 having quietly done nothing with it."""
+        from typer.testing import CliRunner
+
+        from protspace.cli.app import app
+
+        d, _ = self._inputs(tmp_path)
+        result = CliRunner().invoke(
+            app,
+            [
+                "project",
+                "-i",
+                str(d / "prot_t5.h5"),
+                "-f",
+                str(tmp_path / "typo.fasta"),
+                "-m",
+                "pca2",
+                "-o",
+                str(tmp_path / "out"),
+            ],
+        )
+
+        assert result.exit_code == 2, result.output
