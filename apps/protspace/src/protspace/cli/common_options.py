@@ -202,6 +202,18 @@ Opt_BatchSize = Annotated[
     ),
 ]
 
+Opt_MaxLength = Annotated[
+    int | None,
+    typer.Option(
+        min=1,
+        help=(
+            "Skip sequences longer than this (local backend only; default 2000). "
+            "Skipped sequences are named in the run summary."
+        ),
+        rich_help_panel="Embedding",
+    ),
+]
+
 # Input options (shared by prepare and project)
 Opt_Fasta = Annotated[
     Path | None,
@@ -209,6 +221,38 @@ Opt_Fasta = Annotated[
         "-f",
         "--fasta",
         help="FASTA for -s/--similarity when input is HDF5.",
+        exists=True,
+        dir_okay=False,
         rich_help_panel="Input",
     ),
 ]
+
+
+def build_embed_config(
+    backend: "Backend",
+    batch_size: int | None = None,
+    max_length: int | None = None,
+):
+    """Build the embedding config matching *backend*, applying only what was given.
+
+    Both ``embed`` and ``prepare`` need this, and each needs it per backend, so
+    without it the same four-line conditional appears four times.
+    """
+    if backend == Backend.local:
+        from protspace.data.embedding.local import LocalEmbedConfig
+
+        opts = {}
+        if batch_size is not None:
+            opts["batch_size"] = batch_size
+        if max_length is not None:
+            opts["max_length"] = max_length
+        return LocalEmbedConfig(**opts)
+
+    from protspace.data.embedding.biocentral import EmbedConfig
+
+    if max_length is not None:
+        raise typer.BadParameter(
+            "--max-length applies to --backend local; the Biocentral backend "
+            "has no length cap."
+        )
+    return EmbedConfig(**({"batch_size": batch_size} if batch_size is not None else {}))

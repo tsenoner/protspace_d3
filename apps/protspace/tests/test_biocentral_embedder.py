@@ -385,22 +385,62 @@ class TestEmbedSequencesCompleteness:
         )
         assert bar["n"] == bar["total"] == self.N
 
-    def test_gate_reads_the_file_not_a_counter(self, monkeypatch, tmp_path):
-        """h5py turns an ID containing "/" into a group, so two requested IDs can
-        collapse into one dataset. A counter of what was *sent* to save_embeddings
-        sees 2/2 and exits 0; only the file itself shows the shortfall."""
+    def test_slash_in_id_is_rejected_before_any_api_call(self, monkeypatch, tmp_path):
+        """h5py turns an ID containing "/" into a group, so it can never become the
+        requested dataset. Both backends refuse up front rather than paying for a
+        full embedding run and then reporting a shortfall they cannot explain."""
         from src.protspace.data.embedding import biocentral as bc
 
+        called = []
         monkeypatch.setattr(
             bc,
             "BiocentralAPI",
-            lambda **kw: self._fake_api(to_dict=lambda s: self._embeddings(s)),
+            lambda **kw: called.append(1) or self._fake_api(to_dict=self._embeddings),
         )
-        monkeypatch.setattr(bc.time, "sleep", lambda s: None)
 
         h5_path = tmp_path / "collide.h5"
-        with pytest.raises(ValueError, match="Embedding incomplete"):
+        with pytest.raises(ValueError, match=r"Header\(s\) contain '/'"):
             bc.embed_sequences({"A/B": "MKV", "A": "MKW"}, "m", h5_path)
+
+        assert not called, "must reject before connecting to the API"
+        assert not h5_path.exists()
+
+    def test_both_backends_reject_the_same_id(self, tmp_path):
+        """Both backends raise the same error for the same invalid identifier,
+        because the rejection lives in the shared layer rather than in either."""
+        from src.protspace.data.embedding import biocentral as bc
+        from src.protspace.data.embedding import local
+
+        bad = {"A/B": "MKV"}
+        messages = []
+        for backend in (bc, local):
+            with pytest.raises(ValueError) as exc:
+                backend.embed_sequences(bad, "esm2_8m", tmp_path / "x.h5")
+            messages.append(str(exc.value))
+
+        assert messages[0] == messages[1], messages
+        assert "invalid for HDF5 dataset names" in messages[0]
+
+    def test_gate_reads_the_file_not_a_counter(self, monkeypatch, tmp_path):
+        """The completeness gate reads the .h5, never a running total. A writer
+        that under-delivers -- save_embeddings skips IDs already present -- must
+        still be caught."""
+        from src.protspace.data.embedding import biocentral as bc
+
+        seqs, h5_path, _, bc_mod = self._run(
+            monkeypatch, tmp_path, to_dict=lambda s: self._embeddings(s)
+        )
+
+        real_save = bc.save_embeddings
+        dropped = sorted(seqs)[0]
+
+        def lossy_save(path, embeddings):
+            real_save(path, {k: v for k, v in embeddings.items() if k != dropped})
+
+        monkeypatch.setattr(bc, "save_embeddings", lossy_save)
+
+        with pytest.raises(ValueError, match="Embedding incomplete"):
+            bc_mod.embed_sequences(seqs, "m", h5_path, embed_config=bc.EmbedConfig(2))
 
     def test_rerun_embeds_only_what_is_missing(self, monkeypatch, tmp_path):
         """A failed run must leave the pipeline able to converge on a retry."""

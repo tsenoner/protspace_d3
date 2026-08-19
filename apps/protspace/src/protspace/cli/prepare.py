@@ -32,6 +32,7 @@ from protspace.cli.common_options import (
     Opt_FpRatio,
     Opt_LearningRate,
     Opt_MaxIter,
+    Opt_MaxLength,
     Opt_Methods,
     Opt_Metric,
     Opt_MinDist,
@@ -42,6 +43,7 @@ from protspace.cli.common_options import (
     Opt_RandomState,
     Opt_Similarity,
     Opt_Verbose,
+    build_embed_config,
     require_similarity_extra,
 )
 
@@ -295,6 +297,7 @@ def prepare(
     embedder: Opt_Embedder = None,
     backend: Opt_Backend = Backend.biocentral,
     batch_size: Opt_BatchSize = None,
+    max_length: Opt_MaxLength = None,
     # Projection
     methods: Opt_Methods = None,
     similarity: Opt_Similarity = False,
@@ -422,22 +425,7 @@ def prepare(
         query_uniprot,
     )
 
-    if backend == Backend.local:
-        from protspace.data.embedding.local import LocalEmbedConfig
-
-        embed_config = (
-            LocalEmbedConfig(batch_size=batch_size)
-            if batch_size is not None
-            else LocalEmbedConfig()
-        )
-    else:
-        from protspace.data.embedding.biocentral import EmbedConfig
-
-        embed_config = (
-            EmbedConfig(batch_size=batch_size)
-            if batch_size is not None
-            else EmbedConfig()
-        )
+    embed_config = build_embed_config(backend, batch_size, max_length)
     embedding_sets: list[EmbeddingSet] = []
     fasta_for_similarity: Path | None = fasta
 
@@ -486,13 +474,9 @@ def prepare(
                     if not h5s:
                         logger.warning(f"No embedding files in: {path}")
                         continue
-                    embedding_sets.append(load_h5(h5s, name_override=name_override))
+                    emb_set = load_h5(h5s, name_override=name_override)
                 elif path.suffix.lower() in EMBEDDING_EXTENSIONS:
                     emb_set = load_h5([path], name_override=name_override)
-                    # Attach FASTA path from -f flag if provided (for sequence reuse)
-                    if fasta_for_similarity:
-                        emb_set.fasta_path = fasta_for_similarity
-                    embedding_sets.append(emb_set)
                 elif path.suffix.lower() in {".fasta", ".fa", ".faa"}:
                     _embed_all(
                         embedders,
@@ -504,11 +488,30 @@ def prepare(
                         force_reembed="embed" in refetch_stages,
                     )
                     fasta_for_similarity = path
+                    continue
                 else:
                     raise typer.BadParameter(f"Unsupported file: {path}")
 
+                # -f carries the sequences into the bundle, and it applies to
+                # every HDF5 input -- a directory of them as much as one file.
+                if fasta_for_similarity:
+                    emb_set.fasta_path = fasta_for_similarity
+                embedding_sets.append(emb_set)
+
         if not embedding_sets:
             raise typer.BadParameter("No valid input data found.")
+
+        # --- FASTA coverage ---
+        # Before similarity, not after: an uncovered protein inverts the whole
+        # MDS projection rather than degrading its own row.
+        if fasta_for_similarity is not None and embedding_sets:
+            from protspace.data.loaders.fasta import check_fasta_coverage
+
+            check_fasta_coverage(
+                fasta_for_similarity,
+                embedding_sets[0].headers,
+                required=bool(similarity),
+            )
 
         # --- Similarity ---
         # Both preconditions were checked before any input was read, so

@@ -46,7 +46,7 @@ Single entry point: `protspace = protspace.cli.app:app`
 | Command | Purpose |
 |---------|---------|
 | `protspace prepare` | Full pipeline: embed → reduce → annotate → bundle |
-| `protspace embed` | FASTA → HDF5 embeddings (Biocentral API or local GPU/CPU via `--backend local`) |
+| `protspace embed` | FASTA → HDF5 embeddings (Biocentral API or local GPU/CPU via `--backend local`). Exits non-zero on an incomplete embedding; capability-limited sequences (`--max-length`, GPU OOM) are skipped and named instead |
 | `protspace project` | HDF5 → dimensionality reduction |
 | `protspace annotate` | Fetch protein annotations |
 | `protspace bundle` | Combine projections + annotations → .parquetbundle |
@@ -156,6 +156,7 @@ src/protspace/
 │   │   ├── settings_converter.py # Settings table conversion
 │   │   └── writers.py          # Annotation output writers
 │   ├── embedding/
+│   │   ├── store.py            # Shared HDF5 layer + completeness contract (owned by neither backend)
 │   │   ├── biocentral.py       # Biocentral API client, model shortcut mappings
 │   │   └── local.py            # Local GPU/CPU backend (HF transformers, [local] extra)
 │   ├── parsers/
@@ -280,9 +281,10 @@ For a live count run `uv run pytest tests/ --collect-only -q`.
 | `test_stats_bundle.py` | Optional 5th (statistics) bundle part round-trip |
 | `test_annotation_select.py` | Annotation selection: suitability filter (cardinality/numeric/id-like exclusion), `auto` vs explicit-list label building (explicit names bypass the heuristic), missing-value dropping |
 | `test_annotation_validity.py` | `AnnotationValidityStatistic`: silhouette/DBI/CH scored per annotation on `ctx.coords`, embedding vs. projection `space_kind`, missing-value exclusion, single-category no-op, id-canonical subsample determinism |
-| `test_biocentral_embedder.py` | Biocentral API client, embedding flow |
+| `test_biocentral_embedder.py` | Biocentral API client, embedding flow, completeness gate (reads the .h5, not a counter), `/`-in-header rejection |
+| `test_embed_completeness.py` | Shared embed contract (`data/embedding/store.py`): `expected = requested - skipped`, skip-vs-fail, skip reporting, resume-covered runs, FASTA coverage direction + identifier normalisation |
 | `test_backend_switch.py` | Embedding backend switch: `resolve_default_backend` (Colab+GPU→local), `embed_fasta` local/biocentral dispatch (short key vs resolved name), `protspace embed --backend` CLI wiring + enum validation + non-positive batch_size rejection |
-| `test_local_embedder.py` | Local embedding backend: checkpoint resolution (12 short keys, Synthyra ESM-C), the notebook-gating sets pinned to the registry each constrains (`COLAB_OVERSIZED`→`LOCAL_CHECKPOINTS`, `BIOCENTRAL_INVALID`→`ALL_SHORT_KEYS`), per-family preprocessing/residue pooling, `/`-in-header guard, LocalEmbedConfig validation, empty-output guard, esm2_8m end-to-end + resume (slow) |
+| `test_local_embedder.py` | Local embedding backend: checkpoint resolution (12 short keys, Synthyra ESM-C), the notebook-gating sets pinned to the registry each constrains (`COLAB_OVERSIZED`→`LOCAL_CHECKPOINTS`, `BIOCENTRAL_INVALID`→`ALL_SHORT_KEYS`), per-family preprocessing/residue pooling, `/`-in-header guard, LocalEmbedConfig validation, over-length + OOM skips reported not failed, non-skip shortfall fails, esm2_8m end-to-end + resume (slow) |
 | `test_fasta.py` | FASTA parsing, edge cases, CSV annotation loading |
 | `test_biocentral_retriever.py` | Biocentral prediction retriever (TMbed parsing, per-sequence) |
 | `test_taxonomy_annotation_retriever.py` | Taxonomy via UniProt Taxonomy API (mocked + integration) |

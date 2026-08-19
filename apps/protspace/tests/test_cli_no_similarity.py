@@ -78,14 +78,18 @@ def test_cli_rejects_similarity_before_doing_work(command, tmp_path, monkeypatch
 
     _stub_pymmseqs(monkeypatch, None)
     # -f satisfies the sibling precondition (-s on HDF5 input needs a FASTA), so
-    # the extra guard is what this asserts on. Neither path is read.
+    # the extra guard is what this asserts on. It has to be a real file -- -f is
+    # validated as an existing path -- but nothing reads it, and `missing.h5`
+    # still does not exist.
+    fasta = tmp_path / "seqs.fasta"
+    fasta.write_text(">P1\nAAAA\n")
     args = [
         command,
         "-i",
         str(tmp_path / "missing.h5"),
         "-s",
         "-f",
-        str(tmp_path / "missing.fasta"),
+        str(fasta),
         "-o",
         str(tmp_path),
     ]

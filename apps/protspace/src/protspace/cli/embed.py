@@ -13,7 +13,9 @@ from protspace.cli.common_options import (
     Backend,
     Opt_Backend,
     Opt_BatchSize,
+    Opt_MaxLength,
     Opt_Verbose,
+    build_embed_config,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,6 +49,7 @@ def embed(
     ],
     backend: Opt_Backend = Backend.biocentral,
     batch_size: Opt_BatchSize = None,
+    max_length: Opt_MaxLength = None,
     verbose: Opt_Verbose = 0,
 ) -> None:
     """FASTA → per-model HDF5 embeddings.
@@ -68,29 +71,19 @@ def embed(
 
     output.mkdir(parents=True, exist_ok=True)
 
-    if backend == Backend.local:
-        from protspace.data.embedding.local import LocalEmbedConfig, embed_sequences
+    embed_config = build_embed_config(backend, batch_size, max_length)
 
-        embed_config = (
-            LocalEmbedConfig(batch_size=batch_size)
-            if batch_size is not None
-            else LocalEmbedConfig()
-        )
+    if backend == Backend.local:
+        from protspace.data.embedding.local import embed_sequences
 
         def resolve(name: str) -> str:
             return name  # local backend takes the short key directly
     else:
         from protspace.data.embedding.biocentral import (
-            EmbedConfig,
             embed_sequences,
             resolve_embedder,
         )
 
-        embed_config = (
-            EmbedConfig(batch_size=batch_size)
-            if batch_size is not None
-            else EmbedConfig()
-        )
         resolve = resolve_embedder
 
     failed_models: list[str] = []

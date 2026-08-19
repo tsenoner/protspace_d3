@@ -57,6 +57,8 @@ def project(
             "-f",
             "--fasta",
             help="FASTA for -s/--similarity when input is HDF5.",
+            exists=True,
+            dir_okay=False,
             rich_help_panel="Input / Output",
         ),
     ] = None,
@@ -115,6 +117,9 @@ def project(
         raise typer.BadParameter("No valid HDF5 files found.")
 
     if similarity:
+        from protspace.data.loaders.fasta import check_fasta_coverage
+
+        check_fasta_coverage(fasta, embedding_sets[0].headers, required=True)
         sim_set = compute_similarity(fasta, embedding_sets[0].headers)
         embedding_sets.append(sim_set)
 
