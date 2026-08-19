@@ -29,6 +29,7 @@ from protspace.cli.common_options import (
     Opt_FpRatio,
     Opt_LearningRate,
     Opt_MaxIter,
+    Opt_MaxLength,
     Opt_Methods,
     Opt_Metric,
     Opt_MinDist,
@@ -39,6 +40,7 @@ from protspace.cli.common_options import (
     Opt_RandomState,
     Opt_Similarity,
     Opt_Verbose,
+    build_embed_config,
 )
 
 logger = logging.getLogger(__name__)
@@ -310,6 +312,7 @@ def prepare(
     embedder: Opt_Embedder = None,
     backend: Opt_Backend = Backend.biocentral,
     batch_size: Opt_BatchSize = None,
+    max_length: Opt_MaxLength = None,
     # Projection
     methods: Opt_Methods = None,
     similarity: Opt_Similarity = False,
@@ -427,22 +430,7 @@ def prepare(
         query_uniprot,
     )
 
-    if backend == Backend.local:
-        from protspace.data.embedding.local import LocalEmbedConfig
-
-        embed_config = (
-            LocalEmbedConfig(batch_size=batch_size)
-            if batch_size is not None
-            else LocalEmbedConfig()
-        )
-    else:
-        from protspace.data.embedding.biocentral import EmbedConfig
-
-        embed_config = (
-            EmbedConfig(batch_size=batch_size)
-            if batch_size is not None
-            else EmbedConfig()
-        )
+    embed_config = build_embed_config(backend, batch_size, max_length)
     embedding_sets: list[EmbeddingSet] = []
     fasta_for_similarity: Path | None = fasta
 
