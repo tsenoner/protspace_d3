@@ -59,10 +59,10 @@
 
 ## 7. Follow-ups filed, not fixed here
 
-- [ ] 7.1 File an issue for the `np.allclose(np.diag(data), 1)` heuristic in
+- [x] 7.1 Filed #471 for the `np.allclose(np.diag(data), 1)` heuristic in
       `base_processor.py` — thread an explicit `is_similarity` flag from
       `compute_similarity` instead of inferring it from the diagonal.
-- [ ] 7.2 File an issue for `load_existing_ids` vs the loader's grouped view: a
+- [x] 7.2 Filed #472 for `load_existing_ids` vs the loader's grouped view: a
       grouped third-party `.h5` re-embeds everything and writes flat duplicates.
-- [ ] 7.3 File an issue for `protspace embed` writing raw `sp|…` keys where
+- [x] 7.3 Filed #473 for `protspace embed` writing raw `sp|…` keys where
       `prepare` writes parsed accessions.
