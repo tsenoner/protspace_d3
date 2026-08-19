@@ -3,7 +3,7 @@
 A drop-in alternative to :mod:`protspace.data.embedding.biocentral` that
 computes per-protein embeddings with a local GPU (or CPU) via HuggingFace
 ``transformers`` instead of the remote Biocentral API — so the pipeline keeps
-working when Biocentral is down (issue #59).
+working when Biocentral is down (issue #320).
 
 ``embed_sequences`` keeps the Biocentral function's positional signature and
 HDF5 output contract (one float32 per-protein vector per dataset, resume-by-key),
@@ -58,6 +58,13 @@ LOCAL_CHECKPOINTS: dict[str, tuple[str, str]] = {
     "esmc_300m": ("Synthyra/ESMplusplus_small", "esmc"),
     "esmc_600m": ("Synthyra/ESMplusplus_large", "esmc"),
 }
+
+# Checkpoints too large for a free Colab runtime; embed_sequences' warning below
+# carries the mechanism (host RAM, not VRAM). This backend only warns —
+# `--backend local -e esm2_3b` is correct on real hardware — but the Colab
+# notebook imports this set to keep those models off its local path, so the size
+# rule has one home rather than two.
+COLAB_OVERSIZED: frozenset[str] = frozenset({"esm2_3b"})
 
 # Model families whose tokenizer wraps the sequence with a leading special
 # token (CLS / <AA2fold>) as well as a trailing EOS. T5 encoders (ProtT5, Ankh)
@@ -266,10 +273,13 @@ def embed_sequences(
     checkpoint, mod_type = resolve_local_checkpoint(embedder)
     validate_headers(sequences.keys())
 
-    if embedder == "esm2_3b":
+    if embedder in COLAB_OVERSIZED:
         logger.warning(
-            "esm2_3b (3B params) may exceed a free Colab T4 (~15 GB VRAM). "
-            "If it OOMs, switch to an L4/A100 runtime or a smaller model."
+            "%s materialises more fp32 weights in host RAM than a free Colab "
+            "runtime (12.7 GB) can take, before they ever reach the GPU — and "
+            "that failure kills the kernel rather than raising. Fine on a larger "
+            "runtime or real hardware; otherwise pick a smaller model.",
+            embedder,
         )
 
     h5_path = Path(h5_path)

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change fix-pdb-annotation-without-uniprot. Update Purpose after archive.
+How UniProt-derived annotation values behave once other sources contribute to the same protein — in particular that discovering a PDB structure must not downgrade or overwrite the evidence state UniProt reported.
 
 ## Requirements
 

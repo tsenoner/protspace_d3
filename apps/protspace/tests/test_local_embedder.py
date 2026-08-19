@@ -10,7 +10,7 @@ import h5py
 import numpy as np
 import pytest
 
-from protspace.data.embedding import local
+from protspace.data.embedding import biocentral, local
 from protspace.data.embedding.biocentral import ALL_SHORT_KEYS
 
 # ---------------------------------------------------------------------------
@@ -41,6 +41,25 @@ def test_resolve_covers_every_cli_short_key():
 def test_resolve_unknown_raises_with_suggestion():
     with pytest.raises(ValueError, match="esm2_8m"):
         local.resolve_local_checkpoint("esm2_8")
+
+
+def test_blocked_sets_name_real_short_keys():
+    """A typo in either set would silently stop gating rather than fail.
+
+    The Colab notebook imports both to disable those checkboxes, so a name that
+    matches no shortcut disables nothing — and the run then fails the way the
+    set exists to prevent, mid-embed, after the input has been paid for.
+
+    Each set is pinned to the registry it constrains, not to whichever one is
+    handy: COLAB_OVERSIZED is a fact about local checkpoints, so a local-only
+    model added later must not have to be a Biocentral shortcut to be gated.
+    """
+    for blocked, registry in (
+        (local.COLAB_OVERSIZED, local.LOCAL_CHECKPOINTS),
+        (biocentral.BIOCENTRAL_INVALID, ALL_SHORT_KEYS),
+    ):
+        assert blocked
+        assert blocked <= set(registry)
 
 
 # ---------------------------------------------------------------------------

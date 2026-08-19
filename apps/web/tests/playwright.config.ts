@@ -1,5 +1,6 @@
 import { defineConfig, devices, type Project } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
+import { tourCompletedStorageState } from './helpers/tour-storage-state';
 
 const TEST_DIR = fileURLToPath(new URL('.', import.meta.url));
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
@@ -15,15 +16,7 @@ const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
  * below, and each project's own comment for what it needs.
  */
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:8080';
-const TOUR_COMPLETED_STORAGE_STATE = {
-  cookies: [],
-  origins: [
-    {
-      origin: new URL(BASE_URL).origin,
-      localStorage: [{ name: 'driver.overviewTour', value: 'true' }],
-    },
-  ],
-};
+const TOUR_COMPLETED_STORAGE_STATE = tourCompletedStorageState(BASE_URL);
 const EMPTY_STORAGE_STATE = { cookies: [], origins: [] };
 
 /**
@@ -156,6 +149,22 @@ export default defineConfig({
       },
       testMatch: /load-large-bundle\.spec\.ts/,
     }),
+    {
+      name: 'camera-no-restage',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /camera-no-restage\.spec\.ts/,
+    },
+    {
+      name: 'label-atlas-limit',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /label-atlas-limit\.spec\.ts/,
+    },
     {
       name: 'figure-editor',
       use: {
