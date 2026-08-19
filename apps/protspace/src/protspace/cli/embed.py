@@ -94,6 +94,8 @@ def embed(
         )
         resolve = resolve_embedder
 
+    failed_models: list[str] = []
+
     for model_name in embedder:
         h5_path = output / f"{model_name}.h5"
 
@@ -106,15 +108,26 @@ def embed(
                 embed_config=embed_config,
             )
         except (FileNotFoundError, ValueError) as e:
-            # Mirrors the stage-failure handler in cli/prepare.py. Without it an incomplete
-            # embedding surfaces as a raw traceback instead of a message.
+            # Same stage-failure shape as cli/prepare.py. The models are independent
+            # (one .h5 each), so carry on and report every failure at the end rather
+            # than abandoning the models that have not been tried yet.
             logger.error(str(e))
-            raise typer.Exit(1) from e
+            failed_models.append(model_name)
+            continue
 
-        # Write model_name attr. Only reached on success — on failure this h5py.File(..., "a")
-        # call is what fabricated the empty ~6 KB .h5, which together with the affirmative
-        # "Saved:" line below made a total failure look like a finished run.
+        # Write model_name attr. Skipped on failure, so a run that embedded nothing
+        # no longer leaves a stamped .h5 and an affirmative "Saved:" line behind.
         with h5py.File(h5_path, "a") as f:
             f.attrs["model_name"] = model_name
 
         typer.echo(f"Saved: {h5_path} (model_name={model_name})")
+
+    if failed_models:
+        if len(embedder) > 1:
+            logger.error(
+                "Embedding failed for %d of %d model(s): %s",
+                len(failed_models),
+                len(embedder),
+                ", ".join(failed_models),
+            )
+        raise typer.Exit(1)
