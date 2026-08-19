@@ -273,3 +273,82 @@ def test_embed_cli_does_not_stamp_a_failed_model(tmp_path, monkeypatch):
     assert result.exit_code == 1, result.output
     assert "Saved:" not in result.output
     assert not (out / "prot_t5.h5").exists(), "no .h5 may be fabricated on failure"
+
+
+def test_embed_cli_wires_max_length_to_local_config(tmp_path, monkeypatch):
+    """Without a lever, "skipped 3 sequences" is a dead end for the user."""
+    fasta = tmp_path / "s.fasta"
+    fasta.write_text(">P12345\nMKVLAAG\n")
+    captured = {}
+    monkeypatch.setattr(
+        "protspace.data.embedding.local.embed_sequences", _fake_embed(captured)
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "embed",
+            "-i",
+            str(fasta),
+            "-e",
+            "prot_t5",
+            "-o",
+            str(tmp_path / "out"),
+            "--backend",
+            "local",
+            "--max-length",
+            "512",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured["config"].max_length == 512
+
+
+def test_embed_cli_rejects_max_length_for_biocentral(tmp_path):
+    """The remote backend has no length cap, so silently ignoring the flag would
+    let a user believe they had raised a limit that does not exist."""
+    fasta = tmp_path / "s.fasta"
+    fasta.write_text(">P12345\nMKVLAAG\n")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "embed",
+            "-i",
+            str(fasta),
+            "-e",
+            "prot_t5",
+            "-o",
+            str(tmp_path / "out"),
+            "--max-length",
+            "512",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "backend local" in result.output
+
+
+def test_embed_cli_rejects_nonpositive_max_length(tmp_path):
+    fasta = tmp_path / "s.fasta"
+    fasta.write_text(">P12345\nMKVLAAG\n")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "embed",
+            "-i",
+            str(fasta),
+            "-e",
+            "prot_t5",
+            "-o",
+            str(tmp_path / "out"),
+            "--backend",
+            "local",
+            "--max-length",
+            "0",
+        ],
+    )
+
+    assert result.exit_code != 0
