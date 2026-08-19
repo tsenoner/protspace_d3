@@ -503,6 +503,18 @@ def prepare(
         if not embedding_sets:
             raise typer.BadParameter("No valid input data found.")
 
+        # --- FASTA coverage ---
+        # Before similarity, not after: an uncovered protein inverts the whole
+        # MDS projection rather than degrading its own row.
+        if fasta_for_similarity is not None and embedding_sets:
+            from protspace.data.loaders.fasta import check_fasta_coverage
+
+            check_fasta_coverage(
+                fasta_for_similarity,
+                embedding_sets[0].headers,
+                required=bool(similarity),
+            )
+
         # --- Similarity ---
         if similarity:
             if fasta_for_similarity is None:
