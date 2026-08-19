@@ -8,10 +8,18 @@ from dataclasses import dataclass
 from difflib import get_close_matches
 from pathlib import Path
 
-import h5py
 import numpy as np
 from biocentral_api import BiocentralAPI, CommonEmbedder, batched
 from tqdm import tqdm
+
+# Re-exported: the HDF5 layer moved to `store` so neither backend owns it, but
+# local.py, cli/annotate.py and existing importers still reach it from here.
+from protspace.data.embedding.store import (  # noqa: F401
+    finish_run,
+    load_existing_ids,
+    save_embeddings,
+    validate_headers,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -107,27 +115,6 @@ def derive_h5_cache_path(fasta_path: Path, embedder: str) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# HDF5 helpers
-# ---------------------------------------------------------------------------
-
-
-def load_existing_ids(h5_path: Path) -> set[str]:
-    """Return the set of dataset keys already present in *h5_path*."""
-    if not h5_path.exists():
-        return set()
-    with h5py.File(h5_path, "r") as f:
-        return set(f.keys())
-
-
-def save_embeddings(h5_path: Path, embeddings: dict[str, np.ndarray]) -> None:
-    """Append embeddings to an HDF5 file (one dataset per protein)."""
-    with h5py.File(h5_path, "a") as f:
-        for protein_id, emb in embeddings.items():
-            if protein_id not in f:
-                f.create_dataset(protein_id, data=emb.astype(np.float32))
-
-
-# ---------------------------------------------------------------------------
 # Main orchestrator
 # ---------------------------------------------------------------------------
 
@@ -149,6 +136,9 @@ def embed_sequences(
     Returns the path to the completed HDF5 file.
     """
     cfg = embed_config or EmbedConfig()
+
+    # Reject HDF5-hostile identifiers before spending a single API call on them.
+    validate_headers(sequences)
 
     # Resume: skip already-embedded sequences
     existing_ids = load_existing_ids(h5_path)
@@ -278,33 +268,12 @@ def embed_sequences(
 
     pbar.close()
 
-    # Gate on what landed in the file, not on a running total: save_embeddings skips
-    # IDs already present, and h5py turns an ID containing "/" into a group, so a
-    # counter can claim sequences the file does not hold.
-    missing = set(remaining) - load_existing_ids(h5_path)
-    if missing:
-        # ValueError, not RuntimeError: cli/embed.py and cli/prepare.py both catch
-        # (FileNotFoundError, ValueError) and render it as "ERROR: <msg>" + exit 1,
-        # whereas a RuntimeError escapes those handlers as a raw traceback.
-        embedded = len(remaining) - len(missing)
-        detail = (
-            f"{embedded:,} of {len(remaining):,} outstanding sequence(s) embedded, "
-            f"{len(missing):,} still missing "
-            f"({failed_batches} of {len(api_batches)} batch(es) failed)"
-        )
-        if embedded == 0:
-            raise ValueError(
-                f"No new embeddings were produced for {h5_path}: {detail}. "
-                f"Check the Biocentral server status and rerun."
-            )
-        raise ValueError(
-            f"Embedding incomplete for {h5_path}: {detail}. "
-            f"Partial results were kept — rerun to embed only what is missing."
-        )
-
-    print(f"\nDone. Embedded {len(remaining):,} sequence(s).")
-    print(f"Output: {h5_path}")
-    return h5_path
+    return finish_run(
+        h5_path,
+        remaining,
+        context=f"{failed_batches} of {len(api_batches)} batch(es) failed",
+        retry_hint="Check the Biocentral server status and rerun.",
+    )
 
 
 def probe_embedder(

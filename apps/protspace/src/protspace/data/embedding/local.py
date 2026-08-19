@@ -33,7 +33,12 @@ from pathlib import Path
 import numpy as np
 from tqdm import tqdm
 
-from protspace.data.embedding.biocentral import load_existing_ids, save_embeddings
+from protspace.data.embedding.store import (
+    finish_run,
+    load_existing_ids,
+    save_embeddings,
+    validate_headers,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -160,19 +165,6 @@ def pool_residues(hidden: np.ndarray, seq_len: int, mod_type: str) -> np.ndarray
     return residues.mean(axis=0).astype(np.float32)
 
 
-def validate_headers(ids) -> None:
-    """Raise :class:`ValueError` if any identifier contains ``/``.
-
-    HDF5 treats ``/`` as a group separator, so it cannot appear in a dataset
-    name.
-    """
-    bad = [i for i in ids if "/" in i]
-    if bad:
-        raise ValueError(
-            "Header(s) contain '/', invalid for HDF5 dataset names: " + ", ".join(bad)
-        )
-
-
 # ---------------------------------------------------------------------------
 # Model loading + inference (lazy torch/transformers)
 # ---------------------------------------------------------------------------
@@ -286,21 +278,17 @@ def embed_sequences(
     if existing:
         logger.info("Resuming: %d already embedded in %s", len(existing), h5_path)
 
-    # Drop sequences over the length cap; on-device attention is O(L^2) and
-    # long sequences OOM. Unlike the Biocentral backend (no cap), name the
-    # skipped IDs so the completeness difference is visible, not a bare count.
-    too_long = {k for k, v in remaining.items() if len(v) > cfg.max_length}
-    if too_long:
-        preview = ", ".join(sorted(too_long)[:5])
-        if len(too_long) > 5:
-            preview += ", ..."
-        logger.warning(
-            "Skipping %d sequence(s) longer than max_length=%d aa: %s",
-            len(too_long),
-            cfg.max_length,
-            preview,
-        )
-        remaining = {k: v for k, v in remaining.items() if k not in too_long}
+    # Sequences a capability limit puts out of reach: recorded as skipped rather
+    # than failed, so they are reported and named but do not fail the run.
+    # On-device attention is O(L^2), so long sequences OOM.
+    outstanding = set(remaining)  # this run's work, before any skips
+    skipped: dict[str, str] = {
+        k: f"longer than max_length={cfg.max_length} aa"
+        for k, v in remaining.items()
+        if len(v) > cfg.max_length
+    }
+    if skipped:
+        remaining = {k: v for k, v in remaining.items() if k not in skipped}
 
     if remaining:
         import torch
@@ -333,13 +321,11 @@ def embed_sequences(
                         bs = max(1, bs // 2)
                         logger.warning("GPU OOM — reducing batch size to %d", bs)
                     else:
-                        logger.warning(
-                            "Skipping %s (len=%d, OOM at batch_size=1)",
-                            batch_ids[0],
-                            len(remaining[batch_ids[0]]),
-                        )
+                        # Same class as the length cap: this machine cannot do
+                        # this sequence. The bar deliberately does not advance —
+                        # it counts what was written, not what was attempted.
+                        skipped[batch_ids[0]] = "GPU OOM at batch size 1"
                         i += 1
-                        pbar.update(1)
             pbar.close()
         finally:
             # Release GPU memory. The `del` must run in this frame (not a
@@ -352,13 +338,12 @@ def embed_sequences(
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
-    # A finished .h5 must hold at least one embedding, else downstream load_h5
-    # fails on an empty file. Fail loudly instead of returning a path to an
-    # empty/absent file (every sequence too long, or all OOM-skipped).
-    if not load_existing_ids(h5_path):
-        raise ValueError(
-            f"No embeddings were produced for {h5_path}: all {len(sequences)} "
-            f"sequence(s) were skipped (longer than max_length={cfg.max_length} "
-            f"aa, or GPU OOM at batch size 1)."
-        )
-    return h5_path
+    return finish_run(
+        h5_path,
+        outstanding,
+        skipped=skipped,
+        retry_hint=(
+            f"Raise --max-length (currently {cfg.max_length}) or use "
+            f"--backend biocentral, which has no length cap."
+        ),
+    )
