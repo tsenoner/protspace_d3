@@ -66,17 +66,26 @@ length, or one that exhausts GPU memory at batch size 1.
 
 ### Requirement: Every run reports what it embedded and skipped
 
-Embedding SHALL report the requested, embedded, and skipped counts once per run on
-stderr at warning level or above, naming the skipped identifiers with their reason
-when any were skipped. Stderr rather than stdout because the hosted prep service
-discards the subprocess's stdout and keeps only stderr; warning level or above
-because the default verbosity shows nothing below it.
+Embedding SHALL report every skipped sequence on stderr at warning level or above,
+grouped by reason and naming the identifiers, and SHALL report the embedded and
+skipped counts once per run. Skips go to stderr because a skipped sequence means
+the dataset is incomplete even though the run succeeded, and the hosted prep
+service discards the subprocess's stdout while keeping stderr; warning level or
+above because the default verbosity shows nothing below it.
 
 #### Scenario: A run with skips names them
 
 - **WHEN** a run completes with one or more skipped sequences
-- **THEN** the summary states how many were requested, embedded, and skipped
-- **AND** it names the skipped identifiers, previewing the first few when there are many
+- **THEN** each reason is reported on stderr with the identifiers it applies to,
+  previewing the first few when there are many
+- **AND** the end-of-run line states how many sequences were embedded and how many
+  were skipped
+
+#### Scenario: A clean run is not made noisy
+
+- **WHEN** a run completes with nothing skipped
+- **THEN** no skip warning is emitted, and the end-of-run line reports the
+  embedded count alone
 
 #### Scenario: The summary cannot be mistaken for a service outage
 

@@ -63,6 +63,7 @@ protspace prepare -i emb.h5 -m "pca2,umap2:n_neighbors=50;min_dist=0.3,tsne2" -o
 | `-e, --embedder` | Model shortcut (comma-separated for multi-model). | `prot_t5` |
 | `-b, --backend` | Embedding engine: `biocentral` (remote API) or `local` (on-device GPU/CPU). | `biocentral` |
 | `--batch-size` | Sequences per batch. Backend default when unset: 1000 (API call) or 8 (local GPU micro-batch). | — |
+| `--max-length` | Skip sequences longer than this (`--backend local` only). Skipped sequences are named in the run summary. | `2000` |
 
 **Available embedders:** `prot_t5`, `prost_t5`, `esm2_8m`, `esm2_35m`, `esm2_150m`, `esm2_650m`, `esm2_3b`, `ankh_base`, `ankh_large`, `ankh3_large`, `esmc_300m`, `esmc_600m`
 
@@ -151,7 +152,40 @@ protspace embed -i sequences.fasta -e prot_t5 -e esm2_3b -o embeddings/
 
 # On-device GPU/CPU — works offline / when Biocentral is down
 protspace embed -i sequences.fasta -e prot_t5 -o embeddings/ --backend local
+
+# Raise the local length cap for a dataset with long sequences
+protspace embed -i sequences.fasta -e prot_t5 -o embeddings/ --backend local --max-length 4000
 ```
+
+### When embedding fails
+
+An incomplete embedding exits **non-zero**, on either backend. A truncated `.h5`
+projects, bundles and scores completely normally, so a run that embedded 90% of
+your proteins would otherwise hand you plausible numbers computed on a silently
+truncated dataset.
+
+Two outcomes are distinguished:
+
+- **Skipped** — a sequence a documented capability limit puts out of reach:
+  longer than `--max-length`, or exhausting GPU memory at batch size 1 (local
+  backend only). These are named in the run summary and do **not** fail the run.
+- **Failed** — anything else missing from the `.h5`. The run exits 1 and the
+  partial output is kept, so a rerun embeds only what is missing.
+
+Multiple `-e` models are independent: one failing model no longer abandons the
+rest, and the command exits 1 once at the end naming every model that failed.
+
+Identifiers containing `/` are rejected up front on both backends — HDF5 treats
+`/` as a group separator, so such an identifier can never become the dataset you
+asked for.
+
+> **`-f/--fasta` coverage:** when a FASTA is supplied alongside HDF5 input, the
+> embeddings are checked against it. Proteins in the `.h5` that the FASTA does not
+> cover are reported, and with `-s/--similarity` they are an error: an uncovered
+> protein leaves its self-similarity at 0, which suppresses the
+> similarity-to-distance conversion for the whole matrix and inverts the MDS
+> projection. A FASTA covering *more* than the embeddings is normal and is not
+> reported.
 
 ## `protspace project`
 
