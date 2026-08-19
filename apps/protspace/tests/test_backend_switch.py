@@ -206,3 +206,70 @@ def test_embed_cli_rejects_unknown_backend(tmp_path):
     )
 
     assert result.exit_code != 0
+
+
+def test_embed_cli_continues_after_a_failing_model(tmp_path, monkeypatch):
+    """One model failing must not abandon the models that follow it.
+
+    Each -e gets its own .h5, so the models are independent; aborting the loop
+    on the first failure throws away work the user asked for and would have got.
+    """
+    fasta = tmp_path / "s.fasta"
+    fasta.write_text(">P12345\nMKVLAAG\n")
+    attempted = []
+
+    def flaky(sequences, embedder, h5_path, embed_config=None):
+        attempted.append(embedder)
+        if "prot_t5" in embedder:
+            raise ValueError(f"Embedding incomplete for {h5_path}")
+        with h5py.File(h5_path, "a") as f:
+            for pid in sequences:
+                f.create_dataset(pid, data=np.zeros(4, dtype=np.float32))
+        return h5_path
+
+    monkeypatch.setattr("protspace.data.embedding.biocentral.embed_sequences", flaky)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "embed",
+            "-i",
+            str(fasta),
+            "-e",
+            "prot_t5",
+            "-e",
+            "esm2_8m",
+            "-o",
+            str(tmp_path / "out"),
+        ],
+    )
+
+    # The failure still decides the exit code...
+    assert result.exit_code == 1, result.output
+    # ...but the second model was tried and produced its file.
+    assert len(attempted) == 2, attempted
+    produced = sorted(p.name for p in (tmp_path / "out").glob("*.h5"))
+    assert produced == ["esm2_8m.h5"]
+
+
+def test_embed_cli_does_not_stamp_a_failed_model(tmp_path, monkeypatch):
+    """No model_name attr and no "Saved:" line for a model that failed — that
+    pair is what made a total failure read as a finished run."""
+    fasta = tmp_path / "s.fasta"
+    fasta.write_text(">P12345\nMKVLAAG\n")
+
+    def always_fails(sequences, embedder, h5_path, embed_config=None):
+        raise ValueError("No new embeddings were produced")
+
+    monkeypatch.setattr(
+        "protspace.data.embedding.biocentral.embed_sequences", always_fails
+    )
+
+    out = tmp_path / "out"
+    result = CliRunner().invoke(
+        app, ["embed", "-i", str(fasta), "-e", "prot_t5", "-o", str(out)]
+    )
+
+    assert result.exit_code == 1, result.output
+    assert "Saved:" not in result.output
+    assert not (out / "prot_t5.h5").exists(), "no .h5 may be fabricated on failure"

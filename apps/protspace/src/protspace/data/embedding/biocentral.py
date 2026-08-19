@@ -151,6 +151,9 @@ def embed_sequences(
     Supports deduplication, length-sorting, batching, resume (skips IDs
     already present in *h5_path*), and a tqdm progress bar.
 
+    Raises ``ValueError`` if any requested sequence could not be embedded; the
+    partial HDF5 is kept so a rerun only embeds what is missing.
+
     Returns the path to the completed HDF5 file.
     """
     cfg = embed_config or EmbedConfig()
@@ -209,7 +212,6 @@ def embed_sequences(
 
     # Batch and embed
     api_batches = list(batched(unique_ids, batch_size_limit=cfg.batch_size))
-    total_embedded = 0
     failed_batches = 0
 
     pbar = tqdm(total=len(remaining), desc="Embedding", unit="seq")
@@ -230,38 +232,41 @@ def embed_sequences(
                     reduce=True,
                 ).run()
 
-            if result is not None:
-                emb_dict = result.to_dict()
-                if emb_dict:
-                    # Expand embeddings to all IDs sharing the same sequence
-                    expanded: dict[str, np.ndarray] = {}
-                    for rep_id, emb in emb_dict.items():
-                        seq = unique_seqs[rep_id]
-                        for pid in seq_to_ids[seq]:
-                            expanded[pid] = emb
-                    save_embeddings(h5_path, expanded)
-                    total_embedded += len(expanded)
+            emb_dict = result.to_dict() if result is not None else {}
 
-                    missing_reps = set(batch_seqs) - set(emb_dict)
-                    if missing_reps:
-                        logger.warning(
-                            "Batch %d: %d unique sequence(s) missing from response",
-                            batch_idx + 1,
-                            len(missing_reps),
-                        )
-            else:
+            if not emb_dict:
                 failed_batches += 1
                 logger.error(
-                    "Batch %d/%d: API returned None",
+                    "Batch %d/%d: no embeddings returned (%d seqs)",
                     batch_idx + 1,
                     len(api_batches),
+                    len(batch_ids),
                 )
+            else:
+                # Expand embeddings to all IDs sharing the same sequence
+                expanded: dict[str, np.ndarray] = {}
+                for rep_id, emb in emb_dict.items():
+                    seq = unique_seqs[rep_id]
+                    for pid in seq_to_ids[seq]:
+                        expanded[pid] = emb
+                save_embeddings(h5_path, expanded)
 
-            # Count all proteins covered by this batch (including duplicates)
-            batch_protein_count = sum(
-                len(seq_to_ids[unique_seqs[pid]]) for pid in batch_ids
-            )
-            pbar.update(batch_protein_count)
+                missing_reps = batch_seqs.keys() - emb_dict.keys()
+                if missing_reps:
+                    # A short response is a partial failure, not a note: it leaves
+                    # holes in the .h5 that load_h5 will happily accept.
+                    failed_batches += 1
+                    logger.error(
+                        "Batch %d/%d: %d of %d unique sequence(s) missing from response",
+                        batch_idx + 1,
+                        len(api_batches),
+                        len(missing_reps),
+                        len(batch_seqs),
+                    )
+
+                # Advance by what was written, never by the batch size: a bar driven
+                # by batch counts reaches 100% even when nothing was embedded.
+                pbar.update(len(expanded))
 
         except Exception:
             failed_batches += 1
@@ -271,10 +276,9 @@ def embed_sequences(
                 len(api_batches),
                 len(batch_ids),
             )
-            batch_protein_count = sum(
-                len(seq_to_ids[unique_seqs[pid]]) for pid in batch_ids
-            )
-            pbar.update(batch_protein_count)
+
+        if failed_batches:
+            pbar.set_postfix(failed=failed_batches)
 
         # Small delay between batches
         if batch_idx < len(api_batches) - 1:
@@ -282,12 +286,32 @@ def embed_sequences(
 
     pbar.close()
 
-    # Summary
-    print(f"\nDone. Embedded {total_embedded:,} / {len(remaining):,} sequences.")
-    if failed_batches:
-        print(f"Failed batches: {failed_batches} (rerun to retry)")
-    print(f"Output: {h5_path}")
+    # Gate on what landed in the file, not on a running total: save_embeddings skips
+    # IDs already present, and h5py turns an ID containing "/" into a group, so a
+    # counter can claim sequences the file does not hold.
+    missing = set(remaining) - load_existing_ids(h5_path)
+    if missing:
+        # ValueError, not RuntimeError: cli/embed.py and cli/prepare.py both catch
+        # (FileNotFoundError, ValueError) and render it as "ERROR: <msg>" + exit 1,
+        # whereas a RuntimeError escapes those handlers as a raw traceback.
+        embedded = len(remaining) - len(missing)
+        detail = (
+            f"{embedded:,} of {len(remaining):,} outstanding sequence(s) embedded, "
+            f"{len(missing):,} still missing "
+            f"({failed_batches} of {len(api_batches)} batch(es) failed)"
+        )
+        if embedded == 0:
+            raise ValueError(
+                f"No new embeddings were produced for {h5_path}: {detail}. "
+                f"Check the Biocentral server status and rerun."
+            )
+        raise ValueError(
+            f"Embedding incomplete for {h5_path}: {detail}. "
+            f"Partial results were kept — rerun to embed only what is missing."
+        )
 
+    print(f"\nDone. Embedded {len(remaining):,} sequence(s).")
+    print(f"Output: {h5_path}")
     return h5_path
 
 
