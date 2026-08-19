@@ -1,6 +1,33 @@
 # CHANGELOG
 
 
+## v4.11.3 (2026-08-19)
+
+### Bug Fixes
+
+- **embed**: Gate completeness on the .h5, not a running total
+  ([`dde4f4d`](https://github.com/tsenoner/protspace/commit/dde4f4d2e382d9cab863b434d7e64f5542f86bf9))
+
+- **embed**: Keep embedding the remaining models after one fails
+  ([`9a6b0aa`](https://github.com/tsenoner/protspace/commit/9a6b0aaf2ed96e96606da8a6c87942b2912cf5fe))
+
+- **embed**: Raise on incomplete embeddings and stop the bar lying
+  ([`70fa748`](https://github.com/tsenoner/protspace/commit/70fa74861e1f122327ee5e15a658d292644baed3))
+
+- **embed**: Surface embedding failures instead of exiting 0
+  ([`3f95316`](https://github.com/tsenoner/protspace/commit/3f95316c0c3617a1f9d0f3ad8471cdba2d249f60))
+
+### Documentation
+
+- Untrack apps/protspace/docs/superpowers and drop its dangling refs
+  ([`69a5376`](https://github.com/tsenoner/protspace/commit/69a5376255cf1d1fdff6102a19e70792b5ac1efc))
+
+### Testing
+
+- **embed**: Cover the incomplete-embedding paths
+  ([`c7be138`](https://github.com/tsenoner/protspace/commit/c7be1383d78a6ff629ea7578d6e3e8f2c93a35d2))
+
+
 ## v4.11.2 (2026-08-13)
 
 ### Bug Fixes
