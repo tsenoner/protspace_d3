@@ -5,8 +5,11 @@ import { ProteinTooltip, useHoverLabels } from './ProteinTooltip';
 import { ScatterCanvas } from './ScatterCanvas';
 import { Section, SectionHeading } from './Section';
 import { loadDemoData, useLandingData } from './landing-data';
+import { prefersReducedMotion } from './motion';
 
 const DEFAULT_ANNOTATION = 'phylum';
+/** Auto-cycle cadence until the visitor picks an annotation themselves. */
+const CYCLE_MS = 3000;
 
 /**
  * The centerpiece: one projection inside the explorer's own chrome. Switching the annotation
@@ -17,6 +20,8 @@ export function AnnotationExplorerPreview() {
   const demo = useLandingData(loadDemoData);
   const [active, setActive] = useState<string>(DEFAULT_ANNOTATION);
   const [inView, setInView] = useState(false);
+  /** A click on any chip stops the auto-cycle; a reload starts it again. */
+  const [pinned, setPinned] = useState(false);
   const { labels, onHover } = useHoverLabels();
   const frameRef = useRef<HTMLDivElement>(null);
 
@@ -32,6 +37,16 @@ export function AnnotationExplorerPreview() {
     observer.observe(element);
     return () => observer.disconnect();
   }, [inView]);
+
+  // Cycle through the annotations while in view so visitors notice the chips are interactive.
+  useEffect(() => {
+    const columns = demo?.annotations.map((entry) => entry.column) ?? [];
+    if (!inView || pinned || columns.length < 2 || prefersReducedMotion()) return;
+    const timer = setInterval(() => {
+      setActive((current) => columns[(columns.indexOf(current) + 1) % columns.length]);
+    }, CYCLE_MS);
+    return () => clearInterval(timer);
+  }, [demo, inView, pinned]);
 
   const annotation =
     demo?.annotations.find((entry) => entry.column === active) ?? demo?.annotations[0];
@@ -67,7 +82,10 @@ export function AnnotationExplorerPreview() {
                       key={entry.column}
                       type="button"
                       aria-pressed={selected}
-                      onClick={() => setActive(entry.column)}
+                      onClick={() => {
+                        setPinned(true);
+                        setActive(entry.column);
+                      }}
                       className={cn(
                         'rounded-[4px] border px-2 py-0.5 font-medium transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
                         selected
