@@ -67,3 +67,93 @@ describe('sortIndicesByDepthDescending', () => {
     expect(() => sortIndicesByDepthDescending(order, depths, 0)).not.toThrow();
   });
 });
+
+// ── parity with the comparator reference ───────────────────────
+
+/** The pre-counting-sort implementation, kept as the reference ordering. */
+function referenceOrder(depths: Float32Array, count: number): number[] {
+  const idx = Array.from({ length: count }, (_, i) => i);
+  idx.sort((a, b) => depths[b] - depths[a] || a - b);
+  return idx;
+}
+
+/** Deterministic PRNG so a failure is reproducible. */
+function makeRng(seed: number): () => number {
+  let s = seed >>> 0;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
+describe('sortIndicesByDepthDescending parity with the comparator', () => {
+  it('matches the comparator for few distinct depths (counting-sort path)', () => {
+    const rng = makeRng(12345);
+    for (const distinctCount of [1, 2, 7, 50]) {
+      const palette = Array.from({ length: distinctCount }, () => Math.fround(rng()));
+      const n = 5000;
+      const depths = new Float32Array(n);
+      for (let i = 0; i < n; i++) depths[i] = palette[Math.floor(rng() * distinctCount)];
+      const order = new Uint32Array(n);
+      sortIndicesByDepthDescending(order, depths, n);
+      expect(Array.from(order)).toEqual(referenceOrder(depths, n));
+    }
+  });
+
+  it('matches the comparator for realistic composePaintDepth-shaped depths', () => {
+    // 4 tiers x 3 opacities x 12 legend slots, the shape the renderer actually emits.
+    const palette: number[] = [];
+    for (const tier of [0, 0.25, 0.5, 0.75]) {
+      for (let slot = 0; slot < 12; slot++) {
+        for (const op of [0.2, 0.6, 1]) {
+          palette.push(Math.fround(tier + (slot / 12) * op * 0.24));
+        }
+      }
+    }
+    const rng = makeRng(999);
+    const n = 20000;
+    const depths = new Float32Array(n);
+    for (let i = 0; i < n; i++) depths[i] = palette[Math.floor(rng() * palette.length)];
+    const order = new Uint32Array(n);
+    sortIndicesByDepthDescending(order, depths, n);
+    expect(Array.from(order)).toEqual(referenceOrder(depths, n));
+  });
+
+  it('matches the comparator above the distinct-value cap (fallback path)', () => {
+    const rng = makeRng(777);
+    const n = 20000;
+    const depths = new Float32Array(n);
+    for (let i = 0; i < n; i++) depths[i] = rng(); // ~20000 distinct >> 4096 cap
+    expect(new Set(Array.from(depths)).size).toBeGreaterThan(4096);
+    const order = new Uint32Array(n);
+    sortIndicesByDepthDescending(order, depths, n);
+    expect(Array.from(order)).toEqual(referenceOrder(depths, n));
+  });
+
+  it('matches the comparator just under the distinct-value cap', () => {
+    const rng = makeRng(4242);
+    const distinctCount = 4000;
+    const palette = Array.from({ length: distinctCount }, (_, i) => Math.fround(i / distinctCount));
+    const n = 12000;
+    const depths = new Float32Array(n);
+    for (let i = 0; i < n; i++) depths[i] = palette[Math.floor(rng() * distinctCount)];
+    expect(new Set(Array.from(depths.subarray(0, n))).size).toBeLessThanOrEqual(4096);
+    const order = new Uint32Array(n);
+    sortIndicesByDepthDescending(order, depths, n);
+    expect(Array.from(order)).toEqual(referenceOrder(depths, n));
+  });
+
+  it('handles negative and zero depths', () => {
+    const depths = new Float32Array([0, -0, -1.5, 2, -1.5, 0]);
+    const order = new Uint32Array(6);
+    sortIndicesByDepthDescending(order, depths, 6);
+    expect(Array.from(order)).toEqual(referenceOrder(depths, 6));
+  });
+
+  it('leaves entries beyond count untouched', () => {
+    const depths = new Float32Array([0.3, 0.8, 0.1, 0.6]);
+    const order = new Uint32Array([9, 9, 9, 9]);
+    sortIndicesByDepthDescending(order, depths, 3);
+    expect(order[3]).toBe(9);
+  });
+});
