@@ -226,9 +226,8 @@ function remapCategoricalStorage(
     return { kind: 'sparse-multi', base, overrides, length: base.length };
   }
   if (isCsrAnnotationData(source)) {
-    // Remapping can drop a hit (`remap` → -1), so the row boundaries shift and the
-    // payload shrinks: both arrays are rebuilt from scratch, and `codes` is trimmed
-    // to what was written so the worst-case buffer is neither retained nor shared.
+    // Both arrays are rebuilt from scratch, and `codes` is trimmed to what was written so
+    // the worst-case buffer is neither retained nor shared.
     const end = new Int32Array(source.length);
     const codes = new Int32Array(source.codes.length);
     let written = 0;
@@ -239,6 +238,18 @@ function remapCategoricalStorage(
         if (index >= 0) codes[written++] = index;
       }
       end[i] = written;
+    }
+    if (written !== source.codes.length) {
+      // Dropping a hit renumbers every later one, and `annotation_scores_csr` /
+      // `annotation_evidence_csr` are numbered by GLOBAL hit — so a silent drop would
+      // show one protein's score and evidence on another's tooltip. No shipping producer
+      // can reach this (`values` is always built as `string[]`), so failing loudly beats
+      // implementing a renumbering pass nothing exercises.
+      throw new Error(
+        `CSR remap dropped ${source.codes.length - written} of ${source.codes.length} hits ` +
+          '(a null or unmapped annotation value). Renumbering the parallel ' +
+          'annotation_scores_csr / annotation_evidence_csr payloads is not implemented.',
+      );
     }
     return { kind: 'csr', end, codes: codes.slice(0, written), length: source.length };
   }
