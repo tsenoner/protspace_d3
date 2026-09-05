@@ -33,6 +33,10 @@ import { getEatCompanionColumn, getPredictedCellValues } from '../visualization/
 import { isNAValue } from '../visualization/missing-values.js';
 import { encodeAnnotationField } from './annotation-codec.js';
 
+/** Stand-in for a column with no scores or evidence: every index reads `undefined`, exactly
+ * as the empty array the accessors would have allocated per protein. */
+const NO_HITS: readonly never[] = [];
+
 const ANNOTATION_FORMAT_VERSION = '2';
 const ANNOTATION_FORMAT_VERSION_KEY = 'protspace_format_version';
 
@@ -134,6 +138,16 @@ function createAnnotationsParquet(data: VisualizationData): ArrayBuffer {
     const annotationIndices = data.annotation_data[annotationName];
     if (!annotationIndices) continue;
 
+    // Hoisted out of the protein loop: both accessors allocate a fresh array on every
+    // call, including the v1/v2 case where the dataset carries no scores or evidence at
+    // all — 573K proteins x ~24 categorical columns of throwaway arrays per export.
+    const hasScores = Boolean(
+      data.annotation_scores?.[annotationName] ?? data.annotation_scores_csr?.[annotationName],
+    );
+    const hasEvidence = Boolean(
+      data.annotation_evidence?.[annotationName] ?? data.annotation_evidence_csr?.[annotationName],
+    );
+
     // Convert indices back to actual annotation values
     const values: (string | null)[] = new Array(data.protein_ids.length);
     for (let i = 0; i < data.protein_ids.length; i++) {
@@ -149,8 +163,8 @@ function createAnnotationsParquet(data: VisualizationData): ArrayBuffer {
       // records: a v3 (CSR) dataset carries these flat per hit, and only the accessors
       // know both layouts. Both return per-hit arrays in `getProteinAnnotationIndices`
       // order, so `cellIndex` still lines up.
-      const proteinEvidence = getProteinEvidence(data, i, annotationName);
-      const proteinScores = getProteinScores(data, i, annotationName);
+      const proteinEvidence = hasEvidence ? getProteinEvidence(data, i, annotationName) : NO_HITS;
+      const proteinScores = hasScores ? getProteinScores(data, i, annotationName) : NO_HITS;
       const cellValues = getProteinAnnotationIndices(annotationIndices, i).flatMap(
         (valueIndex, cellIndex) => {
           const value = annotation.values[valueIndex];
