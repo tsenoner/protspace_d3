@@ -28,6 +28,7 @@ import { assertNoBundleDelimiter } from './delimiter-utils';
 import { bigIntReplacer } from './bigint-utils';
 import { isNumericAnnotation } from '../visualization/numeric-binning.js';
 import { getProteinAnnotationIndices } from '../visualization/annotation-data-access.js';
+import { getProteinEvidence, getProteinScores } from '../visualization/plot-data-accessors.js';
 import { getEatCompanionColumn, getPredictedCellValues } from '../visualization/eat-overlay.js';
 import { isNAValue } from '../visualization/missing-values.js';
 import { encodeAnnotationField } from './annotation-codec.js';
@@ -143,6 +144,13 @@ function createAnnotationsParquet(data: VisualizationData): ArrayBuffer {
 
       // Reconstruct the v2 wire cell positionally so decoded labels, evidence, and scores survive
       // export without structural semicolons/pipes being reinterpreted on reload.
+      //
+      // Read once per protein through the accessors rather than indexing the nested
+      // records: a v3 (CSR) dataset carries these flat per hit, and only the accessors
+      // know both layouts. Both return per-hit arrays in `getProteinAnnotationIndices`
+      // order, so `cellIndex` still lines up.
+      const proteinEvidence = getProteinEvidence(data, i, annotationName);
+      const proteinScores = getProteinScores(data, i, annotationName);
       const cellValues = getProteinAnnotationIndices(annotationIndices, i).flatMap(
         (valueIndex, cellIndex) => {
           const value = annotation.values[valueIndex];
@@ -152,8 +160,8 @@ function createAnnotationsParquet(data: VisualizationData): ArrayBuffer {
           // (it is not a MISSING_VALUE_TOKEN) and leak into downstream `protspace` tooling.
           // Mirrors the read side's readCategoricalStorageValues.
           if (value == null || isNAValue(value)) return [];
-          const evidence = data.annotation_evidence?.[annotationName]?.[i]?.[cellIndex];
-          const scores = data.annotation_scores?.[annotationName]?.[i]?.[cellIndex];
+          const evidence = proteinEvidence[cellIndex];
+          const scores = proteinScores[cellIndex];
           return [serializeCategoricalValue(value, evidence, scores)];
         },
       );

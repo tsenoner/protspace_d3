@@ -9,6 +9,9 @@ import {
   COLOR_SCHEMES,
   getEatConfidenceAnnotationKey,
   getProteinAnnotationIndices,
+  getProteinEvidence,
+  getProteinScores,
+  isCsrAnnotationData,
   isSparseMultiValueAnnotationData,
   isCuratedAnnotationMissing,
   isNAValue,
@@ -222,6 +225,23 @@ function remapCategoricalStorage(
     }
     return { kind: 'sparse-multi', base, overrides, length: base.length };
   }
+  if (isCsrAnnotationData(source)) {
+    // Remapping can drop a hit (`remap` → -1), so the row boundaries shift and the
+    // payload shrinks: both arrays are rebuilt from scratch, and `codes` is trimmed
+    // to what was written so the worst-case buffer is neither retained nor shared.
+    const end = new Int32Array(source.length);
+    const codes = new Int32Array(source.codes.length);
+    let written = 0;
+    for (let i = 0; i < source.length; i++) {
+      const stop = source.end[i];
+      for (let hit = i === 0 ? 0 : source.end[i - 1]; hit < stop; hit++) {
+        const index = remap(source.codes[hit]);
+        if (index >= 0) codes[written++] = index;
+      }
+      end[i] = written;
+    }
+    return { kind: 'csr', end, codes: codes.slice(0, written), length: source.length };
+  }
   return source.map((indices) => indices.map(remap).filter((index) => index >= 0));
 }
 
@@ -230,7 +250,7 @@ function remapCategoricalStorage(
  * This is intentionally the final conversion-boundary step so small, optimized, and separated
  * decoder paths all share exactly one validity rule.
  */
-function normalizeEatCompanionColumns(data: VisualizationData): VisualizationData {
+export function normalizeEatCompanionColumns(data: VisualizationData): VisualizationData {
   const groups = new Map<string, Partial<Record<keyof typeof EAT_COMPANION_SUFFIXES, string>>>();
   const reservedColumns = new Set<string>();
   for (const column of Object.keys(data.annotations)) {
@@ -248,6 +268,10 @@ function normalizeEatCompanionColumns(data: VisualizationData): VisualizationDat
   const numeric_annotation_data = { ...data.numeric_annotation_data };
   const annotation_scores = { ...data.annotation_scores };
   const annotation_evidence = { ...data.annotation_evidence };
+  // v3 columns carry their scores/evidence flat instead of nested; a companion
+  // column must lose both forms or the dropped column's payload outlives it.
+  const annotation_scores_csr = { ...data.annotation_scores_csr };
+  const annotation_evidence_csr = { ...data.annotation_evidence_csr };
   const annotation_predicted = { ...data.annotation_predicted };
 
   for (const column of reservedColumns) {
@@ -256,6 +280,8 @@ function normalizeEatCompanionColumns(data: VisualizationData): VisualizationDat
     delete numeric_annotation_data[column];
     delete annotation_scores[column];
     delete annotation_evidence[column];
+    delete annotation_scores_csr[column];
+    delete annotation_evidence_csr[column];
   }
 
   for (const [base, group] of groups) {
@@ -281,8 +307,9 @@ function normalizeEatCompanionColumns(data: VisualizationData): VisualizationDat
       if (!isCuratedAnnotationMissing(data, base, i)) continue;
       const values = readCategoricalStorageValues(data, group.value, i);
       const value = values.length > 0 ? values.join(';') : null;
-      const scores = data.annotation_scores?.[group.value]?.[i] ?? [];
-      const evidence = data.annotation_evidence?.[group.value]?.[i] ?? [];
+      // Via the accessors so a CSR-stored companion column resolves too.
+      const scores = getProteinScores(data, i, group.value);
+      const evidence = getProteinEvidence(data, i, group.value);
       const source = readCategoricalStorageValue(data, group.source, i);
       const confidence = confidences[i];
       if (
@@ -374,6 +401,9 @@ function normalizeEatCompanionColumns(data: VisualizationData): VisualizationDat
     numeric_annotation_data,
     annotation_scores,
     annotation_evidence,
+    // Spread conditionally: a v1/v2 dataset never had these keys and must not grow them.
+    ...(data.annotation_scores_csr ? { annotation_scores_csr } : {}),
+    ...(data.annotation_evidence_csr ? { annotation_evidence_csr } : {}),
     annotation_predicted:
       Object.keys(annotation_predicted).length > 0 ? annotation_predicted : undefined,
   };
@@ -692,6 +722,8 @@ function restoreDeclaredNumericAnnotations(
     delete data.annotation_data[column];
     delete data.annotation_scores?.[column];
     delete data.annotation_evidence?.[column];
+    delete data.annotation_scores_csr?.[column];
+    delete data.annotation_evidence_csr?.[column];
   }
   return data;
 }

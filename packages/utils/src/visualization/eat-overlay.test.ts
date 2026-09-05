@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { VisualizationData } from '../types';
 import {
   getProteinAnnotationIndices,
+  isCsrAnnotationData,
   isSparseMultiValueAnnotationData,
 } from './annotation-data-access';
 import {
@@ -167,5 +168,81 @@ describe('clampReliabilityBound', () => {
     expect(clampReliabilityBound(-0.5)).toBe(0);
     expect(clampReliabilityBound(1.5)).toBe(1);
     expect(clampReliabilityBound(0.42)).toBe(0.42);
+  });
+});
+
+describe('EAT overlay over CSR storage (bundle format v3)', () => {
+  // p0 → [A], p1 → [] (curated missing), p2 → [B, C], p3 → [] (curated missing)
+  function createCsrData(): VisualizationData {
+    return {
+      protein_ids: ['p0', 'p1', 'p2', 'p3'],
+      projections: [{ name: 'umap', dimension: 2, data: new Float32Array(8) }],
+      annotations: {
+        ec: {
+          kind: 'categorical',
+          values: ['A', 'B', 'C'],
+          colors: ['#f00', '#0f0', '#00f'],
+          shapes: ['circle', 'circle', 'circle'],
+        },
+      },
+      annotation_data: {
+        ec: {
+          kind: 'csr',
+          end: Int32Array.of(1, 1, 3, 3),
+          codes: Int32Array.of(0, 1, 2),
+          length: 4,
+        },
+      },
+      annotation_predicted: {
+        // p1 gets a single-valued transfer, p3 a two-valued one.
+        ec: [
+          null,
+          { value: 'C', confidence: 0.8, source: 'p0' },
+          null,
+          { value: 'A;B', values: ['A', 'B'], confidence: 0.6, source: 'p2' },
+        ],
+      },
+    };
+  }
+
+  it('rebuilds CSR with predicted rows replaced and every other row preserved', () => {
+    const data = createCsrData();
+    const out = materializeEatOverlay(data, 'ec', true);
+    const rows = out.annotation_data.ec;
+    expect(isCsrAnnotationData(rows)).toBe(true);
+
+    expect(getProteinAnnotationIndices(rows, 0)).toEqual([0]); // untouched
+    expect(getProteinAnnotationIndices(rows, 1)).toEqual([2]); // predicted 'C'
+    expect(getProteinAnnotationIndices(rows, 2)).toEqual([1, 2]); // untouched
+    expect(getProteinAnnotationIndices(rows, 3)).toEqual([0, 1]); // predicted 'A;B'
+
+    if (!isCsrAnnotationData(rows)) throw new Error('expected CSR');
+    expect(Array.from(rows.end)).toEqual([1, 2, 4, 6]);
+    expect(rows.codes.length).toBe(6);
+    expect(rows.end[rows.length - 1]).toBe(rows.codes.length);
+  });
+
+  it('does not mutate or alias the curated CSR storage', () => {
+    const data = createCsrData();
+    const source = data.annotation_data.ec;
+    const out = materializeEatOverlay(data, 'ec', true);
+    if (!isCsrAnnotationData(source) || !isCsrAnnotationData(out.annotation_data.ec)) {
+      throw new Error('expected CSR');
+    }
+    expect(Array.from(source.end)).toEqual([1, 1, 3, 3]);
+    expect(Array.from(source.codes)).toEqual([0, 1, 2]);
+    expect(out.annotation_data.ec.codes.buffer).not.toBe(source.codes.buffer);
+  });
+
+  it('leaves the row alone when a prediction resolves to no known value', () => {
+    const data = createCsrData();
+    data.annotation_predicted!.ec = [
+      { value: 'not-a-category', confidence: 0.9, source: 'p2' },
+      null,
+      null,
+      null,
+    ];
+    const rows = materializeEatOverlay(data, 'ec', true).annotation_data.ec;
+    expect(getProteinAnnotationIndices(rows, 0)).toEqual([0]);
   });
 });

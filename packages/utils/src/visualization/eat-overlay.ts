@@ -2,6 +2,7 @@ import type { AnnotationData, PredictedCell, VisualizationData } from '../types.
 import {
   getFirstAnnotationIndex,
   getProteinAnnotationIndices,
+  isCsrAnnotationData,
   isSparseMultiValueAnnotationData,
 } from './annotation-data-access.js';
 import { isNAValue } from './missing-values.js';
@@ -244,6 +245,42 @@ function cloneWithPredictions(
       }
     }
     return { kind: 'sparse-multi', base, overrides, length: base.length };
+  }
+
+  if (isCsrAnnotationData(source)) {
+    // Rebuilt as CSR, never densified to `number[][]`: a 573K column would otherwise
+    // become one array per protein. Predicted rows replace the source row's hits
+    // wholesale; a prediction that resolves to nothing leaves the row alone, as the
+    // Int32Array and sparse-multi branches above do (CSR has no way to store the
+    // `-1` the dense branch falls back to).
+    const replacements = new Map<number, readonly number[]>();
+    for (let i = 0; i < predictedCells.length && i < source.length; i++) {
+      const cell = predictedCells[i];
+      if (!cell) continue;
+      const indices = predictedIndices(cell, valueToIndex);
+      if (indices.length > 0) replacements.set(i, indices);
+    }
+    const end = new Int32Array(source.length);
+    let total = 0;
+    for (let i = 0; i < source.length; i++) {
+      const replacement = replacements.get(i);
+      total += replacement ? replacement.length : source.end[i] - (i === 0 ? 0 : source.end[i - 1]);
+      end[i] = total;
+    }
+    const codes = new Int32Array(total);
+    let cursor = 0;
+    for (let i = 0; i < source.length; i++) {
+      const replacement = replacements.get(i);
+      if (replacement) {
+        for (const index of replacement) codes[cursor++] = index;
+        continue;
+      }
+      const start = i === 0 ? 0 : source.end[i - 1];
+      const stop = source.end[i];
+      if (stop > start) codes.set(source.codes.subarray(start, stop), cursor);
+      cursor += stop - start;
+    }
+    return { kind: 'csr', end, codes, length: source.length };
   }
 
   const clone = source.slice();
