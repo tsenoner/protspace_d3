@@ -8,13 +8,20 @@ import type { PlotData } from '@protspace/utils';
  * allocated one heap object per visible point, which cost 512 ms to build at 573K points
  * against 37 ms for the grid. The class name is kept because every consumer refers to it.
  *
- * Behaviour is intentionally identical to the quadtree it replaced:
+ * Behaviour matches the quadtree it replaced:
  *  - non-finite screen coordinates are not indexed;
  *  - `queryByPixels` / `queryByPolygon` use an inclusive AABB test and return every match,
  *    including coincident points (result order is not contractual);
  *  - `findNearest` uses a strict `< radius` cutoff and, for exactly coincident points, returns
  *    the LAST one in `slots` order, which is what `d3.quadtree.find` did (a coincident point
  *    is pushed to the head of the leaf chain by `add`, and `find` only reads the head).
+ *
+ * Two cases diverge, both harmless and both left as they are:
+ *  - among equidistant but NON-coincident points d3 returns the first it visits and this
+ *    returns the last (`d2 <= best` below). Which point of several at the same distance wins
+ *    a hover is arbitrary either way;
+ *  - a negative radius returns a hit here where d3 returned -1. Unreachable: every caller
+ *    passes a positive pixel radius.
  */
 
 /** Upper bound on grid cells per axis, so a pathological screen extent cannot blow up memory. */

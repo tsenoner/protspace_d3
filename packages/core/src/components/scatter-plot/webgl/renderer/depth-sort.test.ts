@@ -119,6 +119,28 @@ describe('sortIndicesByDepthDescending parity with the comparator', () => {
     expect(Array.from(order)).toEqual(referenceOrder(depths, n));
   });
 
+  it('falls back to the comparator on a NaN depth', () => {
+    // NaN makes `depths[b] - depths[a]` NaN, so the comparator falls through to the index
+    // tiebreak and index order wins. The counting sort would instead give NaN a bucket of
+    // its own — `Array.from(rank.keys()).sort()` leaves it after 1 — and return [0, 2, 1].
+    const depths = new Float32Array([1, Number.NaN, 1]);
+    const order = new Uint32Array(3);
+    sortIndicesByDepthDescending(order, depths, 3);
+    expect(Array.from(order)).toEqual([0, 1, 2]);
+    expect(Array.from(order)).toEqual(referenceOrder(depths, 3));
+  });
+
+  it('sorts infinities through the counting-sort path', () => {
+    const depths = new Float32Array([Infinity, 0, Infinity, -Infinity, 0]);
+    const order = new Uint32Array(5);
+    sortIndicesByDepthDescending(order, depths, 5);
+    expect(Array.from(order)).toEqual([0, 2, 1, 4, 3]);
+    expect(Array.from(order)).toEqual(referenceOrder(depths, 5));
+  });
+
+  // The cap is not unreachable: `getDepth` yields roughly one distinct value per legend
+  // slot per opacity, so a high-cardinality categorical column (thousands of categories)
+  // exceeds 4096 and takes this path in production, not just in tests.
   it('matches the comparator above the distinct-value cap (fallback path)', () => {
     const rng = makeRng(777);
     const n = 20000;
