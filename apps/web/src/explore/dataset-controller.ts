@@ -13,7 +13,11 @@ import {
   getDataLoadFailureNotification,
   getDatasetPersistenceFailureNotification,
 } from './notifications';
-import { markLastLoadStatus, saveLastImportedFile } from './opfs-dataset-store';
+import {
+  markLastLoadStatus,
+  saveLastImportedFileData,
+  saveLastImportedFileMetadata,
+} from './opfs-dataset-store';
 import { createDataRenderer } from './data-renderer';
 import type { InteractionController } from './interaction-controller';
 import type { LoadQueue } from './load-queue';
@@ -123,6 +127,26 @@ export function createDatasetController({
       legendElement.clearForNewDataset(datasetHash, shouldClearPersistedState);
       controlBar.clearForNewDataset(datasetHash, shouldClearPersistedState);
 
+      // The `pending` record is written and awaited BEFORE the render: that window is what
+      // the recovery banner reads, so a tab that dies mid-render leaves a record of the
+      // import that died instead of silently restoring the previous dataset. It is also
+      // what markLastLoadStatus reads on both the success and the data-error path.
+      //
+      // The byte copy is a different matter — 45-145 MB, and it used to sit in front of
+      // first paint. It is only STARTED here; the await happens after the render below.
+      let persistBytes: Promise<unknown> | null = null;
+      if (loadMeta.kind === 'user' && file) {
+        try {
+          await saveLastImportedFileMetadata(file);
+          persistBytes = saveLastImportedFileData(file).then(
+            () => null,
+            (error: unknown) => error,
+          );
+        } catch (error) {
+          persistBytes = Promise.resolve(error);
+        }
+      }
+
       await loadData(data);
 
       if (settings && loadMeta.kind !== 'opfs') {
@@ -221,18 +245,13 @@ export function createDatasetController({
 
       viewController.applyLatestViewForDatasetLoad(data);
 
-      // Persisted only once the dataset is on screen: this is a full byte copy of
-      // the bundle (45-145 MB) into OPFS and used to sit in front of first paint.
-      // Load-queue serialisation (it waits on resolvePendingLoadFinalization below)
-      // keeps a later import from interleaving with this write, and
-      // markLastLoadStatus reads the metadata written here, so it must stay after.
-      if (loadMeta.kind === 'user' && file) {
-        try {
-          await saveLastImportedFile(file);
-        } catch (error) {
-          console.error('Failed to persist imported dataset in OPFS:', error);
-          notify.warning(getDatasetPersistenceFailureNotification(error));
-        }
+      // Settled only once the dataset is on screen. Load-queue serialisation (it waits on
+      // resolvePendingLoadFinalization below) keeps a later import from interleaving with
+      // this write, and markLastLoadStatus must not report success over a half-copied file.
+      const persistError = await persistBytes;
+      if (persistError) {
+        console.error('Failed to persist imported dataset in OPFS:', persistError);
+        notify.warning(getDatasetPersistenceFailureNotification(persistError));
       }
 
       try {

@@ -5,7 +5,8 @@ import { createEmptyExploreViewRequest } from './url-state';
 const mocks = vi.hoisted(() => ({
   loadData: vi.fn(),
   markLastLoadStatus: vi.fn(),
-  saveLastImportedFile: vi.fn(),
+  saveLastImportedFileMetadata: vi.fn(),
+  saveLastImportedFileData: vi.fn(),
   resolvePendingLoadFinalization: vi.fn(),
   warning: vi.fn(),
 }));
@@ -26,7 +27,8 @@ vi.mock('./persisted-dataset', () => ({
 
 vi.mock('./opfs-dataset-store', () => ({
   markLastLoadStatus: mocks.markLastLoadStatus,
-  saveLastImportedFile: mocks.saveLastImportedFile,
+  saveLastImportedFileMetadata: mocks.saveLastImportedFileMetadata,
+  saveLastImportedFileData: mocks.saveLastImportedFileData,
 }));
 
 vi.mock('./tooltip-annotations-store', () => ({
@@ -96,50 +98,83 @@ describe('dataset controller OPFS persistence', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.markLastLoadStatus.mockResolvedValue(undefined);
-    mocks.saveLastImportedFile.mockResolvedValue(undefined);
+    mocks.saveLastImportedFileMetadata.mockResolvedValue(undefined);
+    mocks.saveLastImportedFileData.mockResolvedValue(undefined);
   });
 
-  it('saves the imported file only after the render pass resolves', async () => {
+  /** Drain the microtask queue so every already-resolved await has run. */
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it('opens the pending window before the render and settles the byte copy after it', async () => {
     let finishRender = () => {};
+    let finishCopy = () => {};
     mocks.loadData.mockImplementation(
       () =>
         new Promise<void>((resolve) => {
           finishRender = () => resolve();
         }),
     );
+    mocks.saveLastImportedFileData.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishCopy = () => resolve();
+        }),
+    );
 
     const { controller, overlayController } = buildController();
     const pending = controller.handleDataLoaded(loadedEvent);
+    await flush();
 
-    await Promise.resolve();
-    await Promise.resolve();
+    // The crash-recovery window is open before the render it has to survive: a tab that
+    // dies here leaves a `pending` record naming this import, not the previous dataset's.
+    expect(mocks.saveLastImportedFileMetadata).toHaveBeenCalledWith(file);
+    expect(mocks.saveLastImportedFileMetadata.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.loadData.mock.invocationCallOrder[0],
+    );
+    // The byte copy is in flight rather than in front of first paint: the render started
+    // even though the copy has not resolved, and there is no blocking overlay.
+    expect(mocks.saveLastImportedFileData).toHaveBeenCalledWith(file);
     expect(mocks.loadData).toHaveBeenCalledOnce();
-    expect(mocks.saveLastImportedFile).not.toHaveBeenCalled();
-    // No blocking "Saving imported dataset..." overlay in front of the render.
     expect(overlayController.update).not.toHaveBeenCalled();
 
+    // ...and success is not reported over a half-copied file.
     finishRender();
+    await flush();
+    expect(mocks.markLastLoadStatus).not.toHaveBeenCalled();
+
+    finishCopy();
     await pending;
 
-    expect(mocks.saveLastImportedFile).toHaveBeenCalledWith(file);
-    // markLastLoadStatus reads the metadata the save writes, so it must run after.
-    expect(mocks.saveLastImportedFile.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.markLastLoadStatus.mock.invocationCallOrder[0],
-    );
     expect(mocks.markLastLoadStatus).toHaveBeenCalledWith('success');
     expect(mocks.resolvePendingLoadFinalization).toHaveBeenCalledWith(3);
   });
 
-  it('warns but still finishes the load when the save fails', async () => {
+  it('warns but still finishes the load when the byte copy fails', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     mocks.loadData.mockResolvedValue(undefined);
-    mocks.saveLastImportedFile.mockRejectedValue(new Error('quota exceeded'));
+    mocks.saveLastImportedFileData.mockRejectedValue(new Error('quota exceeded'));
 
     const { controller } = buildController();
     await controller.handleDataLoaded(loadedEvent);
 
     expect(mocks.warning).toHaveBeenCalledOnce();
     expect(mocks.markLastLoadStatus).toHaveBeenCalledWith('success');
+    expect(mocks.resolvePendingLoadFinalization).toHaveBeenCalledWith(3);
+    consoleError.mockRestore();
+  });
+
+  it('warns and still renders when the pending record cannot be written', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mocks.loadData.mockResolvedValue(undefined);
+    mocks.saveLastImportedFileMetadata.mockRejectedValue(new Error('quota exceeded'));
+
+    const { controller } = buildController();
+    await controller.handleDataLoaded(loadedEvent);
+
+    // No recovery window, but the dataset still reaches the screen.
+    expect(mocks.saveLastImportedFileData).not.toHaveBeenCalled();
+    expect(mocks.loadData).toHaveBeenCalledOnce();
+    expect(mocks.warning).toHaveBeenCalledOnce();
     expect(mocks.resolvePendingLoadFinalization).toHaveBeenCalledWith(3);
     consoleError.mockRestore();
   });
