@@ -3,10 +3,16 @@
 v2 stringifies every annotation cell and packs multi-values as ``;``-joined
 hits with ``|``-suffixed scores/evidence, which forces the browser to re-split
 and dictionary-code 573K strings on load.  v3 moves that work to write time:
-part 1 carries int32 dictionary codes (or CSR end offsets) and float64
+part 1 carries int32 dictionary codes (or per-row CSR hit counts) and float64
 numerics, part 3 carries wide float32 projections, and a new part 6 carries the
 label dictionaries plus the CSR code/score/evidence payloads as raw
 little-endian buffers.
+
+Every CSR *length* family is stored as per-row counts, never as cumulative
+offsets: offsets are near-incompressible (snappy manages 0.4% on the real 573K
+bundle) while their first differences compress about 8x, which is the difference
+between a v3 bundle 14% larger than v2 and one 21% smaller.  The reader turns
+counts back into offsets with one prefix-sum pass.
 
 Only the *container* changes.  ``encode_v3`` takes the v2-shaped tables the
 pipeline already builds and the (sibling) ``decode_v3`` turns v3 parts back
@@ -27,7 +33,6 @@ import json
 from typing import Any
 
 import numpy as np
-import pandas as pd
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
@@ -52,11 +57,15 @@ MISSING_TOKENS = frozenset({"na", "n/a", "nan", "null", "none", "__na__"})
 EVIDENCE_RE = r"^(?:[A-Z]{2,5}|ECO:\d+)$"
 
 #: What JavaScript's ``Number()`` accepts *and* ``Number.isFinite`` keeps,
-#: restricted to decimal literals.  Deviation from the browser: JS also parses
+#: restricted to decimal literals.  Governs both column-level numeric inference
+#: and score suffixes.  Deviation from the browser: JS also parses
 #: ``0x10``/``0o17``/``0b1`` as numbers, so a column of hex literals is
-#: categorical here and numeric there.  Non-decimal literals do not occur in
-#: annotation data and supporting them would cost a Python-level parse.
-#: ``Infinity``/``1e999`` are excluded by the post-cast finiteness check.
+#: categorical here and numeric there, and the hit ``"X|0x10"`` keeps its whole
+#: string as the label here while the browser reads it as ``X`` scored ``16``
+#: (which shifts the label set, code order and palette with it).  Non-decimal
+#: literals occur nowhere in the five shipped datasets and supporting them would
+#: cost a Python-level parse.  ``Infinity``/``1e999`` are excluded by the
+#: post-cast finiteness check.
 JS_NUMBER_RE = r"^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$"
 
 #: hyparquet only hands back zero-copy typed arrays for REQUIRED flat PLAIN
@@ -70,6 +79,14 @@ _PQ: dict[str, Any] = {
 }
 
 _EVIDENCE_DICT_NAME = "__evidence"
+
+#: ``sourceType`` for an Arrow type ``pa.type_for_alias`` cannot parse back
+#: (dictionary, list, decimal, ...).  ``decode_v3`` must fall back to its
+#: per-kind default for these instead of throwing on an unknown alias.
+_UNRESTORABLE_SOURCE_TYPE = "?"
+
+#: Counts are prefix-summed into an int32 offset by the reader.
+_INT32_MAX = 2**31 - 1
 
 
 # --------------------------------------------------------------------------- #
@@ -93,6 +110,25 @@ def _required_table(
         metadata=metadata,
     )
     return pa.table(list(columns.values()), schema=schema)
+
+
+def _source_type(type_: pa.DataType) -> str:
+    """The alias ``decode_v3`` can restore ``type_`` from, else the fallback marker."""
+    alias = str(type_)
+    try:
+        return alias if pa.type_for_alias(alias) == type_ else _UNRESTORABLE_SOURCE_TYPE
+    except ValueError:
+        return _UNRESTORABLE_SOURCE_TYPE
+
+
+def _counts_i32(counts: np.ndarray, what: str) -> np.ndarray:
+    """Per-row counts as little-endian int32, guarding the reader's prefix sum."""
+    total = int(counts.sum())
+    if total > _INT32_MAX:
+        raise ValueError(
+            f"{what} total {total} exceeds the int32 range of the v3 CSR offsets"
+        )
+    return counts.astype("<i4")
 
 
 def _as_string(column: pa.ChunkedArray | pa.Array) -> pa.Array:
@@ -120,16 +156,9 @@ def _regex_ok(values: pa.Array, pattern: str) -> np.ndarray:
     return np.asarray(pc.fill_null(pc.match_substring_regex(values, pattern), False))
 
 
-def _parse_floats(values: pa.Array, ok: np.ndarray, blank_is_zero: bool) -> np.ndarray:
-    """Cast the entries flagged by ``ok`` to float64; substitute 0 elsewhere.
-
-    ``Number("")`` is ``0`` in JavaScript, which is how an empty score part
-    (``"label|1,"``) becomes a real score.
-    """
-    fill = pa.scalar("0")
-    safe = pc.if_else(pa.array(ok), values, fill)
-    if blank_is_zero:
-        safe = pc.if_else(pc.equal(safe, pa.scalar("")), fill, safe)
+def _parse_floats(values: pa.Array, ok: np.ndarray) -> np.ndarray:
+    """Cast the entries flagged by ``ok`` to float64; substitute 0 elsewhere."""
+    safe = pc.if_else(pa.array(ok), values, pa.scalar("0"))
     return pc.cast(safe, pa.float64()).to_numpy(zero_copy_only=False)
 
 
@@ -147,12 +176,12 @@ def _frequency_order(codes: np.ndarray, n_labels: int) -> tuple[np.ndarray, np.n
 
 
 def _dict_payloads(name: str, labels: list[str]) -> list[tuple[str, bytes]]:
-    """``dict:<name>`` utf8 blob + ``dict:<name>:end`` int32 byte offsets."""
+    """``dict:<name>`` utf8 blob + ``dict:<name>:len`` int32 per-label byte lengths."""
     encoded = [label.encode("utf-8") for label in labels]
-    ends = np.cumsum([len(b) for b in encoded], dtype=np.int64).astype("<i4")
+    lengths = np.array([len(b) for b in encoded], dtype=np.int64)
     return [
         (f"dict:{name}", b"".join(encoded)),
-        (f"dict:{name}:end", ends.tobytes()),
+        (f"dict:{name}:len", _counts_i32(lengths, f"dict:{name}").tobytes()),
     ]
 
 
@@ -186,10 +215,10 @@ def _encode_annotation_column(
     """Encode one annotation column.
 
     Returns ``(manifest_entry, part1_array, payloads)``.  ``part1_array`` is the
-    ``<col>`` codes / values or the ``<col>__end`` CSR offsets; the caller picks
-    the physical column name from ``manifest_entry["kind"]``.
+    ``<col>`` codes / values or the ``<col>__count`` per-row CSR hit counts; the
+    caller picks the physical column name from ``manifest_entry["kind"]``.
     """
-    source_type = str(column.type)
+    source_type = _source_type(column.type)
     arr = column.combine_chunks() if isinstance(column, pa.ChunkedArray) else column
 
     # Arrow-numeric source columns stay numeric regardless of content.  The
@@ -199,7 +228,11 @@ def _encode_annotation_column(
         values = pc.cast(arr, pa.float64()).to_numpy(zero_copy_only=False)
         values = np.where(np.isfinite(values), values, np.nan)
         finite = values[~np.isnan(values)]
-        numeric_type = "int" if np.all(np.mod(finite, 1) == 0) else "float"
+        if finite.size:
+            numeric_type = "int" if np.all(np.mod(finite, 1) == 0) else "float"
+        else:
+            # ``np.all([]) is True`` would call an all-null float column int.
+            numeric_type = "int" if pa.types.is_integer(arr.type) else "float"
         entry = {
             "kind": "numeric",
             "numericType": numeric_type,
@@ -215,7 +248,7 @@ def _encode_annotation_column(
     if not missing.all():
         numeric_ok = _regex_ok(trimmed, JS_NUMBER_RE) | missing
         if numeric_ok.all():
-            values = _parse_floats(trimmed, ~missing, blank_is_zero=False)
+            values = _parse_floats(trimmed, ~missing)
             if np.isfinite(values[~missing]).all():
                 values = np.where(missing, np.nan, values)
                 finite = values[~missing]
@@ -267,7 +300,10 @@ def _encode_annotation_column(
         flat = pc.utf8_trim_whitespace(pc.list_flatten(pieces))
         blank = np.asarray(pc.equal(flat, pa.scalar("")))
         numeric = _regex_ok(flat, JS_NUMBER_RE)
-        parsed = _parse_floats(flat, numeric, blank_is_zero=True)
+        parsed = _parse_floats(flat, numeric)
+        # ``Number("")`` is ``0`` in JavaScript, so an empty score part
+        # (``"label|1,"``) is a valid score of 0 -- ``_parse_floats`` already
+        # substituted 0 for it, because a blank never matches JS_NUMBER_RE.
         valid = blank | (numeric & np.isfinite(parsed))
         owner = np.repeat(np.arange(candidate.size), piece_len)
         bad = np.bincount(owner, weights=~valid, minlength=candidate.size)
@@ -302,13 +338,12 @@ def _encode_annotation_column(
         entry = {"kind": "categorical", "sourceType": source_type}
         return entry, pa.array(row_codes, type=pa.int32()), payloads
 
-    end = np.cumsum(per_row, dtype=np.int64).astype("<i4")
+    row_counts = _counts_i32(per_row, f"column '{name}' hits")
     payloads.append((f"csr:{name}", codes.astype("<i4").tobytes()))
 
     if has_scores:
-        payloads.append(
-            (f"score_end:{name}", np.cumsum(hit_score_count).astype("<i4").tobytes())
-        )
+        counts = _counts_i32(hit_score_count, f"column '{name}' scores")
+        payloads.append((f"score_count:{name}", counts.tobytes()))
         payloads.append((f"scores:{name}", score_values.astype("<f4").tobytes()))
     if has_evidence:
         idx = np.flatnonzero(is_evidence)
@@ -329,7 +364,7 @@ def _encode_annotation_column(
         entry["scores"] = True
     if has_evidence:
         entry["evidence"] = True
-    return entry, pa.array(end, type=pa.int32()), payloads
+    return entry, pa.array(row_counts, type=pa.int32()), payloads
 
 
 def _encode_projections(
@@ -351,6 +386,19 @@ def _encode_projections(
             f"Duplicate projection name(s) in projections_metadata: {names}"
         )
 
+    name_column = projections_data.column("projection_name")
+    # The browser derives the projection set, order and dimension from the data
+    # rows alone (``conversion.ts:1163-1196``), so a metadata-only projection
+    # would be an all-zero one there and a data-only projection would silently
+    # vanish here.  All five shipped datasets agree; refuse the ones that do not.
+    in_data = set(pc.unique(name_column).to_pylist())
+    if in_data != set(names):
+        raise ValueError(
+            "projections_metadata and projections_data disagree on the projection "
+            f"set: metadata-only {sorted(set(names) - in_data, key=str)}, "
+            f"data-only {sorted(in_data - set(names), key=str)}"
+        )
+
     dimensions = (
         projections_metadata.column("dimensions").to_pylist()
         if "dimensions" in projections_metadata.column_names
@@ -358,38 +406,49 @@ def _encode_projections(
     )
     has_z = "z" in projections_data.column_names
 
-    index = pd.Index(protein_ids.to_pylist())
-    num_rows = len(index)
+    num_rows = len(protein_ids)
     columns: dict[str, pa.Array] = {}
     manifest: list[dict[str, Any]] = []
 
-    name_column = projections_data.column("projection_name")
     for name, declared in zip(names, dimensions, strict=True):
-        sub = projections_data.filter(pc.equal(name_column, pa.scalar(name)))
-        positions = index.get_indexer(sub.column("identifier").to_pylist())
-        if len(positions) and positions.min() < 0:
-            unknown = np.asarray(sub.column("identifier").to_pylist())[positions < 0]
+        rows = projections_data.filter(pc.equal(name_column, pa.scalar(name)))
+        identifiers = rows.column("identifier")
+        found = pc.index_in(identifiers, value_set=protein_ids)
+        if found.null_count:
+            unknown = identifiers.filter(pc.is_null(found)).to_pylist()
             raise ValueError(
                 f"projection '{name}' references identifier(s) absent from the "
-                f"annotations table: {sorted(set(unknown.tolist()))[:5]}"
+                f"annotations table: {sorted(set(unknown))[:5]}"
+            )
+        positions = np.asarray(found.combine_chunks())
+        if np.unique(positions).size != positions.size:
+            repeated = np.flatnonzero(np.bincount(positions, minlength=num_rows) > 1)
+            raise ValueError(
+                f"projection '{name}' has more than one row for "
+                f"{repeated.size} identifier(s): "
+                f"{protein_ids.take(pa.array(repeated[:5])).to_pylist()}"
             )
 
-        z = sub.column("z") if has_z else None
+        z = rows.column("z") if has_z else None
         z_present = (
             z is not None and not pa.types.is_null(z.type) and z.null_count < len(z)
         )
-        dimension = int(declared) if declared in (2, 3) else (3 if z_present else 2)
+        try:  # parquet may hand the dimension back as "3" or a numpy int
+            declared_dim = int(declared)
+        except (TypeError, ValueError):
+            declared_dim = None
+        dimension = declared_dim if declared_dim in (2, 3) else (3 if z_present else 2)
 
         for axis in ("x", "y", "z")[:dimension]:
-            values = np.full(num_rows, np.nan, dtype=np.float32)
-            if axis == "z" and not z_present:
-                source = None
-            else:
-                source = (
-                    sub.column(axis).to_numpy(zero_copy_only=False).astype(np.float32)
+            # 0.0, not NaN, for a protein absent from this projection: the browser
+            # leaves its zero-initialised Float32Array untouched and guards the
+            # write (``conversion.ts:1198-1205``), so the protein renders at the
+            # origin.  Preserving that quirk is the contract, not an endorsement.
+            values = np.zeros(num_rows, dtype=np.float32)
+            if axis != "z" or z_present:
+                values[positions] = (
+                    rows.column(axis).to_numpy(zero_copy_only=False).astype(np.float32)
                 )
-            if source is not None:
-                values[positions] = source
             columns[f"{name}__{axis}"] = pa.array(values, type=pa.float32())
         manifest.append({"name": name, "dimension": dimension})
 
@@ -437,7 +496,7 @@ def encode_v3(
         entry, array, column_payloads = _encode_annotation_column(
             annotations.column(name), name, num_rows, evidence_dict
         )
-        physical = f"{name}__end" if entry["kind"] == "multi" else name
+        physical = f"{name}__count" if entry["kind"] == "multi" else name
         if physical != name and physical in existing:
             raise ValueError(
                 f"column '{name}' is multi-valued but '{physical}' already exists in "
@@ -468,6 +527,14 @@ def encode_v3(
         FORMAT_VERSION_KEY: str(CONTAINER_VERSION).encode(),
         MANIFEST_KEY: json.dumps(manifest, separators=(",", ":")).encode(),
     }
+
+    payload_names = [n for n, _ in payloads]
+    if len(set(payload_names)) != len(payload_names):
+        clashing = sorted({n for n in payload_names if payload_names.count(n) > 1})
+        raise ValueError(
+            f"payload name collision(s) {clashing}; rename the annotation column(s) "
+            "that produce them"
+        )
 
     payload_table = _required_table(
         {

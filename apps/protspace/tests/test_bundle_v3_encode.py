@@ -82,9 +82,10 @@ def payloads_of(part6: bytes) -> dict[str, bytes]:
 
 
 def labels_of(payloads: dict[str, bytes], column: str) -> list[str]:
+    """Rebuild the labels the way the reader does: prefix-sum the byte lengths."""
     blob = payloads[f"dict:{column}"]
-    ends = np.frombuffer(payloads[f"dict:{column}:end"], "<i4")
-    starts = np.concatenate(([0], ends[:-1]))
+    ends = np.cumsum(np.frombuffer(payloads[f"dict:{column}:len"], "<i4"))
+    starts = np.concatenate(([0], ends[:-1])).astype(int)
     return [blob[a:b].decode() for a, b in zip(starts, ends, strict=True)]
 
 
@@ -170,6 +171,24 @@ def test_source_type_records_non_string_arrow_types():
     assert pa.type_for_alias(columns["conf"]["sourceType"]) == pa.float32()
 
 
+def test_source_type_marks_types_that_cannot_be_restored():
+    """``str(dictionary<...>)`` is no alias, so record the marker, not the spelling."""
+    table = stamp_format_version(
+        pa.table(
+            {
+                "protein_id": ["p0", "p1"],
+                "species": pa.array(["Human", "Mouse"]).dictionary_encode(),
+            }
+        )
+    )
+    parts = encode(table)
+    assert manifest_of(parts[0])["columns"]["species"] == {
+        "kind": "categorical",
+        "sourceType": "?",
+    }
+    assert labels_of(payloads_of(parts[3]), "species") == ["Human", "Mouse"]
+
+
 # --------------------------------------------------------------------------- #
 # semantics mirrored from conversion.ts
 # --------------------------------------------------------------------------- #
@@ -202,10 +221,10 @@ def test_scored_multi_column_csr_and_payloads():
     parts = encode(table)
     payloads = payloads_of(parts[3])
     assert labels_of(payloads, "pfam") == ["PF1", "PF2", "PF3"]
-    assert read(parts[0]).column("pfam__end").to_pylist() == [2, 3, 3, 4]
+    assert read(parts[0]).column("pfam__count").to_pylist() == [2, 1, 0, 1]
     assert list(np.frombuffer(payloads["csr:pfam"], "<i4")) == [0, 1, 0, 2]
-    # score_end is cumulative per HIT (4 hits), so PF3 repeats the previous end.
-    assert list(np.frombuffer(payloads["score_end:pfam"], "<i4")) == [2, 3, 4, 4]
+    # score_count is per HIT (4 hits), not per row, so unscored PF3 contributes 0.
+    assert list(np.frombuffer(payloads["score_count:pfam"], "<i4")) == [2, 1, 1, 0]
     scores = np.frombuffer(payloads["scores:pfam"], "<f4")
     assert scores == pytest.approx([1e-10, 2.5, 0.5, 1.0], rel=1e-6)
     assert "evidence:pfam" not in payloads
@@ -221,7 +240,7 @@ def test_evidence_column_uses_the_global_dictionary():
     assert labels_of(payloads, "__evidence") == ["IDA", "ECO:0000269", "EXP"]
     assert list(np.frombuffer(payloads["evidence:loc"], "<i4")) == [0, 1, 2, -1]
     assert list(np.frombuffer(payloads["evidence:other"], "<i4")) == [0, -1, -1]
-    assert read(parts[0]).column("loc__end").to_pylist() == [2, 3, 4]
+    assert read(parts[0]).column("loc__count").to_pylist() == [2, 1, 1]
 
 
 def test_single_hit_scored_column_is_multi():
@@ -254,6 +273,30 @@ def test_hit_without_a_recognised_suffix_keeps_the_whole_string():
     table = make_annotations(col=["GO:0005524|ATP binding", "x|", "y|not_a_code"])
     labels = labels_of(payloads_of(encode(table)[3]), "col")
     assert set(labels) == {"GO:0005524|ATP binding", "x|", "y|not_a_code"}
+
+
+def test_hit_is_split_on_the_last_pipe():
+    """A ``|`` inside the label stays there: only the LAST one opens a suffix."""
+    table = make_annotations(col=["GO:1|ATP binding|0.5", "GO:1|ATP binding|0.25"])
+    payloads = payloads_of(encode(table)[3])
+    assert labels_of(payloads, "col") == ["GO:1|ATP binding"]
+    assert np.frombuffer(payloads["scores:col"], "<f4") == pytest.approx([0.5, 0.25])
+
+
+def test_label_is_trimmed_before_it_becomes_a_category():
+    """``"Cytoplasm |IDA"`` must not fork a category on its trailing space."""
+    payloads = payloads_of(
+        encode(make_annotations(col=["Cytoplasm |IDA", "Cyto|IDA"]))[3]
+    )
+    assert labels_of(payloads, "col") == ["Cytoplasm", "Cyto"]
+
+
+def test_bool_cells_use_the_python_spelling():
+    """v2 stringifies bools as ``True``/``False``; a bare cast would say ``true``."""
+    table = stamp_format_version(
+        pa.table({"protein_id": ["p0", "p1", "p2"], "flag": [True, False, False]})
+    )
+    assert labels_of(payloads_of(encode(table)[3]), "flag") == ["False", "True"]
 
 
 # --------------------------------------------------------------------------- #
@@ -304,19 +347,21 @@ def test_payload_buffers_are_little_endian():
         np.frombuffer(payloads["scores:col"], "<f4").tobytes() == payloads["scores:col"]
     )
     for name, blob in payloads.items():
-        if name.startswith("dict:") and not name.endswith(":end"):
+        if name.startswith("dict:") and not name.endswith(":len"):
             continue
         assert len(blob) % 4 == 0, name
 
 
-def test_projection_rows_align_to_part_one_and_missing_is_nan():
+def test_projection_rows_align_to_part_one_and_missing_is_zero():
+    """A protein absent from a projection sits at the origin, as in v2."""
     annotations = make_annotations(col=["A", "B", "C"])
     meta, data = make_projections((("A", 2),), ["p2", "p0"])
     parts = encode_v3(annotations, meta, data)
     projections = read(parts[2]).to_pydict()
     assert projections["A__x"][0] == 1.0  # p0 is the second row of the long table
     assert projections["A__x"][2] == 0.0  # p2 is the first
-    assert np.isnan(projections["A__x"][1])  # p1 is absent from the projection
+    assert projections["A__x"][1] == 0.0  # p1 is absent from the projection
+    assert projections["A__y"][1] == 0.0
 
 
 # --------------------------------------------------------------------------- #
@@ -324,8 +369,8 @@ def test_projection_rows_align_to_part_one_and_missing_is_nan():
 # --------------------------------------------------------------------------- #
 
 
-def test_rejects_end_column_collision():
-    table = make_annotations(col=["A;B", "A"], **{"col__end": ["x", "y"]})
+def test_rejects_count_column_collision():
+    table = make_annotations(col=["A;B", "A"], **{"col__count": ["x", "y"]})
     with pytest.raises(ValueError, match="already exists"):
         encode(table)
 
@@ -335,6 +380,49 @@ def test_rejects_duplicate_projection_names():
     meta, data = make_projections((("A", 2), ("A", 3)), ["p0", "p1"])
     with pytest.raises(ValueError, match="Duplicate projection name"):
         encode_v3(annotations, meta, data)
+
+
+def test_rejects_a_projection_only_in_the_metadata():
+    """The browser derives the projection set from the data rows, so both must agree."""
+    annotations = make_annotations(col=["A", "B"])
+    meta, _ = make_projections((("A", 2), ("B", 2)), ["p0", "p1"])
+    _, data = make_projections((("A", 2),), ["p0", "p1"])
+    with pytest.raises(ValueError, match=r"metadata-only \['B'\]"):
+        encode_v3(annotations, meta, data)
+
+
+def test_rejects_a_projection_only_in_the_data():
+    annotations = make_annotations(col=["A", "B"])
+    meta, _ = make_projections((("A", 2),), ["p0", "p1"])
+    _, data = make_projections((("A", 2), ("B", 2)), ["p0", "p1"])
+    with pytest.raises(ValueError, match=r"data-only \['B'\]"):
+        encode_v3(annotations, meta, data)
+
+
+def test_rejects_duplicate_identifiers_within_a_projection():
+    """Consistent with duplicate ``protein_id``s, which raise rather than last-win."""
+    annotations = make_annotations(col=["A", "B"])
+    meta, data = make_projections((("A", 2),), ["p0", "p0"])
+    with pytest.raises(ValueError, match="more than one row"):
+        encode_v3(annotations, meta, data)
+
+
+def test_rejects_colliding_payload_names():
+    table = make_annotations(**{"__evidence": ["A", "B"], "loc": ["Cyto|IDA", "Nuc"]})
+    with pytest.raises(ValueError, match="payload name collision"):
+        encode(table)
+
+
+def test_declared_dimension_is_coerced_before_the_z_fallback():
+    """``dimensions`` can arrive as a string; ``"3"`` must not sniff its way to 2D."""
+    annotations = make_annotations(col=["A", "B"])
+    meta, data = make_projections((("A", 2),), ["p0", "p1"])
+    meta = meta.set_column(
+        meta.schema.get_field_index("dimensions"), "dimensions", pa.array(["3"])
+    )
+    parts = encode_v3(annotations, meta, data)
+    assert read(parts[2]).column_names == ["A__x", "A__y", "A__z"]
+    assert manifest_of(parts[0])["projections"] == [{"name": "A", "dimension": 3}]
 
 
 def test_rejects_duplicate_protein_ids():
@@ -380,7 +468,7 @@ def test_v1_annotations_are_migrated_before_splitting():
     v1 = pa.table({"protein_id": ["p0"], "col": ["PF1 (a;b)|0.5"]})
     parts = encode(v1)
     assert labels_of(payloads_of(parts[3]), "col") == ["PF1 (a;b)"]
-    assert read(parts[0]).column("col__end").to_pylist() == [1]
+    assert read(parts[0]).column("col__count").to_pylist() == [1]
 
 
 def test_null_cells_are_missing():
@@ -410,7 +498,7 @@ def test_all_null_arrow_numeric_column_stays_numeric():
     parts = encode(table)
     assert manifest_of(parts[0])["columns"]["conf"] == {
         "kind": "numeric",
-        "numericType": "int",
+        "numericType": "float",
         "sourceType": "float",
     }
     assert all(np.isnan(v) for v in read(parts[0]).column("conf").to_pylist())
