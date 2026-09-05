@@ -116,21 +116,6 @@ export function createDatasetController({
         return;
       }
 
-      if (loadMeta.kind === 'user' && file) {
-        overlayController.update(
-          true,
-          20,
-          'Saving imported dataset...',
-          'Preparing reload support...',
-        );
-        try {
-          await saveLastImportedFile(file);
-        } catch (error) {
-          console.error('Failed to persist imported dataset in OPFS:', error);
-          notify.warning(getDatasetPersistenceFailureNotification(error));
-        }
-      }
-
       const datasetHash = generateDatasetHash(data);
       const shouldClearPersistedState =
         loadMeta.kind === 'default' || (loadMeta.kind === 'user' && settings != null);
@@ -235,6 +220,20 @@ export function createDatasetController({
       }
 
       viewController.applyLatestViewForDatasetLoad(data);
+
+      // Persisted only once the dataset is on screen: this is a full byte copy of
+      // the bundle (45-145 MB) into OPFS and used to sit in front of first paint.
+      // Load-queue serialisation (it waits on resolvePendingLoadFinalization below)
+      // keeps a later import from interleaving with this write, and
+      // markLastLoadStatus reads the metadata written here, so it must stay after.
+      if (loadMeta.kind === 'user' && file) {
+        try {
+          await saveLastImportedFile(file);
+        } catch (error) {
+          console.error('Failed to persist imported dataset in OPFS:', error);
+          notify.warning(getDatasetPersistenceFailureNotification(error));
+        }
+      }
 
       try {
         if (loadMeta.kind === 'user' || loadMeta.kind === 'opfs') {
