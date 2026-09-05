@@ -40,8 +40,10 @@ import pyarrow.parquet as pq
 from protspace.data.annotations.encoding import (
     FORMAT_VERSION_KEY,
     decode_field,
+    encode_field,
     migrate_legacy_annotation_table,
     read_format_version,
+    stamp_format_version,
 )
 
 CONTAINER_VERSION = 3
@@ -548,4 +550,257 @@ def encode_v3(
         _write(projections_metadata),
         _write(projections_table),
         _write(payload_table),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# decoder
+# --------------------------------------------------------------------------- #
+
+
+def _read(part: bytes) -> pa.Table:
+    return pq.read_table(io.BytesIO(part))
+
+
+def _flat(column: pa.ChunkedArray | pa.Array) -> pa.Array:
+    """One contiguous Arrow array (``ListArray.from_arrays`` refuses chunks)."""
+    if not isinstance(column, pa.ChunkedArray):
+        return column
+    if column.num_chunks == 1:
+        return column.chunk(0)
+    if column.num_chunks == 0:
+        return pa.array([], type=column.type)
+    return pa.concat_arrays(column.chunks)
+
+
+def _read_payloads(part: bytes) -> dict[str, bytes]:
+    table = _read(part)
+    return dict(
+        zip(
+            table.column("name").to_pylist(),
+            table.column("data").to_pylist(),
+            strict=True,
+        )
+    )
+
+
+def _read_labels(payloads: dict[str, bytes], name: str) -> list[str]:
+    """Slice ``dict:<name>`` by the prefix sum of its per-label byte lengths."""
+    blob = payloads[f"dict:{name}"]
+    lengths = np.frombuffer(payloads[f"dict:{name}:len"], "<i4")
+    ends = np.cumsum(lengths, dtype=np.int64)
+    return [
+        blob[end - length : end].decode()
+        for length, end in zip(lengths, ends, strict=True)
+    ]
+
+
+def _list_join(counts: np.ndarray, values: pa.Array, separator: str) -> pa.Array:
+    """Prefix-sum per-element ``counts`` into list offsets, then join each list."""
+    offsets = np.concatenate(([0], np.cumsum(counts, dtype=np.int64))).astype(np.int32)
+    lists = pa.ListArray.from_arrays(pa.array(offsets, type=pa.int32()), values)
+    return pc.binary_join(lists, separator)
+
+
+def _restorable_type(alias: str) -> pa.DataType | None:
+    """The numeric Arrow type ``alias`` names, or *None* to render v2 strings.
+
+    A string ``sourceType`` deliberately lands here: the v2 spelling of the
+    column is what the encoder consumed, so rendering it back is the restoration.
+    """
+    if alias in (_UNRESTORABLE_SOURCE_TYPE, "string", "large_string"):
+        return None
+    try:
+        type_ = pa.type_for_alias(alias)
+    except ValueError:
+        return None
+    return type_ if pa.types.is_integer(type_) or pa.types.is_floating(type_) else None
+
+
+def _decode_numeric(column: pa.ChunkedArray, entry: dict[str, Any]) -> pa.Array:
+    """float64 + NaN back to the source Arrow type, or to its v2 string cells."""
+    values = _flat(column).to_numpy(zero_copy_only=False)
+    present = ~np.isnan(values)
+    type_ = _restorable_type(entry.get("sourceType", _UNRESTORABLE_SOURCE_TYPE))
+    if type_ is not None:
+        return pc.cast(pa.array(values, mask=~present), type_)
+
+    finite = np.where(present, values, 0.0)
+    # ``str(2.0)`` is ``"2.0"`` but an int-typed v2 column spells it ``"2"``, and
+    # numpy's float repr is Python's, so int columns take the int64 detour.  The
+    # magnitude guard keeps a value past int64 out of an undefined cast.
+    if entry.get("numericType") == "int" and np.abs(finite).max(initial=0.0) < 2.0**63:
+        text = finite.astype(np.int64).astype(str)
+    else:
+        text = finite.astype(str)
+    return pc.if_else(
+        pa.array(present), pa.array(text, type=pa.string()), pa.scalar("")
+    )
+
+
+def _decode_categorical(column: pa.ChunkedArray, labels: pa.Array) -> pa.Array:
+    """int32 codes back to label cells; ``-1`` (missing) becomes ``""``."""
+    codes = _flat(column).to_numpy(zero_copy_only=False)
+    return pc.fill_null(labels.take(pa.array(codes, mask=codes < 0)), "")
+
+
+def _decode_multi(
+    column: pa.ChunkedArray,
+    name: str,
+    entry: dict[str, Any],
+    payloads: dict[str, bytes],
+    labels: pa.Array,
+    evidence_labels: pa.Array,
+) -> pa.Array:
+    """CSR hits back to ``label|suffix;label|suffix`` cells (``""`` when empty)."""
+    hits = labels.take(pa.array(np.frombuffer(payloads[f"csr:{name}"], "<i4")))
+    suffix = None
+
+    if entry.get("evidence"):
+        codes = np.frombuffer(payloads[f"evidence:{name}"], "<i4")
+        suffix = evidence_labels.take(pa.array(codes, mask=codes < 0))
+
+    if entry.get("scores"):
+        per_hit = np.frombuffer(payloads[f"score_count:{name}"], "<i4")
+        values = np.frombuffer(payloads[f"scores:{name}"], "<f4")
+        # numpy's float32 repr is the shortest spelling that reads back as the
+        # same float32, which is what ``String(number)`` gives the browser -- bar
+        # the trailing ``.0`` JavaScript never prints (``[1].join(',')`` is
+        # ``"1"``), so ``Array.prototype.join`` and this agree on every score.
+        text = pc.replace_substring_regex(
+            pa.array(values.astype(str), type=pa.string()), r"\.0$", ""
+        )
+        scored = pc.if_else(
+            pa.array(per_hit > 0),
+            _list_join(per_hit, text, ","),
+            pa.scalar(None, pa.string()),
+        )
+        suffix = scored if suffix is None else pc.coalesce(suffix, scored)
+
+    if suffix is not None:
+        # A null suffix (no evidence, no scores) leaves the bare label: the
+        # element-wise join emits null as soon as one side is null.
+        hits = pc.coalesce(pc.binary_join_element_wise(hits, suffix, "|"), hits)
+
+    counts = _flat(column).to_numpy(zero_copy_only=False)
+    return _list_join(counts, hits, ";")
+
+
+def _decode_projections(
+    part: bytes, manifest: list[dict[str, Any]], identifiers: pa.Array
+) -> pa.Table:
+    """Wide float32 projections back to the long v2 table, in manifest order."""
+    wide = _read(part)
+    num_rows = len(identifiers)
+    row = pa.array(np.zeros(num_rows, dtype=np.int32))
+    schema = pa.schema(
+        [
+            ("projection_name", pa.string()),
+            ("identifier", pa.string()),
+            ("x", pa.float32()),
+            ("y", pa.float32()),
+            ("z", pa.float32()),
+        ]
+    )
+
+    tables = []
+    for projection in manifest:
+        name = projection["name"]
+        dimension = int(projection["dimension"])
+        tables.append(
+            pa.table(
+                {
+                    # ``take`` of a one-element array beats materialising N copies.
+                    "projection_name": pa.array([name], type=pa.string()).take(row),
+                    "identifier": identifiers,
+                    "x": _flat(wide.column(f"{name}__x")),
+                    "y": _flat(wide.column(f"{name}__y")),
+                    "z": _flat(wide.column(f"{name}__z"))
+                    if dimension == 3
+                    else pa.nulls(num_rows, pa.float32()),
+                },
+                schema=schema,
+            )
+        )
+    return pa.concat_tables(tables) if tables else schema.empty_table()
+
+
+def decode_v3(parts: list[bytes]) -> tuple[pa.Table, pa.Table, pa.Table]:
+    """Decode v3 parts back into the three v2-shaped tables.
+
+    ``parts`` is what :func:`encode_v3` returned: annotations, projections
+    metadata, wide projections, payloads (bundle parts 1, 2, 3 and 6).  The
+    result is re-stamped ``protspace_format_version=2`` because what comes back
+    *is* the v2 cell grammar every Python consumer parses.
+
+    The round trip is not byte-exact, and deliberately so -- v3 stores what the
+    browser's v2 reader would have parsed out of the cells, not the cells:
+
+    * hits and cells are whitespace-trimmed, and empty or missing-valued hits are
+      dropped (``"A;;B"`` comes back ``"A;B"``, ``" A |IDA"`` as ``"A|IDA"``);
+    * a missing cell -- null, blank or a ``MISSING_TOKENS`` spelling -- comes back
+      as ``""``;
+    * labels are re-encoded canonically, so ``%3b`` comes back as ``%3B``;
+    * scores round-trip through float32 and are re-spelled shortest-first, so
+      ``"0.5700"`` comes back as ``"0.57"``;
+    * a numeric column comes back in its ``sourceType`` when that is restorable
+      and otherwise as its canonical v2 spelling, so an all-integral column
+      spells ``100``, never ``100.0``;
+    * projection coordinates come back float32 (``z`` null for a 2D projection)
+      and a protein absent from a projection comes back at the origin;
+    * the identifier column comes back first, wherever it sat before.
+    """
+    if len(parts) != 4:
+        raise ValueError(
+            f"decode_v3 expects the 4 parts encode_v3 returns, got {len(parts)}"
+        )
+
+    annotations = _read(parts[0])
+    metadata = dict(annotations.schema.metadata or {})
+    raw_manifest = metadata.pop(MANIFEST_KEY, None)
+    if raw_manifest is None:
+        raise ValueError(
+            f"annotations part carries no {MANIFEST_KEY.decode()} key; "
+            "it is not a v3 part"
+        )
+    manifest = json.loads(raw_manifest)
+    payloads = _read_payloads(parts[3])
+
+    evidence_labels = pa.array(
+        _read_labels(payloads, _EVIDENCE_DICT_NAME)
+        if f"dict:{_EVIDENCE_DICT_NAME}" in payloads
+        else [],
+        type=pa.string(),
+    )
+
+    id_column = manifest["idColumn"]
+    columns: dict[str, pa.Array] = {id_column: _flat(annotations.column(id_column))}
+    for name, entry in manifest["columns"].items():
+        kind = entry["kind"]
+        if kind == "numeric":
+            columns[name] = _decode_numeric(annotations.column(name), entry)
+            continue
+        # Labels are stored decoded; the v2 cell grammar wants them encoded.
+        labels = pa.array(
+            [encode_field(label) for label in _read_labels(payloads, name)],
+            type=pa.string(),
+        )
+        if kind == "categorical":
+            columns[name] = _decode_categorical(annotations.column(name), labels)
+        elif kind == "multi":
+            columns[name] = _decode_multi(
+                annotations.column(f"{name}__count"),
+                name,
+                entry,
+                payloads,
+                labels,
+                evidence_labels,
+            )
+        else:
+            raise ValueError(f"column '{name}' has unknown v3 kind '{kind}'")
+
+    return (
+        stamp_format_version(pa.table(columns).replace_schema_metadata(metadata)),
+        _read(parts[1]),
+        _decode_projections(parts[2], manifest["projections"], columns[id_column]),
     )
