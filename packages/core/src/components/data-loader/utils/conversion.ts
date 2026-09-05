@@ -134,7 +134,7 @@ function* valuesForColumn(rows: Rows, column: string): Iterable<unknown> {
   }
 }
 
-function createNumericAnnotation(
+export function createNumericAnnotation(
   numericType: 'int' | 'float',
   runtime?: Annotation['runtime'],
 ): Annotation {
@@ -449,6 +449,30 @@ function appendSyntheticNACategory(
 }
 
 /**
+ * {@link appendSyntheticNACategory} for a dictionary-code column: missing slots are
+ * already `-1`, so the synthetic category is appended and every `-1` routed to it.
+ *
+ * Mutates the input arrays in place. Shared with the format v3 reader so both storage
+ * shapes gain the `__NA__` legend row under exactly one rule.
+ */
+export function appendSyntheticNACategoryToCodes(
+  uniqueValues: string[],
+  colors: string[],
+  shapes: string[],
+  codes: Int32Array,
+): void {
+  if (!codes.some((code) => code < 0)) return;
+
+  const naIndex = uniqueValues.length;
+  uniqueValues.push(NA_VALUE);
+  colors.push(NA_DEFAULT_COLOR);
+  shapes.push('circle');
+  for (let p = 0; p < codes.length; p++) {
+    if (codes[p] < 0) codes[p] = naIndex;
+  }
+}
+
+/**
  * Parse an annotation value that may contain a pipe-separated score or evidence code suffix.
  * Format: `label|score`, `label|score1,score2,...`, or `label|EVIDENCE_CODE`
  * If the part after the last `|` is numeric → scores.
@@ -633,7 +657,7 @@ function parseInfoJson(value: unknown): Record<string, unknown> {
  * Builds a metadata map from projections metadata rows.
  * Parses info_json field and spreads its contents into metadata.
  */
-function buildProjectionsMetadataMap(
+export function buildProjectionsMetadataMap(
   projectionsMetadata?: Rows,
 ): Map<string, Record<string, unknown>> {
   const metadataMap = new Map<string, Record<string, unknown>>();
@@ -775,9 +799,9 @@ export function convertParquetToVisualizationData(
  * and the parsed rows so the UI can render them. Raw `Rows` input (plain .parquet / legacy
  * reads) never carries either, so it passes straight through.
  */
-function carryStatistics(
+export function carryStatistics(
   data: VisualizationData,
-  input: BundleExtractionResult | Rows,
+  input: Pick<BundleExtractionResult, 'statistics' | 'statisticsRows'> | Rows,
 ): VisualizationData {
   if (!Array.isArray(input) && input.statistics) {
     data.statistics = input.statistics;
@@ -1700,19 +1724,7 @@ async function extractAnnotationsByProtein(
     if (annotationDataArray) {
       appendSyntheticNACategory(uniqueValues, colors, shapes, annotationDataArray);
     } else if (annotationDataTyped) {
-      // Int32Array missing slots are already -1; append NA category and remap -1.
-      const hasAnyMissing = annotationDataTyped.some((v) => v < 0);
-      if (hasAnyMissing) {
-        const naIndex = uniqueValues.length;
-        uniqueValues.push(NA_VALUE);
-        colors.push(NA_DEFAULT_COLOR);
-        shapes.push('circle');
-        for (let p = 0; p < annotationDataTyped.length; p++) {
-          if (annotationDataTyped[p] < 0) {
-            annotationDataTyped[p] = naIndex;
-          }
-        }
-      }
+      appendSyntheticNACategoryToCodes(uniqueValues, colors, shapes, annotationDataTyped);
     }
 
     annotations[annotationCol] = createCategoricalAnnotation(uniqueValues, colors, shapes);
