@@ -214,11 +214,36 @@ def test_code_order_is_frequency_then_first_occurrence():
     assert read(parts[0]).column("col").to_pylist() == [3, 0, 1, 2, 0, 1, 2, 0]
 
 
-def test_missing_cells_are_minus_one_and_not_a_category():
+def test_only_blank_cells_are_minus_one():
+    """A cell literally spelled ``none`` is a category, not a missing value.
+
+    v3 is a container encoding: collapsing the six ``MISSING_TOKENS`` spellings
+    would rewrite the data (``phosphatase.predicted_transmembrane`` is 1383 of
+    1587 rows of literal ``none``, and ``protspace style`` keys on that label).
+    The browser still folds them into NA at read time, on v2 and v3 alike.
+    """
     table = make_annotations(col=["A", "", "NA", "n/a", "None", "__NA__", "  ", "A"])
     parts = encode(table)
-    assert labels_of(payloads_of(parts[3]), "col") == ["A"]
-    assert read(parts[0]).column("col").to_pylist() == [0, -1, -1, -1, -1, -1, -1, 0]
+    assert labels_of(payloads_of(parts[3]), "col") == [
+        "A",
+        "NA",
+        "n/a",
+        "None",
+        "__NA__",
+    ]
+    assert read(parts[0]).column("col").to_pylist() == [0, -1, 1, 2, 3, 4, -1, 0]
+
+
+def test_missing_tokens_only_gate_numeric_inference():
+    """``MISSING_TOKENS`` survives for exactly one job: keeping ``NA`` non-numeric."""
+    parts = encode(make_annotations(col=["1", "NA", "none"]))
+    assert manifest_of(parts[0])["columns"]["col"]["kind"] == "numeric"
+
+    # ...so a column made only of them cannot become an all-NaN numeric column,
+    # and lands in the categorical path with its spellings intact.
+    parts = encode(make_annotations(col=["NA", "none", "NA"]))
+    assert manifest_of(parts[0])["columns"]["col"]["kind"] == "categorical"
+    assert labels_of(payloads_of(parts[3]), "col") == ["NA", "none"]
 
 
 def test_scored_multi_column_csr_and_payloads():
@@ -230,9 +255,26 @@ def test_scored_multi_column_csr_and_payloads():
     assert list(np.frombuffer(payloads["csr:pfam"], "<i4")) == [0, 1, 0, 2]
     # score_count is per HIT (4 hits), not per row, so unscored PF3 contributes 0.
     assert list(np.frombuffer(payloads["score_count:pfam"], "<i4")) == [2, 1, 1, 0]
-    scores = np.frombuffer(payloads["scores:pfam"], "<f4")
+    scores = np.frombuffer(payloads["scores:pfam"], "<f8")
     assert scores == pytest.approx([1e-10, 2.5, 0.5, 1.0], rel=1e-6)
     assert "evidence:pfam" not in payloads
+
+
+def test_scores_are_float64_so_e_values_survive():
+    """float32 would flush ``1e-200`` to 0 and overflow ``1e40`` to ``inf``.
+
+    ``inf`` is not valid v2 either, so a float32 store would make a second round
+    trip re-classify the hit and spell the cell ``A%7Cinf``.  E-values are the
+    canonical Pfam and InterPro score, so the payload is float64.
+    """
+    table = make_annotations(col=["A|1e-200,1e-300", "A|1e40", "A|123456789"])
+    payloads = payloads_of(encode(table)[3])
+    assert list(np.frombuffer(payloads["scores:col"], "<f8")) == [
+        1e-200,
+        1e-300,
+        1e40,
+        123456789.0,
+    ]
 
 
 def test_evidence_column_uses_the_global_dictionary():
@@ -285,7 +327,7 @@ def test_hit_is_split_on_the_last_pipe():
     table = make_annotations(col=["GO:1|ATP binding|0.5", "GO:1|ATP binding|0.25"])
     payloads = payloads_of(encode(table)[3])
     assert labels_of(payloads, "col") == ["GO:1|ATP binding"]
-    assert np.frombuffer(payloads["scores:col"], "<f4") == pytest.approx([0.5, 0.25])
+    assert np.frombuffer(payloads["scores:col"], "<f8") == pytest.approx([0.5, 0.25])
 
 
 def test_label_is_trimmed_before_it_becomes_a_category():

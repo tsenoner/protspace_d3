@@ -49,9 +49,16 @@ from protspace.data.annotations.encoding import (
 CONTAINER_VERSION = 3
 MANIFEST_KEY = b"protspace_v3_manifest"
 
-#: Cell/hit spellings that mean "missing".  Mirrors ``MISSING_VALUE_TOKENS``
-#: in ``packages/utils/src/visualization/missing-values.ts``; compared against
-#: the lower-cased, whitespace-trimmed token.
+#: Cell spellings that block numeric inference, mirroring
+#: ``MISSING_VALUE_TOKENS`` in
+#: ``packages/utils/src/visualization/missing-values.ts``; compared against the
+#: lower-cased, whitespace-trimmed cell.  They are *only* consulted there: a
+#: column of ``NA`` stays categorical instead of becoming all-NaN numeric, but a
+#: cell literally spelled ``none`` keeps that label, because the file has to
+#: preserve the token it was given (``protspace style`` and the Dash legend key
+#: on it, and ``phosphatase.predicted_transmembrane`` is 1383 of 1587 rows of
+#: literal ``none``).  The browser re-applies ``normalizeMissingValue`` at read
+#: time, so folding these into NA stays *its* decision, on both v2 and v3.
 MISSING_TOKENS = frozenset({"na", "n/a", "nan", "null", "none", "__na__"})
 
 #: ``EVIDENCE_CODE_RE`` from ``conversion.ts``: the part after a hit's last
@@ -145,13 +152,16 @@ def _as_string(column: pa.ChunkedArray | pa.Array) -> pa.Array:
     return pc.cast(arr, pa.string())
 
 
+def _blank_mask(trimmed: pa.Array) -> np.ndarray:
+    """Genuinely absent: null or the empty string (whitespace already trimmed)."""
+    mask = pc.or_(pc.is_null(trimmed), pc.equal(trimmed, pa.scalar("")))
+    return np.asarray(pc.fill_null(mask, True))
+
+
 def _missing_mask(trimmed: pa.Array) -> np.ndarray:
     """``normalizeMissingValue``: null, blank, or a MISSING_TOKENS spelling."""
-    is_null = pc.is_null(trimmed)
-    blank = pc.equal(trimmed, pa.scalar(""))
     token = pc.is_in(pc.utf8_lower(trimmed), value_set=pa.array(sorted(MISSING_TOKENS)))
-    mask = pc.or_(pc.or_(is_null, blank), pc.fill_null(token, False))
-    return np.asarray(pc.fill_null(mask, True))
+    return _blank_mask(trimmed) | np.asarray(pc.fill_null(token, False))
 
 
 def _regex_ok(values: pa.Array, pattern: str) -> np.ndarray:
@@ -244,9 +254,12 @@ def _encode_annotation_column(
 
     strings = _as_string(arr)
     trimmed = pc.utf8_trim_whitespace(strings)
-    missing = _missing_mask(trimmed)
+    blank = _blank_mask(trimmed)
 
     # --- numeric inference (conversion.ts:71-125) --------------------------- #
+    # Only here does a MISSING_TOKENS spelling count as absent, so a column of
+    # ``NA`` stays categorical rather than turning into an all-NaN numeric.
+    missing = _missing_mask(trimmed)
     if not missing.all():
         numeric_ok = _regex_ok(trimmed, JS_NUMBER_RE) | missing
         if numeric_ok.all():
@@ -263,11 +276,14 @@ def _encode_annotation_column(
                 return entry, pa.array(values, type=pa.float64()), []
 
     # --- categorical: split cells into hits --------------------------------- #
-    cells = pc.if_else(pa.array(~missing), trimmed, pa.scalar(None, pa.string()))
+    # ``_blank_mask``, not ``_missing_mask``: v3 is a container encoding and must
+    # hand back the label it was given, so ``none``/``NA``/``null`` stay ordinary
+    # categories here and the browser folds them into NA on read as it always has.
+    cells = pc.if_else(pa.array(~blank), trimmed, pa.scalar(None, pa.string()))
     hit_lists = pc.split_pattern(cells, ";")
     row_of_hit = np.asarray(pc.list_parent_indices(hit_lists))
     hits = pc.utf8_trim_whitespace(pc.list_flatten(hit_lists))
-    keep = ~_missing_mask(hits)
+    keep = ~_blank_mask(hits)
     if not keep.all():
         hits = hits.filter(pa.array(keep))
         row_of_hit = row_of_hit[keep]
@@ -346,7 +362,7 @@ def _encode_annotation_column(
     if has_scores:
         counts = _counts_i32(hit_score_count, f"column '{name}' scores")
         payloads.append((f"score_count:{name}", counts.tobytes()))
-        payloads.append((f"scores:{name}", score_values.astype("<f4").tobytes()))
+        payloads.append((f"scores:{name}", score_values.astype("<f8").tobytes()))
     if has_evidence:
         idx = np.flatnonzero(is_evidence)
         local = pc.dictionary_encode(suffix.take(pa.array(idx)))
@@ -662,9 +678,13 @@ def _decode_multi(
 
     if entry.get("scores"):
         per_hit = np.frombuffer(payloads[f"score_count:{name}"], "<i4")
-        values = np.frombuffer(payloads[f"scores:{name}"], "<f4")
-        # numpy's float32 repr is the shortest spelling that reads back as the
-        # same float32, which is what ``String(number)`` gives the browser -- bar
+        values = np.frombuffer(payloads[f"scores:{name}"], "<f8")
+        # float64, not float32: an E-value like ``1e-200`` (the canonical Pfam and
+        # InterPro score) underflows float32 to ``0`` and ``1e40`` overflows to
+        # ``inf``, which is not even valid v2, so a second round trip would
+        # re-classify the hit.  numpy's float64 repr is the shortest spelling that
+        # reads back as the same double, which is what ``String(number)`` gives
+        # the browser -- bar
         # the trailing ``.0`` JavaScript never prints (``[1].join(',')`` is
         # ``"1"``), so ``Array.prototype.join`` and this agree on every score.
         text = pc.replace_substring_regex(
@@ -738,11 +758,11 @@ def decode_v3(parts: list[bytes]) -> tuple[pa.Table, pa.Table, pa.Table]:
 
     * hits and cells are whitespace-trimmed, and empty or missing-valued hits are
       dropped (``"A;;B"`` comes back ``"A;B"``, ``" A |IDA"`` as ``"A|IDA"``);
-    * a missing cell -- null, blank or a ``MISSING_TOKENS`` spelling -- comes back
-      as ``""``;
+    * a missing cell -- null or blank -- comes back as ``""`` (a cell spelled
+      ``none``/``NA``/``null`` is an ordinary label and comes back unchanged);
     * labels are re-encoded canonically, so ``%3b`` comes back as ``%3B``;
-    * scores round-trip through float32 and are re-spelled shortest-first, so
-      ``"0.5700"`` comes back as ``"0.57"``;
+    * scores are re-spelled shortest-first, so ``"0.5700"`` comes back as
+      ``"0.57"``;
     * a numeric column comes back in its ``sourceType`` when that is restorable
       and otherwise as its canonical v2 spelling, so an all-integral column
       spells ``100``, never ``100.0``;

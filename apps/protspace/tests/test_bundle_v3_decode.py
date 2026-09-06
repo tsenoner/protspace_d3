@@ -271,9 +271,15 @@ def test_hits_and_cells_are_trimmed_and_empty_hits_collapse():
     assert cells(table, "pfam") == ["A;B", "A;B", "A;B"]
 
 
-def test_missing_spellings_all_come_back_as_the_empty_string():
+def test_only_null_and_blank_cells_come_back_as_the_empty_string():
+    """``none``/``NA``/``null`` are labels, not missing values.
+
+    ``protspace style`` resolves a legend entry by its literal cell value, so
+    collapsing these would delete a real category (1383 of the 1587
+    ``phosphatase.predicted_transmembrane`` rows are literally ``none``).
+    """
     table = annotations_table(col=["A", "NA", "n/a", "None", "__NA__", "  "])
-    assert cells(table, "col") == ["A", "", "", "", "", ""]
+    assert cells(table, "col") == ["A", "NA", "n/a", "None", "__NA__", ""]
 
 
 def test_null_cells_come_back_as_the_empty_string():
@@ -301,11 +307,22 @@ def test_an_unscored_hit_in_a_scored_column_keeps_no_suffix():
     assert cells(table, "col") == ["PF1|0.5;PF2", "PF3"]
 
 
-def test_scores_round_trip_through_float32():
+def test_scores_round_trip_through_float64():
     table = annotations_table(col=["A|0.5700", "A|1", "A|0.1", "A|1e-10,2.5"])
-    # 0.5700 loses its trailing zero (float32 has no such notion) and an integral
+    # 0.5700 loses its trailing zero (a float has no such notion) and an integral
     # score keeps the JavaScript spelling ``[1].join(',') === '1'``.
     assert cells(table, "col") == ["A|0.57", "A|1", "A|0.1", "A|1e-10,2.5"]
+
+
+def test_e_values_survive_the_round_trip():
+    """float32 scores would spell these ``0``, ``0``, ``inf`` and ``1.2345679e+08``."""
+    table = annotations_table(col=["A|1e-200", "A|1e-300", "A|1e40", "A|123456789"])
+    assert cells(table, "col") == [
+        "A|1e-200",
+        "A|1e-300",
+        "A|1e+40",
+        "A|123456789",
+    ]
 
 
 def test_an_int_column_re_spells_its_cells_canonically():
