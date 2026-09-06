@@ -18,7 +18,12 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from protspace.data.annotations.encoding import FORMAT_VERSION_KEY, stamp_format_version
+from protspace.data.annotations.encoding import (
+    FORMAT_VERSION_KEY,
+    migrate_legacy_annotation_table,
+    read_format_version,
+    stamp_format_version,
+)
 from protspace.data.io.bundle_v3 import MANIFEST_KEY, encode_v3
 
 
@@ -469,6 +474,29 @@ def test_v1_annotations_are_migrated_before_splitting():
     parts = encode(v1)
     assert labels_of(payloads_of(parts[3]), "col") == ["PF1 (a;b)"]
     assert read(parts[0]).column("col__count").to_pylist() == [1]
+
+
+def test_migrating_a_v1_table_twice_is_a_no_op():
+    """The migration output must not read back as v1, or it gets re-escaped.
+
+    ``read_format_version`` defaults an unstamped table to 1, so an unstamped
+    migration output is exactly the one table that looks like it still needs
+    migrating.  ``decode_field`` is not its own inverse, so the second pass is
+    unrecoverable.
+    """
+    v1 = pa.table({"protein_id": ["p0"], "col": ["nitrite reductase (a; b)"]})
+    once = migrate_legacy_annotation_table(v1)
+    assert read_format_version(once) == 2
+    assert migrate_legacy_annotation_table(once).equals(once)
+
+
+def test_the_encoder_does_not_re_migrate_an_already_migrated_table():
+    """``35K_ec_brenda`` row 28982, the cell that reproduced the double escape."""
+    name = "nitrite reductase (cytochrome; ammonia-forming)"
+    migrated = migrate_legacy_annotation_table(
+        pa.table({"protein_id": ["p0"], "col": [name]})
+    )
+    assert labels_of(payloads_of(encode(migrated)[3]), "col") == [name]
 
 
 def test_null_cells_are_missing():
