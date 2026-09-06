@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
   createParquetBundle,
@@ -8,6 +8,7 @@ import {
   isCsrAnnotationData,
   isMultilabelAnnotationData,
   isNAValue,
+  materializeEatOverlay,
   NA_DEFAULT_COLOR,
   NA_VALUE,
   type VisualizationData,
@@ -30,12 +31,17 @@ import { convertParquetToVisualizationDataOptimized } from './conversion';
  * which cannot carry an interior zero-hit row, a numeric column or a 3D projection), so
  * the two are compared only on the values they genuinely share: `protein_ids[0..1]`,
  * P1/P2's `cath` and `go_bp`, and the `pca2` coordinates.
+ *
+ * The Python side asserts on the same bytes from the other end
+ * (`apps/protspace/tests/test_bundle_v3_fixture.py`), including the encoded part 1 and
+ * part 6 the decoder would otherwise hide. Change the fixture in the generator only,
+ * never by hand, and re-run both suites.
  */
 
 const PROTEIN_IDS = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'] as const;
 
 /** Every categorical column of the fixture, in part-1 order. */
-const CATEGORICAL = ['cath', 'go_bp', 'pfam', 'kingdom', 'predicted_tm'] as const;
+const CATEGORICAL = ['cath', 'go_bp', 'pfam', 'kingdom', 'reviewed', 'predicted_tm'] as const;
 
 /**
  * The label whose own text contains the `;` the v2 cell grammar reserves as the hit
@@ -45,9 +51,31 @@ const CATEGORICAL = ['cath', 'go_bp', 'pfam', 'kingdom', 'predicted_tm'] as cons
 const CATH_ENCODED_SEMICOLON = 'G3DSA:1.10.10.10 (Ribosomal Protein L15; Chain: K; domain 2)';
 
 /**
+ * The fixture's one label outside ASCII. `readLabels` decodes a dictionary blob in one
+ * pass and slices it by character offset only while the blob is pure ASCII; this label
+ * is what forces the other branch, where each label is decoded from its own UTF-8 byte
+ * range. Python measures those lengths in bytes, so the two sides have to agree on them.
+ */
+const PFAM_NON_ASCII = 'PF00004 (β-lactamase, Nébuline)';
+
+/**
+ * Which flat per-hit payload families each multi column actually carries. This is what
+ * an inserted-`__NA__` hit reports `null` for (see the round-trip suite below); a column
+ * that carries neither reports an empty array on every row.
+ */
+const PAYLOADS: Readonly<Record<string, { scores: boolean; evidence: boolean }>> = {
+  cath: { scores: true, evidence: false },
+  go_bp: { scores: false, evidence: true },
+  pfam: { scores: true, evidence: true },
+  kingdom: { scores: false, evidence: false },
+  reviewed: { scores: false, evidence: false },
+  predicted_tm: { scores: false, evidence: false },
+};
+
+/**
  * Rows whose only "hit" is the synthetic `__NA__` the reader inserts for an empty CSR
- * row, per column that carries a score or evidence payload. These are exactly the rows
- * where CSR and nested storage legitimately disagree (see the round-trip suite).
+ * row. These are exactly the rows where CSR and nested storage legitimately disagree
+ * (see the round-trip suite).
  */
 const NA_ONLY_ROWS: Readonly<Record<string, readonly string[]>> = {
   cath: ['P4'],
@@ -88,6 +116,10 @@ function hitsOf(data: VisualizationData, key: string, proteinIndex: number): Hit
 const hitsByProtein = (data: VisualizationData, key: string): Record<string, Hits> =>
   Object.fromEntries(data.protein_ids.map((id, index) => [id, hitsOf(data, key, index)]));
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe('v3 golden fixture: the Python encoder and the browser reader agree', () => {
   it('reads the six-part container with both empty slots and no settings or statistics', async () => {
     const { data, settings } = await loadV3();
@@ -98,24 +130,88 @@ describe('v3 golden fixture: the Python encoder and the browser reader agree', (
     expect(data.statistics).toBeUndefined();
   });
 
+  it('decodes every part-1 column straight into a typed array, with no plain-array fallback', async () => {
+    // The whole performance premise of v3: hyparquet hands back a typed array only for a
+    // REQUIRED, PLAIN, undictionaried column, and the reader logs (once) when it has to
+    // fall back to the ~4x slower element loop. Nothing else in the suite would notice:
+    // the fallback decodes correctly, so this is the only assertion that proves the
+    // Python writer really produced the physical shape the reader is optimised for.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const { data } = await loadV3();
+
+    expect(data.protein_ids).toHaveLength(PROTEIN_IDS.length);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
   it('exposes exactly the declared annotations, with the EAT companion trio consumed', async () => {
     const { data } = await loadV3();
 
     // `kingdom__pred_value/__pred_confidence/__pred_source` are declared in the manifest
     // and physically present in part 1; `normalizeEatCompanionColumns` must consume them
-    // so they never become three junk legend columns.
+    // so they never become three junk legend columns. In their place it synthesises one
+    // runtime-only numeric column for the confidence.
     expect(Object.keys(data.annotations)).toEqual([
       'cath',
       'go_bp',
       'pfam',
       'kingdom',
+      'reviewed',
       'predicted_tm',
       'length',
       'hydrophobicity',
+      'kingdom__eat_confidence',
     ]);
-    // Every prediction targets a protein whose curated `kingdom` is present, so the
-    // overlay yields no cells at all - and must not invent an empty record either.
-    expect(data.annotation_predicted).toBeUndefined();
+    expect(data.annotations.kingdom__eat_confidence).toEqual({
+      kind: 'numeric',
+      numericType: 'float',
+      values: [],
+      colors: [],
+      shapes: [],
+      runtime: { role: 'eat-confidence', baseAnnotation: 'kingdom' },
+    });
+  });
+
+  it('keeps only the prediction whose curated cell is missing, as a real predicted cell', async () => {
+    const { data } = await loadV3();
+
+    // The fixture carries three predictions. P2 and P5 have a curated `kingdom`, so the
+    // overlay must discard them; only P4's cell is blank, so only P4 gets a prediction.
+    expect(data.annotation_predicted).toEqual({
+      kingdom: [
+        null,
+        null,
+        null,
+        { value: 'Viruses', confidence: 0.5, source: 'P0A7B8' },
+        null,
+        null,
+      ],
+    });
+    // `Viruses` occurs nowhere in the curated column, so the overlay had to grow the
+    // legend by one prediction-only value, appended after the observed ones and before
+    // the synthetic NA, with a fresh palette colour.
+    expect(data.annotations.kingdom.values).toEqual([
+      'Bacteria',
+      'Archaea',
+      'Eukaryota',
+      'Viruses',
+      NA_VALUE,
+    ]);
+    expect(data.annotations.kingdom.colors).toEqual([
+      '#F3C300',
+      '#875692',
+      '#F38400',
+      '#A1CAF1',
+      NA_DEFAULT_COLOR,
+    ]);
+    // The source is not one of the six proteins, so no `sourceIndex` may be attached.
+    expect(data.annotation_predicted!.kingdom[3]).not.toHaveProperty('sourceIndex');
+
+    // Turning the overlay on moves P4 off the NA slot and onto `Viruses`, and leaves
+    // every curated row exactly where it was.
+    const overlaid = materializeEatOverlay(data, 'kingdom', true);
+    expect(Array.from(overlaid.annotation_data.kingdom as Int32Array)).toEqual([1, 0, 0, 3, 0, 2]);
+    expect(Array.from(data.annotation_data.kingdom as Int32Array)).toEqual([1, 0, 0, 4, 0, 2]);
   });
 
   it('stores multi-valued columns as CSR and single-valued ones as flat codes', async () => {
@@ -127,7 +223,7 @@ describe('v3 golden fixture: the Python encoder and the browser reader agree', (
       expect(isMultilabelAnnotationData(storage), key).toBe(true);
       expect((storage as { length: number }).length).toBe(PROTEIN_IDS.length);
     }
-    for (const key of ['kingdom', 'predicted_tm'] as const) {
+    for (const key of ['kingdom', 'reviewed', 'predicted_tm'] as const) {
       expect(data.annotation_data[key], key).toBeInstanceOf(Int32Array);
     }
   });
@@ -202,36 +298,90 @@ describe('v3 golden fixture: the Python encoder and the browser reader agree', (
     expect(data.annotations.pfam).toEqual({
       kind: 'categorical',
       // The encoded '|' - the grammar's suffix separator - is decoded back into a label.
-      values: ['PF00001 (7tm;1)', 'PF00002', 'PF00003 (a|b)', NA_VALUE],
-      colors: ['#F3C300', '#875692', '#F38400', NA_DEFAULT_COLOR],
-      shapes: ['circle', 'circle', 'circle', 'circle'],
+      values: ['PF00001 (7tm;1)', 'PF00002', PFAM_NON_ASCII, 'PF00003 (a|b)', NA_VALUE],
+      colors: ['#F3C300', '#875692', '#F38400', '#A1CAF1', NA_DEFAULT_COLOR],
+      shapes: ['circle', 'circle', 'circle', 'circle', 'circle'],
     });
 
     expect(hitsByProtein(data, 'pfam')).toEqual({
-      P1: { labels: [NA_VALUE], scores: [null], evidence: [] },
+      P1: { labels: [NA_VALUE], scores: [null], evidence: [null] },
       // Two scores on one hit, one on the next: the score_count payload, not a 1:1 map.
-      P2: { labels: ['PF00001 (7tm;1)', 'PF00002'], scores: [[1e-10, 2.5], [0.5]], evidence: [] },
-      P3: { labels: [NA_VALUE], scores: [null], evidence: [] },
+      P2: {
+        labels: ['PF00001 (7tm;1)', 'PF00002'],
+        scores: [[1e-10, 2.5], [0.5]],
+        evidence: [null, null],
+      },
+      P3: { labels: [NA_VALUE], scores: [null], evidence: [null] },
       // P4 immediately follows the interior empty row: its score is what an off-by-one
-      // in the inserted-NA `hitEnd` would steal.
-      P4: { labels: ['PF00001 (7tm;1)'], scores: [[0.25]], evidence: [] },
-      P5: { labels: ['PF00003 (a|b)'], scores: [[3]], evidence: [] },
-      P6: { labels: [NA_VALUE], scores: [null], evidence: [] },
+      // in the inserted-NA `hitEnd` would steal. It is also the one row that crosses a
+      // score and an evidence hit inside a single column, and it had a third hit
+      // spelled `none` that the reader folded away (see below).
+      P4: {
+        labels: ['PF00001 (7tm;1)', PFAM_NON_ASCII],
+        scores: [[0.25], null],
+        evidence: [null, 'IDA'],
+      },
+      P5: {
+        labels: ['PF00003 (a|b)', 'PF00002', 'PF00001 (7tm;1)'],
+        // `62.0` and `2.3e-5` on the wire; both are just doubles by the time they land.
+        scores: [[3], [62], [2.3e-5]],
+        evidence: [null, null, null],
+      },
+      P6: { labels: [NA_VALUE], scores: [null], evidence: [null] },
     });
   });
 
-  it('decodes a plain categorical column with no NA slot at all', async () => {
+  it('folds a missing-value label out of a multi column, dropping its hit entirely', async () => {
     const { data } = await loadV3();
 
-    expect(data.annotations.kingdom).toEqual({
+    // Part 6 carries `none` as an ordinary fourth pfam label - the encoder is a faithful
+    // container - and the browser drops it from the dictionary AND drops P4's third hit
+    // with it, renumbering the codes, the score runs and the evidence codes in lockstep.
+    // Without this cell `dropFoldedHits` returns early on every column in the fixture.
+    expect(data.annotations.pfam.values).not.toContain('none');
+    expect(hitsOf(data, 'pfam', PROTEIN_IDS.indexOf('P4')).labels).toHaveLength(2);
+    // Folding must not manufacture a second NA slot, and must not disturb the surviving
+    // labels' frequency order.
+    expect(data.annotations.pfam.values.filter(isNAValue)).toHaveLength(1);
+  });
+
+  it('reads a dictionary whose labels are not pure ASCII', async () => {
+    const { data } = await loadV3();
+
+    // Guard on the fixture itself: if this label ever loses its non-ASCII characters the
+    // reader silently goes back to slicing the whole blob by character offset, and the
+    // byte-range branch stops being covered by real encoder bytes.
+    expect(new TextEncoder().encode(PFAM_NON_ASCII).length).toBeGreaterThan(PFAM_NON_ASCII.length);
+    // Python measured this label's length in UTF-8 bytes; the browser has to slice the
+    // blob by the same measure or every later label in the dictionary shifts.
+    expect(data.annotations.pfam.values[2]).toBe(PFAM_NON_ASCII);
+    expect(data.annotations.pfam.values[3]).toBe('PF00003 (a|b)');
+  });
+
+  it('orders a categorical dictionary by descending frequency, not first occurrence', async () => {
+    const { data } = await loadV3();
+
+    // `reviewed` is False, True, True, False, True, True: first occurrence would put
+    // `False` first, descending frequency puts `True` first. Dictionary order IS legend
+    // order and therefore colour assignment, so this is the assertion that fails if the
+    // encoder ever stops sorting.
+    expect(data.annotations.reviewed).toEqual({
       kind: 'categorical',
-      values: ['Bacteria', 'Archaea', 'Eukaryota'],
-      colors: ['#F3C300', '#875692', '#F38400'],
-      shapes: ['circle', 'circle', 'circle'],
+      values: ['True', 'False'],
+      colors: ['#F3C300', '#875692'],
+      shapes: ['circle', 'circle'],
     });
-    // Every row has a kingdom, so no synthetic category may be appended.
-    expect(data.annotations.kingdom.values.some(isNAValue)).toBe(false);
-    expect(Array.from(data.annotation_data.kingdom as Int32Array)).toEqual([0, 1, 0, 2, 0, 1]);
+    expect(Array.from(data.annotation_data.reviewed as Int32Array)).toEqual([1, 0, 0, 1, 0, 0]);
+    // Every row has a value, so no synthetic category may be appended.
+    expect(data.annotations.reviewed.values.some(isNAValue)).toBe(false);
+
+    // Same divergence on `kingdom`, whose curated values are Archaea, Bacteria,
+    // Bacteria, <blank>, Bacteria, Eukaryota.
+    expect(data.annotations.kingdom.values.slice(0, 3)).toEqual([
+      'Bacteria',
+      'Archaea',
+      'Eukaryota',
+    ]);
   });
 
   it('folds every missing-value spelling in one dictionary into a single NA slot', async () => {
@@ -265,16 +415,22 @@ describe('v3 golden fixture: the Python encoder and the browser reader agree', (
       colors: [],
       shapes: [],
     });
-    expect(data.annotations.hydrophobicity).toMatchObject({
+    expect(data.annotations.hydrophobicity).toEqual({
       kind: 'numeric',
       numericType: 'float',
+      values: [],
+      colors: [],
+      shapes: [],
     });
     expect(data.numeric_annotation_data).toEqual({
       length: [120, null, 340, 0, -15, 1024],
       hydrophobicity: [0.5, -1.25, null, 3, 0.001, 42],
+      // Not a wire column: synthesised from the EAT confidence companion.
+      kingdom__eat_confidence: [null, null, null, 0.5, null, null],
     });
-    // A numeric column carries no categorical storage to bin by code.
-    expect(data.annotation_data.length).toBeUndefined();
+    // A numeric column carries no categorical storage to bin by code. Spelled as the
+    // whole key set so `annotation_data['length']` cannot be mistaken for an array length.
+    expect(Object.keys(data.annotation_data)).toEqual([...CATEGORICAL]);
   });
 
   it('interleaves the wide axis columns into a 2D and a 3D projection', async () => {
@@ -285,11 +441,18 @@ describe('v3 golden fixture: the Python encoder and the browser reader agree', (
 
     expect(pca2.dimension).toBe(2);
     expect(Array.from(pca2.data)).toEqual([0, 0, 1, 1, 2.5, -3.5, -4, 0.25, 5, 5, -1.5, 2]);
-    expect(pca2.metadata).toMatchObject({ components: 2, dimension: 2, dimensions: 2 });
+    expect(pca2.metadata).toEqual({ components: 2, dimension: 2, dimensions: 2, source: '' });
 
     expect(umap3.dimension).toBe(3);
-    expect(Array.from(umap3.data)).toEqual(Array.from({ length: 18 }, (_, index) => index / 4));
-    expect(umap3.metadata).toMatchObject({ n_neighbors: 15, dimension: 3, dimensions: 3 });
+    expect(Array.from(umap3.data)).toEqual([
+      ...Array.from({ length: 15 }, (_, index) => index / 4),
+      // P6 has no umap3 row at all. The encoder writes 0.0 for it and the browser leaves
+      // its zero-initialised slot untouched, so both put it at the origin.
+      0,
+      0,
+      0,
+    ]);
+    expect(umap3.metadata).toEqual({ n_neighbors: 15, dimension: 3, dimensions: 3, source: '' });
   });
 });
 
@@ -314,7 +477,8 @@ describe('v3 -> v2 export round trip: CSR storage is interchangeable with nested
         cath: `${cathSemicolon}|50.2;G3DSA:6.20.10.10|60.5`,
         go_bp: 'apoptotic process|IDA',
         pfam: null,
-        kingdom: 'Bacteria',
+        kingdom: 'Archaea',
+        reviewed: 'False',
         // Documented non-identity: `none` is a MISSING_VALUE_TOKEN, so it was folded to
         // `__NA__` on read and goes back out as NULL, not as the literal word.
         predicted_tm: null,
@@ -323,7 +487,8 @@ describe('v3 -> v2 export round trip: CSR storage is interchangeable with nested
         cath: '6.20.10.10',
         go_bp: null,
         pfam: 'PF00001 (7tm%3B1)|1e-10,2.5;PF00002|0.5',
-        kingdom: 'Archaea',
+        kingdom: 'Bacteria',
+        reviewed: 'True',
         predicted_tm: null,
       },
       P3: {
@@ -331,20 +496,32 @@ describe('v3 -> v2 export round trip: CSR storage is interchangeable with nested
         go_bp: 'apoptotic process|IDA;protein folding|ECO:0000269',
         pfam: null,
         kingdom: 'Bacteria',
+        reviewed: 'True',
         predicted_tm: 'TM helix',
       },
       P4: {
         cath: null,
         go_bp: 'protein folding|IEA',
-        pfam: 'PF00001 (7tm%3B1)|0.25',
-        kingdom: 'Eukaryota',
+        // A score and an evidence code side by side in one cell, and the third hit -
+        // the one spelled `none` - gone, the same way the browser drops a folded label
+        // out of a v2 cell.
+        pfam: `PF00001 (7tm%3B1)|0.25;${PFAM_NON_ASCII}|IDA`,
+        // P4's curated cell was blank and now carries a prediction, so the base column
+        // goes back out NULL and the label rides in the companion trio instead.
+        kingdom: null,
+        reviewed: 'False',
         predicted_tm: null,
       },
       P5: {
         cath: `${cathSemicolon}|1e-200`,
         go_bp: null,
-        pfam: 'PF00003 (a%7Cb)|3',
+        // Both documented score re-spellings. `62.0` loses its trailing `.0` on both
+        // sides; `2.3e-5` is where the two languages genuinely differ - Python's
+        // `read_tables` writes `2.3e-05`, `String(2.3e-5)` here writes `0.000023`. The
+        // double is identical, only the spelling is not.
+        pfam: 'PF00003 (a%7Cb)|3;PF00002|62;PF00001 (7tm%3B1)|0.000023',
         kingdom: 'Bacteria',
+        reviewed: 'True',
         // The other missing-value spelling in the same column, same treatment.
         predicted_tm: null,
       },
@@ -352,10 +529,20 @@ describe('v3 -> v2 export round trip: CSR storage is interchangeable with nested
         cath: '6.20.10.10',
         go_bp: 'apoptotic process|EXP',
         pfam: null,
-        kingdom: 'Archaea',
+        kingdom: 'Eukaryota',
+        reviewed: 'True',
         predicted_tm: 'TM helix',
       },
     });
+    // The prediction survives the export as the companion trio it arrived in.
+    expect([...extraction.annotationsById.values()].map((row) => row.kingdom__pred_value)).toEqual([
+      null,
+      null,
+      null,
+      'Viruses',
+      null,
+      null,
+    ]);
     // The in-memory sentinel is never written as a literal 6-char category.
     for (const row of extraction.annotationsById.values()) {
       expect(Object.values(row)).not.toContain(NA_VALUE);
@@ -371,7 +558,7 @@ describe('v3 -> v2 export round trip: CSR storage is interchangeable with nested
     // they have to survive a shape change that reorders nothing.
     expect(reloaded.annotations).toEqual(v3.annotations);
     expect(reloaded.numeric_annotation_data).toEqual(v3.numeric_annotation_data);
-    expect(reloaded.annotation_predicted).toBeUndefined();
+    expect(reloaded.annotation_predicted).toEqual(v3.annotation_predicted);
     expect(
       reloaded.projections.map(({ name, dimension, data }) => ({
         name,
@@ -406,16 +593,20 @@ describe('v3 -> v2 export round trip: CSR storage is interchangeable with nested
 
         expect(from2.labels, where).toEqual(from3.labels);
 
-        // The ONE documented non-identity. An empty CSR row owns no hit slot, so the
-        // reader inserts a synthetic `__NA__` hit for it - and the flat score/evidence
-        // payloads are numbered by hit, so that inserted hit reports itself as `null`.
-        // Nested storage has no hit there at all and reports nothing. Asserted as the
-        // exact rows it applies to rather than by relaxing the comparison.
+        // The documented non-identity, and it applies to BOTH payload families. An empty
+        // CSR row owns no hit slot, so the reader inserts a synthetic `__NA__` hit for it
+        // - and the flat score and evidence payloads are numbered by hit, so that
+        // inserted hit reports itself as `null` in whichever families the column carries.
+        // Nested storage has no hit there at all and reports nothing. Left as it is on
+        // purpose: none of the four consumers (tooltip, export, legend, statistics
+        // popover) distinguishes `[null]` from `[]`, and the flat shape is what keeps the
+        // score and evidence indices aligned with `getProteinAnnotationIndices`. Asserted
+        // as the exact rows it applies to rather than by relaxing the comparison.
         if (NA_ONLY_ROWS[key]?.includes(id)) {
+          const { scores, evidence } = PAYLOADS[key];
           expect(from3.labels, where).toEqual([NA_VALUE]);
-          const scored = key !== 'go_bp';
-          expect(from3.scores, where).toEqual(scored ? [null] : []);
-          expect(from3.evidence, where).toEqual(scored ? [] : [null]);
+          expect(from3.scores, where).toEqual(scores ? [null] : []);
+          expect(from3.evidence, where).toEqual(evidence ? [null] : []);
           expect(from2.scores, where).toEqual([]);
           expect(from2.evidence, where).toEqual([]);
           continue;
@@ -433,7 +624,7 @@ describe('v2 and v3 fixtures agree on the values they share', () => {
     const { data: v3 } = await loadV3();
     const v2 = await loadLegacy(fixture('v2-sample.parquetbundle'));
 
-    // The v3 fixture is a superset: 6 proteins to the v2 sample's 2, and 7 columns to
+    // The v3 fixture is a superset: 6 proteins to the v2 sample's 2, and 8 columns to
     // its 2. Only the shared prefix is comparable.
     expect(v2.protein_ids).toEqual(v3.protein_ids.slice(0, 2));
 
