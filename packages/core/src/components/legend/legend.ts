@@ -1818,15 +1818,17 @@ export class ProtspaceLegend extends LitElement {
     // Aligned with PersistenceController's isNumericAnnotation callback so the
     // processor and the persistence layer agree on numeric-ness in transient states.
     const isNumericAnnotation = this._isCurrentAnnotationNumeric();
-    const knownValues =
-      isNumericAnnotation && this.annotationData?.values?.length
-        ? this.annotationData.values.map((value) => toInternalValue(value))
-        : [];
+    // Ahead of the bincount below, which is O(proteins) and has nothing to count for
+    // an annotation with no values at all.
+    if (!this.annotationData?.values?.length) {
+      this._legendItems = [];
+      return;
+    }
+    const knownValues = isNumericAnnotation
+      ? this.annotationData.values.map((value) => toInternalValue(value))
+      : [];
     const frequencies = this._computeAnnotationCounts(knownValues);
-    if (
-      !this.annotationData?.values?.length ||
-      (!isNumericAnnotation && !(frequencies?.size ?? this.annotationValues?.length))
-    ) {
+    if (!isNumericAnnotation && !(frequencies?.size ?? this.annotationValues?.length)) {
       this._legendItems = [];
       return;
     }

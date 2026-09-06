@@ -244,6 +244,8 @@ function buildDatasetFingerprint(data: DatasetHashInput): string {
  * sound because no producer mutates a live dataset in place: every transform
  * (`materializeVisualizationData`, `cloneWithPredictions`, the conversion
  * pipeline) hands back fresh containers, which miss the memo and recompute.
+ * The one in-place writer is `restoreDeclaredNumericAnnotations` (conversion.ts),
+ * which runs inside that pipeline before any hash is taken — keep it there.
  */
 interface DatasetHashMemo {
   annotations: DatasetHashInput['annotations'];
