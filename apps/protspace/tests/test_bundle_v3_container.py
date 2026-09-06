@@ -16,6 +16,7 @@ The three things that would break the browser if they regressed:
 """
 
 import io
+import logging
 from pathlib import Path
 
 import pyarrow as pa
@@ -32,6 +33,7 @@ from protspace.data.io.bundle import (
     _write_parts,
     extract_bundle_to_dir,
     read_bundle,
+    read_settings_from_bundle,
     read_tables,
     replace_annotations_in_bundle,
     replace_settings_in_bundle,
@@ -290,6 +292,78 @@ def test_replace_annotations_re_encodes_the_payloads(tmp_path):
     )
     assert b"Fungi" in payload_blob
     assert b"Bacteria" not in payload_blob  # no stale dictionary left behind
+
+
+def test_replace_annotations_keeps_encoded_cells_from_an_unstamped_table(tmp_path):
+    """The re-stamp in ``replace_annotations_in_bundle`` is what stops a second
+    migration.  ``transfer`` and the prediction overlay rebuild the table with
+    ``rename_columns``/``concat_tables``, which drop schema metadata, so what
+    arrives here is v2 cells that *read* as v1 -- and migrating them again turns
+    ``%3B`` into ``%253B``, unrecoverably (``decode_field`` is not its own
+    inverse).  Drop the ``stamp_format_version`` line at the chokepoint and this
+    fails on both cells; nothing else in the suite does."""
+    src = tmp_path / "b.parquetbundle"
+    out = tmp_path / "out.parquetbundle"
+    write_bundle(pipeline_tables(), src)
+
+    cells = ["G3DSA:1.1 (Ribosomal L15%3B Chain: K)", "PF1 (a%7Cb)|0.5", "plain"]
+    unstamped = pa.table({"protein_id": ["p0", "p1", "p2"], "cath": cells})
+    assert FORMAT_VERSION_KEY not in (unstamped.schema.metadata or {})
+
+    replace_annotations_in_bundle(src, out, unstamped)
+
+    assert read_tables(out)[0].column("cath").to_pylist() == cells
+
+
+def test_write_bundle_warns_when_the_annotations_table_is_unstamped(tmp_path, caplog):
+    """``write_bundle`` has no chokepoint re-stamp and cannot have one: it is
+    also the path a genuine legacy bundle is upgraded through, and an unstamped
+    v1 table is indistinguishable from a v2 one that lost its metadata.  So the
+    migration is at least loud -- the docstring states the precondition and the
+    encoder says out loud which of the two it decided it got.  The second half
+    of the assertion is the cost of getting it wrong."""
+    metadata, data = projection_tables(2, (2,))
+    unstamped = pa.table({"protein_id": ["p0", "p1"], "cath": ["ACC (a%3Bb)", "x"]})
+    path = tmp_path / "b.parquetbundle"
+
+    with caplog.at_level(logging.WARNING, logger="protspace.data.io.bundle_v3"):
+        write_bundle([unstamped, metadata, data], path)
+
+    assert "format v1" in caplog.text
+    # Migrated a second time, because it looked like v1: the caller was warned.
+    assert read_tables(path)[0].column("cath").to_pylist() == ["ACC (a%253Bb)", "x"]
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="protspace.data.io.bundle_v3"):
+        write_bundle([stamp_format_version(unstamped), metadata, data], path)
+
+    assert caplog.text == ""
+    assert read_tables(path)[0].column("cath").to_pylist() == ["ACC (a%3Bb)", "x"]
+
+
+def test_write_bundle_rejects_a_fourth_table(tmp_path):
+    """Untested until now: removing the guard passes the whole suite.  Without
+    it the tuple unpack below still raises, but as a bare "too many values to
+    unpack" naming neither the function nor what it wanted."""
+    tables = pipeline_tables()
+    with pytest.raises(ValueError, match="expects 3 core tables"):
+        write_bundle([*tables, tables[0]], tmp_path / "b.parquetbundle")
+
+
+def test_corrupt_first_part_of_a_six_part_bundle_is_a_bundle_error(tmp_path):
+    """Every six-part read parses part 1's footer, ``read_settings_from_bundle``
+    included -- so a corrupt part 1 must not surface as a raw ``ArrowInvalid``
+    traceback out of ``protspace style --dump-settings``, which never touched
+    part 1 before."""
+    path = tmp_path / "b.parquetbundle"
+    write_bundle(pipeline_tables(), path, settings={"k": 1})
+    parts = parts_of(path)
+    path.write_bytes(PARQUET_BUNDLE_DELIMITER.join([b"not parquet", *parts[1:]]))
+
+    with pytest.raises(ValueError, match="part 1 is not readable as parquet"):
+        read_settings_from_bundle(path)
+    with pytest.raises(ValueError, match="part 1 is not readable as parquet"):
+        read_tables(path)
 
 
 def test_replace_annotations_upgrades_a_legacy_bundle(tmp_path):

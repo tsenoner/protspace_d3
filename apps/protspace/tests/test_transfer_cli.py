@@ -575,7 +575,9 @@ def test_cli_transfer_without_rules_fills_missing_values(tmp_path):
     assert rows["TRINITY_1"]["protein_category__pred_value"] == "neurotoxin"
     # A reference protein gets no prediction. The overlay writes null; a v3
     # container stores "absent" as a -1 dictionary code and spells it back as ""
-    # (a documented decode_v3 non-identity). Both readers of this column treat
-    # null and "" identically -- the browser's readCategoricalStorageValue and
-    # Python's to_display_value -- so the distinction is not observable.
+    # (a documented decode_v3 non-identity). The browser cannot tell the two
+    # apart (readCategoricalStorageValue folds both into missing) but Dash can:
+    # ArrowReader hands the raw cell out, so an "" is a value where a null was
+    # not. get_unique_annotation_values skips "" for exactly that reason -- see
+    # test_unique_annotation_values_skip_empty_strings.
     assert rows["P00001"]["protein_category__pred_value"] == ""

@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import io
 import json
+import logging
 from typing import Any
 
 import numpy as np
@@ -45,6 +46,8 @@ from protspace.data.annotations.encoding import (
     read_format_version,
     stamp_format_version,
 )
+
+logger = logging.getLogger(__name__)
 
 CONTAINER_VERSION = 3
 MANIFEST_KEY = b"protspace_v3_manifest"
@@ -478,8 +481,25 @@ def encode_v3(
     projections_metadata: pa.Table,
     projections_data: pa.Table,
 ) -> tuple[bytes, bytes, bytes, bytes]:
-    """Encode the v2-shaped pipeline tables as v3 parts 1, 2, 3 and 6."""
+    """Encode the v2-shaped pipeline tables as v3 parts 1, 2, 3 and 6.
+
+    ``annotations`` must carry the format-version stamp unless it really is v1:
+    an unstamped v2 table is indistinguishable from a v1 one here and is
+    migrated a second time, double-escaping every reserved character.  See the
+    precondition on :func:`~protspace.data.io.bundle.write_bundle`.
+    """
     if read_format_version(annotations) == 1:
+        # Loud, because the alternative failure is silent and unrecoverable: an
+        # already-v2 table that lost its stamp (pyarrow drops schema metadata on
+        # rename_columns/concat) is migrated twice and every ``%3B`` becomes
+        # ``%253B``.  Refusing instead is not an option -- a genuine legacy
+        # bundle read back is unstamped too, and that upgrade path is the point.
+        logger.warning(
+            "annotations table reads as format v1 (no stamp, or stamped 1); "
+            "migrating its cell grammar to v2. If it was already v2, re-apply "
+            "stamp_format_version() before writing -- migrating twice escapes "
+            "every reserved character a second time."
+        )
         annotations = migrate_legacy_annotation_table(annotations)
 
     id_column = next(
@@ -718,10 +738,16 @@ def _decode_multi(
         # InterPro score) underflows float32 to ``0`` and ``1e40`` overflows to
         # ``inf``, which is not even valid v2, so a second round trip would
         # re-classify the hit.  numpy's float64 repr is the shortest spelling that
-        # reads back as the same double, which is what ``String(number)`` gives
-        # the browser -- bar
-        # the trailing ``.0`` JavaScript never prints (``[1].join(',')`` is
-        # ``"1"``), so ``Array.prototype.join`` and this agree on every score.
+        # reads back as the same double, but it is *not* character-identical to
+        # ``String(number)``: Python pads the exponent to two digits (``1e-07``
+        # where JavaScript prints ``1e-7``) and switches to exponential notation
+        # at different magnitudes -- below 1e-4 against JavaScript's 1e-6
+        # (``2.3e-05`` against ``0.000023``) and from 1e16 against JavaScript's
+        # 1e21.  Both spellings parse back to the same double, so the difference
+        # is cosmetic in a score suffix and never changes a comparison; only the
+        # trailing ``.0`` is normalised away here, because JavaScript never
+        # prints it (``[1].join(',')`` is ``"1"``) and it would otherwise shift
+        # the label text.
         text = pc.replace_substring_regex(
             pa.array(values.astype(str), type=pa.string()), r"\.0$", ""
         )
@@ -791,8 +817,14 @@ def decode_v3(parts: list[bytes]) -> tuple[pa.Table, pa.Table, pa.Table]:
     The round trip is not byte-exact, and deliberately so -- v3 stores what the
     browser's v2 reader would have parsed out of the cells, not the cells:
 
-    * hits and cells are whitespace-trimmed, and empty or missing-valued hits are
-      dropped (``"A;;B"`` comes back ``"A;B"``, ``" A |IDA"`` as ``"A|IDA"``);
+    * an unstamped (v1-reading) input table is migrated to the v2 cell grammar
+      first, which is what every shipped legacy bundle gets: ten of the eleven
+      datasets under ``apps/web/public/data/`` carry no stamp, so regenerating
+      one runs :func:`migrate_legacy_annotation_table` and its reserved
+      characters come back percent-encoded (display-neutral, and a fix -- but it
+      is a difference, and it is the one a regeneration actually hits);
+    * hits and cells are whitespace-trimmed, and *blank* hits are dropped
+      (``"A;;B"`` comes back ``"A;B"``, ``" A |IDA"`` as ``"A|IDA"``);
     * a missing cell -- null or blank -- comes back as ``""`` (a cell spelled
       ``none``/``NA``/``null`` is an ordinary label and comes back unchanged);
     * labels are re-encoded canonically, so ``%3b`` comes back as ``%3B``;
@@ -801,6 +833,13 @@ def decode_v3(parts: list[bytes]) -> tuple[pa.Table, pa.Table, pa.Table]:
     * a numeric column comes back in its ``sourceType`` when that is restorable
       and otherwise as its canonical v2 spelling, so an all-integral column
       spells ``100``, never ``100.0``;
+    * a non-finite value in an Arrow-numeric column is **lost**: ``±inf`` and
+      ``NaN`` both encode as null and come back null (or ``""``).  Unreachable
+      from ``prepare`` -- nothing upstream emits one -- but ``protspace bundle
+      -a <user parquet>`` will happily hand one over.  Neither is expressible in
+      v2 anyway: the cell grammar's number rule rejects ``Infinity`` and the
+      browser drops non-finite values on read, so preserving them would produce
+      a bundle no reader agrees on;
     * projection coordinates come back float32 (``z`` null for a 2D projection)
       and a protein absent from a projection comes back at the origin;
     * the identifier column comes back first, wherever it sat before.

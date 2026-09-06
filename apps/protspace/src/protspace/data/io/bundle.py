@@ -49,8 +49,19 @@ STATISTICS_FILENAME = "statistics.parquet"
 
 
 def _part_container_version(part: bytes) -> int:
-    """The ``protspace_format_version`` in a part's parquet footer (1 if absent)."""
-    metadata = pq.read_metadata(io.BytesIO(part)).metadata or {}
+    """The ``protspace_format_version`` in a part's parquet footer (1 if absent).
+
+    Every six-part read parses part 1's footer, including the settings-only
+    :func:`read_settings_from_bundle`, so a corrupt part 1 has to fail as a
+    bundle error and not as a raw ``ArrowInvalid`` traceback out of
+    ``protspace style --dump-settings``.
+    """
+    try:
+        metadata = pq.read_metadata(io.BytesIO(part)).metadata or {}
+    except pa.ArrowInvalid as exc:
+        raise ValueError(
+            f"parquetbundle part 1 is not readable as parquet: {exc}"
+        ) from exc
     try:
         return int(metadata.get(FORMAT_VERSION_KEY, b"1"))
     except (TypeError, ValueError):
@@ -279,6 +290,20 @@ def write_bundle(
 
     The tables come in v2-shaped (all-string annotation cells, long-format
     projections) and go out as a six-part v3 container.
+
+    **Precondition: ``tables[0]`` must carry the format-version stamp** unless it
+    really is v1.  An unstamped table reads back as v1 (:func:`read_format_version`
+    defaults it), so :func:`~protspace.data.io.bundle_v3.encode_v3` migrates it --
+    and migrating an already-v2 table double-escapes every reserved character
+    (``%3B`` becomes ``%253B``), unrecoverably, because ``decode_field`` is not
+    its own inverse.  pyarrow drops schema metadata on ``rename_columns``,
+    ``concat_tables`` and friends, so a caller that rebuilds the table must
+    re-apply :func:`~protspace.data.annotations.encoding.stamp_format_version`
+    afterwards, as ``cli/bundle.py`` does.  ``encode_v3`` warns instead of
+    refusing, and this function cannot stamp for its callers the way
+    :func:`replace_annotations_in_bundle` does: it is also the path a genuine
+    legacy bundle is upgraded through, and there the unstamped table really is
+    v1.
 
     Args:
         tables: List of 3 Arrow tables (annotations, projections_metadata,
