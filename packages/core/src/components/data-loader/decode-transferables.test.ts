@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { VisualizationData } from '@protspace/utils';
+import { isCsrAnnotationData, type VisualizationData } from '@protspace/utils';
 import { collectTransferables } from './decode-transferables';
 
 /**
@@ -40,6 +40,23 @@ function csrDataset(): { data: VisualizationData; shared: ArrayBuffer } {
   };
 }
 
+/** Every typed array `collectTransferables` names a buffer for, in a stable order. */
+const bulkViews = (data: VisualizationData): (Int32Array | Float32Array)[] => [
+  ...data.projections.map((projection) => projection.data as Float32Array),
+  ...Object.values(data.annotation_data).flatMap((value) =>
+    value instanceof Int32Array
+      ? [value]
+      : isCsrAnnotationData(value)
+        ? [value.end, value.codes]
+        : [],
+  ),
+  ...Object.values(data.annotation_scores_csr ?? {}).flatMap((scores) => [
+    scores.hitEnd,
+    scores.values,
+  ]),
+  ...Object.values(data.annotation_evidence_csr ?? {}).map((evidence) => evidence.codes),
+];
+
 describe('collectTransferables', () => {
   it('names every bulk buffer exactly once, even when two views share one', () => {
     const { data, shared } = csrDataset();
@@ -53,20 +70,29 @@ describe('collectTransferables', () => {
     expect(transfer).toHaveLength(7);
   });
 
-  it('actually transfers: every source buffer is detached afterwards', () => {
+  it('actually transfers: the clone holds the bytes and every source is detached', () => {
     const { data } = csrDataset();
     const transfer = collectTransferables(data);
-    const sources = [
-      ...data.projections.map((projection) => projection.data),
-      data.annotation_data.organism as Int32Array,
-      data.annotation_scores_csr!.go_bp.values,
-      data.annotation_evidence_csr!.go_bp.codes,
-    ];
+    const sources = bulkViews(data);
+    const before = sources.map((view) => Array.from(view));
 
     const clone = structuredClone(data, { transfer });
 
     expect(clone.protein_ids).toEqual(['P1', 'P2', 'P3']);
     expect(sources.every((array) => array.byteLength === 0)).toBe(true);
+    // A detached sender proves only that something moved. What has to survive is the
+    // content, including the two views that share one buffer at different offsets.
+    expect(bulkViews(clone).map((view) => Array.from(view))).toEqual(before);
+    expect(before).toEqual([
+      [0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [1, 2, 3],
+      [0, 1, 0],
+      [0, 0, 0],
+      [1, 1, 2],
+      [0.5, 0.25],
+      [-1, 0, -1],
+    ]);
   });
 
   it('leaves a v1/v2 dataset with only its projection and Int32Array buffers', () => {

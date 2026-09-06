@@ -35,7 +35,7 @@ import {
   type Projection,
   type VisualizationData,
 } from '@protspace/utils';
-import { assertValidParquetMagic } from './validation';
+import { assertValidParquetMagic, DEFAULT_VALIDATION_LIMITS } from './validation';
 import { extractSettings, extractStatistics } from './bundle';
 import {
   appendSyntheticNACategoryToCodes,
@@ -55,7 +55,9 @@ const EVIDENCE_DICT_NAME = '__evidence';
 
 const AXES = ['x', 'y', 'z'] as const;
 
-const DECODER = new TextDecoder();
+// ignoreBOM keeps a leading U+FEFF as a character: it is part of a label, not an
+// encoding marker, and stripping it would silently rename the category.
+const DECODER = new TextDecoder('utf-8', { ignoreBOM: true });
 
 type V3ColumnKind = 'categorical' | 'multi' | 'numeric';
 
@@ -80,14 +82,21 @@ function physicalColumn(name: string, kind: V3ColumnKind): string {
   return kind === 'multi' ? `${name}__count` : name;
 }
 
-/** Leaf (data) column names of a parquet schema; the root element carries no type. */
-function leafColumnNames(metadata: FileMetaData): Set<string> {
-  const names = new Set<string>();
+/** Leaf (data) columns of a parquet schema as `name -> physical type`; the root carries no type. */
+function leafColumnTypes(metadata: FileMetaData): Map<string, string> {
+  const types = new Map<string, string>();
   for (const field of metadata.schema) {
-    if (field.name && field.type) names.add(field.name);
+    if (field.name && field.type) types.set(field.name, field.type);
   }
-  return names;
+  return types;
 }
+
+/** Physical parquet type the encoder writes for each kind, and the reader assumes. */
+const PHYSICAL_TYPE: Record<V3ColumnKind, string> = {
+  numeric: 'DOUBLE',
+  categorical: 'INT32',
+  multi: 'INT32',
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -116,7 +125,7 @@ function readManifest(metadata: FileMetaData): V3Manifest {
   }
   if (!isRecord(parsed)) throw new Error('v3 manifest is not a JSON object');
 
-  const schemaColumns = leafColumnNames(metadata);
+  const schemaColumns = leafColumnTypes(metadata);
 
   const { idColumn, columns, projections } = parsed;
   if (typeof idColumn !== 'string' || !schemaColumns.has(idColumn)) {
@@ -138,9 +147,23 @@ function readManifest(metadata: FileMetaData): V3Manifest {
         `v3 manifest column "${name}" has unknown numericType "${String(numericType)}"`,
       );
     }
+    if (name === idColumn) {
+      throw new Error(`v3 manifest declares idColumn "${name}" as an annotation column too`);
+    }
     const physical = physicalColumn(name, kind);
-    if (!schemaColumns.has(physical)) {
+    const physicalType = schemaColumns.get(physical);
+    if (physicalType === undefined) {
       throw new Error(`v3 manifest declares column "${name}" but part 1 has no "${physical}"`);
+    }
+    // The kind is the ONLY thing that says how the stored numbers are read, so it is
+    // checked against what they physically are: the encoder writes every numeric as
+    // float64 and every dictionary code / hit count as int32. Without this, a manifest
+    // calling a code column numeric turns dictionary codes into a colour gradient.
+    if (physicalType !== PHYSICAL_TYPE[kind]) {
+      throw new Error(
+        `v3 manifest column "${name}" is kind "${kind}", but part 1 stores "${physical}" ` +
+          `as ${physicalType}, not ${PHYSICAL_TYPE[kind]}`,
+      );
     }
     validated[name] = {
       kind,
@@ -213,6 +236,25 @@ function writeChunk(
   }
 }
 
+/**
+ * One-shot reporter for a column that did not arrive as a typed array.
+ *
+ * Per read rather than per column: a producer that got this wrong got it wrong for the
+ * whole part, and one line in the console is the point.
+ */
+function plainArrayReporter(): (columnName: string) => void {
+  let warned = false;
+  return (columnName: string) => {
+    if (warned) return;
+    warned = true;
+    console.warn(
+      `v3 bundle column "${columnName}" did not decode to a typed array — it was probably ` +
+        'written nullable or dictionary-encoded. The bundle still loads, about 4x slower; ' +
+        'fix the writer (every v3 column must be REQUIRED and PLAIN).',
+    );
+  };
+}
+
 /** Preallocate one array per declared column and fill it chunk by chunk. */
 async function readAnnotationColumns(
   part: ArrayBuffer,
@@ -229,16 +271,7 @@ async function readAnnotationColumns(
     );
   }
 
-  let warned = false;
-  const onPlainArray = (columnName: string) => {
-    if (warned) return;
-    warned = true;
-    console.warn(
-      `v3 bundle column "${columnName}" did not decode to a typed array — it was probably ` +
-        'written nullable or dictionary-encoded. The bundle still loads, about 4x slower; ' +
-        'fix the writer (every v3 column must be REQUIRED and PLAIN).',
-    );
-  };
+  const onPlainArray = plainArrayReporter();
 
   await parquetRead({
     file: part,
@@ -269,7 +302,7 @@ async function readProjections(
 ): Promise<Projection[]> {
   assertValidParquetMagic(part);
   const metadata = parquetMetadata(part);
-  const schemaColumns = leafColumnNames(metadata);
+  const schemaColumns = leafColumnTypes(metadata);
 
   const axisTargets = new Map<string, { data: Float32Array; dimension: number; axis: number }>();
   const projections: Projection[] = [];
@@ -294,6 +327,7 @@ async function readProjections(
   }
 
   if (axisTargets.size > 0) {
+    const onPlainArray = plainArrayReporter();
     await parquetRead({
       file: part,
       metadata,
@@ -301,6 +335,9 @@ async function readProjections(
       onChunk: ({ columnName, columnData, rowStart }) => {
         const target = axisTargets.get(columnName);
         if (!target) return;
+        // A nullable axis column coerces its nulls to 0 below, which is exactly the
+        // origin an absent protein legitimately sits at — so it has to be reported.
+        if (Array.isArray(columnData)) onPlainArray(columnName);
         const { data, dimension, axis } = target;
         for (let i = 0; i < columnData.length; i++) {
           data[(rowStart + i) * dimension + axis] = columnData[i] as number;
@@ -321,6 +358,9 @@ async function readPayloads(part: ArrayBuffer): Promise<Map<string, Uint8Array>>
   const payloads = new Map<string, Uint8Array>();
   for (const row of rows) {
     const name = typeof row.name === 'string' ? row.name : DECODER.decode(row.name as Uint8Array);
+    // Last-win would silently pick one of two disagreeing payloads; the encoder already
+    // rejects the collision, so reaching here means a producer bug.
+    if (payloads.has(name)) throw new Error(`v3 payloads part declares "${name}" twice`);
     payloads.set(name, row.data as Uint8Array);
   }
   return payloads;
@@ -453,7 +493,17 @@ function readCsrColumn(
         `v3 column "${name}" has ${evidenceCodes.length} evidence codes for ${codes.length} hits`,
       );
     }
-    evidence = { codes: evidenceCodes, dict: evidenceDict() };
+    const dict = evidenceDict();
+    for (let hit = 0; hit < evidenceCodes.length; hit++) {
+      // -1 is "no evidence", which the reader itself writes for an inserted NA hit.
+      if (evidenceCodes[hit] < -1 || evidenceCodes[hit] >= dict.length) {
+        throw new Error(
+          `v3 column "${name}" hit ${hit} has evidence code ${evidenceCodes[hit]}, ` +
+            `outside the ${dict.length} evidence labels`,
+        );
+      }
+    }
+    evidence = { codes: evidenceCodes, dict };
   }
 
   return { end, codes, scores, evidence };
@@ -538,7 +588,19 @@ export async function readV3Bundle(
   }
 
   const manifest = readManifest(metadata);
+  // Everything below preallocates on this footer field before a single row is read, so
+  // it is bounded here. The v3 path never reaches `validateRowsBasic`, which is what
+  // caps the legacy path.
   const numRows = Number(metadata.num_rows);
+  if (
+    !Number.isSafeInteger(numRows) ||
+    numRows < 0 ||
+    numRows > DEFAULT_VALIDATION_LIMITS.maxRows
+  ) {
+    throw new Error(
+      `v3 bundle declares ${String(metadata.num_rows)} rows, outside 0..${DEFAULT_VALIDATION_LIMITS.maxRows}`,
+    );
+  }
 
   const columns = await readAnnotationColumns(part1, metadata, manifest, numRows);
   const protein_ids = columns.get(manifest.idColumn) as string[];

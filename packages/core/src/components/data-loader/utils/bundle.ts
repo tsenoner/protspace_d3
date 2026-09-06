@@ -206,6 +206,15 @@ async function extractRowsFromParts(
   assertValidParquetMagic(part3);
 
   const formatVersion = part1Metadata ? readFormatVersion(part1Metadata) : 1;
+  // v3 stores its annotations as dictionary codes plus payloads, which this row-object
+  // reader cannot make sense of: it would get as far as part 3 and complain about
+  // missing 'projection_name'/'x'/'y' columns. Say what is actually wrong instead.
+  if (formatVersion >= 3) {
+    throw new Error(
+      `Parquetbundle declares annotation format v${formatVersion}, which only ` +
+        'decodeParquetBundle can read; extractRowsFromParquetBundle handles v1 and v2.',
+    );
+  }
   const numericColumnTypes: Readonly<Record<string, 'int' | 'float'>> = part1Metadata
     ? readNumericColumnTypes(part1Metadata)
     : {};

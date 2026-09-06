@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { parquetWriteBuffer } from 'hyparquet-writer';
+import { parquetMetadata } from 'hyparquet';
 import {
   BUNDLE_DELIMITER_BYTES,
   concatenateBuffers,
@@ -12,7 +13,8 @@ import {
   type CsrAnnotationData,
   type VisualizationData,
 } from '@protspace/utils';
-import { decodeParquetBundle } from './bundle';
+import { decodeParquetBundle, extractRowsFromParquetBundle } from './bundle';
+import { readV3Bundle } from './bundle-v3';
 import { collectTransferables } from '../decode-transferables';
 
 /**
@@ -142,6 +144,26 @@ const v3Bundle = (overrides: Record<number, Uint8Array> = {}) =>
       (fallback, index) => overrides[index] ?? fallback,
     ),
   );
+
+/**
+ * Every typed array `collectTransferables` names a buffer for, in a stable order, so a
+ * dataset and its structured clone can be compared element by element.
+ */
+const bulkViews = (data: VisualizationData): (Int32Array | Float32Array)[] => [
+  ...data.projections.map((projection) => projection.data as Float32Array),
+  ...Object.values(data.annotation_data).flatMap((value) =>
+    value instanceof Int32Array
+      ? [value]
+      : isCsrAnnotationData(value)
+        ? [value.end, value.codes]
+        : [],
+  ),
+  ...Object.values(data.annotation_scores_csr ?? {}).flatMap((scores) => [
+    scores.hitEnd,
+    scores.values,
+  ]),
+  ...Object.values(data.annotation_evidence_csr ?? {}).map((evidence) => evidence.codes),
+];
 
 const labelsOf = (data: VisualizationData, key: string, protein: number) =>
   getProteinAnnotationIndices(data.annotation_data[key], protein).map(
@@ -323,6 +345,32 @@ describe('parquetbundle format v3', () => {
         /part 3 has no nope__x/,
       ],
       [
+        'a code column the manifest calls numeric',
+        { ...MANIFEST, columns: { ...MANIFEST.columns, organism: { kind: 'numeric' } } },
+        /is kind "numeric", but part 1 stores "organism" as INT32, not DOUBLE/,
+      ],
+      [
+        'a numeric column the manifest calls categorical',
+        { ...MANIFEST, columns: { ...MANIFEST.columns, score: { kind: 'categorical' } } },
+        /is kind "categorical", but part 1 stores "score" as DOUBLE, not INT32/,
+      ],
+      [
+        'a hit-count column the manifest calls numeric',
+        {
+          ...MANIFEST,
+          columns: { ...MANIFEST.columns, go_bp__count: { kind: 'numeric' } },
+        },
+        /is kind "numeric", but part 1 stores "go_bp__count" as INT32, not DOUBLE/,
+      ],
+      [
+        'an annotation column that collides with the id column',
+        {
+          ...MANIFEST,
+          columns: { ...MANIFEST.columns, protein_id: { kind: 'numeric' } },
+        },
+        /declares idColumn "protein_id" as an annotation column too/,
+      ],
+      [
         'an unknown numericType',
         {
           ...MANIFEST,
@@ -398,11 +446,87 @@ describe('parquetbundle format v3', () => {
       );
     });
 
+    it('an evidence code outside the evidence dictionary', async () => {
+      const payloads = { ...PAYLOADS, 'evidence:go_bp': i32(-1, 0, 1, -1, -1, -1, 5, -1, -1) };
+      await expect(decodeParquetBundle(v3Bundle({ 5: payloadPart(payloads) }))).rejects.toThrow(
+        /hit 6 has evidence code 5, outside the 2 evidence labels/,
+      );
+    });
+
+    it('an evidence code below the -1 "no evidence" sentinel', async () => {
+      const payloads = { ...PAYLOADS, 'evidence:go_bp': i32(-2, 0, 1, -1, -1, -1, 0, -1, -1) };
+      await expect(decodeParquetBundle(v3Bundle({ 5: payloadPart(payloads) }))).rejects.toThrow(
+        /hit 0 has evidence code -2, outside the 2 evidence labels/,
+      );
+    });
+
+    it('two payloads sharing one name', async () => {
+      // `payloadPart` takes a Record, which cannot hold a duplicate key, so the rows
+      // are written directly.
+      const names = [...Object.keys(PAYLOADS), 'csr:go_bp'];
+      const duplicated = part([
+        { name: 'name', data: names },
+        { name: 'data', data: [...Object.values(PAYLOADS), i32(0, 0, 0, 0, 0, 0, 0, 0, 0)] },
+      ]);
+      await expect(decodeParquetBundle(v3Bundle({ 5: duplicated }))).rejects.toThrow(
+        /payloads part declares "csr:go_bp" twice/,
+      );
+    });
+
     it('a missing payloads part', async () => {
       await expect(decodeParquetBundle(v3Bundle({ 5: EMPTY }))).rejects.toThrow(
         /carries no payloads part/,
       );
     });
+  });
+
+  // `parquetWriteBuffer` always stamps a truthful `num_rows`, so the lying footer is
+  // built by handing `readV3Bundle` a doctored `FileMetaData` — the same object
+  // `decodeParquetBundle` reads out of part 1.
+  it.each([
+    ['above the row cap', 2_000_001n],
+    ['negative', -1n],
+    ['past the safe-integer range', 9_007_199_254_740_993n],
+    ['absent', undefined],
+  ])('rejects a footer whose row count is %s before allocating on it', async (_label, rows) => {
+    const part1 = annotationsPart();
+    const parts = [
+      part1,
+      PROJECTIONS_METADATA,
+      PROJECTIONS,
+      EMPTY,
+      EMPTY,
+      payloadPart(PAYLOADS),
+    ].map((buffer) => (buffer.byteLength > 0 ? (buffer.slice().buffer as ArrayBuffer) : null));
+    const metadata = parquetMetadata(parts[0]!);
+
+    await expect(readV3Bundle(parts, { ...metadata, num_rows: rows as bigint })).rejects.toThrow(
+      /rows, outside 0\.\.2000000/,
+    );
+  });
+
+  it('reports a projection column that was not written REQUIRED and PLAIN', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const nullable = new Uint8Array(
+      parquetWriteBuffer({
+        columnData: [
+          { name: 'pca2__x', data: [1, 2, 3, 4, 5, 6, 7, null], type: 'FLOAT', nullable: true },
+          { name: 'pca2__y', data: new Float32Array([1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5]) },
+          { name: 'umap3__x', data: new Float32Array([10, 20, 30, 40, 50, 60, 0, 0]) },
+          { name: 'umap3__y', data: new Float32Array([11, 21, 31, 41, 51, 61, 0, 0]) },
+          { name: 'umap3__z', data: new Float32Array([0.25, 0.5, 0.75, 1, 1.25, 1.5, 0, 0]) },
+        ] as never,
+        statistics: false,
+      }),
+    );
+
+    const { data } = await decodeParquetBundle(v3Bundle({ 2: nullable }));
+
+    // The null coerces to 0, which is indistinguishable from an absent protein's
+    // origin fallback — the warning is the only signal that it happened.
+    expect(Array.from(data.projections[0].data.slice(14))).toEqual([0, 8.5]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toMatch(/column "pca2__x" did not decode to a typed array/);
   });
 
   it('decodes non-ASCII labels by byte range, not character offset', async () => {
@@ -415,6 +539,26 @@ describe('parquetbundle format v3', () => {
     };
     const { data } = await decodeParquetBundle(v3Bundle({ 5: payloadPart(payloads) }));
     expect(data.annotations.organism.values).toEqual(['Human', 'Mü', 'Yeast', 'Fly', NA_VALUE]);
+  });
+
+  it('refuses to read a v3 bundle through the legacy row-object extractor', async () => {
+    // Widening the delimiter gate to 5 made this reachable: without the version guard
+    // it gets as far as part 3 and complains about missing projection columns.
+    await expect(extractRowsFromParquetBundle(v3Bundle())).rejects.toThrow(
+      /declares annotation format v3, which only decodeParquetBundle can read/,
+    );
+  });
+
+  it('keeps a byte-order mark that belongs to a label', async () => {
+    // U+FEFF is three bytes, and a decoder that treats it as an encoding marker rather
+    // than a character silently renames the category.
+    const payloads = {
+      ...PAYLOADS,
+      'dict:organism': utf8('\uFEFFHumanMouseYeastFly'),
+      'dict:organism:len': i32(8, 5, 5, 3),
+    };
+    const { data } = await decodeParquetBundle(v3Bundle({ 5: payloadPart(payloads) }));
+    expect(data.annotations.organism.values[0]).toBe('\uFEFFHuman');
   });
 
   it('still reads a bundle whose columns were written nullable, and says so once', async () => {
@@ -466,18 +610,30 @@ describe('parquetbundle format v3', () => {
     const transfer = collectTransferables(data);
 
     expect(new Set(transfer).size).toBe(transfer.length);
-    // 2 projections + organism codes + 2 CSR (end + codes) + scores (hitEnd + values)
-    // + evidence codes.
+    // 2 projections + organism codes + 2 x 2 CSR (end + codes) + scores (hitEnd +
+    // values) + evidence codes.
     expect(transfer).toHaveLength(10);
 
-    const sources = [
-      ...data.projections.map((projection) => projection.data),
-      data.annotation_data.organism as Int32Array,
-      (data.annotation_data.go_bp as CsrAnnotationData).codes,
-      data.annotation_scores_csr!.go_bp.values,
-      data.annotation_evidence_csr!.go_bp.codes,
-    ];
-    structuredClone(data, { transfer });
-    expect(sources.every((array) => array.byteLength === 0)).toBe(true);
+    const sources = bulkViews(data);
+    const before = sources.map((view) => Array.from(view));
+
+    // Each transferred buffer must be owned outright by exactly one view. A view into a
+    // slice of someone else's buffer (a hyparquet page, say) would still transfer, but it
+    // would carry — and detach — bytes that are not ours.
+    for (const buffer of transfer as ArrayBuffer[]) {
+      const owners = sources.filter((view) => view.buffer === buffer);
+      expect(owners).toHaveLength(1);
+      expect(owners[0].byteOffset).toBe(0);
+      expect(owners[0].byteLength).toBe(buffer.byteLength);
+    }
+
+    const clone = structuredClone(data, { transfer });
+
+    expect(sources.every((view) => view.byteLength === 0)).toBe(true);
+    // Reading the clone is the point: asserting only that the sender detached would
+    // pass just as happily on a clone holding the wrong bytes.
+    expect(bulkViews(clone).map((view) => Array.from(view))).toEqual(before);
+    expect(clone.protein_ids).toEqual(PROTEIN_IDS);
+    expect(clone.annotations.go_bp.values).toEqual(data.annotations.go_bp.values);
   });
 });
