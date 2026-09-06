@@ -579,13 +579,17 @@ def _read(part: bytes) -> pa.Table:
 
 
 def _flat(column: pa.ChunkedArray | pa.Array) -> pa.Array:
-    """One contiguous Arrow array (``ListArray.from_arrays`` refuses chunks)."""
+    """One contiguous Arrow array (``ListArray.from_arrays`` refuses chunks).
+
+    Every v3 part is one row group, so the single-chunk branch is what actually
+    runs (a zero-row part still reads back as one empty chunk).  The concat stays
+    because pyarrow splits a column past the 2 GB BinaryArray limit into several
+    chunks, and taking chunk 0 there would silently truncate the column.
+    """
     if not isinstance(column, pa.ChunkedArray):
         return column
     if column.num_chunks == 1:
         return column.chunk(0)
-    if column.num_chunks == 0:
-        return pa.array([], type=column.type)
     return pa.concat_arrays(column.chunks)
 
 
@@ -601,19 +605,44 @@ def _read_payloads(part: bytes) -> dict[str, bytes]:
 
 
 def _read_labels(payloads: dict[str, bytes], name: str) -> list[str]:
-    """Slice ``dict:<name>`` by the prefix sum of its per-label byte lengths."""
+    """Slice ``dict:<name>`` by the prefix sum of its per-label byte lengths.
+
+    A v3 bundle is user-supplied input and Python slicing clamps, so a corrupt
+    length array would silently yield duplicated and empty labels instead of an
+    error.  The lengths must therefore tile the blob exactly.
+    """
     blob = payloads[f"dict:{name}"]
     lengths = np.frombuffer(payloads[f"dict:{name}:len"], "<i4")
     ends = np.cumsum(lengths, dtype=np.int64)
+    total = int(ends[-1]) if ends.size else 0
+    if bool((lengths < 0).any()) or total != len(blob):
+        raise ValueError(
+            f"payload 'dict:{name}:len' is corrupt: {lengths.size} label length(s) "
+            f"totalling {total} over a {len(blob)}-byte 'dict:{name}' blob"
+        )
     return [
         blob[end - length : end].decode()
         for length, end in zip(lengths, ends, strict=True)
     ]
 
 
-def _list_join(counts: np.ndarray, values: pa.Array, separator: str) -> pa.Array:
-    """Prefix-sum per-element ``counts`` into list offsets, then join each list."""
-    offsets = np.concatenate(([0], np.cumsum(counts, dtype=np.int64))).astype(np.int32)
+def _list_join(
+    counts: np.ndarray, values: pa.Array, separator: str, what: str
+) -> pa.Array:
+    """Prefix-sum per-element ``counts`` into list offsets, then join each list.
+
+    A total below ``len(values)`` silently empties the tail lists and a negative
+    count misaligns them, so a user-supplied bundle has to tile ``values``
+    exactly.  (A total above it already raises inside Arrow.)
+    """
+    ends = np.cumsum(counts, dtype=np.int64)
+    total = int(ends[-1]) if ends.size else 0
+    if bool((counts < 0).any()) or total != len(values):
+        raise ValueError(
+            f"{what} is corrupt: {counts.size} count(s) totalling {total} over "
+            f"{len(values)} value(s)"
+        )
+    offsets = np.concatenate(([0], ends)).astype(np.int32)
     lists = pa.ListArray.from_arrays(pa.array(offsets, type=pa.int32()), values)
     return pc.binary_join(lists, separator)
 
@@ -644,9 +673,15 @@ def _decode_numeric(column: pa.ChunkedArray, entry: dict[str, Any]) -> pa.Array:
     finite = np.where(present, values, 0.0)
     # ``str(2.0)`` is ``"2.0"`` but an int-typed v2 column spells it ``"2"``, and
     # numpy's float repr is Python's, so int columns take the int64 detour.  The
-    # magnitude guard keeps a value past int64 out of an undefined cast.
-    if entry.get("numericType") == "int" and np.abs(finite).max(initial=0.0) < 2.0**63:
-        text = finite.astype(np.int64).astype(str)
+    # magnitude guard keeps a value past int64 out of an undefined cast, and it is
+    # per value: one 1e19 cell must not re-spell the whole column as floats.
+    if entry.get("numericType") == "int":
+        small = np.abs(finite) < 2.0**63
+        text = np.where(
+            small,
+            np.where(small, finite, 0.0).astype(np.int64).astype(str),
+            finite.astype(str),
+        )
     else:
         text = finite.astype(str)
     return pc.if_else(
@@ -692,7 +727,7 @@ def _decode_multi(
         )
         scored = pc.if_else(
             pa.array(per_hit > 0),
-            _list_join(per_hit, text, ","),
+            _list_join(per_hit, text, ",", f"payload 'score_count:{name}'"),
             pa.scalar(None, pa.string()),
         )
         suffix = scored if suffix is None else pc.coalesce(suffix, scored)
@@ -703,7 +738,7 @@ def _decode_multi(
         hits = pc.coalesce(pc.binary_join_element_wise(hits, suffix, "|"), hits)
 
     counts = _flat(column).to_numpy(zero_copy_only=False)
-    return _list_join(counts, hits, ";")
+    return _list_join(counts, hits, ";", f"column '{name}__count'")
 
 
 def _decode_projections(

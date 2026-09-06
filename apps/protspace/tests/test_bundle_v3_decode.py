@@ -24,7 +24,7 @@ from protspace.data.annotations.encoding import (
     FORMAT_VERSION_KEY,
     stamp_format_version,
 )
-from protspace.data.io.bundle_v3 import MANIFEST_KEY, decode_v3, encode_v3
+from protspace.data.io.bundle_v3 import MANIFEST_KEY, _flat, decode_v3, encode_v3
 from protspace.data.io.predictions import add_overlay_columns
 from protspace.data.processors.base_processor import BaseProcessor
 
@@ -330,6 +330,35 @@ def test_an_int_column_re_spells_its_cells_canonically():
     assert cells(table, "col") == ["1", "2", "3", "40"]
 
 
+def test_an_int_past_the_int64_range_only_re_spells_itself():
+    """The magnitude guard is per value: one huge cell is not a column-wide float."""
+    table = annotations_table(col=["100", "250", "10000000000000000000"])
+    assert cells(table, "col") == ["100", "250", "1e+19"]
+
+
+def test_a_large_string_column_comes_back_as_its_v2_spelling():
+    """``large_string`` is a parseable alias but not a numeric type to restore."""
+    source = stamp_format_version(
+        pa.table(
+            {
+                "protein_id": ["p0", "p1"],
+                "length": pa.array(["100", "200"], type=pa.large_string()),
+            }
+        )
+    )
+    decoded = round_trip(source, (2,))[0]
+    assert (
+        json.loads(
+            pq.read_table(
+                io.BytesIO(encode_v3(source, *projection_tables(2, (2,)))[0])
+            ).schema.metadata[MANIFEST_KEY]
+        )["columns"]["length"]["sourceType"]
+        == "large_string"
+    )
+    assert decoded.schema.field("length").type == pa.string()
+    assert decoded.column("length").to_pylist() == ["100", "200"]
+
+
 def test_a_bool_column_comes_back_as_the_python_spelling():
     """``sourceType`` restoration is numeric-only; a bool stays v2's ``True``/``False``."""
     source = stamp_format_version(
@@ -379,6 +408,105 @@ def test_rejects_an_unknown_kind():
     parts[0] = buffer.getvalue()
     with pytest.raises(ValueError, match="unknown v3 kind"):
         decode_v3(parts)
+
+
+# --------------------------------------------------------------------------- #
+# corrupt payloads (a v3 bundle is user-supplied input)
+# --------------------------------------------------------------------------- #
+
+
+def rewrite(part: bytes, edit) -> bytes:
+    """Read a part, hand the table to ``edit``, write the result back."""
+    buffer = io.BytesIO()
+    pq.write_table(edit(pq.read_table(io.BytesIO(part))), buffer)
+    return buffer.getvalue()
+
+
+def corrupt_payload(parts: list[bytes], name: str, data: bytes) -> list[bytes]:
+    """Replace one payload row of part 6."""
+
+    def edit(table):
+        names = table.column("name").to_pylist()
+        blobs = table.column("data").to_pylist()
+        blobs[names.index(name)] = data
+        return pa.table({"name": names, "data": blobs})
+
+    return [*parts[:3], rewrite(parts[3], edit)]
+
+
+def encoded(**columns: list[str]) -> list[bytes]:
+    source = annotations_table(**columns)
+    return list(encode_v3(source, *projection_tables(source.num_rows, (2,))))
+
+
+def test_rejects_label_lengths_that_do_not_tile_the_blob():
+    """Python slicing clamps, so this would yield duplicated and empty labels."""
+    parts = corrupt_payload(
+        encoded(col=["Alpha", "Beta", "Gamma"]),
+        "dict:col:len",
+        np.array([100, 100, 100], dtype="<i4").tobytes(),
+    )
+    with pytest.raises(ValueError, match="dict:col:len' is corrupt"):
+        decode_v3(parts)
+
+
+def test_rejects_a_negative_label_length():
+    parts = corrupt_payload(
+        encoded(col=["Alpha", "Beta"]),
+        "dict:col:len",
+        np.array([-4, 13], dtype="<i4").tobytes(),
+    )
+    with pytest.raises(ValueError, match="dict:col:len' is corrupt"):
+        decode_v3(parts)
+
+
+def test_rejects_score_counts_that_do_not_tile_the_scores():
+    """A short total silently empties the tail cells instead of raising."""
+    parts = corrupt_payload(
+        encoded(col=["A|0.5;B|0.25", "C|1"]),
+        "score_count:col",
+        np.array([1, 1, 0], dtype="<i4").tobytes(),
+    )
+    with pytest.raises(ValueError, match="score_count:col' is corrupt"):
+        decode_v3(parts)
+
+
+def test_rejects_hit_counts_that_do_not_tile_the_codes():
+    parts = encoded(col=["A|0.5;B|0.25", "C|1"])
+    parts[0] = rewrite(
+        parts[0],
+        lambda table: table.set_column(
+            table.schema.get_field_index("col__count"),
+            "col__count",
+            pa.array([1, 1], type=pa.int32()),
+        ),
+    )
+    with pytest.raises(ValueError, match=r"col__count' is corrupt"):
+        decode_v3(parts)
+
+
+def test_rejects_a_negative_hit_count():
+    """A negative count keeps the total right but misaligns every later row."""
+    parts = encoded(col=["A;B;C", "D"])
+    parts[0] = rewrite(
+        parts[0],
+        lambda table: table.set_column(
+            table.schema.get_field_index("col__count"),
+            "col__count",
+            pa.array([-1, 5], type=pa.int32()),
+        ),
+    )
+    with pytest.raises(ValueError, match=r"col__count' is corrupt"):
+        decode_v3(parts)
+
+
+def test_flat_concatenates_a_multi_chunk_column():
+    """Every v3 part is one row group, but a >2 GB column reads back chunked."""
+    chunked = pa.chunked_array(
+        [pa.array([1, 2], type=pa.int32()), pa.array([3], type=pa.int32())]
+    )
+    assert _flat(chunked).to_pylist() == [1, 2, 3]
+    assert isinstance(_flat(chunked), pa.Array)
 
 
 # --------------------------------------------------------------------------- #
