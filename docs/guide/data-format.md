@@ -18,8 +18,11 @@ metadata of its first part, under `protspace_format_version` (see
 | Columnar (format v3)      | always 6 | `protspace prepare`, `protspace bundle`, `protspace transfer`                                                        |
 
 Both layouts carry the same data. v3 re-encodes the container, not the dataset: the Python API
-decodes a v3 file back into exactly the three tables, with exactly the cell grammar, that a
-legacy file stores directly. See [Format v3 Physical Schema](#format-v3-physical-schema).
+decodes a v3 file back into the same three tables, in the same cell grammar, that a legacy file
+stores directly. Cells come back in their canonical spelling rather than byte for byte, and the
+deliberate differences are listed under
+[What a v3 round trip does not preserve](#what-a-v3-round-trip-does-not-preserve). See
+[Format v3 Physical Schema](#format-v3-physical-schema).
 
 ### Legacy layout (3 to 5 parts)
 
@@ -323,6 +326,12 @@ When displayed in ProtSpace, the decoded names render as "Superfamily; old" and 
   decode percent-encoded sequences. Existing v1 and v2 bundles therefore keep loading unchanged.
 - Python cross-checks the two signals: a six-part file whose first part does not say `3` is
   rejected rather than guessed at, and a three to five part file is always read as legacy.
+- That cross-check runs in one direction only, which is a known limitation. Only a six-part file
+  has its version key consulted; a five-part file whose key says `3` is read as legacy without
+  complaint, and its part 1 comes back exactly as stored, `INT32` dictionary codes and
+  `<col>__count` columns with no payloads part to resolve them against. Nothing ProtSpace writes
+  produces such a file, because every v3 write emits six parts, but a truncated or hand-assembled
+  one fails quietly instead of loudly.
 - The key versions the **container**, not the cell grammar. The grammar is still v2, which is why
   `BUNDLE_FORMAT_VERSION` on the Python side stays `2` and why the tables handed back from a v3
   read are re-stamped `protspace_format_version=2`: what they contain is v2 cells.
@@ -335,7 +344,10 @@ When displayed in ProtSpace, the decoded names render as "Superfamily; old" and 
 Format v3 changes how the three logical tables are physically stored so that the browser can
 build its typed arrays without parsing a single annotation cell. On the 573K SwissProt dataset
 that takes bundle decoding from about 6.5 s and 2.1 GB of heap to about 0.4 s and under 50 MB,
-in a file about 19% smaller than the v2 encoding of the same data.
+in a file about 19% smaller than the v2 encoding of the same data. The module docstring in
+`bundle_v3.py` quotes 21% for the same bundle. The two numbers measure different builds, not the
+same one twice: 21% is what settled the counts-versus-offsets choice described below, measured
+while scores were still float32, and 19% is the same comparison after scores widened to float64.
 
 Nothing above the container boundary changes. `read_tables()` decodes a v3 file back into the
 v2-shaped tables, so `protspace serve`, `protspace style`, `protspace transfer` and every script
@@ -401,7 +413,7 @@ label's bytes. The reader prefix-sums them into offsets in a single pass.
 
 That is a size decision. Offsets are near incompressible (snappy manages about 0.4% of them on
 the 573K SwissProt bundle) while their first differences, which is what the counts are, compress
-about 8x. On that bundle the difference is roughly 15 MB, about 10.0 MB of it in part 1 and
+about 8x. On that bundle the difference is roughly 16 MB, about 10.0 MB of it in part 1 and
 about 5.7 MB in part 6.
 
 ### Required, PLAIN, one row group
@@ -409,10 +421,18 @@ about 5.7 MB in part 6.
 Every column of parts 1, 3 and 6 is written non-nullable, PLAIN encoded, with dictionary encoding
 disabled, in a single row group, snappy compressed.
 
-That is load bearing, not stylistic. The browser's Parquet reader hands back a zero-copy typed
-array only for a REQUIRED flat PLAIN column. A column written nullable or dictionary-encoded
+For parts 1 and 3 that is load bearing, not stylistic. The browser's Parquet reader hands back a
+zero-copy typed array only for a REQUIRED flat PLAIN column, and each such chunk then lands in
+its preallocated column with a single `set`. A column written nullable or dictionary-encoded
 still decodes to the right values, but it arrives as a plain JavaScript array about 4x slower,
-and the reader logs one warning naming it. Such a column is a writer bug, not a variant.
+and the reader logs a warning naming it. Parts 1 and 3 are read by separate passes that carry one
+warning each, so a single read logs at most two. Such a column is a writer bug, not a variant.
+
+Part 6 is read differently and is not zero-copy at all. It is a handful of large blobs rather
+than hundreds of per-row columns, so the reader loads the whole part at once and copies each
+payload out of the decoded page before wrapping it as a typed array. At that granularity the copy
+costs almost nothing, and it is what guarantees alignment: the payload arrives as a view at an
+arbitrary byte offset, which a `Float64Array` cannot wrap.
 
 ### The manifest
 
@@ -447,9 +467,21 @@ code column declared numeric, for instance), a duplicate projection name, or a d
 not 2 or 3 all throw rather than being repaired.
 
 `sourceType` is Python-private and the browser ignores it. It records the Arrow type the column
-had before encoding, so the decoder can restore it instead of handing back a string column, and
-it is `"?"` for a type that cannot be parsed back from its alias, such as a dictionary, list or
-decimal column. The decoder falls back to the per-kind default for those.
+had before encoding, so the decoder can restore it instead of handing back a string column.
+
+Only a numeric source type is ever restored, and only on a numeric column. The decoder declines
+everything else and falls back to the per-kind default:
+
+- a type whose alias cannot be parsed back at all, such as a dictionary, list or decimal column,
+  is recorded as `"?"`
+- a type whose alias parses but is not an integer or a float is recorded verbatim and declined
+  anyway. A `bool` column records `sourceType` `"bool"` and a timestamp column records
+  `"timestamp[s]"`; neither is restored, and both come back as v2 string cells
+- `"string"` and `"large_string"` are declined by design, because the v2 spelling of the column is
+  what the encoder consumed, so rendering it back is the restoration
+
+`sourceType` is also consulted only when decoding a `numeric` column, so on a `categorical` or
+`multi` column it is recorded but completely inert.
 
 ### Scores are float64
 
@@ -481,15 +513,21 @@ A v3 file stores what the reader would have parsed out of the v2 cells, not the 
 so decoding a v3 bundle returns the canonical spelling of each cell rather than the original
 bytes. The differences are deliberate:
 
-| Written                               | Read back       | Why                                                                                               |
-| ------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------- |
-| `PF00001\|62.0`                       | `PF00001\|62`   | scores are re-spelled the way JavaScript prints them, and JavaScript never prints a trailing `.0` |
-| `PF00001\|0.5700`                     | `PF00001\|0.57` | same rule: the shortest spelling that reads back as the same double                               |
-| ` A \|IDA`                            | `A\|IDA`        | cells and hits are whitespace-trimmed                                                             |
-| `A;;B`                                | `A;B`           | empty hits are dropped                                                                            |
-| `%3b`                                 | `%3B`           | labels are re-encoded canonically, in uppercase hex                                               |
-| a missing cell                        | `""`            | null and blank both mean missing                                                                  |
-| `100.0` where every value is integral | `100`           | the canonical v2 spelling of an integral value                                                    |
+| Written                               | Read back          | Why                                                                                                                             |
+| ------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `PF00001\|62.0`                       | `PF00001\|62`      | scores are re-spelled by Python's float repr, the shortest spelling that reads back as the same double, minus the trailing `.0` |
+| `PF00001\|0.5700`                     | `PF00001\|0.57`    | same rule                                                                                                                       |
+| `PF00001\|2.3e-5`                     | `PF00001\|2.3e-05` | same rule; Python's repr is not JavaScript's, and it pads a single-digit exponent to two digits                                 |
+| `PF00001\|1e16`                       | `PF00001\|1e+16`   | same rule; Python switches to exponential notation at 1e16, JavaScript not until 1e21                                           |
+| ` A \|IDA`                            | `A\|IDA`           | cells and hits are whitespace-trimmed                                                                                           |
+| `A;;B`                                | `A;B`              | empty hits are dropped                                                                                                          |
+| `%3b`                                 | `%3B`              | labels are re-encoded canonically, in uppercase hex                                                                             |
+| a missing cell                        | `""`               | null and blank both mean missing                                                                                                |
+| `100.0` where every value is integral | `100`              | the canonical v2 spelling of an integral value                                                                                  |
+
+The `2.3e-5` and `1e16` rows land squarely in the E-value range the float64 scores exist for, so
+they are worth knowing about, but they are cosmetic rather than corrupting: both spellings
+re-parse to the same double, and a second round trip re-emits the same text.
 
 A cell spelled `none`, `NA` or `null` is an ordinary label and comes back unchanged. Projection
 coordinates come back as float32 with `z` null for a 2D projection, and the identifier column

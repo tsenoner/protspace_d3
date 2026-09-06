@@ -248,7 +248,7 @@ HDF5 file (float16 embeddings)
 3. `projections_data` — reduced coordinates per protein per projection
 4. `settings` (optional) — annotation styles, pinned values, display config
 5. `statistics` (optional) — tidy table of annotation-based validity (silhouette/DBI/CH per annotation, `space_kind ∈ {embedding, projection}`, `annotation` column) + auto-cluster ARI/NMI agreement (`stat_family=cluster_agreement`) (`protspace stats` / `prepare --stats`)
-6. `payloads` (format v3 only, required) — label dictionaries and CSR code/score/evidence buffers for part 1 (`data/io/bundle_v3.py`)
+6. `payloads` (format v3 only, required): label dictionaries and CSR code/score/evidence buffers for part 1 (`data/io/bundle_v3.py`)
 
 Every write from here emits **six** parts (format v3): `core(3) + settings + statistics + payloads`, with zero bytes in the settings or statistics slot when absent, because the browser reads the payloads positionally from `parts[5]`. `replace_settings_in_bundle` (`protspace style`) is the exception: it preserves the layout it was given, so a legacy bundle stays legacy.
 
