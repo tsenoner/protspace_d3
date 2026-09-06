@@ -255,7 +255,7 @@ function cloneCsrWithPredictions(
   const codes = new Int32Array(total);
   // The payloads can only shrink (a replaced row drops its own values), so the source
   // length is a safe upper bound and the trailing slack is sliced off at the end.
-  const values = new Float32Array(sourceScores ? sourceScores.values.length : 0);
+  const values = new Float64Array(sourceScores ? sourceScores.values.length : 0);
   const hitEnd = new Int32Array(sourceScores ? total : 0);
   const evidenceCodes = new Int32Array(sourceEvidence ? total : 0);
 

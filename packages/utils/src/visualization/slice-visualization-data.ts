@@ -64,7 +64,7 @@ export function sliceVisualizationDataByIndices(
         let total = 0;
         for (const hit of hits) total += csr.hitEnd[hit] - (hit === 0 ? 0 : csr.hitEnd[hit - 1]);
         const hitEnd = new Int32Array(hits.length);
-        const values = new Float32Array(total);
+        const values = new Float64Array(total);
         let cursor = 0;
         for (let k = 0; k < hits.length; k++) {
           const hit = hits[k];

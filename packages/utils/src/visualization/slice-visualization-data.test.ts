@@ -114,7 +114,7 @@ describe('sliceVisualizationDataByIndices over CSR storage (bundle format v3)', 
       annotation_scores_csr: {
         fam: {
           hitEnd: Int32Array.of(1, 1, 3, 4),
-          values: Float32Array.of(0.5, 1.5, 2.5, 3.5),
+          values: Float64Array.of(0.5, 1.5, 2.5, 3.5),
         },
       },
       annotation_evidence_csr: {

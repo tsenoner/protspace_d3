@@ -76,7 +76,12 @@ export interface CsrAnnotationData {
  */
 export interface CsrScores {
   readonly hitEnd: Int32Array;
-  readonly values: Float32Array;
+  /**
+   * float64, matching the `scores:<col>` payload the v3 encoder writes. float32
+   * cannot carry an E-value — the canonical Pfam / InterPro score — at all: 1e-200
+   * flushes to 0 and 1e40 saturates to Infinity.
+   */
+  readonly values: Float64Array;
 }
 
 /**

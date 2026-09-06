@@ -9,6 +9,7 @@ import {
   getProteinEvidence,
   getProteinScores,
   isCsrAnnotationData,
+  NA_DEFAULT_COLOR,
   NA_VALUE,
   type CsrAnnotationData,
   type VisualizationData,
@@ -36,6 +37,7 @@ const enc = new TextEncoder();
 const utf8 = (text: string) => enc.encode(text);
 const i32 = (...values: number[]) => new Uint8Array(new Int32Array(values).buffer);
 const f32 = (...values: number[]) => new Uint8Array(new Float32Array(values).buffer);
+const f64 = (...values: number[]) => new Uint8Array(new Float64Array(values).buffer);
 
 type Column = { name: string; data: unknown[] | Int32Array | Float64Array | Float32Array };
 
@@ -126,7 +128,7 @@ const PAYLOADS: Record<string, Uint8Array> = {
   // Hit 3 is the first hit of P5, immediately after the empty interior row P4: its
   // score is what an off-by-one in the inserted-NA `hitEnd` would steal.
   'score_count:go_bp': i32(2, 0, 1, 1, 0, 0, 0, 3, 0),
-  'scores:go_bp': f32(1.5, 2.5, 9.75, 4, 0.5, 0.25, 0.125),
+  'scores:go_bp': f64(1.5, 2.5, 9.75, 4, 0.5, 0.25, 0.125),
   'evidence:go_bp': i32(-1, 0, 1, -1, -1, -1, 0, -1, -1),
   'dict:__evidence': utf8('IDAECO:0000269'),
   'dict:__evidence:len': i32(3, 11),
@@ -149,7 +151,7 @@ const v3Bundle = (overrides: Record<number, Uint8Array> = {}) =>
  * Every typed array `collectTransferables` names a buffer for, in a stable order, so a
  * dataset and its structured clone can be compared element by element.
  */
-const bulkViews = (data: VisualizationData): (Int32Array | Float32Array)[] => [
+const bulkViews = (data: VisualizationData): (Int32Array | Float32Array | Float64Array)[] => [
   ...data.projections.map((projection) => projection.data as Float32Array),
   ...Object.values(data.annotation_data).flatMap((value) =>
     value instanceof Int32Array
@@ -245,6 +247,74 @@ describe('parquetbundle format v3', () => {
     expect(getProteinEvidence(data, 2, 'go_bp')).toEqual(['ECO:0000269']);
     expect(getProteinEvidence(data, 5, 'go_bp')).toEqual(['IDA']);
     expect(getProteinEvidence(data, 7, 'go_bp')).toEqual([null]);
+  });
+
+  it('keeps an E-value score exact, which float32 cannot', async () => {
+    // 1e-200 flushes to 0 and 1e40 saturates to Infinity in float32, and E-values are
+    // the canonical Pfam / InterPro score — so this is the whole reason the payload is
+    // float64. Reading it as float32 also halves the element count, which trips the
+    // score-count check first.
+    const payloads = {
+      ...PAYLOADS,
+      'score_count:go_bp': i32(2, 0, 0, 0, 0, 0, 0, 0, 0),
+      'scores:go_bp': f64(1e-200, 1e40),
+    };
+    const { data } = await decodeParquetBundle(v3Bundle({ 5: payloadPart(payloads) }));
+
+    expect(getProteinScores(data, 1, 'go_bp')).toEqual([[1e-200, 1e40], null]);
+  });
+
+  it('folds every missing-value spelling in a dictionary into ONE __NA__ category', async () => {
+    // The 105K dataset's `gene_name` carries `na` and `nan` as separate dictionary
+    // entries; they must land in a single legend slot, not two.
+    const payloads = {
+      ...PAYLOADS,
+      'dict:organism': utf8('HumannaMousenan'),
+      'dict:organism:len': i32(5, 2, 5, 3),
+    };
+    const { data } = await decodeParquetBundle(v3Bundle({ 5: payloadPart(payloads) }));
+
+    expect(data.annotations.organism.values).toEqual(['Human', 'Mouse', NA_VALUE]);
+    expect(data.annotations.organism.colors).toHaveLength(3);
+    // One NA slot, in the NA swatch — not a category sitting at the palette rank the
+    // token happened to have, and not a second slot beside the synthetic one.
+    expect(data.annotations.organism.colors.at(-1)).toBe(NA_DEFAULT_COLOR);
+    // Rows 1 and 5 spelled `na`, row 7 spelled `nan`, row 3 was already missing: all
+    // four end up on code 2.
+    expect(Array.from(data.annotation_data.organism as Int32Array)).toEqual([
+      0, 2, 1, 2, 0, 2, 1, 2,
+    ]);
+  });
+
+  it('drops a folded CSR hit with its score run and its evidence code', async () => {
+    // `binding` / `none` / `transport`: `none` is 1383 of 1587 rows of
+    // `phosphatase.predicted_transmembrane`, so this is the shipped shape.
+    const payloads = {
+      ...PAYLOADS,
+      'dict:go_bp': utf8('bindingnonetransport'),
+      'dict:go_bp:len': i32(7, 4, 9),
+      // Hit 1 is P2's `none` and now owns a score of 7, which must vanish with it
+      // while every later hit keeps its own.
+      'score_count:go_bp': i32(2, 1, 1, 1, 0, 0, 0, 3, 0),
+      'scores:go_bp': f64(1.5, 2.5, 7, 9.75, 4, 0.5, 0.25, 0.125),
+    };
+    const { data } = await decodeParquetBundle(v3Bundle({ 5: payloadPart(payloads) }));
+
+    expect(data.annotations.go_bp.values).toEqual(['binding', 'transport', NA_VALUE]);
+    expect(Array.from((data.annotation_data.go_bp as CsrAnnotationData).end)).toEqual([
+      1, 2, 3, 4, 6, 7, 9, 10,
+    ]);
+    expect(labelsOf(data, 'go_bp', 1)).toEqual(['binding']);
+    expect(labelsOf(data, 'go_bp', 4)).toEqual(['binding', 'transport']);
+    // P6's only hit was `none`, so the row empties out and takes the same __NA__.
+    expect(labelsOf(data, 'go_bp', 5)).toEqual([NA_VALUE]);
+    expect(getProteinScores(data, 1, 'go_bp')).toEqual([[1.5, 2.5]]);
+    expect(getProteinScores(data, 2, 'go_bp')).toEqual([[9.75]]);
+    expect(getProteinScores(data, 4, 'go_bp')).toEqual([[4], null]);
+    expect(getProteinScores(data, 6, 'go_bp')).toEqual([[0.5, 0.25, 0.125], null]);
+    expect(getProteinEvidence(data, 2, 'go_bp')).toEqual(['ECO:0000269']);
+    // P6's IDA went with its hit.
+    expect(getProteinEvidence(data, 5, 'go_bp')).toEqual([null]);
   });
 
   it('leaves a multi column with neither scores nor evidence without those payloads', async () => {
@@ -426,7 +496,7 @@ describe('parquetbundle format v3', () => {
     });
 
     it('score counts that do not sum to the score count', async () => {
-      const payloads = { ...PAYLOADS, 'scores:go_bp': f32(1.5, 2.5) };
+      const payloads = { ...PAYLOADS, 'scores:go_bp': f64(1.5, 2.5) };
       await expect(decodeParquetBundle(v3Bundle({ 5: payloadPart(payloads) }))).rejects.toThrow(
         /score counts sum to 7 but scores:go_bp holds 2/,
       );
@@ -443,6 +513,15 @@ describe('parquetbundle format v3', () => {
       const payloads = { ...PAYLOADS, 'csr:go_bp': utf8('xyz') };
       await expect(decodeParquetBundle(v3Bundle({ 5: payloadPart(payloads) }))).rejects.toThrow(
         /is 3 bytes, not a multiple of 4/,
+      );
+    });
+
+    it('a score payload whose byte length is not a multiple of 8', async () => {
+      // 12 bytes clears the int32 alignment the other payloads use, so only a
+      // float64-aware check catches it.
+      const payloads = { ...PAYLOADS, 'scores:go_bp': f32(1.5, 2.5, 9.75) };
+      await expect(decodeParquetBundle(v3Bundle({ 5: payloadPart(payloads) }))).rejects.toThrow(
+        /"scores:go_bp" is 12 bytes, not a multiple of 8/,
       );
     });
 

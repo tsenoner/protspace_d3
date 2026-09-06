@@ -427,7 +427,7 @@ describe('CSR score and evidence payloads', () => {
   // hit 0 -> [1.5]; hit 1 -> no scores; hit 2 -> [0.25, 0.5]
   const csrScores: CsrScores = {
     hitEnd: Int32Array.from([1, 1, 3]),
-    values: Float32Array.from([1.5, 0.25, 0.5]),
+    values: Float64Array.from([1.5, 0.25, 0.5]),
   };
   const csrEvidence: CsrEvidence = {
     codes: Int32Array.from([0, -1, 1]),

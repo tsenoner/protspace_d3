@@ -11,12 +11,17 @@
  * This reader therefore never parses a string that is not a label, and hands the worker
  * typed arrays it can transfer instead of structured-clone.
  *
- * Two wire details drive most of the code here:
+ * Three wire details drive most of the code here:
  *
  *  - **Lengths are per-element counts, never cumulative offsets.** Offsets are
  *    near-incompressible; their first differences are not. Every `<col>__count`,
  *    `score_count:<col>` and `dict:<col>:len` family is prefix-summed here into the
  *    cumulative offsets the in-memory `CsrAnnotationData` / `CsrScores` types use.
+ *  - **The dictionaries are faithful, not presentational.** The encoder stopped
+ *    collapsing `none`/`NA`/`null` because doing so corrupted the Python side, so
+ *    `dict:<col>` can carry those spellings as ordinary labels and this reader folds
+ *    them into `__NA__` (see {@link foldMissingLabels}), exactly where the v2 path
+ *    has always applied that rule.
  *  - **Every part 1/3/6 column is REQUIRED and PLAIN**, which is the only shape
  *    hyparquet decodes straight into a typed array. A column that arrives as a plain
  *    array still reads correctly (see the fallback in {@link writeChunk}) but about 4x
@@ -27,6 +32,7 @@ import { parquetMetadata, parquetRead, parquetReadObjects, type FileMetaData } f
 import {
   NA_DEFAULT_COLOR,
   NA_VALUE,
+  normalizeMissingValue,
   type Annotation,
   type AnnotationData,
   type BundleSettings,
@@ -373,15 +379,18 @@ async function readPayloads(part: ArrayBuffer): Promise<Map<string, Uint8Array>>
  * byte offset — so it is copied rather than wrapped. Wrapping would both risk an
  * alignment error and pin (or, if transferred, detach) the whole decoded page.
  */
-function asTypedPayload<T extends Int32Array | Float32Array>(
+function asTypedPayload<T extends Int32Array | Float64Array>(
   payloads: ReadonlyMap<string, Uint8Array>,
   name: string,
-  ctor: new (buffer: ArrayBuffer) => T,
+  ctor: { new (buffer: ArrayBuffer): T; readonly BYTES_PER_ELEMENT: number },
 ): T {
   const bytes = payloads.get(name);
   if (!bytes) throw new Error(`v3 bundle is missing the "${name}" payload`);
-  if (bytes.byteLength % 4 !== 0) {
-    throw new Error(`v3 payload "${name}" is ${bytes.byteLength} bytes, not a multiple of 4`);
+  const width = ctor.BYTES_PER_ELEMENT;
+  if (bytes.byteLength % width !== 0) {
+    throw new Error(
+      `v3 payload "${name}" is ${bytes.byteLength} bytes, not a multiple of ${width}`,
+    );
   }
   return new ctor(bytes.slice().buffer);
 }
@@ -421,6 +430,38 @@ function readLabels(payloads: ReadonlyMap<string, Uint8Array>, name: string): st
   return labels;
 }
 
+/**
+ * Drop the dictionary entries that spell a missing value, exactly as v2 ingestion does.
+ *
+ * The encoder stopped collapsing `none`/`NA`/`null` (it corrupted the Python side —
+ * 1383 rows of `phosphatase.predicted_transmembrane` are literally the word `none`), so
+ * v3 is a faithful container and the presentation rule belongs here, which is where the
+ * v2 path has always applied it: `splitCategoricalAnnotationValues` filters these
+ * spellings out of a cell before anything counts frequencies, so a row left with nothing
+ * falls through to the same synthetic `__NA__` v2 gives it. That is also why folding
+ * cannot produce a second NA slot: `__na__` is itself a missing-value token, so
+ * `NA_VALUE` never survives this pass and the append below is the only NA there is.
+ *
+ * Compaction preserves the survivors' relative order, so the encoder's
+ * descending-frequency dictionary order — and with it the palette assignment — is
+ * unchanged; the colours are generated from the post-fold length.
+ *
+ * Returns the old-code -> new-code map (`-1` for a dropped entry), or `null` when the
+ * dictionary is already clean. `labels` is compacted in place.
+ */
+function foldMissingLabels(labels: string[]): Int32Array | null {
+  const remap = new Int32Array(labels.length);
+  let kept = 0;
+  for (let i = 0; i < labels.length; i++) {
+    const drop = normalizeMissingValue(labels[i]) === null;
+    remap[i] = drop ? -1 : kept;
+    if (!drop) labels[kept++] = labels[i];
+  }
+  if (kept === labels.length) return null;
+  labels.length = kept;
+  return remap;
+}
+
 /** Per-element counts to the cumulative offsets the in-memory CSR types use. */
 function prefixSum(counts: Int32Array, what: string): Int32Array {
   const end = new Int32Array(counts.length);
@@ -434,10 +475,22 @@ function prefixSum(counts: Int32Array, what: string): Int32Array {
   return end;
 }
 
+/**
+ * Score values are read as **float64**, matching what the encoder writes.
+ *
+ * float32 destroys the E-value, which is the canonical Pfam and InterPro score: 1e-200
+ * flushes to 0 and 1e40 saturates to Infinity. `CsrScores.values` in `@protspace/utils`
+ * is still declared `Float32Array` and has to be widened to accept this.
+ */
+interface V3Scores {
+  hitEnd: Int32Array;
+  values: Float64Array;
+}
+
 interface CsrColumn {
   end: Int32Array;
   codes: Int32Array;
-  scores: CsrScores | null;
+  scores: V3Scores | null;
   evidence: CsrEvidence | null;
 }
 
@@ -466,7 +519,7 @@ function readCsrColumn(
     }
   }
 
-  let scores: CsrScores | null = null;
+  let scores: V3Scores | null = null;
   if (column.scores) {
     const scoreCounts = asTypedPayload(payloads, `score_count:${name}`, Int32Array);
     if (scoreCounts.length !== codes.length) {
@@ -474,7 +527,7 @@ function readCsrColumn(
         `v3 column "${name}" has ${scoreCounts.length} score counts for ${codes.length} hits`,
       );
     }
-    const values = asTypedPayload(payloads, `scores:${name}`, Float32Array);
+    const values = asTypedPayload(payloads, `scores:${name}`, Float64Array);
     const hitEnd = prefixSum(scoreCounts, `column "${name}" score counts`);
     const scoreTotal = hitEnd.length > 0 ? hitEnd[hitEnd.length - 1] : 0;
     if (scoreTotal !== values.length) {
@@ -507,6 +560,59 @@ function readCsrColumn(
   }
 
   return { end, codes, scores, evidence };
+}
+
+/**
+ * Renumber a CSR column onto a folded dictionary, dropping the hits whose label went
+ * with it — along with that hit's score run and evidence code, both of which are
+ * numbered by hit. A row left with nothing is picked up by {@link insertNAForEmptyRows}
+ * below, which is what v2 does with a cell whose only value was a missing-value
+ * spelling.
+ */
+function dropFoldedHits(csr: CsrColumn, remap: Int32Array | null): CsrColumn {
+  if (!remap) return csr;
+
+  const numRows = csr.end.length;
+  const scores = csr.scores;
+  let keptHits = 0;
+  let keptScores = 0;
+  for (let hit = 0; hit < csr.codes.length; hit++) {
+    if (remap[csr.codes[hit]] < 0) continue;
+    keptHits++;
+    if (scores) keptScores += scores.hitEnd[hit] - (hit === 0 ? 0 : scores.hitEnd[hit - 1]);
+  }
+
+  const codes = new Int32Array(keptHits);
+  const end = new Int32Array(numRows);
+  const evidenceCodes = csr.evidence ? new Int32Array(keptHits) : null;
+  const hitEnd = scores ? new Int32Array(keptHits) : null;
+  const values = scores ? new Float64Array(keptScores) : null;
+
+  let write = 0;
+  let scoreWrite = 0;
+  for (let row = 0; row < numRows; row++) {
+    for (let hit = row === 0 ? 0 : csr.end[row - 1]; hit < csr.end[row]; hit++) {
+      const code = remap[csr.codes[hit]];
+      if (code < 0) continue;
+      codes[write] = code;
+      if (evidenceCodes) evidenceCodes[write] = csr.evidence!.codes[hit];
+      if (hitEnd) {
+        for (let at = hit === 0 ? 0 : scores!.hitEnd[hit - 1]; at < scores!.hitEnd[hit]; at++) {
+          values![scoreWrite++] = scores!.values[at];
+        }
+        hitEnd[write] = scoreWrite;
+      }
+      write++;
+    }
+    end[row] = write;
+  }
+
+  return {
+    end,
+    codes,
+    scores: scores ? { hitEnd: hitEnd!, values: values! } : null,
+    evidence: csr.evidence ? { codes: evidenceCodes!, dict: csr.evidence.dict } : null,
+  };
 }
 
 /**
@@ -638,28 +744,36 @@ export async function readV3Bundle(
     }
 
     const labels = readLabels(payloads, name);
+    // Codes on the wire index the dictionary AS WRITTEN, so they are range-checked
+    // against that count and only then renumbered onto the folded one.
+    const encodedLabelCount = labels.length;
+    const remap = foldMissingLabels(labels);
     const { colors, shapes } = generateColorsAndShapes('kellys', labels.length);
 
     if (column.kind === 'categorical') {
       const codes = stored as Int32Array;
       for (let i = 0; i < numRows; i++) {
-        if (codes[i] >= labels.length || codes[i] < -1) {
+        if (codes[i] >= encodedLabelCount || codes[i] < -1) {
           throw new Error(
-            `v3 column "${name}" row ${i} has code ${codes[i]}, outside its ${labels.length} labels`,
+            `v3 column "${name}" row ${i} has code ${codes[i]}, outside its ${encodedLabelCount} labels`,
           );
         }
+        if (remap && codes[i] >= 0) codes[i] = remap[codes[i]];
       }
       appendSyntheticNACategoryToCodes(labels, colors, shapes, codes);
       annotation_data[name] = codes;
     } else {
       const csr = insertNAForEmptyRows(
-        readCsrColumn(
-          name,
-          column,
-          stored as Int32Array,
-          labels.length,
-          payloads,
-          readEvidenceDict,
+        dropFoldedHits(
+          readCsrColumn(
+            name,
+            column,
+            stored as Int32Array,
+            encodedLabelCount,
+            payloads,
+            readEvidenceDict,
+          ),
+          remap,
         ),
         labels,
         colors,

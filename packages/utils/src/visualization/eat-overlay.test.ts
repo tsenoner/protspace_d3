@@ -262,7 +262,7 @@ describe('EAT overlay over CSR storage (bundle format v3)', () => {
       annotation_scores_csr: {
         ec: {
           hitEnd: Int32Array.of(1, 2, 3, 4, 4),
-          values: Float32Array.of(0.25, 0.5, 0.75, 0.125),
+          values: Float64Array.of(0.25, 0.5, 0.75, 0.125),
         },
       },
       annotation_evidence_csr: {
@@ -302,7 +302,9 @@ describe('EAT overlay over CSR storage (bundle format v3)', () => {
     expect(Array.from(data.annotation_evidence_csr!.ec.codes)).toEqual([0, 1, 2, 0, -1]);
     // p1's 0.5 is gone with the row it belonged to; the slack is not retained.
     expect(Array.from(out.annotation_scores_csr!.ec.values)).toEqual([0.25, 0.75, 0.125]);
-    expect(out.annotation_scores_csr!.ec.values.buffer.byteLength).toBe(3 * 4);
+    expect(out.annotation_scores_csr!.ec.values.buffer.byteLength).toBe(
+      3 * Float64Array.BYTES_PER_ELEMENT,
+    );
   });
 
   it('does not grow the payload records on a dataset that carries none', () => {
