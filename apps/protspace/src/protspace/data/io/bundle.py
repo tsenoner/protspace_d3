@@ -253,6 +253,17 @@ def read_bundle(bundle_path: Path) -> tuple[list[bytes], dict | None]:
     return core, settings
 
 
+def read_settings_from_bundle(bundle_path: Path) -> dict | None:
+    """Return the parsed settings (fourth part), or None if absent.
+
+    The settings-only read: unlike :func:`read_bundle` it never touches the
+    core, so ``protspace style`` no longer pays a full v3 decode plus
+    re-serialization of every annotation column just to look at a JSON blob.
+    """
+    settings = _parse_bundle(bundle_path)[1]
+    return read_settings_from_bytes(settings) if settings else None
+
+
 def read_statistics_from_bundle(bundle_path: Path) -> bytes | None:
     """Return the raw statistics parquet bytes (fifth part), or None if absent."""
     return _parse_bundle(bundle_path)[2]
